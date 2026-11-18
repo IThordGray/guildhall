@@ -12,9 +12,11 @@ was decided for the build.
 
 ## Commands
 
-`godot` = the standard (non-.NET) Godot 4.7.1 editor binary on PATH. These become runnable in M0.
+`godot` = the standard (non-.NET) Godot 4.7.1 editor, at
+`%LOCALAPPDATA%/Programs/Godot/godot.exe` (on the user PATH; shells started earlier may lack it).
 
-- Test: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://test -gexit`
+- Test: `godot --headless --path . --import && godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://test -gexit`
+  — the import is required: without it GUT runs no tests and still exits 0.
 - Build (web): `godot --headless --export-release "Web" build/web/index.html`
 - Build (Android): `godot --headless --export-debug "Android" build/android/guildhall.apk`
 - Main branch: `main`. Every push to `main` runs CI and deploys the web build to
