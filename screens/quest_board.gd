@@ -30,6 +30,8 @@ var _out_rows: Array[OutRow] = []
 @onready var _out: VBoxContainer = $Scroll/Box/Out
 @onready var _list: VBoxContainer = $Scroll/Box/List
 @onready var _empty: Label = $Scroll/Box/Empty
+@onready var _parties: Control = $Scroll/Box/Header/Parties
+@onready var _parties_count: Label = $Scroll/Box/Header/Parties/Count
 
 
 ## A party-out row's parts that change each second.
@@ -66,9 +68,15 @@ func _ready() -> void:
 		_list.add_child(row)
 
 
+## Landscape shows how many parties are out beside the title.
+func set_landscape(landscape: bool) -> void:
+	_parties.visible = landscape
+
+
 ## Shows the debriefs waiting and the parties out in `dispatch` at `now`, then `quests`, the board
 ## in board order.
 func show_board(quests: PackedStringArray, dispatch: Dispatch, now: int) -> void:
+	_parties_count.text = str(dispatch.outings.size())
 	_show_debriefs(dispatch, now)
 	_show_out(dispatch, now)
 	_show_challenges(dispatch)

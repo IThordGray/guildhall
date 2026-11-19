@@ -4,42 +4,122 @@ extends PanelContainer
 ## The player chose to send `party`, keys of Dispatch.ADVENTURERS, on `quest`.
 signal send_pressed(quest: String, party: PackedStringArray)
 
+## The tick on a picked adventurer's card in landscape.
+const TICK_SIZE_PX: float = 40.0
+const TICK_GOLD: Color = Color("#f2c14e")
+const TICK_MARK: Color = Color("#16131b")
+## How many times larger than its pixels a face shows on a landscape card, a whole number so the
+## pixels stay crisp.
+const FACE_SCALE: int = 3
+## A portrait adventurer line's height.
+const LINE_HEIGHT_PX: float = 150.0
+## In landscape the gaps between the picker's parts shrink to this, so the docked panel fits
+## without scrolling.
+const LANDSCAPE_GAP_PX: int = 12
+
 var _quest: String = ""
 var _picked: PackedStringArray = PackedStringArray()
 var _toggles: Dictionary[String, Button] = {}
+## Each adventurer's face for their landscape card, and the tick shown on it when picked.
+var _faces: Dictionary[String, Texture2D] = {}
+var _ticks: Dictionary[String, Control] = {}
 ## The dispatch and time last shown, so picking someone can update the odds at once.
 var _dispatch: Dispatch
 var _now: int = 0
+## Whether the picker sits beside the board rather than popping up over it.
+var _docked: bool = false
+## The picker's stacks and their gaps as the scene has them, for portrait.
+var _portrait_gaps: Dictionary[BoxContainer, int] = {}
 
-@onready var _title: Label = $Box/Heading/Title
-@onready var _meta: Label = $Box/Heading/Meta
-@onready var _list: VBoxContainer = $Box/List
-@onready var _coverage: HFlowContainer = $Box/Forecast/Box/Coverage
-@onready var _chance: Control = $Box/Forecast/Box/Chance
-@onready var _odds: Label = $Box/Forecast/Box/Chance/Odds
-@onready var _band: Control = $Box/Forecast/Box/Band
-@onready var _band_fill: Control = $Box/Forecast/Box/Band/Fill
-@onready var _note: Label = $Box/Forecast/Box/Note
-@onready var _reason: Label = $Box/Reason
-@onready var _send: Button = $Box/Buttons/Send
+@onready var _title: Label = $Root/Scroll/Box/Heading/Title
+@onready var _meta: Label = $Root/Scroll/Box/Heading/Meta
+@onready var _list: GridContainer = $Root/Scroll/Box/List
+@onready var _coverage: HFlowContainer = $Root/Scroll/Box/Forecast/Box/Coverage
+@onready var _chance: Control = $Root/Scroll/Box/Forecast/Box/Chance
+@onready var _odds: Label = $Root/Scroll/Box/Forecast/Box/Chance/Odds
+@onready var _band: Control = $Root/Scroll/Box/Forecast/Box/Band
+@onready var _band_fill: Control = $Root/Scroll/Box/Forecast/Box/Band/Fill
+@onready var _note: Label = $Root/Scroll/Box/Forecast/Box/Note
+@onready var _reason: Label = $Root/Scroll/Box/Reason
+@onready var _send: Button = $Root/Buttons/Send
+@onready var _root: BoxContainer = $Root
+@onready var _scroll: ScrollContainer = $Root/Scroll
+@onready var _prompt: Label = $Prompt
 
 
 func _ready() -> void:
 	for adventurer: String in Dispatch.ADVENTURERS:
 		var toggle := Button.new()
 		toggle.toggle_mode = true
-		toggle.custom_minimum_size = Vector2(0, 150)
+		toggle.custom_minimum_size = Vector2(0, LINE_HEIGHT_PX)
 		toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		toggle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		toggle.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		toggle.toggled.connect(_on_toggled.bind(adventurer))
 		_toggles[adventurer] = toggle
 		_list.add_child(toggle)
+		var face := (load("res://assets/faces/%s.png" % adventurer) as Texture2D).get_image()
+		face.resize(face.get_width() * FACE_SCALE, face.get_height() * FACE_SCALE, Image.INTERPOLATE_NEAREST)
+		_faces[adventurer] = ImageTexture.create_from_image(face)
+		var tick := Control.new()
+		tick.visible = false
+		tick.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tick.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		tick.position = Vector2(-TICK_SIZE_PX - 12, 12)
+		tick.size = Vector2.ONE * TICK_SIZE_PX
+		tick.draw.connect(_draw_tick.bind(tick))
+		toggle.add_child(tick)
+		_ticks[adventurer] = tick
 	_send.pressed.connect(func() -> void: send_pressed.emit(_quest, _picked))
-	$Box/Buttons/Cancel.pressed.connect(hide)
+	$Root/Buttons/Cancel.pressed.connect(close)
+	for stack: BoxContainer in [_root, $Root/Scroll/Box, $Root/Scroll/Box/Forecast/Box]:
+		_portrait_gaps[stack] = stack.get_theme_constant(&"separation")
+
+
+## Landscape docks the picker beside the board, a panel whose adventurers are cards four across:
+## face, name, power and health, or their status when they can't go. Portrait pops it up over the
+## board, as tall as its content, one adventurer per line.
+func set_landscape(landscape: bool) -> void:
+	_docked = landscape
+	theme_type_variation = &"" if landscape else &"Dialog"
+	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER if landscape else ScrollContainer.SCROLL_MODE_DISABLED
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL if landscape else Control.SIZE_FILL
+	_list.columns = _toggles.size() if landscape else 1
+	_title.theme_type_variation = &"Heading" if landscape else &"Title"
+	for stack: BoxContainer in _portrait_gaps:
+		stack.add_theme_constant_override(&"separation", LANDSCAPE_GAP_PX if landscape else _portrait_gaps[stack])
+	for adventurer: String in _toggles:
+		var toggle := _toggles[adventurer]
+		toggle.theme_type_variation = &"PickCard" if landscape else &""
+		toggle.custom_minimum_size.y = 0.0 if landscape else LINE_HEIGHT_PX
+		toggle.alignment = HORIZONTAL_ALIGNMENT_CENTER if landscape else HORIZONTAL_ALIGNMENT_LEFT
+		toggle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if landscape else TextServer.AUTOWRAP_OFF
+		toggle.icon = _faces[adventurer] if landscape else null
+		# A top icon makes room for itself even without one, so portrait keeps the defaults.
+		toggle.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER if landscape else HORIZONTAL_ALIGNMENT_LEFT
+		toggle.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP if landscape else VERTICAL_ALIGNMENT_CENTER
+	if has_quest():
+		show_dispatch(_dispatch, _now)
+
+
+## Whether a quest is picked, so the picker has a party to choose.
+func has_quest() -> bool:
+	return not _quest.is_empty()
+
+
+## Drops the quest: docked, the picker prompts for one instead; otherwise it hides.
+func close() -> void:
+	_quest = ""
+	_root.hide()
+	_prompt.show()
+	visible = _docked
 
 
 ## Opens the picker for `quest` with nobody picked.
 func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	_quest = quest
+	_prompt.hide()
+	_root.show()
 	_picked = PackedStringArray()
 	for toggle: Button in _toggles.values():
 		toggle.set_pressed_no_signal(false)
@@ -58,9 +138,18 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 	for adventurer: String in _toggles:
 		var info: Dictionary = Dispatch.ADVENTURERS[adventurer]
 		var toggle := _toggles[adventurer]
-		var health := "health %d / %d" % [dispatch.health(adventurer, now), dispatch.adventurers.max_health(adventurer)]
-		toggle.text = "%s · %s %s · power %d\n%s · %s" % [info["name"], info["class"], info["rank"], dispatch.adventurers.power(adventurer), dispatch.status(adventurer, now), health]
-		toggle.disabled = not dispatch.can_go(adventurer, now)
+		var points := dispatch.health(adventurer, now)
+		var most := dispatch.adventurers.max_health(adventurer)
+		var power := dispatch.adventurers.power(adventurer)
+		var can_go := dispatch.can_go(adventurer, now)
+		if not _docked:
+			toggle.text = "%s · %s %s · power %d\n%s · health %d / %d" % [info["name"], info["class"], info["rank"], power, dispatch.status(adventurer, now), points, most]
+		elif can_go:
+			toggle.text = "%s\nPower %d\n%d / %d health" % [info["name"], power, points, most]
+		else:
+			toggle.text = "%s\n%s" % [info["name"], dispatch.status(adventurer, now)]
+		toggle.disabled = not can_go
+		_ticks[adventurer].visible = _docked and toggle.button_pressed
 	var reason := dispatch.party_refusal(_quest, _picked, now)
 	_reason.text = reason
 	_reason.visible = not reason.is_empty()
@@ -97,6 +186,15 @@ func _show_forecast() -> void:
 		if not unknown.is_empty():
 			note = "One challenge is still unknown; revealing it narrows the range. " + note
 	_note.text = note
+
+
+# A gold disc with a dark check mark.
+func _draw_tick(tick: Control) -> void:
+	tick.draw_circle(tick.size / 2.0, TICK_SIZE_PX / 2.0, TICK_GOLD)
+	var points := PackedVector2Array([Vector2(0.28, 0.52), Vector2(0.44, 0.68), Vector2(0.74, 0.36)])
+	for i: int in points.size():
+		points[i] *= TICK_SIZE_PX
+	tick.draw_polyline(points, TICK_MARK, TICK_SIZE_PX / 10.0, true)
 
 
 func _on_toggled(picked: bool, adventurer: String) -> void:

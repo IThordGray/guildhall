@@ -25,115 +25,133 @@ layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="Content" type="VBoxContainer" parent="Box/Scroll"]
+[node name="Content" type="BoxContainer" parent="Box/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 28
+vertical = true
+
+[node name="Card" type="VBoxContainer" parent="Box/Scroll/Content"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 28
 
-[node name="Header" type="PanelContainer" parent="Box/Scroll/Content"]
+[node name="GearColumn" type="VBoxContainer" parent="Box/Scroll/Content"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.8
+theme_override_constants/separation = 28
+
+[node name="StashColumn" type="VBoxContainer" parent="Box/Scroll/Content"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.4
+theme_override_constants/separation = 28
+
+[node name="Header" type="PanelContainer" parent="Box/Scroll/Content/Card"]
 layout_mode = 2
 
-[node name="Row" type="HBoxContainer" parent="Box/Scroll/Content/Header"]
+[node name="Row" type="BoxContainer" parent="Box/Scroll/Content/Card/Header"]
 layout_mode = 2
 theme_override_constants/separation = 32
 
-[node name="Token" type="Label" parent="Box/Scroll/Content/Header/Row"]
+[node name="Token" type="Label" parent="Box/Scroll/Content/Card/Header/Row"]
 custom_minimum_size = Vector2(80, 80)
 layout_mode = 2
 size_flags_vertical = 4
 theme_type_variation = &"Token"
 
-[node name="Words" type="VBoxContainer" parent="Box/Scroll/Content/Header/Row"]
+[node name="Words" type="VBoxContainer" parent="Box/Scroll/Content/Card/Header/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 16
 
-[node name="NameLine" type="HBoxContainer" parent="Box/Scroll/Content/Header/Row/Words"]
+[node name="NameLine" type="BoxContainer" parent="Box/Scroll/Content/Card/Header/Row/Words"]
 layout_mode = 2
 
-[node name="Name" type="Label" parent="Box/Scroll/Content/Header/Row/Words/NameLine"]
+[node name="Name" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/NameLine"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"Title"
 
-[node name="Status" type="Label" parent="Box/Scroll/Content/Header/Row/Words/NameLine"]
+[node name="Status" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/NameLine"]
 layout_mode = 2
 theme_type_variation = &"Ok"
 text = "Resting"
 vertical_alignment = 1
 
-[node name="Details" type="Label" parent="Box/Scroll/Content/Header/Row/Words"]
+[node name="Details" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words"]
 layout_mode = 2
 theme_type_variation = &"Secondary"
 
-[node name="LevelUp" type="Button" parent="Box/Scroll/Content/Header/Row/Words"]
+[node name="LevelUp" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words"]
 visible = false
 custom_minimum_size = Vector2(0, 120)
 layout_mode = 2
 theme_type_variation = &"GoldButton"
 text = "Level up"
 
-[node name="Xp" type="VBoxContainer" parent="Box/Scroll/Content/Header/Row/Words"]
+[node name="Xp" type="VBoxContainer" parent="Box/Scroll/Content/Card/Header/Row/Words"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Bar" type="ProgressBar" parent="Box/Scroll/Content/Header/Row/Words/Xp"]
+[node name="Bar" type="ProgressBar" parent="Box/Scroll/Content/Card/Header/Row/Words/Xp"]
 custom_minimum_size = Vector2(0, 16)
 layout_mode = 2
 theme_type_variation = &"OwnBar"
 show_percentage = false
 
-[node name="Text" type="Label" parent="Box/Scroll/Content/Header/Row/Words/Xp"]
+[node name="Text" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/Xp"]
 layout_mode = 2
 theme_type_variation = &"Meta"
 
-[node name="StatsSection" type="Label" parent="Box/Scroll/Content"]
+[node name="StatsSection" type="Label" parent="Box/Scroll/Content/Card"]
 layout_mode = 2
 theme_type_variation = &"Section"
 text = "STATS"
 
-[node name="Stats" type="PanelContainer" parent="Box/Scroll/Content"]
+[node name="Stats" type="PanelContainer" parent="Box/Scroll/Content/Card"]
 layout_mode = 2
 
-[node name="Rows" type="VBoxContainer" parent="Box/Scroll/Content/Stats"]
+[node name="Rows" type="VBoxContainer" parent="Box/Scroll/Content/Card/Stats"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="History" type="VBoxContainer" parent="Box/Scroll/Content/Stats/Rows"]
+[node name="History" type="VBoxContainer" parent="Box/Scroll/Content/Card/Stats/Rows"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Hint" type="Label" parent="Box/Scroll/Content/Stats/Rows"]
+[node name="Hint" type="Label" parent="Box/Scroll/Content/Card/Stats/Rows"]
 layout_mode = 2
 theme_type_variation = &"Caption"
 text = "Growth is their own and hidden. Level-ups show it; a Training room gives hints."
 autowrap_mode = 3
 
-[node name="GearSection" type="Label" parent="Box/Scroll/Content"]
+[node name="GearSection" type="Label" parent="Box/Scroll/Content/GearColumn"]
 layout_mode = 2
 theme_type_variation = &"Section"
 text = "GEAR"
 
-[node name="Gear" type="GridContainer" parent="Box/Scroll/Content"]
+[node name="Gear" type="GridContainer" parent="Box/Scroll/Content/GearColumn"]
 layout_mode = 2
 theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 24
 columns = 4
 
-[node name="StashSection" type="Label" parent="Box/Scroll/Content"]
+[node name="StashSection" type="Label" parent="Box/Scroll/Content/StashColumn"]
 layout_mode = 2
 theme_type_variation = &"Section"
 text = "STASH"
 
-[node name="Stash" type="PanelContainer" parent="Box/Scroll/Content"]
+[node name="Stash" type="PanelContainer" parent="Box/Scroll/Content/StashColumn"]
 layout_mode = 2
 theme_type_variation = &"ProgressList"
 
-[node name="Items" type="VBoxContainer" parent="Box/Scroll/Content/Stash"]
+[node name="Items" type="VBoxContainer" parent="Box/Scroll/Content/StashColumn/Stash"]
 layout_mode = 2
 theme_override_constants/separation = 0
 
-[node name="StashHint" type="Label" parent="Box/Scroll/Content"]
+[node name="StashHint" type="Label" parent="Box/Scroll/Content/StashColumn"]
 layout_mode = 2
 theme_type_variation = &"Caption"
 text = "The stash is shared by the whole guild. Any class can wear any item."

@@ -10,6 +10,8 @@ signal wear_pressed(adventurer: String, index: int)
 
 ## A stat at this value fills its bar.
 const STAT_BAR_FULL: int = 20
+## The width a health row keeps for its text, so bars in a list line up.
+const HEALTH_TEXT_WIDTH_PX: float = 480.0
 
 var _adventurer: String = ""
 ## Each stat's bar: own in purple over own plus gear in gold.
@@ -23,23 +25,25 @@ var _history_shown: Array = []
 ## The adventurer, their gear, the stash and whether they may change gear, as shown, so the gear
 ## and stash are rebuilt only when these change.
 var _gear_shown: Array = []
+## Whether the landscape layout shows, so the gear and stash are built to fit its narrower columns.
+var _landscape: bool = false
 
-@onready var _token: Label = $Box/Scroll/Content/Header/Row/Token
-@onready var _name: Label = $Box/Scroll/Content/Header/Row/Words/NameLine/Name
-@onready var _status: Label = $Box/Scroll/Content/Header/Row/Words/NameLine/Status
-@onready var _details: Label = $Box/Scroll/Content/Header/Row/Words/Details
-@onready var _level_up: Button = $Box/Scroll/Content/Header/Row/Words/LevelUp
-@onready var _xp: VBoxContainer = $Box/Scroll/Content/Header/Row/Words/Xp
-@onready var _xp_bar: ProgressBar = $Box/Scroll/Content/Header/Row/Words/Xp/Bar
-@onready var _xp_text: Label = $Box/Scroll/Content/Header/Row/Words/Xp/Text
-@onready var _history: VBoxContainer = $Box/Scroll/Content/Stats/Rows/History
-@onready var _gear: GridContainer = $Box/Scroll/Content/Gear
-@onready var _stash_section: Label = $Box/Scroll/Content/StashSection
-@onready var _stash: VBoxContainer = $Box/Scroll/Content/Stash/Items
+@onready var _token: Label = $Box/Scroll/Content/Card/Header/Row/Token
+@onready var _name: Label = $Box/Scroll/Content/Card/Header/Row/Words/NameLine/Name
+@onready var _status: Label = $Box/Scroll/Content/Card/Header/Row/Words/NameLine/Status
+@onready var _details: Label = $Box/Scroll/Content/Card/Header/Row/Words/Details
+@onready var _level_up: Button = $Box/Scroll/Content/Card/Header/Row/Words/LevelUp
+@onready var _xp: VBoxContainer = $Box/Scroll/Content/Card/Header/Row/Words/Xp
+@onready var _xp_bar: ProgressBar = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Bar
+@onready var _xp_text: Label = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Text
+@onready var _history: VBoxContainer = $Box/Scroll/Content/Card/Stats/Rows/History
+@onready var _gear: GridContainer = $Box/Scroll/Content/GearColumn/Gear
+@onready var _stash_section: Label = $Box/Scroll/Content/StashColumn/StashSection
+@onready var _stash: VBoxContainer = $Box/Scroll/Content/StashColumn/Stash/Items
 
 
 func _ready() -> void:
-	var rows := $Box/Scroll/Content/Stats/Rows as VBoxContainer
+	var rows := $Box/Scroll/Content/Card/Stats/Rows as VBoxContainer
 	for stat: String in Adventurers.STATS:
 		var row := stat_row(Adventurers.STATS[stat], &"Label")
 		var bar: ProgressBar = row.get_child(1)
@@ -66,11 +70,30 @@ func _ready() -> void:
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
 
 
+## Landscape sets the card, the gear and the stash side by side: the card stacks its face, name
+## and status, the gear goes two to a row, as narrow as its boxes, and Wear buttons wrap. Portrait
+## stacks the three, the gear four to a row.
+func set_landscape(landscape: bool) -> void:
+	_landscape = landscape
+	($Box/Scroll/Content as BoxContainer).vertical = not landscape
+	($Box/Scroll/Content/Card/Header/Row as BoxContainer).vertical = landscape
+	($Box/Scroll/Content/Card/Header/Row/Words/NameLine as BoxContainer).vertical = landscape
+	_gear.columns = 2 if landscape else 4
+	# The card is too narrow in landscape for the health text's fixed width to leave room for a bar.
+	(_health.get_child(1) as Control).custom_minimum_size.x = 0.0 if landscape else HEALTH_TEXT_WIDTH_PX
+	if not _gear_shown.is_empty():
+		_show_gear(_gear_shown[1])
+		_show_stash(_gear_shown[2], _gear_shown[3])
+
+
 ## Shows `adventurer` as `dispatch` has them at `now`.
 func show_adventurer(adventurer: String, dispatch: Dispatch, now: int) -> void:
 	if adventurer != _adventurer:
 		var token := QuestBoard.token(adventurer)
-		_token.replace_by(token)
+		token.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		# Not replace_by: it would move the old token's face onto the new one.
+		_token.add_sibling(token)
+		_token.get_parent().remove_child(_token)
 		_token.queue_free()
 		_token = token
 	_adventurer = adventurer
@@ -165,7 +188,7 @@ func _show_gear(worn: Dictionary) -> void:
 		slot_name.text = Gear.SLOTS[slot].to_upper()
 		slot_name.theme_type_variation = &"Caption"
 		var cell := VBoxContainer.new()
-		cell.custom_minimum_size = Vector2(228, 0)
+		cell.custom_minimum_size = Vector2(0 if _landscape else 228, 0)
 		cell.add_theme_constant_override("separation", 6)
 		cell.add_child(box)
 		cell.add_child(slot_name)
@@ -210,6 +233,7 @@ func _show_stash(stash: PackedStringArray, can_change: bool) -> void:
 		wear.text = "Wear" if can_change else "Out on a quest"
 		wear.disabled = not can_change
 		wear.custom_minimum_size = Vector2(200, 100)
+		wear.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if _landscape else TextServer.AUTOWRAP_OFF
 		wear.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		wear.pressed.connect(func() -> void: wear_pressed.emit(_adventurer, i))
 		var line := HBoxContainer.new()
@@ -269,7 +293,7 @@ static func health_row() -> HBoxContainer:
 	# A fixed width, so bars line up whether or not the time until full is shown.
 	var text := Label.new()
 	text.theme_type_variation = &"Meta"
-	text.custom_minimum_size = Vector2(480, 0)
+	text.custom_minimum_size = Vector2(HEALTH_TEXT_WIDTH_PX, 0)
 	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE

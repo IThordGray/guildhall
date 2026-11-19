@@ -26,10 +26,34 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 24
 
-[node name="Title" type="Label" parent="Scroll/Box"]
+[node name="Header" type="HBoxContainer" parent="Scroll/Box"]
 layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Title" type="Label" parent="Scroll/Box/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_type_variation = &"Title"
 text = "Quests"
+
+[node name="Parties" type="HBoxContainer" parent="Scroll/Box/Header"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Text" type="Label" parent="Scroll/Box/Header/Parties"]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"Secondary"
+text = "Parties out"
+vertical_alignment = 1
+
+[node name="Count" type="Label" parent="Scroll/Box/Header/Parties"]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"Numbers"
+text = "0"
+vertical_alignment = 1
 
 [node name="DebriefsHeader" type="HBoxContainer" parent="Scroll/Box"]
 visible = false

@@ -8,7 +8,7 @@ var _statuses: Dictionary[String, Label] = {}
 var _details: Dictionary[String, Label] = {}
 var _healths: Dictionary[String, HBoxContainer] = {}
 
-@onready var _list: VBoxContainer = $Box/List
+@onready var _list: VBoxContainer = $Scroll/Box/List
 
 
 func _ready() -> void:

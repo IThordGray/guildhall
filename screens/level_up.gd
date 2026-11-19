@@ -9,15 +9,15 @@ var _values: Dictionary[String, Label] = {}
 var _names: Dictionary[String, Label] = {}
 var _changes: Dictionary[String, Label] = {}
 
-@onready var _token: Label = $Box/Top/Token
-@onready var _title: Label = $Box/Top/Title
-@onready var _details: Label = $Box/Top/Details
-@onready var _xp_bar: ProgressBar = $Box/XpBar
-@onready var _xp_text: Label = $Box/XpText
+@onready var _token: Label = $Scroll/Box/Top/Token
+@onready var _title: Label = $Scroll/Box/Top/Title
+@onready var _details: Label = $Scroll/Box/Top/Details
+@onready var _xp_bar: ProgressBar = $Scroll/Box/XpBar
+@onready var _xp_text: Label = $Scroll/Box/XpText
 
 
 func _ready() -> void:
-	var rows := $Box/Changed/Rows as VBoxContainer
+	var rows := $Scroll/Box/Changed/Rows as VBoxContainer
 	for stat: String in Adventurers.STATS:
 		var row := Adventurer.stat_row(Adventurers.STATS[stat], &"Label")
 		_names[stat] = row.get_child(0)
@@ -30,14 +30,15 @@ func _ready() -> void:
 		_changes[stat] = change
 		row.add_child(change)
 		rows.add_child(row)
-	($Box/Continue as Button).pressed.connect(continue_pressed.emit)
+	($Scroll/Box/Continue as Button).pressed.connect(continue_pressed.emit)
 
 
 ## Shows the level-up `adventurer` just had in `adventurers`, which raised each stat by `gains`.
 func show_level_up(adventurer: String, gains: Dictionary, adventurers: Adventurers) -> void:
 	var token := QuestBoard.token(adventurer)
 	token.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_token.replace_by(token)
+	_token.add_sibling(token)
+	_token.get_parent().remove_child(_token)
 	_token.queue_free()
 	_token = token
 	var info: Dictionary = Dispatch.ADVENTURERS[adventurer]

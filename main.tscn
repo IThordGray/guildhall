@@ -69,52 +69,46 @@ theme_type_variation = &"Numbers"
 text = "0"
 vertical_alignment = 1
 
-[node name="HallView" parent="." instance=ExtResource("10_hall_view")]
+[node name="Body" type="Control" parent="."]
 layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 offset_left = 44.0
 offset_top = 168.0
 offset_right = -44.0
 offset_bottom = -192.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 
-[node name="QuestBoard" parent="." instance=ExtResource("2_board")]
+[node name="HallView" parent="Body" instance=ExtResource("10_hall_view")]
+layout_mode = 1
+
+[node name="QuestBoard" parent="Body" instance=ExtResource("2_board")]
 visible = false
 layout_mode = 1
-offset_left = 44.0
-offset_top = 168.0
-offset_right = -44.0
-offset_bottom = -216.0
+offset_bottom = -24.0
 
-[node name="Debrief" parent="." instance=ExtResource("11_debrief")]
+[node name="Debrief" parent="Body" instance=ExtResource("11_debrief")]
 visible = false
 layout_mode = 1
-offset_left = 44.0
-offset_top = 168.0
-offset_right = -44.0
-offset_bottom = -216.0
+offset_bottom = -24.0
 
-[node name="Roster" parent="." instance=ExtResource("3_roster")]
+[node name="Roster" parent="Body" instance=ExtResource("3_roster")]
 visible = false
 layout_mode = 1
-offset_left = 44.0
-offset_top = 168.0
-offset_right = -44.0
-offset_bottom = -216.0
+offset_bottom = -24.0
 
-[node name="Adventurer" parent="." instance=ExtResource("12_adventurer")]
+[node name="Adventurer" parent="Body" instance=ExtResource("12_adventurer")]
 visible = false
 layout_mode = 1
-offset_left = 44.0
-offset_top = 168.0
-offset_right = -44.0
-offset_bottom = -216.0
+offset_bottom = -24.0
 
-[node name="LevelUp" parent="." instance=ExtResource("13_level_up")]
+[node name="LevelUp" parent="Body" instance=ExtResource("13_level_up")]
 visible = false
 layout_mode = 1
-offset_left = 44.0
-offset_top = 168.0
-offset_right = -44.0
-offset_bottom = -216.0
+offset_bottom = -24.0
 
 [node name="TabBar" type="PanelContainer" parent="."]
 layout_mode = 1
@@ -127,9 +121,26 @@ grow_horizontal = 2
 grow_vertical = 0
 theme_type_variation = &"BottomBar"
 
-[node name="Tabs" type="HBoxContainer" parent="TabBar"]
+[node name="Tabs" type="BoxContainer" parent="TabBar"]
 layout_mode = 2
 theme_override_constants/separation = 12
+
+[node name="Gold" type="VBoxContainer" parent="TabBar/Tabs"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Coin" type="Panel" parent="TabBar/Tabs/Gold"]
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"Coin"
+
+[node name="Label" type="Label" parent="TabBar/Tabs/Gold"]
+layout_mode = 2
+theme_type_variation = &"GoldAmount"
+text = "0"
+horizontal_alignment = 1
 
 [node name="Hall" type="Button" parent="TabBar/Tabs"]
 layout_mode = 2

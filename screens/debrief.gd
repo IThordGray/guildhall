@@ -4,16 +4,16 @@ extends Control
 ## The player read the debrief and filed it away.
 signal done_pressed
 
-@onready var _quest: Label = $Box/Header/Words/Quest
-@onready var _result: Label = $Box/Header/Result
-@onready var _members: VBoxContainer = $Box/Who/Members
-@onready var _revealed: Label = $Box/Revealed
-@onready var _gold: Label = $Box/Brought/Rows/Row/Gold
-@onready var _items: VBoxContainer = $Box/Brought/Rows/Items
+@onready var _quest: Label = $Scroll/Box/Header/Words/Quest
+@onready var _result: Label = $Scroll/Box/Header/Result
+@onready var _members: VBoxContainer = $Scroll/Box/Who/Members
+@onready var _revealed: Label = $Scroll/Box/Revealed
+@onready var _gold: Label = $Scroll/Box/Brought/Rows/Row/Gold
+@onready var _items: VBoxContainer = $Scroll/Box/Brought/Rows/Items
 
 
 func _ready() -> void:
-	($Box/Done as Button).pressed.connect(done_pressed.emit)
+	($Scroll/Box/Done as Button).pressed.connect(done_pressed.emit)
 
 
 ## Shows `debrief`, one of Dispatch.debriefs, with who of its party has a level-up waiting in

@@ -1,6 +1,17 @@
 extends Control
 
 const SAVE_PATH: String = "user://save.cfg"
+## The landscape rail, which holds the gold and the tabs.
+const RAIL_WIDTH_PX: float = 200.0
+## In landscape, the space between the screens and the rail or the window's sides, and between
+## the board and the party picker.
+const SIDE_MARGIN_PX: float = 44.0
+## In landscape, the space between the screens and the window's top and bottom.
+const END_MARGIN_PX: float = 32.0
+## In landscape, Roster, Debrief and Level up are a centred column at most this wide.
+const COLUMN_WIDTH_PX: float = 1100.0
+## In landscape, the share of the body's width the quest board takes; the party picker has the rest.
+const BOARD_SHARE: float = 0.42
 
 var _gold: Gold
 var _hall: Hall
@@ -12,17 +23,28 @@ var _chosen_slot: String = ""
 var _open_debrief: int = -1
 ## The adventurer the Adventurer screen shows.
 var _shown_adventurer: String = ""
+## Whether the window is wider than tall, so the landscape layout shows.
+var _landscape: bool = false
+## Each part that moves with the orientation: its portrait anchors and offsets as main.tscn has
+## them, each a Vector4 of left, top, right, bottom.
+var _portrait_places: Dictionary[Control, Array] = {}
 
+@onready var _top_bar: Control = $TopBar
 @onready var _build_label: Label = $TopBar/Row/BuildLabel
 @onready var _gold_label: Label = $TopBar/Row/GoldLabel
 @onready var _parties_label: Label = $TopBar/Row/PartiesLabel
-@onready var _hall_view: HallView = $HallView
-@onready var _board: QuestBoard = $QuestBoard
-@onready var _debrief: Debrief = $Debrief
+@onready var _body: Control = $Body
+@onready var _hall_view: HallView = $Body/HallView
+@onready var _board: QuestBoard = $Body/QuestBoard
+@onready var _debrief: Debrief = $Body/Debrief
+@onready var _tab_bar: PanelContainer = $TabBar
+@onready var _tabs: BoxContainer = $TabBar/Tabs
+@onready var _rail_gold: Control = $TabBar/Tabs/Gold
+@onready var _rail_gold_label: Label = $TabBar/Tabs/Gold/Label
 @onready var _debrief_badge: Label = $TabBar/Tabs/Quests/Badge
-@onready var _roster: Roster = $Roster
-@onready var _adventurer: Adventurer = $Adventurer
-@onready var _level_up: LevelUp = $LevelUp
+@onready var _roster: Roster = $Body/Roster
+@onready var _adventurer: Adventurer = $Body/Adventurer
+@onready var _level_up: LevelUp = $Body/LevelUp
 @onready var _picker: PartyPicker = $PartyPicker
 @onready var _convert_panel: ConvertPanel = $ConvertPanel
 @onready var _tick: Timer = $Tick
@@ -46,6 +68,13 @@ func _ready() -> void:
 	_adventurer.wear_pressed.connect(_on_wear_pressed)
 	_level_up.continue_pressed.connect(_on_level_up_continue)
 	_tick.timeout.connect(_on_tick)
+	for part: Control in [_tab_bar, _body, _board, _debrief, _roster, _adventurer, _level_up, _picker]:
+		_portrait_places[part] = [
+			Vector4(part.anchor_left, part.anchor_top, part.anchor_right, part.anchor_bottom),
+			Vector4(part.offset_left, part.offset_top, part.offset_right, part.offset_bottom),
+		]
+	get_window().size_changed.connect(_lay_out)
+	_lay_out()
 	var now := _now()
 	_gold = Gold.load_or_start(SAVE_PATH)
 	_hall = Hall.load_or_start(SAVE_PATH, now)
@@ -104,6 +133,7 @@ func _checkpoint(now: int) -> void:
 	if file.save(SAVE_PATH) != OK:
 		push_error("Could not save to " + SAVE_PATH)
 	_gold_label.text = str(_gold.amount)
+	_rail_gold_label.text = _gold_label.text
 	_parties_label.text = str(_dispatch.outings.size())
 	_debrief_badge.text = str(_dispatch.debriefs.size())
 	_debrief_badge.visible = not _dispatch.debriefs.is_empty()
@@ -113,7 +143,7 @@ func _checkpoint(now: int) -> void:
 	_roster.show_dispatch(_dispatch, now)
 	if _adventurer.visible:
 		_adventurer.show_adventurer(_shown_adventurer, _dispatch, now)
-	if _picker.visible:
+	if _picker.visible and _picker.has_quest():
 		_picker.show_dispatch(_dispatch, now)
 	if _convert_panel.visible:
 		_convert_panel.show_hall(_hall, _chosen_slot, _gold, now)
@@ -147,7 +177,7 @@ func _on_send_pressed(quest: String) -> void:
 func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
 	if _daily_board.send(_dispatch, quest, party, randi(), _gold, now, _utc_offset_minutes(), _quest_halls(now), _hall.first_done_at("infirmary")):
-		_picker.hide()
+		_picker.close()
 	_checkpoint(now)
 
 
@@ -156,12 +186,14 @@ func _on_debrief_pressed(index: int) -> void:
 	_debrief.show_debrief(_dispatch.debriefs[index], _dispatch.adventurers)
 	_board.hide()
 	_debrief.show()
+	_show_picker()
 
 
 func _on_debrief_done() -> void:
 	_dispatch.read_debrief(_open_debrief)
 	_debrief.hide()
 	_board.show()
+	_show_picker()
 	_checkpoint(_now())
 
 
@@ -213,7 +245,61 @@ func _on_tab_pressed(tab: BaseButton) -> void:
 	_adventurer.hide()
 	_level_up.hide()
 	_convert_panel.hide()
-	_picker.hide()
+	_picker.close()
+	_show_picker()
+
+
+# The window's shape picks the layout, wider than tall being landscape: the rail instead of the
+# top and bottom bars, and screens side by side. The design size turns with the window, so its
+# short side stays the same either way.
+func _lay_out() -> void:
+	var window := get_window()
+	var landscape := window.size.x > window.size.y
+	if landscape == _landscape:
+		return
+	_landscape = landscape
+	var portrait_size := Vector2i(ProjectSettings.get_setting("display/window/size/viewport_width"), ProjectSettings.get_setting("display/window/size/viewport_height"))
+	window.content_scale_size = Vector2i(portrait_size.y, portrait_size.x) if landscape else portrait_size
+	_top_bar.visible = not landscape
+	_rail_gold.visible = landscape
+	_tabs.vertical = landscape
+	_tab_bar.theme_type_variation = &"Rail" if landscape else &"BottomBar"
+	_hall_view.set_landscape(landscape)
+	_board.set_landscape(landscape)
+	_adventurer.set_landscape(landscape)
+	_picker.set_landscape(landscape)
+	if not landscape:
+		for part: Control in _portrait_places:
+			_place(part, _portrait_places[part][0], _portrait_places[part][1])
+	else:
+		var full := Vector4(0, 0, 1, 1)
+		_place(_tab_bar, Vector4(0, 0, 0, 1), Vector4(0, 0, RAIL_WIDTH_PX, 0))
+		_place(_body, full, Vector4(RAIL_WIDTH_PX + SIDE_MARGIN_PX, END_MARGIN_PX, -SIDE_MARGIN_PX, -END_MARGIN_PX))
+		_place(_board, Vector4(0, 0, BOARD_SHARE, 1), Vector4(0, 0, -SIDE_MARGIN_PX / 2, 0))
+		_place(_adventurer, full, Vector4.ZERO)
+		for column: Control in [_debrief, _roster, _level_up]:
+			_place(column, Vector4(0.5, 0, 0.5, 1), Vector4(-COLUMN_WIDTH_PX / 2, 0, COLUMN_WIDTH_PX / 2, 0))
+		# The picker is not in the body, so it is placed against the window: from half a gap right
+		# of the board's edge, BOARD_SHARE of the way across the body, to the body's right edge.
+		var body_left := RAIL_WIDTH_PX + SIDE_MARGIN_PX
+		var picker_left := body_left - BOARD_SHARE * (body_left + SIDE_MARGIN_PX) + SIDE_MARGIN_PX / 2
+		_place(_picker, Vector4(BOARD_SHARE, 0, 1, 1), Vector4(picker_left, END_MARGIN_PX, -SIDE_MARGIN_PX, -END_MARGIN_PX))
+	_show_picker()
+
+
+# Sets `control`'s anchors and offsets, each given as left, top, right, bottom. Anchors pushed
+# past their opposite on the way are set again after, so the order of sides does not matter.
+static func _place(control: Control, anchors: Vector4, offsets: Vector4) -> void:
+	control.set_anchor_and_offset(SIDE_LEFT, anchors.x, offsets.x, true)
+	control.set_anchor_and_offset(SIDE_TOP, anchors.y, offsets.y, true)
+	control.set_anchor_and_offset(SIDE_RIGHT, anchors.z, offsets.z, true)
+	control.set_anchor_and_offset(SIDE_BOTTOM, anchors.w, offsets.w, true)
+
+
+# In landscape the party picker sits beside the board whenever the board shows, prompting for a
+# quest until one is picked; in portrait it pops up over the board only while a quest is picked.
+func _show_picker() -> void:
+	_picker.visible = _board.visible and (_landscape or _picker.has_quest())
 
 
 func _quest_halls(now: int) -> int:

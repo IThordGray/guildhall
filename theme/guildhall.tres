@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=50 format=3]
+[gd_resource type="Theme" load_steps=54 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -79,6 +79,15 @@ bg_color = Color(0.1098, 0.09412, 0.1333, 1)
 border_width_top = 3
 border_color = Color(0.1647, 0.1451, 0.2, 1)
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rail"]
+content_margin_left = 12.0
+content_margin_top = 28.0
+content_margin_right = 12.0
+content_margin_bottom = 28.0
+bg_color = Color(0.1098, 0.09412, 0.1333, 1)
+border_width_right = 3
+border_color = Color(0.1647, 0.1451, 0.2, 1)
+
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_focus"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button"]
@@ -118,6 +127,54 @@ content_margin_left = 36.0
 content_margin_top = 24.0
 content_margin_right = 36.0
 content_margin_bottom = 24.0
+bg_color = Color(0.1098, 0.09412, 0.1333, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.1647, 0.1451, 0.2, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pick_card"]
+content_margin_left = 12.0
+content_margin_top = 10.0
+content_margin_right = 12.0
+content_margin_bottom = 10.0
+bg_color = Color(0.1294, 0.1137, 0.1569, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.2275, 0.2039, 0.2745, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pick_card_pressed"]
+content_margin_left = 12.0
+content_margin_top = 10.0
+content_margin_right = 12.0
+content_margin_bottom = 10.0
+bg_color = Color(0.1647, 0.1451, 0.2, 1)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0.949, 0.7569, 0.3059, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pick_card_disabled"]
+content_margin_left = 12.0
+content_margin_top = 10.0
+content_margin_right = 12.0
+content_margin_bottom = 10.0
 bg_color = Color(0.1098, 0.09412, 0.1333, 1)
 border_width_left = 3
 border_width_top = 3
@@ -618,12 +675,21 @@ Ok/base_type = &"Label"
 Ok/colors/font_color = Color(0.4353, 0.8118, 0.5569, 1)
 Panel/styles/panel = SubResource("StyleBoxFlat_screen")
 PanelContainer/styles/panel = SubResource("StyleBoxFlat_row")
+PickCard/base_type = &"Button"
+PickCard/font_sizes/font_size = 30
+PickCard/styles/disabled = SubResource("StyleBoxFlat_pick_card_disabled")
+PickCard/styles/hover = SubResource("StyleBoxFlat_pick_card")
+PickCard/styles/hover_pressed = SubResource("StyleBoxFlat_pick_card_pressed")
+PickCard/styles/normal = SubResource("StyleBoxFlat_pick_card")
+PickCard/styles/pressed = SubResource("StyleBoxFlat_pick_card_pressed")
 Plan/base_type = &"Panel"
 Plan/styles/panel = SubResource("StyleBoxFlat_plan")
 ProgressList/base_type = &"PanelContainer"
 ProgressList/styles/panel = SubResource("StyleBoxFlat_progress_list")
 ProgressRow/base_type = &"PanelContainer"
 ProgressRow/styles/panel = SubResource("StyleBoxFlat_progress_row")
+Rail/base_type = &"PanelContainer"
+Rail/styles/panel = SubResource("StyleBoxFlat_rail")
 RangeBand/base_type = &"Panel"
 RangeBand/styles/panel = SubResource("StyleBoxFlat_bar_gold")
 RangeTrack/base_type = &"Panel"

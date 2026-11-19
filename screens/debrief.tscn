@@ -11,99 +11,106 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_debrief")
 
-[node name="Box" type="VBoxContainer" parent="."]
+[node name="Scroll" type="ScrollContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 3
+
+[node name="Box" type="VBoxContainer" parent="Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 theme_override_constants/separation = 24
 
-[node name="Header" type="HBoxContainer" parent="Box"]
+[node name="Header" type="HBoxContainer" parent="Scroll/Box"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Words" type="VBoxContainer" parent="Box/Header"]
+[node name="Words" type="VBoxContainer" parent="Scroll/Box/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 4
 
-[node name="Section" type="Label" parent="Box/Header/Words"]
+[node name="Section" type="Label" parent="Scroll/Box/Header/Words"]
 layout_mode = 2
 theme_type_variation = &"Section"
 text = "DEBRIEF"
 
-[node name="Quest" type="Label" parent="Box/Header/Words"]
+[node name="Quest" type="Label" parent="Scroll/Box/Header/Words"]
 layout_mode = 2
 theme_type_variation = &"Title"
 autowrap_mode = 3
 
-[node name="Result" type="Label" parent="Box/Header"]
+[node name="Result" type="Label" parent="Scroll/Box/Header"]
 layout_mode = 2
 size_flags_vertical = 8
 theme_type_variation = &"SuccessChip"
 text = "Success"
 
-[node name="WhoSection" type="Label" parent="Box"]
+[node name="WhoSection" type="Label" parent="Scroll/Box"]
 layout_mode = 2
 theme_type_variation = &"Section"
 text = "WHO CAME BACK"
 
-[node name="Who" type="PanelContainer" parent="Box"]
+[node name="Who" type="PanelContainer" parent="Scroll/Box"]
 layout_mode = 2
 theme_type_variation = &"ProgressList"
 
-[node name="Members" type="VBoxContainer" parent="Box/Who"]
+[node name="Members" type="VBoxContainer" parent="Scroll/Box/Who"]
 layout_mode = 2
 theme_override_constants/separation = 0
 
-[node name="Revealed" type="Label" parent="Box"]
+[node name="Revealed" type="Label" parent="Scroll/Box"]
 visible = false
 layout_mode = 2
 theme_type_variation = &"Secondary"
 text = "Revealed: Traps"
 autowrap_mode = 3
 
-[node name="Brought" type="PanelContainer" parent="Box"]
+[node name="Brought" type="PanelContainer" parent="Scroll/Box"]
 layout_mode = 2
 
-[node name="Rows" type="VBoxContainer" parent="Box/Brought"]
+[node name="Rows" type="VBoxContainer" parent="Scroll/Box/Brought"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Row" type="HBoxContainer" parent="Box/Brought/Rows"]
+[node name="Row" type="HBoxContainer" parent="Scroll/Box/Brought/Rows"]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Section" type="Label" parent="Box/Brought/Rows/Row"]
+[node name="Section" type="Label" parent="Scroll/Box/Brought/Rows/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"Section"
 text = "BROUGHT BACK"
 vertical_alignment = 1
 
-[node name="Coin" type="Panel" parent="Box/Brought/Rows/Row"]
+[node name="Coin" type="Panel" parent="Scroll/Box/Brought/Rows/Row"]
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 size_flags_vertical = 4
 theme_type_variation = &"Coin"
 
-[node name="Gold" type="Label" parent="Box/Brought/Rows/Row"]
+[node name="Gold" type="Label" parent="Scroll/Box/Brought/Rows/Row"]
 layout_mode = 2
 theme_type_variation = &"GoldAmount"
 text = "+0"
 vertical_alignment = 1
 
-[node name="Items" type="VBoxContainer" parent="Box/Brought/Rows"]
+[node name="Items" type="VBoxContainer" parent="Scroll/Box/Brought/Rows"]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Spacer" type="Control" parent="Box"]
+[node name="Spacer" type="Control" parent="Scroll/Box"]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="Done" type="Button" parent="Box"]
+[node name="Done" type="Button" parent="Scroll/Box"]
 custom_minimum_size = Vector2(0, 144)
 layout_mode = 2
 theme_type_variation = &"GoldButton"

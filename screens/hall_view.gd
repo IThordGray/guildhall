@@ -54,12 +54,14 @@ var _rooms: Dictionary[String, Room] = {}
 var _entries: Array[Dictionary] = []
 var _rows: Array[Row] = []
 
-@onready var _summary: Label = $Scroll/Box/Header/Summary
-@onready var _plan: Control = $Scroll/Box/Plan
-@onready var _legend: HBoxContainer = $Scroll/Box/Legend
-@onready var _section: Control = $Scroll/Box/Section
-@onready var _list: Control = $Scroll/Box/List
-@onready var _list_rows: VBoxContainer = $Scroll/Box/List/Rows
+@onready var _summary: Label = $Scroll/Box/Top/Header/Summary
+@onready var _parties: Control = $Scroll/Box/Top/Header/Parties
+@onready var _parties_count: Label = $Scroll/Box/Top/Header/Parties/Count
+@onready var _plan: Control = $Scroll/Box/Columns/Left/Plan
+@onready var _legend: HBoxContainer = $Scroll/Box/Columns/Left/Legend
+@onready var _section: Control = $Scroll/Box/Columns/Right/Section
+@onready var _list: Control = $Scroll/Box/Columns/Right/List
+@onready var _list_rows: VBoxContainer = $Scroll/Box/Columns/Right/List/Rows
 
 
 ## A room on the plan and the parts that change with its state.
@@ -102,6 +104,15 @@ func _ready() -> void:
 		_legend.add_child(item)
 
 
+## Landscape puts the floor bar beside the header and In progress beside the plan, shows how many
+## parties are out in the header, and leaves out the legend; portrait stacks them all.
+func set_landscape(landscape: bool) -> void:
+	($Scroll/Box/Top as BoxContainer).vertical = not landscape
+	($Scroll/Box/Columns as BoxContainer).vertical = not landscape
+	_parties.visible = landscape
+	_legend.visible = not landscape
+
+
 ## Shows the hall, who is home, and what is under way at `now`; `quests_on_board` is how many
 ## quests the board offers.
 func show_state(hall: Hall, dispatch: Dispatch, gold: Gold, quests_on_board: int, now: int) -> void:
@@ -115,6 +126,7 @@ func show_state(hall: Hall, dispatch: Dispatch, gold: Gold, quests_on_board: int
 			infirmary = slot
 		_show_room(_rooms[slot], slot, state, hall, gold, now)
 	_summary.text = "Ground floor · %d of %d rooms in use" % [in_use, _rooms.size()]
+	_parties_count.text = str(dispatch.outings.size())
 	_show_tokens(dispatch, infirmary, now)
 	_show_progress(hall, dispatch, quests_on_board, now)
 
