@@ -28,7 +28,6 @@ var _chosen_slot: String = ""
 @onready var _restore_panel: Control = $RestorePanel
 @onready var _restore_reason: Label = $RestorePanel/Box/Reason
 @onready var _restore_button: Button = $RestorePanel/Box/Buttons/Restore
-@onready var _away_message: Button = $AwayMessage
 @onready var _tick: Timer = $Tick
 
 
@@ -38,7 +37,6 @@ func _ready() -> void:
 	$RestorePanel/Box/Cost.text = "Restore — %d gold · %s" % [Hall.RESTORE_COST_GOLD, _minutes_seconds(Hall.RESTORE_SECONDS)]
 	$RestorePanel/Box/Buttons/Cancel.pressed.connect(_restore_panel.hide)
 	_restore_button.pressed.connect(_on_restore_pressed)
-	_away_message.pressed.connect(_away_message.hide)
 	_tick.timeout.connect(_on_tick)
 	var now := _now()
 	_gold = Gold.load_or_start(SAVE_PATH, now)
@@ -65,15 +63,8 @@ func _arrive() -> void:
 	if not _tick.is_stopped():
 		return
 	var now := _now()
-	var news := PackedStringArray()
-	var away_gold := _gold.away_report(now)
-	if away_gold > 0:
-		news.append("While you were away: +%d gold" % away_gold)
-	if _hall.finished_since_checkpoint(now):
-		news.append("Room restored")
-	if not news.is_empty():
-		_away_message.text = "\n".join(news)
-		_away_message.show()
+	# A return summary goes here, before _checkpoint folds the absence in: Gold.away_report(now)
+	# and Hall.finished_since_checkpoint(now) say what happened while the app was away.
 	_checkpoint(now)
 	_tick.start()
 
