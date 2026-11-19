@@ -1,7 +1,9 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
+[ext_resource type="PackedScene" path="res://screens/roster.tscn" id="3_roster"]
+[ext_resource type="PackedScene" path="res://screens/party_picker.tscn" id="4_picker"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -87,6 +89,14 @@ offset_top = 152.0
 offset_right = -24.0
 offset_bottom = -200.0
 
+[node name="Roster" parent="." instance=ExtResource("3_roster")]
+visible = false
+layout_mode = 1
+offset_left = 24.0
+offset_top = 152.0
+offset_right = -24.0
+offset_bottom = -200.0
+
 [node name="TabBar" type="HBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 12
@@ -114,6 +124,14 @@ theme_override_font_sizes/font_size = 56
 toggle_mode = true
 button_group = SubResource("ButtonGroup_tabs")
 text = "Quests"
+
+[node name="Roster" type="Button" parent="TabBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 56
+toggle_mode = true
+button_group = SubResource("ButtonGroup_tabs")
+text = "Roster"
 
 [node name="RestorePanel" type="PanelContainer" parent="."]
 visible = false
@@ -164,5 +182,9 @@ custom_minimum_size = Vector2(300, 120)
 layout_mode = 2
 theme_override_font_sizes/font_size = 52
 text = "Cancel"
+
+[node name="PartyPicker" parent="." instance=ExtResource("4_picker")]
+visible = false
+layout_mode = 1
 
 [node name="Tick" type="Timer" parent="."]

@@ -27,6 +27,8 @@ var _chosen_slot: String = ""
 @onready var _gold_label: Label = $TopBar/GoldLabel
 @onready var _floor: Control = $Floor
 @onready var _board: QuestBoard = $QuestBoard
+@onready var _roster: Roster = $Roster
+@onready var _picker: PartyPicker = $PartyPicker
 @onready var _restore_panel: Control = $RestorePanel
 @onready var _restore_reason: Label = $RestorePanel/Box/Reason
 @onready var _restore_button: Button = $RestorePanel/Box/Buttons/Restore
@@ -39,8 +41,9 @@ func _ready() -> void:
 	$RestorePanel/Box/Cost.text = "Restore — %d gold · %s" % [Hall.RESTORE_COST_GOLD, Duration.label(Hall.RESTORE_SECONDS)]
 	$RestorePanel/Box/Buttons/Cancel.pressed.connect(_restore_panel.hide)
 	_restore_button.pressed.connect(_on_restore_pressed)
-	$TabBar/Hall.toggled.connect(_on_hall_tab_toggled)
+	($TabBar/Hall as Button).button_group.pressed.connect(_on_tab_pressed)
 	_board.send_pressed.connect(_on_send_pressed)
+	_picker.send_pressed.connect(_on_party_sent)
 	_tick.timeout.connect(_on_tick)
 	var now := _now()
 	_gold = Gold.load_or_start(SAVE_PATH)
@@ -69,8 +72,9 @@ func _arrive() -> void:
 		return
 	var now := _now()
 	# A return summary goes here, before _checkpoint folds the absence in: a party back from its
-	# quest (Dispatch.returned_since_checkpoint(now), its reward paid at the checkpoint) and a room
-	# restored (Hall.finished_since_checkpoint(now)) are what happened while the app was away.
+	# quest (Dispatch.returned_since_checkpoint(now); the checkpoint applies its outcome, the reward
+	# or the quarter and an injury, and records it in Dispatch.last_return) and a room restored
+	# (Hall.finished_since_checkpoint(now)) are what happened while the app was away.
 	_checkpoint(now)
 	_tick.start()
 
@@ -100,6 +104,9 @@ func _checkpoint(now: int) -> void:
 	_gold_label.text = "Gold %d" % _gold.amount
 	_show_hall(now)
 	_board.show_dispatch(_dispatch, now)
+	_roster.show_dispatch(_dispatch, now)
+	if _picker.visible:
+		_picker.show_dispatch(_dispatch, now)
 	if _restore_panel.visible:
 		_show_restore_panel(now)
 
@@ -177,16 +184,23 @@ func _on_restore_pressed() -> void:
 
 
 func _on_send_pressed(quest: String) -> void:
+	_picker.open(quest, _dispatch, _now())
+
+
+# The seed comes from the global generator; the outcome it fixes is rolled from the seed alone.
+func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
-	_dispatch.send(quest, _gold, now)
+	if _dispatch.send(quest, party, randi(), _gold, now):
+		_picker.hide()
 	_checkpoint(now)
 
 
-# The two tabs share a button group, so the Hall tab turning off means Quests turned on.
-func _on_hall_tab_toggled(hall: bool) -> void:
-	_floor.visible = hall
-	_board.visible = not hall
+func _on_tab_pressed(tab: BaseButton) -> void:
+	_floor.visible = tab == $TabBar/Hall
+	_board.visible = tab == $TabBar/Quests
+	_roster.visible = tab == $TabBar/Roster
 	_restore_panel.hide()
+	_picker.hide()
 
 
 func _now() -> int:

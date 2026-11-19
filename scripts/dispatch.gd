@@ -3,17 +3,33 @@ extends RefCounted
 
 ## The quests on the board, in board order. The save refers to a quest by its id.
 const QUESTS: Dictionary[String, Dictionary] = {
-	"rats": {"name": "Rats in the cellar", "seconds": 60, "gold": 50},
-	"moonherbs": {"name": "Gather moonherbs", "seconds": 180, "gold": 150},
-	"goblins": {"name": "Goblin camp", "seconds": 600, "gold": 500},
+	"rats": {"name": "Rats in the cellar", "seconds": 60, "gold": 50, "difficulty": 3},
+	"moonherbs": {"name": "Gather moonherbs", "seconds": 180, "gold": 150, "difficulty": 7},
+	"goblins": {"name": "Goblin camp", "seconds": 600, "gold": 500, "difficulty": 12},
 }
+## The guild's adventurers, in roster order. The save refers to one by its id.
+const ADVENTURERS: Dictionary[String, Dictionary] = {
+	"bram": {"name": "Bram", "class": "Swordsman", "rank": "F", "power": 4},
+	"ilse": {"name": "Ilse", "class": "Mage", "rank": "F", "power": 4},
+	"tobin": {"name": "Tobin", "class": "Scout", "rank": "F", "power": 3},
+	"maren": {"name": "Maren", "class": "Healer", "rank": "F", "power": 3},
+}
+## How many quests can be out at the same time.
+const MAX_QUESTS_OUT: int = 1
+const MAX_PARTY_SIZE: int = 3
+## How long a failed quest injures one of its party, counted from the moment the party returns.
+const INJURY_SECONDS: int = 300
 
-## The quest the guild's one party is on, or "" when the party is home.
-var quest: String = ""
-## Unix seconds the party left on `quest`.
-var quest_since: int = 0
+## Parties out, in the order they left. Each is {"quest": quest id, "since": unix seconds it left,
+## "party": adventurer ids, "seed": the seed that fixes how it ends}. A party counts as out until
+## the checkpoint after its return brings it home.
+var outings: Array[Dictionary] = []
+## Unix seconds each adventurer hurt on a failed quest recovers at.
+var injured_until: Dictionary[String, int] = {}
+## The latest return in words for the player; "" before the first.
+var last_return: String = ""
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back neither
-## adds time to a quest nor brings back one that has returned.
+## adds time to a quest or an injury nor brings back a party that has returned.
 var checked_at: int
 
 
@@ -21,58 +37,154 @@ func _init(at: int) -> void:
 	checked_at = at
 
 
-## Seconds until the party returns; 0 when it has returned or is home.
-func seconds_left(now: int) -> int:
-	if quest.is_empty():
-		return 0
-	return maxi(0, quest_since + int(QUESTS[quest]["seconds"]) - maxi(now, checked_at))
+static func party_power(party: PackedStringArray) -> int:
+	var power := 0
+	for adventurer: String in party:
+		power += int(ADVENTURERS[adventurer]["power"])
+	return power
 
 
-## Why the party can't be sent on a quest at `now`, in words for the player; "" when it can.
-func refusal(now: int) -> String:
-	if seconds_left(now) > 0:
+## The whole-percent chance that `party` succeeds on `quest_id`.
+static func success_chance(quest_id: String, party: PackedStringArray) -> int:
+	return Outcome.chance_percent(party_power(party), int(QUESTS[quest_id]["difficulty"]))
+
+
+## Seconds until `outing` returns; 0 when it has returned.
+func seconds_left(outing: Dictionary, now: int) -> int:
+	return maxi(0, _returns_at(outing) - maxi(now, checked_at))
+
+
+## Seconds until `adventurer` recovers from an injury; 0 when not injured.
+func injury_left(adventurer: String, now: int) -> int:
+	return maxi(0, int(injured_until.get(adventurer, 0)) - maxi(now, checked_at))
+
+
+## The quest `adventurer` is out on, or "" when home.
+func quest_of(adventurer: String) -> String:
+	for outing: Dictionary in outings:
+		if adventurer in outing["party"]:
+			return outing["quest"]
+	return ""
+
+
+## True when `adventurer` can join a party at `now`: home and not injured.
+func can_go(adventurer: String, now: int) -> bool:
+	return quest_of(adventurer).is_empty() and injury_left(adventurer, now) == 0
+
+
+## What `adventurer` is doing at `now`, in words for the player.
+func status(adventurer: String, now: int) -> String:
+	var quest := quest_of(adventurer)
+	if not quest.is_empty():
+		return "On quest: " + QUESTS[quest]["name"]
+	var injured := injury_left(adventurer, now)
+	if injured > 0:
+		return "Injured · " + Duration.label(injured)
+	return "Resting"
+
+
+## Why no party can be sent on a quest now, in words for the player; "" when one can.
+func refusal() -> String:
+	if outings.size() >= MAX_QUESTS_OUT:
 		return "Party is out"
 	return ""
 
 
-## Sends the party on `quest_id` at `now`; false, with nothing started, when `refusal` gives a reason.
-func send(quest_id: String, gold: Gold, now: int) -> bool:
-	if not refusal(now).is_empty():
-		return false
+## Why `party` can't be sent at `now`, in words for the player; "" when it can.
+func party_refusal(party: PackedStringArray, now: int) -> String:
+	var reason := refusal()
+	if not reason.is_empty():
+		return reason
+	if party.is_empty():
+		return "Pick at least one adventurer"
+	if party.size() > MAX_PARTY_SIZE:
+		return "At most %d in a party" % MAX_PARTY_SIZE
+	for adventurer: String in party:
+		if not can_go(adventurer, now):
+			return "%s can't go" % ADVENTURERS[adventurer]["name"]
+	return ""
+
+
+## Sends `party` on `quest_id` at `now`, its outcome fixed by `roll_seed`; false, with nothing
+## started, when `party_refusal` gives a reason.
+func send(quest_id: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int) -> bool:
 	checkpoint(now, gold)
-	quest = quest_id
-	quest_since = checked_at
+	if not party_refusal(party, now).is_empty():
+		return false
+	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "seed": roll_seed})
 	return true
 
 
-## True when the party returned after the last checkpoint: the "while you were away" news when the
-## checkpoint was taken on leaving. Its reward is paid at the next checkpoint.
+## True when a party returned after the last checkpoint: the "while you were away" news when the
+## checkpoint was taken on leaving. Its outcome is applied at the next checkpoint.
 func returned_since_checkpoint(now: int) -> bool:
-	return not quest.is_empty() and seconds_left(now) == 0
+	for outing: Dictionary in outings:
+		if seconds_left(outing, now) == 0:
+			return true
+	return false
 
 
-## Pays a returned party's reward into `gold`, once, and frees the party; records the time seen.
+## Brings every returned party home, once: pays its reward into `gold`, injures on failure and
+## records it as the last return. Records the time seen.
 func checkpoint(now: int, gold: Gold) -> void:
 	checked_at = maxi(checked_at, now)
-	if returned_since_checkpoint(checked_at):
-		gold.amount += int(QUESTS[quest]["gold"])
-		quest = ""
+	for outing: Dictionary in outings.duplicate():
+		if seconds_left(outing, checked_at) == 0:
+			outings.erase(outing)
+			_bring_home(outing, gold)
+
+
+func _bring_home(outing: Dictionary, gold: Gold) -> void:
+	var quest: Dictionary = QUESTS[outing["quest"]]
+	var party: PackedStringArray = outing["party"]
+	var reward: int = quest["gold"]
+	var result := "%s: success" % quest["name"]
+	var injured := ""
+	# A party sent before adventurers existed has no members: it comes home as it was sent then,
+	# paid in full.
+	if not party.is_empty():
+		var outcome := Outcome.roll(outing["seed"], success_chance(outing["quest"], party), party)
+		if not outcome.success:
+			reward = floori(reward / 4.0)
+			result = "%s: failed" % quest["name"]
+			injured = outcome.injured
+			injured_until[injured] = _returns_at(outing) + INJURY_SECONDS
+	gold.amount += reward
+	last_return = "%s · +%d gold" % [result, reward]
+	if not injured.is_empty():
+		last_return += " · %s injured" % ADVENTURERS[injured]["name"]
+
+
+func _returns_at(outing: Dictionary) -> int:
+	return int(outing["since"]) + int(QUESTS[outing["quest"]]["seconds"])
 
 
 ## Puts the dispatch into `file`, which other state shares, so one save holds the whole game.
 func write(file: ConfigFile) -> void:
-	file.set_value("dispatch", "quest", quest)
-	file.set_value("dispatch", "quest_since", quest_since)
+	file.set_value("dispatch", "outings", outings)
+	file.set_value("dispatch", "injured_until", injured_until)
+	file.set_value("dispatch", "last_return", last_return)
 	file.set_value("dispatch", "checked_at", checked_at)
 
 
-## The dispatch saved at `path`, or a party at home at `now` when the save has none.
+## The dispatch saved at `path`, or everyone home and well at `now` when the save has none.
 static func load_or_start(path: String, now: int) -> Dispatch:
 	var dispatch := Dispatch.new(now)
 	var file := ConfigFile.new()
 	if file.load(path) != OK or not file.has_section("dispatch"):
 		return dispatch
-	dispatch.quest = file.get_value("dispatch", "quest", "")
-	dispatch.quest_since = int(file.get_value("dispatch", "quest_since", 0))
+	if file.has_section_key("dispatch", "outings"):
+		dispatch.outings.assign(file.get_value("dispatch", "outings"))
+	else:
+		# Saves from before adventurers hold at most one party out, under "quest", with no members.
+		var quest: String = file.get_value("dispatch", "quest", "")
+		if not quest.is_empty():
+			dispatch.outings.append({"quest": quest, "since": int(file.get_value("dispatch", "quest_since", 0)), "party": PackedStringArray(), "seed": 0})
+	# A party on a quest the board no longer has could never return, so it is taken as home.
+	for outing: Dictionary in dispatch.outings.duplicate():
+		if outing["quest"] not in QUESTS:
+			dispatch.outings.erase(outing)
+	dispatch.injured_until.assign(file.get_value("dispatch", "injured_until", {}))
+	dispatch.last_return = file.get_value("dispatch", "last_return", "")
 	dispatch.checked_at = int(file.get_value("dispatch", "checked_at", now))
 	return dispatch

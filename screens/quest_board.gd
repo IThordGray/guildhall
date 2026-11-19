@@ -1,7 +1,7 @@
 class_name QuestBoard
 extends Control
 
-## The player asked to send the party on `quest`, a key of Dispatch.QUESTS.
+## The player asked to send a party on `quest`, a key of Dispatch.QUESTS.
 signal send_pressed(quest: String)
 
 @export var row_style: StyleBox
@@ -9,6 +9,7 @@ signal send_pressed(quest: String)
 var _send_buttons: Dictionary[String, Button] = {}
 
 @onready var _status: Label = $Box/Status
+@onready var _result: Label = $Box/Result
 @onready var _list: VBoxContainer = $Box/List
 
 
@@ -19,7 +20,7 @@ func _ready() -> void:
 		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		words.alignment = BoxContainer.ALIGNMENT_CENTER
 		words.add_child(_label(info["name"], 52, Color.WHITE))
-		words.add_child(_label("%s · %d gold" % [Duration.label(info["seconds"]), info["gold"]], 44, Color(1, 0.84, 0.4)))
+		words.add_child(_label("%s · %d gold · difficulty %d" % [Duration.label(info["seconds"]), info["gold"], info["difficulty"]], 44, Color(1, 0.84, 0.4)))
 		var send := Button.new()
 		send.custom_minimum_size = Vector2(360, 140)
 		send.add_theme_font_size_override("font_size", 48)
@@ -36,12 +37,14 @@ func _ready() -> void:
 
 
 func show_dispatch(dispatch: Dispatch, now: int) -> void:
-	var left := dispatch.seconds_left(now)
-	if left > 0:
-		_status.text = "Party out: %s · %s" % [Dispatch.QUESTS[dispatch.quest]["name"], Duration.label(left)]
-	else:
-		_status.text = "Party is home"
-	var reason := dispatch.refusal(now)
+	var out := PackedStringArray()
+	for outing: Dictionary in dispatch.outings:
+		out.append("Party out: %s · %s" % [Dispatch.QUESTS[outing["quest"]]["name"], Duration.label(dispatch.seconds_left(outing, now))])
+	_status.text = "Party is home" if out.is_empty() else "
+".join(out)
+	_result.text = dispatch.last_return
+	_result.visible = not dispatch.last_return.is_empty()
+	var reason := dispatch.refusal()
 	for quest: String in _send_buttons:
 		var send := _send_buttons[quest]
 		send.disabled = not reason.is_empty()
