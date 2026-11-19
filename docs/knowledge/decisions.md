@@ -19,8 +19,8 @@ Each milestone is the thinnest slice that makes the core loop more complete, is 
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
 - **Now, in order:**
-  - M10 challenges and ranks: quest ranks and challenges, class coverage, the forecast as a range.
-  - M11 gear and loot: eight slots, the stash, loot from quests, layered sprites.
+  - M11 gear and loot: eight slots, the stash, loot from quests; item icons and faces from the v2
+    designs. Sprites that change with gear need per-item layer art: a later art milestone.
   - M12 landscape: every screen in both orientations.
 - **Later, not planned yet:** the spec's starting state and extending the hall, recruitment,
   guild level, Quest hall extras, the labyrinth.
@@ -32,7 +32,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   parties of up to 4) · M7 the v2 look (dark theme, four tabs, Hall as a floor plan with an
   In progress list) · M8 debriefs (returned parties wait as debriefs, counted on the Quests tab) · M9a stats, XP and levels (four stats behind power, player-pressed
   level-ups by hidden growth) · M9b health and damage (heals over time, heavy damage injures; no
-  death until recruitment exists). M2 onwards are on local `main`, not pushed.
+  death until recruitment exists) · M10 challenges and ranks (hidden difficulty, class coverage,
+  forecast as a range, reveal on return). M2 onwards are on local `main`, not pushed.
 
 ## Stack
 
