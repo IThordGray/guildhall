@@ -24,9 +24,6 @@ func _ready() -> void:
 		toggle.toggle_mode = true
 		toggle.custom_minimum_size = Vector2(0, 150)
 		toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		toggle.add_theme_font_size_override("font_size", 44)
-		for state: String in ["font_pressed_color", "font_hover_pressed_color"]:
-			toggle.add_theme_color_override(state, Color(1, 0.84, 0.4))
 		toggle.toggled.connect(_on_toggled.bind(adventurer))
 		_toggles[adventurer] = toggle
 		_list.add_child(toggle)

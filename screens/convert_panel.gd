@@ -16,13 +16,11 @@ func _ready() -> void:
 		var choice := Button.new()
 		choice.custom_minimum_size = Vector2(0, 170)
 		choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		choice.add_theme_font_size_override("font_size", 44)
 		choice.text = "%s — %s\n%d gold · %s" % [info["name"], info["blurb"], info["gold"], Duration.label(info["seconds"])]
 		choice.pressed.connect(convert_pressed.emit.bind(type))
 		var reason := Label.new()
 		reason.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		reason.add_theme_font_size_override("font_size", 40)
-		reason.add_theme_color_override("font_color", Color(1, 0.62, 0.45))
+		reason.theme_type_variation = &"Alert"
 		_choices[type] = choice
 		_reasons[type] = reason
 		_list.add_child(choice)

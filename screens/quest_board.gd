@@ -4,8 +4,6 @@ extends Control
 ## The player asked to send a party on `quest`, a key of Dispatch.QUESTS.
 signal send_pressed(quest: String)
 
-@export var row_style: StyleBox
-
 var _rows: Dictionary[String, Control] = {}
 ## The quests shown, in board order, so the rows change only when the board does.
 var _shown: PackedStringArray = PackedStringArray()
@@ -22,12 +20,12 @@ func _ready() -> void:
 		var words := VBoxContainer.new()
 		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		words.alignment = BoxContainer.ALIGNMENT_CENTER
-		words.add_child(_label(info["name"], 52, Color.WHITE))
-		words.add_child(_label("%s · %d gold · difficulty %d" % [Duration.label(info["seconds"]), info["gold"], info["difficulty"]], 44, Color(1, 0.84, 0.4)))
+		words.add_child(_label(info["name"], &"Heading"))
+		words.add_child(_label("%s · %d gold · difficulty %d" % [Duration.label(info["seconds"]), info["gold"], info["difficulty"]], &"Meta"))
 		var send := Button.new()
 		send.text = "Send party"
-		send.custom_minimum_size = Vector2(360, 140)
-		send.add_theme_font_size_override("font_size", 48)
+		send.theme_type_variation = &"GoldButton"
+		send.custom_minimum_size = Vector2(0, 122)
 		send.pressed.connect(send_pressed.emit.bind(quest))
 		var line := HBoxContainer.new()
 		line.add_theme_constant_override("separation", 32)
@@ -35,7 +33,6 @@ func _ready() -> void:
 		line.add_child(send)
 		var row := PanelContainer.new()
 		row.visible = false
-		row.add_theme_stylebox_override("panel", row_style)
 		row.add_child(line)
 		_rows[quest] = row
 		_list.add_child(row)
@@ -59,10 +56,9 @@ func show_board(quests: PackedStringArray, dispatch: Dispatch, now: int) -> void
 	_empty.visible = quests.is_empty()
 
 
-func _label(text: String, font_size: int, color: Color) -> Label:
+func _label(text: String, variation: StringName) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", color)
+	label.theme_type_variation = variation
 	return label

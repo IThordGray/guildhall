@@ -1,22 +1,6 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://screens/quest_board.gd" id="1_board"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_row"]
-content_margin_left = 40.0
-content_margin_top = 32.0
-content_margin_right = 32.0
-content_margin_bottom = 32.0
-bg_color = Color(0.13, 0.1, 0.08, 1)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(0.55, 0.38, 0.2, 1)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
 
 [node name="QuestBoard" type="Control"]
 layout_mode = 3
@@ -26,7 +10,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_board")
-row_style = SubResource("StyleBoxFlat_row")
 
 [node name="Box" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -35,32 +18,31 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 40
+theme_override_constants/separation = 32
+
+[node name="Title" type="Label" parent="Box"]
+layout_mode = 2
+theme_type_variation = &"Title"
+text = "Quests"
 
 [node name="Status" type="Label" parent="Box"]
-custom_minimum_size = Vector2(0, 120)
 layout_mode = 2
-theme_override_font_sizes/font_size = 56
+theme_type_variation = &"Numbers"
 text = "Party is home"
-horizontal_alignment = 1
-vertical_alignment = 1
 autowrap_mode = 3
 
 [node name="Result" type="Label" parent="Box"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.84, 0.4, 1)
-theme_override_font_sizes/font_size = 44
-horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="List" type="VBoxContainer" parent="Box"]
 layout_mode = 2
-theme_override_constants/separation = 32
+theme_override_constants/separation = 24
 
 [node name="Empty" type="Label" parent="Box"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 48
+theme_type_variation = &"Secondary"
 text = "No more quests today"
 horizontal_alignment = 1
 autowrap_mode = 3

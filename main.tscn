@@ -1,30 +1,18 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
 [ext_resource type="PackedScene" path="res://screens/roster.tscn" id="3_roster"]
 [ext_resource type="PackedScene" path="res://screens/party_picker.tscn" id="4_picker"]
 [ext_resource type="PackedScene" path="res://screens/convert_panel.tscn" id="5_convert"]
+[ext_resource type="Texture2D" path="res://theme/icons/hall.svg" id="6_hall"]
+[ext_resource type="Texture2D" path="res://theme/icons/quests.svg" id="7_quests"]
+[ext_resource type="Texture2D" path="res://theme/icons/roster.svg" id="8_roster"]
+[ext_resource type="Texture2D" path="res://theme/icons/labyrinth.svg" id="9_labyrinth"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
-content_margin_left = 48.0
-content_margin_top = 40.0
-content_margin_right = 48.0
-content_margin_bottom = 40.0
-bg_color = Color(0.13, 0.1, 0.08, 0.96)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(0.55, 0.38, 0.2, 1)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
-
-[node name="Main" type="Control"]
+[node name="Main" type="Panel"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -33,54 +21,48 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_main")
 
-[node name="TopBar" type="ColorRect" parent="."]
+[node name="TopBar" type="PanelContainer" parent="."]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
 offset_bottom = 128.0
 grow_horizontal = 2
-color = Color(0, 0, 0, 0.6)
+theme_type_variation = &"TopBar"
 
-[node name="GoldLabel" type="Label" parent="TopBar"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 48.0
-offset_right = -48.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_colors/font_color = Color(1, 0.84, 0.4, 1)
-theme_override_font_sizes/font_size = 64
-text = "Gold 0"
+[node name="Row" type="HBoxContainer" parent="TopBar"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Coin" type="Panel" parent="TopBar/Row"]
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"Coin"
+
+[node name="GoldLabel" type="Label" parent="TopBar/Row"]
+layout_mode = 2
+theme_type_variation = &"GoldAmount"
+text = "0"
 vertical_alignment = 1
 
-[node name="PartiesLabel" type="Label" parent="TopBar"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 440.0
-offset_right = -48.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_font_sizes/font_size = 48
-text = "Parties out 0"
-vertical_alignment = 1
-
-[node name="BuildLabel" type="Label" parent="TopBar"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 48.0
-offset_right = -48.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
-theme_override_font_sizes/font_size = 32
+[node name="BuildLabel" type="Label" parent="TopBar/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Caption"
 text = "build dev"
-horizontal_alignment = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PartiesText" type="Label" parent="TopBar/Row"]
+layout_mode = 2
+theme_type_variation = &"Secondary"
+text = "Parties out"
+vertical_alignment = 1
+
+[node name="PartiesLabel" type="Label" parent="TopBar/Row"]
+layout_mode = 2
+theme_type_variation = &"Numbers"
+text = "0"
 vertical_alignment = 1
 
 [node name="Floor" type="Control" parent="."]
@@ -98,20 +80,20 @@ grow_vertical = 2
 [node name="QuestBoard" parent="." instance=ExtResource("2_board")]
 visible = false
 layout_mode = 1
-offset_left = 24.0
-offset_top = 152.0
-offset_right = -24.0
-offset_bottom = -200.0
+offset_left = 44.0
+offset_top = 168.0
+offset_right = -44.0
+offset_bottom = -216.0
 
 [node name="Roster" parent="." instance=ExtResource("3_roster")]
 visible = false
 layout_mode = 1
-offset_left = 24.0
-offset_top = 152.0
-offset_right = -24.0
-offset_bottom = -200.0
+offset_left = 44.0
+offset_top = 168.0
+offset_right = -44.0
+offset_bottom = -216.0
 
-[node name="TabBar" type="HBoxContainer" parent="."]
+[node name="TabBar" type="PanelContainer" parent="."]
 layout_mode = 1
 anchors_preset = 12
 anchor_top = 1.0
@@ -120,32 +102,55 @@ anchor_bottom = 1.0
 offset_top = -176.0
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_constants/separation = 0
+theme_type_variation = &"BottomBar"
 
-[node name="Hall" type="Button" parent="TabBar"]
+[node name="Tabs" type="HBoxContainer" parent="TabBar"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Hall" type="Button" parent="TabBar/Tabs"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 56
+theme_type_variation = &"Tab"
 toggle_mode = true
 button_pressed = true
 button_group = SubResource("ButtonGroup_tabs")
 text = "Hall"
+icon = ExtResource("6_hall")
+icon_alignment = 1
+vertical_icon_alignment = 0
 
-[node name="Quests" type="Button" parent="TabBar"]
+[node name="Quests" type="Button" parent="TabBar/Tabs"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 56
+theme_type_variation = &"Tab"
 toggle_mode = true
 button_group = SubResource("ButtonGroup_tabs")
 text = "Quests"
+icon = ExtResource("7_quests")
+icon_alignment = 1
+vertical_icon_alignment = 0
 
-[node name="Roster" type="Button" parent="TabBar"]
+[node name="Roster" type="Button" parent="TabBar/Tabs"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 56
+theme_type_variation = &"Tab"
 toggle_mode = true
 button_group = SubResource("ButtonGroup_tabs")
 text = "Roster"
+icon = ExtResource("8_roster")
+icon_alignment = 1
+vertical_icon_alignment = 0
+
+[node name="Labyrinth" type="Button" parent="TabBar/Tabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Tab"
+disabled = true
+text = "Labyrinth"
+icon = ExtResource("9_labyrinth")
+icon_alignment = 1
+vertical_icon_alignment = 0
 
 [node name="RestorePanel" type="PanelContainer" parent="."]
 visible = false
@@ -156,27 +161,32 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -420.0
-offset_top = -180.0
+offset_top = -200.0
 offset_right = 420.0
-offset_bottom = 180.0
+offset_bottom = 200.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+theme_type_variation = &"Dialog"
 
 [node name="Box" type="VBoxContainer" parent="RestorePanel"]
 layout_mode = 2
 theme_override_constants/separation = 32
 
+[node name="Title" type="Label" parent="RestorePanel/Box"]
+layout_mode = 2
+theme_type_variation = &"Title"
+text = "Restore this room"
+horizontal_alignment = 1
+
 [node name="Cost" type="Label" parent="RestorePanel/Box"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 52
-text = "Restore — 120 gold · 2:00"
+theme_type_variation = &"Numbers"
+text = "120 gold · 2:00"
 horizontal_alignment = 1
 
 [node name="Reason" type="Label" parent="RestorePanel/Box"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.62, 0.45, 1)
-theme_override_font_sizes/font_size = 44
+theme_type_variation = &"Alert"
 text = "Builder busy"
 horizontal_alignment = 1
 
@@ -188,13 +198,12 @@ alignment = 1
 [node name="Restore" type="Button" parent="RestorePanel/Box/Buttons"]
 custom_minimum_size = Vector2(300, 120)
 layout_mode = 2
-theme_override_font_sizes/font_size = 52
+theme_type_variation = &"GoldButton"
 text = "Restore"
 
 [node name="Cancel" type="Button" parent="RestorePanel/Box/Buttons"]
 custom_minimum_size = Vector2(300, 120)
 layout_mode = 2
-theme_override_font_sizes/font_size = 52
 text = "Cancel"
 
 [node name="ConvertPanel" parent="." instance=ExtResource("5_convert")]

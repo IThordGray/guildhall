@@ -24,9 +24,9 @@ var _slots: Dictionary[String, TextureButton] = {}
 ## The slot the restore or convert panel is open for.
 var _chosen_slot: String = ""
 
-@onready var _build_label: Label = $TopBar/BuildLabel
-@onready var _gold_label: Label = $TopBar/GoldLabel
-@onready var _parties_label: Label = $TopBar/PartiesLabel
+@onready var _build_label: Label = $TopBar/Row/BuildLabel
+@onready var _gold_label: Label = $TopBar/Row/GoldLabel
+@onready var _parties_label: Label = $TopBar/Row/PartiesLabel
 @onready var _floor: Control = $Floor
 @onready var _board: QuestBoard = $QuestBoard
 @onready var _roster: Roster = $Roster
@@ -41,11 +41,11 @@ var _chosen_slot: String = ""
 func _ready() -> void:
 	var version: String = ProjectSettings.get_setting("application/config/version", "")
 	_build_label.text = BuildInfo.label(version)
-	$RestorePanel/Box/Cost.text = "Restore — %d gold · %s" % [Hall.RESTORE_COST_GOLD, Duration.label(Hall.RESTORE_SECONDS)]
+	$RestorePanel/Box/Cost.text = "%d gold · %s" % [Hall.RESTORE_COST_GOLD, Duration.label(Hall.RESTORE_SECONDS)]
 	$RestorePanel/Box/Buttons/Cancel.pressed.connect(_restore_panel.hide)
 	_restore_button.pressed.connect(_on_restore_pressed)
 	_convert_panel.convert_pressed.connect(_on_convert_pressed)
-	($TabBar/Hall as Button).button_group.pressed.connect(_on_tab_pressed)
+	($TabBar/Tabs/Hall as Button).button_group.pressed.connect(_on_tab_pressed)
 	_board.send_pressed.connect(_on_send_pressed)
 	_picker.send_pressed.connect(_on_party_sent)
 	_tick.timeout.connect(_on_tick)
@@ -107,8 +107,8 @@ func _checkpoint(now: int) -> void:
 	_daily_board.write(file)
 	if file.save(SAVE_PATH) != OK:
 		push_error("Could not save to " + SAVE_PATH)
-	_gold_label.text = "Gold %d" % _gold.amount
-	_parties_label.text = "Parties out %d" % _dispatch.outings.size()
+	_gold_label.text = str(_gold.amount)
+	_parties_label.text = str(_dispatch.outings.size())
 	_show_hall(now)
 	_board.show_board(_daily_board.quests(_dispatch, now, _utc_offset_minutes(), _quest_halls(now)), _dispatch, now)
 	_roster.show_dispatch(_dispatch, now)
@@ -224,9 +224,9 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 
 
 func _on_tab_pressed(tab: BaseButton) -> void:
-	_floor.visible = tab == $TabBar/Hall
-	_board.visible = tab == $TabBar/Quests
-	_roster.visible = tab == $TabBar/Roster
+	_floor.visible = tab == $TabBar/Tabs/Hall
+	_board.visible = tab == $TabBar/Tabs/Quests
+	_roster.visible = tab == $TabBar/Tabs/Roster
 	_restore_panel.hide()
 	_convert_panel.hide()
 	_picker.hide()
