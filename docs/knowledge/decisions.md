@@ -19,8 +19,6 @@ Each milestone is the thinnest slice that makes the core loop more complete, is 
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
 - **Now, in order:**
-  - M7 the v2 look: dark UI from the designs, the Hall as a floor plan with an In progress list,
-    four tabs (Labyrinth locked). Later screens are built in this look.
   - M8 debriefs: a returned party waits for a debrief (count on the Quests tab, list, debrief
     screen). Fills the return-summary hook.
   - M9 health and levels: damage that heals over time, XP, the Level up screen, four stats
@@ -35,7 +33,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   you're away (drip later replaced by quests; away message removed, its hook kept) · M2 restore
   a room · M3 send a party · M4 adventurers (4 starters, seeded outcomes, injuries) · M5 rooms
   with jobs (Quest hall, Infirmary) · M6 send everyone ready (daily board, no cap on parties out,
-  parties of up to 4). M2 onwards are on local `main`, not pushed.
+  parties of up to 4) · M7 the v2 look (dark theme, four tabs, Hall as a floor plan with an
+  In progress list). M2 onwards are on local `main`, not pushed.
 
 ## Stack
 
@@ -47,8 +46,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
 - Hall view: roof-off top-down view of one floor, seen from high at the front. It replaces the
   spec's isometric view. `assets/concept/guildhall.png` shows the camera angle only; everything
   else about the hall follows the spec.
-- Hall art: placeholders drawn by Claude for now, one image file per slot per state, so real art
-  replaces a file without code changes.
+- Hall view for now: a drawn floor plan (v2 designs), room state shown by fill; no room pictures.
+  The concept-art look stays the later target.
 
 ## Working rules
 
