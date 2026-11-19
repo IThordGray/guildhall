@@ -82,10 +82,14 @@ func test_the_roster_has_four_rank_f_adventurers_all_resting_in_a_new_game() -> 
 
 
 func test_the_success_chance_is_from_the_picked_party_against_the_quest() -> void:
-	assert_eq(Dispatch.new(1_000).success_chance("moonherbs", ["bram", "tobin"]), 50)
-	assert_eq(Dispatch.new(1_000).success_chance("moonherbs", ["bram", "ilse"]), 60)
-	assert_eq(Dispatch.new(1_000).success_chance("goblins", ["bram", "ilse", "maren"]), 40)
-	assert_eq(Dispatch.new(1_000).success_chance("rats", ["tobin"]), 50)
+	# Power 7 against 7, less 15 for Attrition: Tobin covers Navigation.
+	assert_eq(Dispatch.new(1_000).success_chance("moonherbs", ["bram", "tobin"]), 35)
+	# Power 8 against 7, less 15 each for Navigation and Attrition.
+	assert_eq(Dispatch.new(1_000).success_chance("moonherbs", ["bram", "ilse"]), 30)
+	# Power 8 against 12 (Maren is a Healer), less 15 each for Traps and Navigation: down to 5.
+	assert_eq(Dispatch.new(1_000).success_chance("goblins", ["bram", "ilse", "maren"]), 5)
+	# Power 3 against 3, less 15 for Brute force.
+	assert_eq(Dispatch.new(1_000).success_chance("rats", ["tobin"]), 35)
 
 
 func test_four_one_person_parties_can_be_out() -> void:
@@ -93,7 +97,7 @@ func test_four_one_person_parties_can_be_out() -> void:
 	var dispatch := Dispatch.new(1_000)
 	assert_true(dispatch.send("moonherbs", ["tobin"], 0, gold, 1_000))
 	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_030), 150)
-	assert_eq(dispatch.party_refusal(["maren"], 1_030), "")
+	assert_eq(dispatch.party_refusal("rats", ["maren"], 1_030), "")
 	assert_true(dispatch.send("rats", ["maren"], 0, gold, 1_030))
 	assert_true(dispatch.send("goblins", ["bram"], 0, gold, 1_040))
 	assert_true(dispatch.send("crypt", ["ilse"], 0, gold, 1_050))
@@ -101,7 +105,7 @@ func test_four_one_person_parties_can_be_out() -> void:
 	assert_eq(_statuses(dispatch, 1_050), ["On quest: Goblin camp", "On quest: Clear the old crypt", "On quest: Gather moonherbs", "On quest: Rats in the cellar"])
 	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_050), 130)
 	# With everyone out, nobody is left to send.
-	assert_eq(dispatch.party_refusal(["tobin"], 1_050), "Tobin can't go")
+	assert_eq(dispatch.party_refusal("rats", ["tobin"], 1_050), "Tobin can't go")
 
 
 func test_the_party_shows_as_on_its_quest_and_the_others_as_resting() -> void:
@@ -114,11 +118,11 @@ func test_the_party_shows_as_on_its_quest_and_the_others_as_resting() -> void:
 func test_a_party_is_one_to_four_adventurers_who_are_home_and_well() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	assert_eq(dispatch.party_refusal([], 1_000), "Pick at least one adventurer")
+	assert_eq(dispatch.party_refusal("rats", [], 1_000), "Pick at least one adventurer")
 	assert_false(dispatch.send("rats", [], 1, gold, 1_000))
 	assert_true(dispatch.outings.is_empty())
-	assert_eq(dispatch.party_refusal(["tobin"], 1_000), "")
-	assert_eq(dispatch.party_refusal(["bram", "ilse", "tobin", "maren"], 1_000), "")
+	assert_eq(dispatch.party_refusal("rats", ["tobin"], 1_000), "")
+	assert_eq(dispatch.party_refusal("rats", ["bram", "ilse", "tobin", "maren"], 1_000), "")
 	assert_true(dispatch.send("rats", ["bram", "ilse", "tobin", "maren"], 1, gold, 1_000))
 	assert_eq(_statuses(dispatch, 1_000), ["On quest: Rats in the cellar", "On quest: Rats in the cellar", "On quest: Rats in the cellar", "On quest: Rats in the cellar"])
 
@@ -127,7 +131,7 @@ func test_party_of_five_is_refused() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	var five: PackedStringArray = ["bram", "ilse", "tobin", "maren", "bram"]
-	assert_eq(dispatch.party_refusal(five, 1_000), "At most 4 in a party")
+	assert_eq(dispatch.party_refusal("rats", five, 1_000), "At most 4 in a party")
 	assert_false(dispatch.send("rats", five, 1, gold, 1_000))
 	assert_true(dispatch.outings.is_empty())
 
@@ -140,7 +144,7 @@ func test_an_injured_adventurer_cannot_be_picked_until_recovered() -> void:
 	dispatch.checkpoint(1_600, gold)
 	assert_false(dispatch.can_go("tobin", 1_600))
 	assert_true(dispatch.can_go("bram", 1_600))
-	assert_eq(dispatch.party_refusal(["bram", "tobin"], 1_600), "Tobin can't go")
+	assert_eq(dispatch.party_refusal("rats", ["bram", "tobin"], 1_600), "Tobin can't go")
 	assert_false(dispatch.send("rats", ["bram", "tobin"], 1, gold, 1_600))
 	assert_true(dispatch.outings.is_empty())
 	assert_true(dispatch.can_go("tobin", 1_900))
@@ -163,7 +167,7 @@ func test_a_success_pays_the_full_reward_and_injures_nobody() -> void:
 	dispatch.send("rats", ["bram", "maren"], _seed("rats", ["bram", "maren"], true), gold, 1_000)
 	dispatch.checkpoint(1_060, gold)
 	assert_eq(gold.amount, 55)
-	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram", "maren"]), "damage": {"bram": 1, "maren": 0}, "injured": {}, "gold": 50, "xp": 4}])
+	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram", "maren"]), "damage": {"bram": 0, "maren": 0}, "injured": {}, "gold": 50, "xp": 4, "revealed": PackedStringArray()}])
 	assert_eq(_statuses(dispatch, 1_060), ["Resting", "Resting", "Resting", "Resting"])
 
 
@@ -358,7 +362,7 @@ func test_a_party_out_and_an_injury_survive_save_and_load_with_the_same_outcome(
 	var loaded := Dispatch.load_or_start(SAVE_PATH, 99_999)
 	var loaded_gold := Gold.load_or_start(SAVE_PATH)
 	assert_eq(_statuses(loaded, 1_760), ["On quest: Gather moonherbs", "Resting", "Injured · 2:20", "On quest: Gather moonherbs"])
-	assert_eq(loaded.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 11}, "injured": {"tobin": 300}, "gold": 125, "xp": 20}])
+	assert_eq(loaded.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 11}, "injured": {"tobin": 300}, "gold": 125, "xp": 20, "revealed": PackedStringArray(["Navigation"])}])
 	assert_eq(loaded.outings[0]["seed"], roll_seed)
 	assert_eq(loaded.seconds_left(loaded.outings[0], 1_760), 170)
 	loaded.checkpoint(1_930, loaded_gold)
@@ -403,7 +407,7 @@ func test_an_m3_save_with_the_party_out_pays_that_quest_in_full_on_return_with_n
 	assert_eq(gold.amount, 20)
 	dispatch.checkpoint(1_600, gold)
 	assert_eq(gold.amount, 520)
-	assert_eq(dispatch.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(), "damage": {}, "injured": {}, "gold": 500, "xp": 40}])
+	assert_eq(dispatch.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(), "damage": {}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(["Navigation"])}])
 	assert_eq(_statuses(dispatch, 1_600), ["Resting", "Resting", "Resting", "Resting"])
 	assert_true(dispatch.outings.is_empty())
 
@@ -588,8 +592,8 @@ func test_a_clock_set_back_never_changes_an_injury_already_decided() -> void:
 	assert_eq(gold.amount, 1_000 - 120 - 60 + 125)
 
 
-var rats_debrief: Dictionary = {"quest": "rats", "returned_at": 1_160, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 1}, "injured": {}, "gold": 12, "xp": 2}
-var goblins_debrief: Dictionary = {"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(["bram", "ilse"]), "damage": {"bram": 4, "ilse": 3}, "injured": {}, "gold": 500, "xp": 40}
+var rats_debrief: Dictionary = {"quest": "rats", "returned_at": 1_160, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 1}, "injured": {}, "gold": 12, "xp": 2, "revealed": PackedStringArray()}
+var goblins_debrief: Dictionary = {"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(["bram", "ilse"]), "damage": {"bram": 6, "ilse": 6}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(["Navigation"])}
 
 
 ## Goblin camp succeeds for Bram and Ilse, sent at 1_000 (back at 1_600); Rats in the cellar
@@ -612,7 +616,7 @@ func test_a_returned_party_adds_a_debrief_with_its_quest_result_party_injured_me
 	dispatch.checkpoint(1_279, gold, hall.first_done_at("infirmary"))
 	assert_true(dispatch.debriefs.is_empty())
 	dispatch.checkpoint(1_400, gold, hall.first_done_at("infirmary"))
-	assert_eq(dispatch.debriefs, [{"quest": "moonherbs", "returned_at": 1_280, "success": false, "party": PARTY, "damage": {"bram": 6, "ilse": 7, "tobin": 6}, "injured": {"tobin": 150}, "gold": 37, "xp": 6}])
+	assert_eq(dispatch.debriefs, [{"quest": "moonherbs", "returned_at": 1_280, "success": false, "party": PARTY, "damage": {"bram": 6, "ilse": 6, "tobin": 6}, "injured": {"tobin": 150}, "gold": 37, "xp": 6, "revealed": PackedStringArray(["Attrition"])}])
 
 
 func test_two_returns_give_two_debriefs_in_the_order_they_came_back() -> void:
@@ -700,7 +704,7 @@ func test_a_save_from_before_debriefs_loads_with_none_and_nothing_lost() -> void
 	assert_eq(dispatch.injury_seconds("tobin"), 150)
 	dispatch.checkpoint(1_060, gold)
 	assert_eq(gold.amount, 690)
-	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram"]), "damage": {"bram": 1}, "injured": {}, "gold": 50, "xp": 4}])
+	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram"]), "damage": {"bram": 1}, "injured": {}, "gold": 50, "xp": 4, "revealed": PackedStringArray()}])
 
 
 func _xp(dispatch: Dispatch) -> Array[int]:
@@ -876,7 +880,7 @@ func test_a_hurt_adventurer_can_be_sent_heals_nothing_while_out_and_takes_damage
 	var dispatch := _tobin_hurt(gold)
 	assert_true(dispatch.can_go("tobin", 1_600))
 	assert_eq(dispatch.status("tobin", 1_600), "Resting")
-	assert_eq(dispatch.party_refusal(["tobin"], 1_600), "")
+	assert_eq(dispatch.party_refusal("rats", ["tobin"], 1_600), "")
 	# Rats in the cellar succeeds with seed 7 and deals him 1.
 	assert_true(dispatch.send("rats", ["tobin"], 7, gold, 1_600))
 	assert_eq(dispatch.health("tobin", 1_659), 5)
@@ -901,7 +905,7 @@ func test_damage_never_takes_health_below_1_and_under_a_quarter_injures_until_th
 	assert_eq(dispatch.health("tobin", 2_200), 1)
 	assert_eq(dispatch.debriefs[1]["injured"], {"tobin": 300})
 	assert_eq(dispatch.status("tobin", 2_200), "Injured · 5:00")
-	assert_eq(dispatch.party_refusal(["tobin"], 2_499), "Tobin can't go")
+	assert_eq(dispatch.party_refusal("rats", ["tobin"], 2_499), "Tobin can't go")
 	assert_false(dispatch.send("rats", ["tobin"], 7, gold, 2_499))
 	assert_true(dispatch.can_go("tobin", 2_500))
 	assert_eq(dispatch.health("tobin", 2_500), 16)
@@ -957,3 +961,115 @@ func test_a_save_from_before_health_loads_everyone_at_full_health_with_a_running
 	assert_eq(_healths(loaded, 1_700), [24, 20, 16, 20])
 	assert_eq(loaded.injury_left("tobin", 1_700), 200)
 	assert_eq(loaded.status("tobin", 1_700), "Injured · 3:20")
+
+
+## What a new guild doesn't know about each quest.
+const STARTING_UNKNOWN: Dictionary = {
+	"rats": [],
+	"moonherbs": ["Attrition"],
+	"goblins": ["Navigation"],
+	"letters": ["Protect"],
+	"wolves": ["Attrition"],
+	"crypt": ["Attrition"],
+}
+
+
+func _unknown(dispatch: Dispatch) -> Dictionary:
+	var unknown := {}
+	for quest: String in Dispatch.QUESTS:
+		unknown[quest] = Array(dispatch.unknown_challenges(quest))
+	return unknown
+
+
+func test_a_new_guild_knows_every_challenge_but_each_quests_last_and_all_of_rats() -> void:
+	assert_eq(_unknown(Dispatch.new(1_000)), STARTING_UNKNOWN)
+
+
+func test_a_healers_own_power_does_not_count_toward_the_party_but_their_cover_does() -> void:
+	var dispatch := Dispatch.new(1_000)
+	assert_eq(dispatch.party_power(["bram", "tobin"]), 7)
+	assert_eq(dispatch.party_power(["bram", "maren"]), 4)
+	assert_eq(dispatch.party_power(["maren"]), 0)
+	# Rats has nothing for Maren to cover, so she adds nothing to Bram's 60.
+	assert_eq(dispatch.success_chance("rats", ["bram"]), 60)
+	assert_eq(dispatch.success_chance("rats", ["bram", "maren"]), 60)
+	# On moonherbs she covers Attrition: 35 without her, 50 with.
+	assert_eq(dispatch.success_chance("moonherbs", ["bram", "tobin"]), 35)
+	assert_eq(dispatch.success_chance("moonherbs", ["bram", "tobin", "maren"]), 50)
+
+
+func test_the_range_shown_holds_the_true_chance_and_the_true_chance_is_what_a_party_leaves_with() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	# Rats has nothing unknown: Bram's 60, widened by 10 either way.
+	assert_eq(dispatch.chance_range("rats", ["bram"]), Vector2i(50, 70))
+	# Moonherbs' Attrition is unknown: 50 by power, Navigation covered by Tobin.
+	assert_eq(dispatch.chance_range("moonherbs", ["bram", "tobin"]), Vector2i(25, 60))
+	# Whether Maren covers the unknown challenge changes the true chance, not the range.
+	assert_eq(dispatch.chance_range("moonherbs", ["bram", "tobin", "maren"]), Vector2i(25, 60))
+	assert_true(dispatch.send("moonherbs", ["bram", "tobin"], 1, gold, 1_000))
+	assert_eq(dispatch.outings[0]["chance"], 35)
+
+
+func test_a_party_back_from_a_quest_reveals_its_unknown_challenges_for_good() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.send("moonherbs", ["bram", "tobin"], 1, gold, 1_000))
+	dispatch.checkpoint(1_179, gold)
+	assert_eq(_unknown(dispatch), STARTING_UNKNOWN, "still out, nothing revealed")
+	dispatch.checkpoint(1_180, gold)
+	var known := STARTING_UNKNOWN.duplicate()
+	known["moonherbs"] = []
+	assert_eq(_unknown(dispatch), known)
+	assert_eq(dispatch.debriefs[0]["revealed"], PackedStringArray(["Attrition"]))
+	# Known to be uncovered, the range narrows to the true 35, widened by 10.
+	assert_eq(dispatch.chance_range("moonherbs", ["bram", "tobin"]), Vector2i(25, 45))
+	# A second trip has nothing left to reveal.
+	assert_true(dispatch.send("moonherbs", ["bram", "tobin"], 1, gold, 1_200))
+	dispatch.checkpoint(1_380, gold)
+	assert_eq(dispatch.debriefs[1]["revealed"], PackedStringArray())
+	var file := ConfigFile.new()
+	dispatch.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_400)
+	assert_eq(_unknown(loaded), known)
+	assert_eq(loaded.debriefs, dispatch.debriefs)
+
+
+func test_a_save_from_before_challenges_loads_with_the_starting_knowledge_and_nothing_else_lost() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.send("moonherbs", ["bram"], 1, gold, 1_000))
+	dispatch.checkpoint(1_180, gold)
+	assert_true(dispatch.send("goblins", ["tobin"], 1, gold, 1_200))
+	# The previous build wrote nothing revealed, and debriefs without it.
+	var file := ConfigFile.new()
+	dispatch.write(file)
+	var debriefs: Array = file.get_value("dispatch", "debriefs")
+	debriefs[0].erase("revealed")
+	file.set_value("dispatch", "debriefs", debriefs)
+	file.erase_section_key("dispatch", "revealed")
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_200)
+	assert_eq(_unknown(loaded), STARTING_UNKNOWN)
+	assert_eq(loaded.debriefs.size(), 1)
+	assert_eq(loaded.debriefs[0]["gold"], dispatch.debriefs[0]["gold"])
+	assert_eq(loaded.outings, dispatch.outings)
+	assert_eq(loaded.adventurers.xp, dispatch.adventurers.xp)
+
+
+func test_the_same_seed_sends_the_same_party_to_the_same_end() -> void:
+	var party: PackedStringArray = ["bram", "tobin", "maren"]
+	var successes := 0
+	for roll_seed: int in 40:
+		var ends: Array[Dictionary] = []
+		for run: int in 2:
+			var dispatch := Dispatch.new(1_000)
+			assert_true(dispatch.send("moonherbs", party, roll_seed, Gold.new(0), 1_000))
+			dispatch.checkpoint(1_180, Gold.new(0))
+			ends.append(dispatch.debriefs[0])
+		assert_eq(ends[1], ends[0])
+		if ends[0]["success"]:
+			successes += 1
+	assert_between(successes, 1, 39, "both outcomes occur, so the seed decides")

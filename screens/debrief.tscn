@@ -58,6 +58,13 @@ theme_type_variation = &"ProgressList"
 layout_mode = 2
 theme_override_constants/separation = 0
 
+[node name="Revealed" type="Label" parent="Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"Secondary"
+text = "Revealed: Traps"
+autowrap_mode = 3
+
 [node name="Brought" type="PanelContainer" parent="Box"]
 layout_mode = 2
 

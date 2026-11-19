@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=43 format=3]
+[gd_resource type="Theme" load_steps=47 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -395,6 +395,60 @@ corner_radius_top_right = 33
 corner_radius_bottom_right = 33
 corner_radius_bottom_left = 33
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_chip"]
+content_margin_left = 25.0
+content_margin_top = 6.0
+content_margin_right = 25.0
+content_margin_bottom = 6.0
+draw_center = false
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.2902, 0.2588, 0.3451, 1)
+corner_radius_top_left = 28
+corner_radius_top_right = 28
+corner_radius_bottom_right = 28
+corner_radius_bottom_left = 28
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_chip_covered"]
+content_margin_left = 25.0
+content_margin_top = 6.0
+content_margin_right = 25.0
+content_margin_bottom = 6.0
+draw_center = false
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.4353, 0.8118, 0.5569, 0.6)
+corner_radius_top_left = 28
+corner_radius_top_right = 28
+corner_radius_bottom_right = 28
+corner_radius_bottom_left = 28
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_chip_uncovered"]
+content_margin_left = 25.0
+content_margin_top = 6.0
+content_margin_right = 25.0
+content_margin_bottom = 6.0
+draw_center = false
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.9373, 0.4784, 0.3843, 0.6)
+corner_radius_top_left = 28
+corner_radius_top_right = 28
+corner_radius_bottom_right = 28
+corner_radius_bottom_left = 28
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_chip_unknown"]
+content_margin_left = 25.0
+content_margin_top = 6.0
+content_margin_right = 25.0
+content_margin_bottom = 6.0
+
 [resource]
 default_font = ExtResource("1_sans")
 default_font_size = 42
@@ -423,6 +477,24 @@ Button/styles/pressed = SubResource("StyleBoxFlat_button_pressed")
 Caption/base_type = &"Label"
 Caption/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 Caption/font_sizes/font_size = 28
+Chip/base_type = &"Label"
+Chip/colors/font_color = Color(0.8118, 0.7765, 0.8392, 1)
+Chip/font_sizes/font_size = 33
+Chip/styles/normal = SubResource("StyleBoxFlat_chip")
+ChipCovered/base_type = &"Chip"
+ChipCovered/colors/font_color = Color(0.4353, 0.8118, 0.5569, 1)
+ChipCovered/styles/normal = SubResource("StyleBoxFlat_chip_covered")
+ChipUncovered/base_type = &"Chip"
+ChipUncovered/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
+ChipUncovered/styles/normal = SubResource("StyleBoxFlat_chip_uncovered")
+ChipUnknown/base_type = &"Chip"
+ChipUnknown/colors/border_color = Color(0.2902, 0.2588, 0.3451, 1)
+ChipUnknown/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
+ChipUnknown/constants/border_width = 3
+ChipUnknown/styles/normal = SubResource("StyleBoxEmpty_chip_unknown")
+Chips/base_type = &"HFlowContainer"
+Chips/constants/h_separation = 14
+Chips/constants/v_separation = 14
 Coin/base_type = &"Panel"
 Coin/styles/panel = SubResource("StyleBoxFlat_coin")
 DebriefRow/base_type = &"PanelContainer"
@@ -513,6 +585,10 @@ ProgressList/base_type = &"PanelContainer"
 ProgressList/styles/panel = SubResource("StyleBoxFlat_progress_list")
 ProgressRow/base_type = &"PanelContainer"
 ProgressRow/styles/panel = SubResource("StyleBoxFlat_progress_row")
+RangeBand/base_type = &"Panel"
+RangeBand/styles/panel = SubResource("StyleBoxFlat_bar_gold")
+RangeTrack/base_type = &"Panel"
+RangeTrack/styles/panel = SubResource("StyleBoxFlat_bar_track")
 RestoreButton/base_type = &"Button"
 RestoreButton/colors/font_color = Color(0.949, 0.7569, 0.3059, 1)
 RestoreButton/colors/font_focus_color = Color(0.949, 0.7569, 0.3059, 1)

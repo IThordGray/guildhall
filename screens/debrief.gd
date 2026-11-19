@@ -7,6 +7,7 @@ signal done_pressed
 @onready var _quest: Label = $Box/Header/Words/Quest
 @onready var _result: Label = $Box/Header/Result
 @onready var _members: VBoxContainer = $Box/Who/Members
+@onready var _revealed: Label = $Box/Revealed
 @onready var _gold: Label = $Box/Brought/Row/Gold
 
 
@@ -63,4 +64,8 @@ func show_debrief(debrief: Dictionary, adventurers: Adventurers) -> void:
 		row.theme_type_variation = &"ProgressRow"
 		row.add_child(line)
 		_members.add_child(row)
+	# A debrief saved before challenges revealed none.
+	var revealed: PackedStringArray = debrief.get("revealed", PackedStringArray())
+	_revealed.text = "Revealed: " + ", ".join(revealed)
+	_revealed.visible = not revealed.is_empty()
 	_gold.text = "+%d" % debrief["gold"]

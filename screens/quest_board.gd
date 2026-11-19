@@ -6,7 +6,14 @@ signal send_pressed(quest: String)
 ## The player asked to read the debrief at `index` in Dispatch.debriefs.
 signal debrief_pressed(index: int)
 
+## The length of each dash in an unknown challenge's chip border.
+const DASH_LENGTH: float = 12.0
+
 var _rows: Dictionary[String, Control] = {}
+## Each quest's challenge chips, and how many of them were unknown when last shown, so they change
+## only when a return reveals one.
+var _chips: Dictionary[String, HFlowContainer] = {}
+var _unknown_shown: Dictionary[String, int] = {}
 ## The quests shown, in board order, so the rows change only when the board does.
 var _shown: PackedStringArray = PackedStringArray()
 ## The debriefs and parties out the rows were built for, so they are rebuilt only when those
@@ -38,7 +45,11 @@ func _ready() -> void:
 		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		words.alignment = BoxContainer.ALIGNMENT_CENTER
 		words.add_child(_label(info["name"], &"Heading"))
-		words.add_child(_label("%s · %d gold · difficulty %d" % [Duration.label(info["seconds"]), info["gold"], info["difficulty"]], &"Meta"))
+		words.add_child(_label("Rank %s · %s · %d gold" % [info["rank"], Duration.label(info["seconds"]), info["gold"]], &"Meta"))
+		var chips := HFlowContainer.new()
+		chips.theme_type_variation = &"Chips"
+		words.add_child(chips)
+		_chips[quest] = chips
 		var send := Button.new()
 		send.text = "Send party"
 		send.theme_type_variation = &"GoldButton"
@@ -60,6 +71,7 @@ func _ready() -> void:
 func show_board(quests: PackedStringArray, dispatch: Dispatch, now: int) -> void:
 	_show_debriefs(dispatch, now)
 	_show_out(dispatch, now)
+	_show_challenges(dispatch)
 	if quests == _shown:
 		return
 	_shown = quests
@@ -79,6 +91,47 @@ static func token(adventurer: String) -> Label:
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	return label
+
+
+## A challenge chip in `variation`: Chip, ChipCovered, ChipUncovered or ChipUnknown, the last with
+## a dashed border.
+static func chip(text: String, variation: StringName) -> Label:
+	var label := _label(text, variation)
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	if variation == &"ChipUnknown":
+		label.draw.connect(func() -> void: _draw_dashed_border(label))
+	return label
+
+
+# A StyleBox can't draw a dashed border, so an unknown challenge's pill is drawn here: dashed
+# straight sides, and every other dash-length step of each rounded end.
+static func _draw_dashed_border(label: Label) -> void:
+	var color := label.get_theme_color(&"border_color")
+	var width := float(label.get_theme_constant(&"border_width"))
+	var middle := label.size.y / 2.0
+	var radius := middle - width / 2.0
+	var left := middle
+	var right := label.size.x - middle
+	label.draw_dashed_line(Vector2(left, width / 2.0), Vector2(right, width / 2.0), color, width, DASH_LENGTH)
+	label.draw_dashed_line(Vector2(left, label.size.y - width / 2.0), Vector2(right, label.size.y - width / 2.0), color, width, DASH_LENGTH)
+	var step := DASH_LENGTH / radius
+	for i: int in range(0, ceili(PI / step), 2):
+		var from := PI / 2.0 + i * step
+		var to := minf(from + step, PI * 1.5)
+		label.draw_arc(Vector2(left, middle), radius, from, to, 4, color, width)
+		label.draw_arc(Vector2(right, middle), radius, from - PI, to - PI, 4, color, width)
+
+
+func _show_challenges(dispatch: Dispatch) -> void:
+	for quest: String in _chips:
+		var unknown := dispatch.unknown_challenges(quest)
+		if _unknown_shown.get(quest, -1) == unknown.size():
+			continue
+		_unknown_shown[quest] = unknown.size()
+		for old: Node in _chips[quest].get_children():
+			old.queue_free()
+		for challenge: String in Dispatch.QUESTS[quest]["challenges"]:
+			_chips[quest].add_child(chip("?", &"ChipUnknown") if challenge in unknown else chip(challenge, &"Chip"))
 
 
 func _show_debriefs(dispatch: Dispatch, now: int) -> void:

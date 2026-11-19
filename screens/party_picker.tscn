@@ -9,10 +9,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -480.0
-offset_top = -620.0
-offset_right = 480.0
-offset_bottom = 620.0
+offset_left = -500.0
+offset_top = -780.0
+offset_right = 500.0
+offset_bottom = 780.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_type_variation = &"Dialog"
@@ -20,24 +20,81 @@ script = ExtResource("1_picker")
 
 [node name="Box" type="VBoxContainer" parent="."]
 layout_mode = 2
-theme_override_constants/separation = 32
+theme_override_constants/separation = 28
 
-[node name="Title" type="Label" parent="Box"]
+[node name="Heading" type="VBoxContainer" parent="Box"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Box/Heading"]
 layout_mode = 2
 theme_type_variation = &"Title"
-text = "Goblin camp · difficulty 12"
+text = "Goblin camp"
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="Meta" type="Label" parent="Box/Heading"]
+layout_mode = 2
+theme_type_variation = &"Meta"
+text = "Rank E · 10:00 · 500 gold"
+horizontal_alignment = 1
 
 [node name="List" type="VBoxContainer" parent="Box"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Odds" type="Label" parent="Box"]
+[node name="Forecast" type="PanelContainer" parent="Box"]
 layout_mode = 2
-theme_type_variation = &"Numbers"
-text = "Party power 0 · 5% success"
-horizontal_alignment = 1
+
+[node name="Box" type="VBoxContainer" parent="Box/Forecast"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Coverage" type="HFlowContainer" parent="Box/Forecast/Box"]
+layout_mode = 2
+theme_type_variation = &"Chips"
+
+[node name="Chance" type="HBoxContainer" parent="Box/Forecast/Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Box/Forecast/Box/Chance"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Secondary"
+text = "Chance of success"
+vertical_alignment = 2
+
+[node name="Odds" type="Label" parent="Box/Forecast/Box/Chance"]
+layout_mode = 2
+theme_type_variation = &"GoldAmount"
+text = "45–80%"
+
+[node name="Band" type="Control" parent="Box/Forecast/Box"]
+custom_minimum_size = Vector2(0, 22)
+layout_mode = 2
+
+[node name="Track" type="Panel" parent="Box/Forecast/Box/Band"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"RangeTrack"
+
+[node name="Fill" type="Panel" parent="Box/Forecast/Box/Band"]
+layout_mode = 1
+anchor_left = 0.45
+anchor_right = 0.8
+anchor_bottom = 1.0
+grow_vertical = 2
+theme_type_variation = &"RangeBand"
+
+[node name="Note" type="Label" parent="Box/Forecast/Box"]
+layout_mode = 2
+theme_type_variation = &"Secondary"
+text = "If it fails: 125 gold."
+autowrap_mode = 3
 
 [node name="Reason" type="Label" parent="Box"]
 layout_mode = 2

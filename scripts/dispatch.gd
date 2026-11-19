@@ -1,14 +1,15 @@
 class_name Dispatch
 extends RefCounted
 
-## Every quest a day's board can offer: see Board. The save refers to a quest by its id.
+## Every quest a day's board can offer: see Board. The save refers to a quest by its id. A
+## quest's challenges say why it is hard (see Challenges); its difficulty is never shown.
 const QUESTS: Dictionary[String, Dictionary] = {
-	"rats": {"name": "Rats in the cellar", "seconds": 60, "gold": 50, "difficulty": 3},
-	"moonherbs": {"name": "Gather moonherbs", "seconds": 180, "gold": 150, "difficulty": 7},
-	"goblins": {"name": "Goblin camp", "seconds": 600, "gold": 500, "difficulty": 12},
-	"letters": {"name": "Carry letters to the abbey", "seconds": 120, "gold": 100, "difficulty": 5},
-	"wolves": {"name": "Wolves at the mill", "seconds": 300, "gold": 250, "difficulty": 9},
-	"crypt": {"name": "Clear the old crypt", "seconds": 480, "gold": 400, "difficulty": 11},
+	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 60, "gold": 50, "difficulty": 3, "challenges": ["Brute force"]},
+	"moonherbs": {"name": "Gather moonherbs", "rank": "F", "seconds": 180, "gold": 150, "difficulty": 7, "challenges": ["Navigation", "Attrition"]},
+	"goblins": {"name": "Goblin camp", "rank": "E", "seconds": 600, "gold": 500, "difficulty": 12, "challenges": ["Brute force", "Traps", "Navigation"]},
+	"letters": {"name": "Carry letters to the abbey", "rank": "F", "seconds": 120, "gold": 100, "difficulty": 5, "challenges": ["Navigation", "Protect"]},
+	"wolves": {"name": "Wolves at the mill", "rank": "E", "seconds": 300, "gold": 250, "difficulty": 9, "challenges": ["Brute force", "Attrition"]},
+	"crypt": {"name": "Clear the old crypt", "rank": "E", "seconds": 480, "gold": 400, "difficulty": 11, "challenges": ["Curse", "Traps", "Attrition"]},
 }
 ## The guild's adventurers, in roster order, as they always are. The save refers to one by its
 ## id. How they grow is in `adventurers`.
@@ -39,7 +40,8 @@ var injury_lengths: Dictionary[String, int] = {}
 ## Returns the player has not read yet, in the order they came back. Each is {"quest": quest id,
 ## "returned_at": unix seconds it came back, "success": bool, "party": adventurer ids,
 ## "damage": {adventurer id: damage taken}, "injured": {adventurer id: seconds the injury lasts},
-## "gold": gold it brought, "xp": XP each member gained}. Only a report: its outcome was applied when the party came home.
+## "gold": gold it brought, "xp": XP each member gained, "revealed": the quest's challenges it
+## made known}. Only a report: its outcome was applied when the party came home.
 var debriefs: Array[Dictionary] = []
 ## Each adventurer's stats, level and XP: their power decides quests, and returns grow them.
 var adventurers: Adventurers = Adventurers.new()
@@ -47,6 +49,8 @@ var adventurers: Adventurers = Adventurers.new()
 ## seconds they came home}. Their health at home is computed from it; anyone missing is at full
 ## health.
 var wounds: Dictionary[String, Dictionary] = {}
+## Quests whose unknown challenges a returning party has made known, for good.
+var revealed: PackedStringArray = PackedStringArray()
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back neither
 ## adds time to a quest or an injury nor brings back a party that has returned.
 var checked_at: int
@@ -58,9 +62,54 @@ func _init(at: int) -> void:
 	checked_at = at
 
 
-## The whole-percent chance that `party`, as they are now, succeeds on `quest_id`.
+## The whole-percent chance that `party`, as they are now, succeeds on `quest_id`, counting every
+## challenge, known to the player or not.
 func success_chance(quest_id: String, party: PackedStringArray) -> int:
-	return Outcome.chance_percent(adventurers.party_power(party), int(QUESTS[quest_id]["difficulty"]))
+	var uncovered := 0
+	for challenge: String in QUESTS[quest_id]["challenges"]:
+		if Challenges.covered_by(challenge, party).is_empty():
+			uncovered += 1
+	return Outcome.chance_percent(party_power(party), int(QUESTS[quest_id]["difficulty"]), uncovered)
+
+
+## The chance the player is shown for `party` on `quest_id`, as [low, high] in whole percent: see
+## Outcome.chance_range. The true chance always lies inside.
+func chance_range(quest_id: String, party: PackedStringArray) -> Vector2i:
+	var unknown := unknown_challenges(quest_id)
+	var uncovered := 0
+	for challenge: String in QUESTS[quest_id]["challenges"]:
+		if challenge not in unknown and Challenges.covered_by(challenge, party).is_empty():
+			uncovered += 1
+	return Outcome.chance_range(party_power(party), int(QUESTS[quest_id]["difficulty"]), uncovered, unknown.size())
+
+
+## The challenges of `quest_id` the player doesn't know yet. A quest's last challenge starts
+## unknown, unless it is its only one; a party back from the quest makes them known for good.
+func unknown_challenges(quest_id: String) -> PackedStringArray:
+	var challenges: Array = QUESTS[quest_id]["challenges"]
+	if quest_id in revealed or challenges.size() < 2:
+		return PackedStringArray()
+	return PackedStringArray([challenges[-1]])
+
+
+## The power `party` brings to a quest: its members' power, except a Healer's own.
+func party_power(party: PackedStringArray) -> int:
+	var total := 0
+	for adventurer: String in party:
+		if not is_healer(adventurer):
+			total += adventurers.power(adventurer)
+	return total
+
+
+## True when `adventurer` is a Healer: their power doesn't count, and a party with one takes half
+## damage.
+static func is_healer(adventurer: String) -> bool:
+	return ADVENTURERS[adventurer]["class"] == "Healer"
+
+
+## The gold `quest_id` brings when it fails: a quarter of its reward, rounded down.
+static func failure_gold(quest_id: String) -> int:
+	return floori(int(QUESTS[quest_id]["gold"]) / 4.0)
 
 
 ## Seconds until `outing` returns; 0 when it has returned.
@@ -158,9 +207,9 @@ func status(adventurer: String, now: int) -> String:
 	return "Resting"
 
 
-## Why `party` can't be sent at `now`, in words for the player; "" when it can. However many
-## parties are out, anyone home and well can go.
-func party_refusal(party: PackedStringArray, now: int) -> String:
+## Why `party` can't be sent on `quest_id` at `now`, in words for the player; "" when it can.
+## However many parties are out, anyone home, well and of a rank the quest allows can go.
+func party_refusal(quest_id: String, party: PackedStringArray, now: int) -> String:
 	if party.is_empty():
 		return "Pick at least one adventurer"
 	if party.size() > MAX_PARTY_SIZE:
@@ -168,6 +217,8 @@ func party_refusal(party: PackedStringArray, now: int) -> String:
 	for adventurer: String in party:
 		if not can_go(adventurer, now):
 			return "%s can't go" % ADVENTURERS[adventurer]["name"]
+		if not Challenges.can_join(ADVENTURERS[adventurer]["rank"], QUESTS[quest_id]["rank"]):
+			return "%s's rank is too low" % ADVENTURERS[adventurer]["name"]
 	return ""
 
 
@@ -176,7 +227,7 @@ func party_refusal(party: PackedStringArray, now: int) -> String:
 ## `infirmary_from` is as for `checkpoint`.
 func send(quest_id: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int, infirmary_from: int = -1) -> bool:
 	checkpoint(now, gold, infirmary_from)
-	if not party_refusal(party, now).is_empty():
+	if not party_refusal(quest_id, party, now).is_empty():
 		return false
 	# Health is fixed on leaving, like the chance, so a level-up while out changes nothing about how
 	# the quest ends.
@@ -234,7 +285,7 @@ func _bring_home(outing: Dictionary, gold: Gold) -> void:
 		var outcome := Outcome.roll(outing["seed"], chance, quest["difficulty"], party)
 		success = outcome.success
 		if not success:
-			reward = floori(reward / 4.0)
+			reward = failure_gold(outing["quest"])
 		damage = outcome.damage
 		var healed_in := INFIRMARY_INJURY_SECONDS if _infirmary_from >= 0 and _infirmary_from <= returns_at else INJURY_SECONDS
 		for adventurer: String in party:
@@ -251,11 +302,14 @@ func _bring_home(outing: Dictionary, gold: Gold) -> void:
 				injured_until[adventurer] = returns_at + healed_in
 				injury_lengths[adventurer] = healed_in
 				injured[adventurer] = healed_in
+	var revealing := unknown_challenges(outing["quest"])
+	if not revealing.is_empty():
+		revealed.append(outing["quest"])
 	gold.amount += reward
 	var xp := Adventurers.quest_xp(quest["seconds"], success)
 	for adventurer: String in party:
 		adventurers.gain_xp(adventurer, xp)
-	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "damage": damage, "injured": injured, "gold": reward, "xp": xp})
+	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "damage": damage, "injured": injured, "gold": reward, "xp": xp, "revealed": revealing})
 
 
 ## Files the debrief at `index` away once the player has read it; nothing else changes.
@@ -281,6 +335,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("dispatch", "injury_lengths", injury_lengths)
 	file.set_value("dispatch", "debriefs", debriefs)
 	file.set_value("dispatch", "wounds", wounds)
+	file.set_value("dispatch", "revealed", revealed)
 	file.set_value("dispatch", "checked_at", checked_at)
 	adventurers.write(file)
 
@@ -308,5 +363,7 @@ static func load_or_start(path: String, now: int) -> Dispatch:
 	dispatch.debriefs.assign(file.get_value("dispatch", "debriefs", []))
 	# A save from before health has nobody hurt: everyone loads at full health.
 	dispatch.wounds.assign(file.get_value("dispatch", "wounds", {}))
+	# A save from before challenges were known knows what every new guild knows.
+	dispatch.revealed = file.get_value("dispatch", "revealed", PackedStringArray())
 	dispatch.checked_at = int(file.get_value("dispatch", "checked_at", now))
 	return dispatch
