@@ -2,38 +2,20 @@ extends Control
 
 const SAVE_PATH: String = "user://save.cfg"
 
-# The Ground floor seen from above, as fractions of the floor area: y = 0 is the back wall,
-# y = 1 the front, at the bottom of the screen.
-const GROUND_FLOOR: Dictionary[String, Rect2] = {
-	"back_left": Rect2(0.0, 0.0, 0.5, 0.3),
-	"back_right": Rect2(0.5, 0.0, 0.5, 0.3),
-	"side_left": Rect2(0.0, 0.3, 0.3, 0.4),
-	"reception": Rect2(0.3, 0.3, 0.4, 0.4),
-	"side_right": Rect2(0.7, 0.3, 0.3, 0.4),
-	"entrance": Rect2(0.0, 0.7, 1.0, 0.3),
-}
-const USABLE_NAMES: Dictionary[String, String] = {"entrance": "Entrance hall", "reception": "Reception"}
-# Art is found by slot id and look, so replacing a file changes the art with no code change.
-const ROOM_ART: String = "res://assets/hall/ground/%s_%s.png"
-
 var _gold: Gold
 var _hall: Hall
 var _dispatch: Dispatch
 var _daily_board: Board
-var _slots: Dictionary[String, TextureButton] = {}
-## The slot the restore or convert panel is open for.
+## The slot the convert panel is open for.
 var _chosen_slot: String = ""
 
 @onready var _build_label: Label = $TopBar/Row/BuildLabel
 @onready var _gold_label: Label = $TopBar/Row/GoldLabel
 @onready var _parties_label: Label = $TopBar/Row/PartiesLabel
-@onready var _floor: Control = $Floor
+@onready var _hall_view: HallView = $HallView
 @onready var _board: QuestBoard = $QuestBoard
 @onready var _roster: Roster = $Roster
 @onready var _picker: PartyPicker = $PartyPicker
-@onready var _restore_panel: Control = $RestorePanel
-@onready var _restore_reason: Label = $RestorePanel/Box/Reason
-@onready var _restore_button: Button = $RestorePanel/Box/Buttons/Restore
 @onready var _convert_panel: ConvertPanel = $ConvertPanel
 @onready var _tick: Timer = $Tick
 
@@ -41,9 +23,9 @@ var _chosen_slot: String = ""
 func _ready() -> void:
 	var version: String = ProjectSettings.get_setting("application/config/version", "")
 	_build_label.text = BuildInfo.label(version)
-	$RestorePanel/Box/Cost.text = "%d gold · %s" % [Hall.RESTORE_COST_GOLD, Duration.label(Hall.RESTORE_SECONDS)]
-	$RestorePanel/Box/Buttons/Cancel.pressed.connect(_restore_panel.hide)
-	_restore_button.pressed.connect(_on_restore_pressed)
+	_hall_view.restore_pressed.connect(_on_restore_pressed)
+	_hall_view.job_pressed.connect(_on_job_pressed)
+	_hall_view.send_pressed.connect(_on_go_send)
 	_convert_panel.convert_pressed.connect(_on_convert_pressed)
 	($TabBar/Tabs/Hall as Button).button_group.pressed.connect(_on_tab_pressed)
 	_board.send_pressed.connect(_on_send_pressed)
@@ -54,7 +36,6 @@ func _ready() -> void:
 	_hall = Hall.load_or_start(SAVE_PATH, now)
 	_dispatch = Dispatch.load_or_start(SAVE_PATH, now)
 	_daily_board = Board.load_or_start(SAVE_PATH)
-	_build_floor()
 	_arrive()
 
 
@@ -109,98 +90,26 @@ func _checkpoint(now: int) -> void:
 		push_error("Could not save to " + SAVE_PATH)
 	_gold_label.text = str(_gold.amount)
 	_parties_label.text = str(_dispatch.outings.size())
-	_show_hall(now)
-	_board.show_board(_daily_board.quests(_dispatch, now, _utc_offset_minutes(), _quest_halls(now)), _dispatch, now)
+	var quests := _daily_board.quests(_dispatch, now, _utc_offset_minutes(), _quest_halls(now))
+	_hall_view.show_state(_hall, _dispatch, _gold, quests.size(), now)
+	_board.show_board(quests, _dispatch, now)
 	_roster.show_dispatch(_dispatch, now)
 	if _picker.visible:
 		_picker.show_dispatch(_dispatch, now)
-	if _restore_panel.visible:
-		_show_restore_panel(now)
 	if _convert_panel.visible:
 		_convert_panel.show_hall(_hall, _chosen_slot, _gold, now)
 
 
-func _build_floor() -> void:
-	for slot: String in GROUND_FLOOR:
-		var area: Rect2 = GROUND_FLOOR[slot]
-		var button := TextureButton.new()
-		button.ignore_texture_size = true
-		button.stretch_mode = TextureButton.STRETCH_SCALE
-		button.anchor_left = area.position.x
-		button.anchor_top = area.position.y
-		button.anchor_right = area.end.x
-		button.anchor_bottom = area.end.y
-		button.pressed.connect(_on_slot_pressed.bind(slot))
-		var label := Label.new()
-		label.set_anchors_preset(Control.PRESET_FULL_RECT)
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		label.add_theme_font_size_override("font_size", 48)
-		label.add_theme_constant_override("outline_size", 14)
-		label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		button.add_child(label)
-		_floor.add_child(button)
-		_slots[slot] = button
-
-
-func _show_hall(now: int) -> void:
-	for slot: String in _slots:
-		var button := _slots[slot]
-		var label := button.get_child(0) as Label
-		match _hall.state(slot, now):
-			Hall.State.USABLE:
-				_show_art(button, slot, "restored")
-				label.text = USABLE_NAMES[slot]
-			Hall.State.RESTORED:
-				_show_art(button, slot, "restored")
-				label.text = "Empty room"
-			Hall.State.RESTORING:
-				_show_art(button, slot, "damaged")
-				label.text = Duration.label(_hall.seconds_left(now))
-			Hall.State.DAMAGED:
-				_show_art(button, slot, "damaged")
-				label.text = "Damaged"
-			Hall.State.CONVERTING:
-				_show_art(button, slot, "restored")
-				label.text = Duration.label(_hall.seconds_left(now))
-			Hall.State.CONVERTED:
-				var type := _hall.room_type(slot)
-				_show_art(button, slot, type)
-				label.text = Hall.ROOM_TYPES[type]["name"]
-
-
-func _show_art(button: TextureButton, slot: String, look: String) -> void:
-	var path := ROOM_ART % [slot, look]
-	if button.texture_normal == null or button.texture_normal.resource_path != path:
-		button.texture_normal = load(path)
-
-
-func _on_slot_pressed(slot: String) -> void:
+func _on_restore_pressed(slot: String) -> void:
 	var now := _now()
-	match _hall.state(slot, now):
-		Hall.State.DAMAGED:
-			_chosen_slot = slot
-			_restore_panel.show()
-			_show_restore_panel(now)
-		Hall.State.RESTORED:
-			_chosen_slot = slot
-			_convert_panel.show()
-			_convert_panel.show_hall(_hall, slot, _gold, now)
-
-
-func _show_restore_panel(now: int) -> void:
-	var reason := _hall.refusal(_chosen_slot, _gold, now)
-	_restore_reason.text = reason
-	_restore_reason.visible = not reason.is_empty()
-	_restore_button.disabled = not reason.is_empty()
-
-
-func _on_restore_pressed() -> void:
-	var now := _now()
-	if _hall.restore(_chosen_slot, _gold, now):
-		_restore_panel.hide()
+	_hall.restore(slot, _gold, now)
 	_checkpoint(now)
+
+
+func _on_job_pressed(slot: String) -> void:
+	_chosen_slot = slot
+	_convert_panel.show()
+	_convert_panel.show_hall(_hall, slot, _gold, _now())
 
 
 func _on_convert_pressed(type: String) -> void:
@@ -223,11 +132,17 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	_checkpoint(now)
 
 
+# A tab pressed in code does not signal its group, so the tab is shown here.
+func _on_go_send() -> void:
+	var quests_tab := $TabBar/Tabs/Quests as Button
+	quests_tab.button_pressed = true
+	_on_tab_pressed(quests_tab)
+
+
 func _on_tab_pressed(tab: BaseButton) -> void:
-	_floor.visible = tab == $TabBar/Tabs/Hall
+	_hall_view.visible = tab == $TabBar/Tabs/Hall
 	_board.visible = tab == $TabBar/Tabs/Quests
 	_roster.visible = tab == $TabBar/Tabs/Roster
-	_restore_panel.hide()
 	_convert_panel.hide()
 	_picker.hide()
 

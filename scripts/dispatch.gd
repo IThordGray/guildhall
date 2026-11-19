@@ -29,6 +29,8 @@ const INFIRMARY_INJURY_SECONDS: int = 150
 var outings: Array[Dictionary] = []
 ## Unix seconds each adventurer hurt on a failed quest recovers at.
 var injured_until: Dictionary[String, int] = {}
+## How many seconds each adventurer's latest injury lasts in all, fixed when it was decided.
+var injury_lengths: Dictionary[String, int] = {}
 ## The latest return in words for the player; "" before the first.
 var last_return: String = ""
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back neither
@@ -60,6 +62,12 @@ func seconds_left(outing: Dictionary, now: int) -> int:
 ## Seconds until `adventurer` recovers from an injury; 0 when not injured.
 func injury_left(adventurer: String, now: int) -> int:
 	return maxi(0, int(injured_until.get(adventurer, 0)) - maxi(now, checked_at))
+
+
+## How many seconds `adventurer`'s latest injury lasts in all; the long injury for one saved
+## before lengths were kept.
+func injury_seconds(adventurer: String) -> int:
+	return injury_lengths.get(adventurer, INJURY_SECONDS)
 
 
 ## The quest `adventurer` is out on, or "" when home.
@@ -152,6 +160,7 @@ func _bring_home(outing: Dictionary, gold: Gold, infirmary_from: int) -> void:
 			var returns_at := _returns_at(outing)
 			var healed_in := INFIRMARY_INJURY_SECONDS if infirmary_from >= 0 and infirmary_from <= returns_at else INJURY_SECONDS
 			injured_until[injured] = returns_at + healed_in
+			injury_lengths[injured] = healed_in
 	gold.amount += reward
 	last_return = "%s · +%d gold" % [result, reward]
 	if not injured.is_empty():
@@ -166,6 +175,7 @@ func _returns_at(outing: Dictionary) -> int:
 func write(file: ConfigFile) -> void:
 	file.set_value("dispatch", "outings", outings)
 	file.set_value("dispatch", "injured_until", injured_until)
+	file.set_value("dispatch", "injury_lengths", injury_lengths)
 	file.set_value("dispatch", "last_return", last_return)
 	file.set_value("dispatch", "checked_at", checked_at)
 
@@ -188,6 +198,7 @@ static func load_or_start(path: String, now: int) -> Dispatch:
 		if outing["quest"] not in QUESTS:
 			dispatch.outings.erase(outing)
 	dispatch.injured_until.assign(file.get_value("dispatch", "injured_until", {}))
+	dispatch.injury_lengths.assign(file.get_value("dispatch", "injury_lengths", {}))
 	dispatch.last_return = file.get_value("dispatch", "last_return", "")
 	dispatch.checked_at = int(file.get_value("dispatch", "checked_at", now))
 	return dispatch

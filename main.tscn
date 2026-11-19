@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
@@ -9,6 +9,7 @@
 [ext_resource type="Texture2D" path="res://theme/icons/quests.svg" id="7_quests"]
 [ext_resource type="Texture2D" path="res://theme/icons/roster.svg" id="8_roster"]
 [ext_resource type="Texture2D" path="res://theme/icons/labyrinth.svg" id="9_labyrinth"]
+[ext_resource type="PackedScene" path="res://screens/hall_view.tscn" id="10_hall_view"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -65,17 +66,12 @@ theme_type_variation = &"Numbers"
 text = "0"
 vertical_alignment = 1
 
-[node name="Floor" type="Control" parent="."]
+[node name="HallView" parent="." instance=ExtResource("10_hall_view")]
 layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 24.0
-offset_top = 152.0
-offset_right = -24.0
-offset_bottom = -200.0
-grow_horizontal = 2
-grow_vertical = 2
+offset_left = 44.0
+offset_top = 168.0
+offset_right = -44.0
+offset_bottom = -192.0
 
 [node name="QuestBoard" parent="." instance=ExtResource("2_board")]
 visible = false
@@ -151,60 +147,6 @@ text = "Labyrinth"
 icon = ExtResource("9_labyrinth")
 icon_alignment = 1
 vertical_icon_alignment = 0
-
-[node name="RestorePanel" type="PanelContainer" parent="."]
-visible = false
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -420.0
-offset_top = -200.0
-offset_right = 420.0
-offset_bottom = 200.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_type_variation = &"Dialog"
-
-[node name="Box" type="VBoxContainer" parent="RestorePanel"]
-layout_mode = 2
-theme_override_constants/separation = 32
-
-[node name="Title" type="Label" parent="RestorePanel/Box"]
-layout_mode = 2
-theme_type_variation = &"Title"
-text = "Restore this room"
-horizontal_alignment = 1
-
-[node name="Cost" type="Label" parent="RestorePanel/Box"]
-layout_mode = 2
-theme_type_variation = &"Numbers"
-text = "120 gold · 2:00"
-horizontal_alignment = 1
-
-[node name="Reason" type="Label" parent="RestorePanel/Box"]
-layout_mode = 2
-theme_type_variation = &"Alert"
-text = "Builder busy"
-horizontal_alignment = 1
-
-[node name="Buttons" type="HBoxContainer" parent="RestorePanel/Box"]
-layout_mode = 2
-theme_override_constants/separation = 40
-alignment = 1
-
-[node name="Restore" type="Button" parent="RestorePanel/Box/Buttons"]
-custom_minimum_size = Vector2(300, 120)
-layout_mode = 2
-theme_type_variation = &"GoldButton"
-text = "Restore"
-
-[node name="Cancel" type="Button" parent="RestorePanel/Box/Buttons"]
-custom_minimum_size = Vector2(300, 120)
-layout_mode = 2
-text = "Cancel"
 
 [node name="ConvertPanel" parent="." instance=ExtResource("5_convert")]
 visible = false

@@ -166,6 +166,7 @@ func test_a_failure_pays_a_quarter_rounded_down_and_injures_one_member_for_five_
 			hurt.append(adventurer)
 	assert_eq(hurt, [injured])
 	assert_eq(dispatch.injury_left(injured, 1_280), 200)
+	assert_eq(dispatch.injury_seconds(injured), 300)
 	assert_eq(dispatch.status(injured, 1_280), "Injured · 3:20")
 	var injured_name: String = Dispatch.ADVENTURERS[injured]["name"]
 	assert_eq(dispatch.last_return, "Gather moonherbs: failed · +37 gold · %s injured" % injured_name)
@@ -453,6 +454,7 @@ func test_an_injury_lasts_150_seconds_with_an_infirmary_finished_before_the_retu
 	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
 	dispatch.checkpoint(1_700, gold, hall.first_done_at("infirmary"))
 	assert_eq(dispatch.injury_left("tobin", 1_700), 50)
+	assert_eq(dispatch.injury_seconds("tobin"), 150)
 	assert_eq(dispatch.status("tobin", 1_700), "Injured · 0:50")
 	assert_true(dispatch.can_go("tobin", 1_750))
 
@@ -471,8 +473,40 @@ func test_an_injury_lasts_300_seconds_when_the_infirmary_finishes_after_the_retu
 	dispatch.checkpoint(1_700, gold, hall.first_done_at("infirmary"))
 	assert_eq(dispatch.injury_left("tobin", 1_700), 200)
 	dispatch.checkpoint(1_800, gold, hall.first_done_at("infirmary"))
+	assert_eq(dispatch.injury_seconds("tobin"), 300)
 	assert_eq(dispatch.injury_left("tobin", 1_899), 1)
 	assert_true(dispatch.can_go("tobin", 1_900))
+
+
+func test_an_injury_keeps_its_length_through_save_and_load() -> void:
+	var gold := Gold.new(1_000)
+	var hall := _hall_converting("infirmary", gold)
+	var dispatch := Dispatch.new(1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.send("rats", ["bram"], _seed("rats", ["bram"], false), gold, 1_000)
+	# Bram returned at 1_060, before the Infirmary; Tobin at 1_600, after it.
+	dispatch.checkpoint(1_100, gold, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_700, gold, hall.first_done_at("infirmary"))
+	var file := ConfigFile.new()
+	dispatch.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_700)
+	assert_eq(loaded.injury_seconds("tobin"), 150)
+	assert_eq(loaded.injury_seconds("bram"), 300)
+	assert_eq(loaded.injury_left("tobin", 1_700), 50)
+
+
+func test_an_injury_saved_before_lengths_were_kept_loads_as_the_long_injury() -> void:
+	var file := ConfigFile.new()
+	file.set_value("dispatch", "outings", [])
+	file.set_value("dispatch", "injured_until", {"tobin": 1_750})
+	file.set_value("dispatch", "checked_at", 1_700)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_700)
+	assert_eq(loaded.injury_left("tobin", 1_700), 50)
+	assert_eq(loaded.injury_seconds("tobin"), 300)
 
 
 func test_two_infirmaries_still_heal_in_150_seconds() -> void:
