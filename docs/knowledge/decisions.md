@@ -22,7 +22,17 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   usable and the rest damaged; tapping a damaged slot spends gold to restore it on a timer (one
   builder, so one restoration at a time); the slot then shows restored, also when it finished while
   the app was closed. Restored rooms have no type yet (that is M5's convert).
-- **Next:** M3 send a party · M4 adventurers · M5 rooms with jobs
+- **M3 — Send a party.** Done when a bottom bar switches Hall | Quests; the quest board lists three
+  fixed quests (duration, gold reward); the guild's one party (no individuals yet) goes on one
+  quest at a time and its gold lands when the timer ends, also while closed. Quests replace M1's
+  passive gold drip: gold now comes only from quests.
+- **M4 — Adventurers.** Done when a Roster tab lists four starting adventurers (name, class, rank
+  F, power) with status; dispatch picks 1–3 idle ones and shows a success chance from party power
+  vs quest difficulty; the outcome is fixed at dispatch from a saved seed; success pays in full,
+  failure pays a quarter and injures one member for a while. Still one quest out at a time.
+- **M5 — Rooms with jobs.** Done when a restored empty room can be converted (gold + timer, uses
+  the builder, unusable meanwhile) into a Quest hall (+1 quest out at a time) or an Infirmary
+  (injuries heal twice as fast), and the effect applies.
 - Done: M0 runs on my phone (Pages + APK per push, failing test blocks deploy) · M1 gold while
   you're away (1 gold/s, away message after more than 30 s).
 
