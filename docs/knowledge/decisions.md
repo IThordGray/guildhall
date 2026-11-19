@@ -18,11 +18,13 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **M1 — Gold while you're away.** Done when the top bar shows gold rising at a fixed rate, and
-  reopening after N minutes says "While you were away: +X gold" with X exact; the save survives a
-  reload on web.
-- **Next:** M2 restore a room · M3 send a party · M4 adventurers · M5 rooms with jobs
-- Done: M0 runs on my phone (Pages + APK per push, failing test blocks deploy).
+- **M2 — Restore a room.** Done when Home shows the Ground floor top-down as room slots, two
+  usable and the rest damaged; tapping a damaged slot spends gold to restore it on a timer (one
+  builder, so one restoration at a time); the slot then shows restored, also when it finished while
+  the app was closed. Restored rooms have no type yet (that is M5's convert).
+- **Next:** M3 send a party · M4 adventurers · M5 rooms with jobs
+- Done: M0 runs on my phone (Pages + APK per push, failing test blocks deploy) · M1 gold while
+  you're away (1 gold/s, away message after more than 30 s).
 
 ## Stack
 
@@ -34,6 +36,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
 - Hall view: roof-off top-down view of one floor, seen from high at the front. It replaces the
   spec's isometric view. `assets/concept/guildhall.png` shows the camera angle only; everything
   else about the hall follows the spec.
+- Hall art: placeholders drawn by Claude for now, one image file per slot per state, so real art
+  replaces a file without code changes.
 
 ## Working rules
 
@@ -45,5 +49,4 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
 
 ## Open — needs the human
 
-- Hall art for M2: the hall with no UI, plus a damaged and a restored image per starting room. Who
-  makes it?
+- Nothing open.
