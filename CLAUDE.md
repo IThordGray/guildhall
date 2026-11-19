@@ -18,6 +18,7 @@ was decided for the build.
 - Test: `godot --headless --path . --import && godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://test -gexit`
   — the import is required: without it GUT runs no tests and still exits 0.
 - Build (web): `godot --headless --export-release "Web" build/web/index.html`
+- Play locally (web): build web, then `python -m http.server 8000 -d build/web` → http://localhost:8000
 - Build (Android): `godot --headless --export-debug "Android" build/android/guildhall.apk`
 - Main branch: `main`. Every push to `main` runs CI and deploys the web build to
   https://ithordgray.github.io/guildhall/

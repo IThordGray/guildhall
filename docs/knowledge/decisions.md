@@ -15,8 +15,8 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 
 ## Current focus
 
-Each milestone is the thinnest slice that makes the core loop more complete, ends deployed, and is
-checked by hand on a phone. Later milestones get a `/to-spec` when they start.
+Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
+the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
 - **M1 — Gold while you're away.** Done when the top bar shows gold rising at a fixed rate, and
   reopening after N minutes says "While you were away: +X gold" with X exact; the save survives a
@@ -37,6 +37,7 @@ checked by hand on a phone. Later milestones get a `/to-spec` when they start.
 
 ## Working rules
 
+- A milestone reaches `main` only after the human has played it locally in the browser and said so.
 - Report the criterion that fails; never tune a number until it passes.
 - A target that failed three times gets questioned, not attempted again.
 - A finding is not a scope extension: it is one line to the human when the feature closes, filed in
