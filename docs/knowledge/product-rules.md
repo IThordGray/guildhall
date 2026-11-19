@@ -17,3 +17,9 @@ it merges. Screens and wording live in the code.
 ## Screen
 
 - Portrait 9:16 and landscape. A top bar shows gold and how many parties are out.
+
+## Quests
+
+- How many parties are out is limited only by ready adventurers. A party has 1–4 members.
+- The board holds a fixed number of quests per local day. A quest sent is used until the next day,
+  whatever its outcome.
