@@ -1,9 +1,10 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
 [ext_resource type="PackedScene" path="res://screens/roster.tscn" id="3_roster"]
 [ext_resource type="PackedScene" path="res://screens/party_picker.tscn" id="4_picker"]
+[ext_resource type="PackedScene" path="res://screens/convert_panel.tscn" id="5_convert"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -182,6 +183,10 @@ custom_minimum_size = Vector2(300, 120)
 layout_mode = 2
 theme_override_font_sizes/font_size = 52
 text = "Cancel"
+
+[node name="ConvertPanel" parent="." instance=ExtResource("5_convert")]
+visible = false
+layout_mode = 1
 
 [node name="PartyPicker" parent="." instance=ExtResource("4_picker")]
 visible = false

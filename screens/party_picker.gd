@@ -10,6 +10,7 @@ var _toggles: Dictionary[String, Button] = {}
 ## The dispatch and time last shown, so picking someone can update the odds at once.
 var _dispatch: Dispatch
 var _now: int = 0
+var _quest_halls: int = 0
 
 @onready var _title: Label = $Box/Title
 @onready var _list: VBoxContainer = $Box/List
@@ -35,7 +36,7 @@ func _ready() -> void:
 
 
 ## Opens the picker for `quest` with nobody picked.
-func open(quest: String, dispatch: Dispatch, now: int) -> void:
+func open(quest: String, dispatch: Dispatch, now: int, quest_halls: int) -> void:
 	_quest = quest
 	_picked = PackedStringArray()
 	for toggle: Button in _toggles.values():
@@ -43,19 +44,21 @@ func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	var info: Dictionary = Dispatch.QUESTS[quest]
 	_title.text = "%s · difficulty %d" % [info["name"], info["difficulty"]]
 	show()
-	show_dispatch(dispatch, now)
+	show_dispatch(dispatch, now, quest_halls)
 
 
-func show_dispatch(dispatch: Dispatch, now: int) -> void:
+## Shows `dispatch` at `now`, with `quest_halls` Quest halls finished.
+func show_dispatch(dispatch: Dispatch, now: int, quest_halls: int) -> void:
 	_dispatch = dispatch
 	_now = now
+	_quest_halls = quest_halls
 	for adventurer: String in _toggles:
 		var info: Dictionary = Dispatch.ADVENTURERS[adventurer]
 		var toggle := _toggles[adventurer]
 		toggle.text = "%s · %s %s · power %d\n%s" % [info["name"], info["class"], info["rank"], info["power"], dispatch.status(adventurer, now)]
 		toggle.disabled = not dispatch.can_go(adventurer, now)
 	_odds.text = "Party power %d · %d%% success" % [Dispatch.party_power(_picked), Dispatch.success_chance(_quest, _picked)]
-	var reason := dispatch.party_refusal(_picked, now)
+	var reason := dispatch.party_refusal(_picked, now, _quest, quest_halls)
 	_reason.text = reason
 	_reason.visible = not reason.is_empty()
 	_send.disabled = not reason.is_empty()
@@ -66,4 +69,4 @@ func _on_toggled(picked: bool, adventurer: String) -> void:
 		_picked.append(adventurer)
 	else:
 		_picked.remove_at(_picked.find(adventurer))
-	show_dispatch(_dispatch, _now)
+	show_dispatch(_dispatch, _now, _quest_halls)

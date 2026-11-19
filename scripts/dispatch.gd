@@ -14,11 +14,13 @@ const ADVENTURERS: Dictionary[String, Dictionary] = {
 	"tobin": {"name": "Tobin", "class": "Scout", "rank": "F", "power": 3},
 	"maren": {"name": "Maren", "class": "Healer", "rank": "F", "power": 3},
 }
-## How many quests can be out at the same time.
-const MAX_QUESTS_OUT: int = 1
+## How many quests can be out at the same time without a Quest hall; each finished one adds one.
+const QUESTS_OUT: int = 1
 const MAX_PARTY_SIZE: int = 3
 ## How long a failed quest injures one of its party, counted from the moment the party returns.
 const INJURY_SECONDS: int = 300
+## The same with an Infirmary finished by the moment of return; more Infirmaries don't shorten it.
+const INFIRMARY_INJURY_SECONDS: int = 150
 
 ## Parties out, in the order they left. Each is {"quest": quest id, "since": unix seconds it left,
 ## "party": adventurer ids, "seed": the seed that fixes how it ends}. A party counts as out until
@@ -83,16 +85,21 @@ func status(adventurer: String, now: int) -> String:
 	return "Resting"
 
 
-## Why no party can be sent on a quest now, in words for the player; "" when one can.
-func refusal() -> String:
-	if outings.size() >= MAX_QUESTS_OUT:
-		return "Party is out"
+## Why no party can be sent on `quest` now, with `quest_halls` Quest halls finished, in words for
+## the player; "" when one can. Without a quest, why no party can be sent on any.
+func refusal(quest: String = "", quest_halls: int = 0) -> String:
+	for outing: Dictionary in outings:
+		if outing["quest"] == quest:
+			return "Already out"
+	if outings.size() >= QUESTS_OUT + quest_halls:
+		return "Party is out" if outings.size() == 1 else "%d parties out" % outings.size()
 	return ""
 
 
-## Why `party` can't be sent at `now`, in words for the player; "" when it can.
-func party_refusal(party: PackedStringArray, now: int) -> String:
-	var reason := refusal()
+## Why `party` can't be sent on `quest` at `now`, with `quest_halls` Quest halls finished, in words
+## for the player; "" when it can.
+func party_refusal(party: PackedStringArray, now: int, quest: String = "", quest_halls: int = 0) -> String:
+	var reason := refusal(quest, quest_halls)
 	if not reason.is_empty():
 		return reason
 	if party.is_empty():
@@ -106,10 +113,11 @@ func party_refusal(party: PackedStringArray, now: int) -> String:
 
 
 ## Sends `party` on `quest_id` at `now`, its outcome fixed by `roll_seed`; false, with nothing
-## started, when `party_refusal` gives a reason.
-func send(quest_id: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int) -> bool:
-	checkpoint(now, gold)
-	if not party_refusal(party, now).is_empty():
+## started, when `party_refusal` gives a reason. `quest_halls` and `infirmary_from` are as for
+## `party_refusal` and `checkpoint`.
+func send(quest_id: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int, quest_halls: int = 0, infirmary_from: int = -1) -> bool:
+	checkpoint(now, gold, infirmary_from)
+	if not party_refusal(party, now, quest_id, quest_halls).is_empty():
 		return false
 	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "seed": roll_seed})
 	return true
@@ -124,17 +132,23 @@ func returned_since_checkpoint(now: int) -> bool:
 	return false
 
 
-## Brings every returned party home, once: pays its reward into `gold`, injures on failure and
-## records it as the last return. Records the time seen.
-func checkpoint(now: int, gold: Gold) -> void:
+## Brings every returned party home, once, in the order they returned: pays its reward into
+## `gold`, injures on failure and records it as the last return. `infirmary_from` is the unix
+## seconds the first Infirmary is finished at, -1 for none: an injury from a return at or after it
+## is shorter. Records the time seen.
+func checkpoint(now: int, gold: Gold, infirmary_from: int = -1) -> void:
 	checked_at = maxi(checked_at, now)
-	for outing: Dictionary in outings.duplicate():
+	var returned: Array[Dictionary] = []
+	for outing: Dictionary in outings:
 		if seconds_left(outing, checked_at) == 0:
-			outings.erase(outing)
-			_bring_home(outing, gold)
+			returned.append(outing)
+	returned.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return _returns_at(a) < _returns_at(b))
+	for outing: Dictionary in returned:
+		outings.erase(outing)
+		_bring_home(outing, gold, infirmary_from)
 
 
-func _bring_home(outing: Dictionary, gold: Gold) -> void:
+func _bring_home(outing: Dictionary, gold: Gold, infirmary_from: int) -> void:
 	var quest: Dictionary = QUESTS[outing["quest"]]
 	var party: PackedStringArray = outing["party"]
 	var reward: int = quest["gold"]
@@ -148,7 +162,9 @@ func _bring_home(outing: Dictionary, gold: Gold) -> void:
 			reward = floori(reward / 4.0)
 			result = "%s: failed" % quest["name"]
 			injured = outcome.injured
-			injured_until[injured] = _returns_at(outing) + INJURY_SECONDS
+			var returns_at := _returns_at(outing)
+			var healed_in := INFIRMARY_INJURY_SECONDS if infirmary_from >= 0 and infirmary_from <= returns_at else INJURY_SECONDS
+			injured_until[injured] = returns_at + healed_in
 	gold.amount += reward
 	last_return = "%s · +%d gold" % [result, reward]
 	if not injured.is_empty():

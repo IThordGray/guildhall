@@ -392,3 +392,126 @@ func test_a_save_naming_an_unknown_quest_loads_with_nobody_out() -> void:
 	assert_eq(gold.amount, 20)
 	assert_eq(dispatch.last_return, "")
 	assert_true(_send_to_succeed(dispatch, "rats", gold, 99_000))
+
+
+## A hall at 1_000 converting `back_left` into `type`: restored at 1_120, converted at 1_180.
+func _hall_converting(type: String, gold: Gold) -> Hall:
+	var hall := Hall.new(1_000)
+	assert_true(hall.restore("back_left", gold, 1_000))
+	assert_true(hall.convert_room("back_left", type, gold, 1_120))
+	return hall
+
+
+func test_a_finished_quest_hall_lets_a_second_quest_go_out_and_a_third_is_refused() -> void:
+	var gold := Gold.new(1_000)
+	var hall := _hall_converting("quest_hall", gold)
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.send("goblins", ["tobin"], 1, gold, 1_150, hall.rooms_done("quest_hall", 1_150)))
+	# Until the Quest hall is finished it does nothing.
+	assert_eq(dispatch.refusal("rats", hall.rooms_done("quest_hall", 1_179)), "Party is out")
+	assert_false(dispatch.send("rats", ["bram"], 1, gold, 1_179, hall.rooms_done("quest_hall", 1_179)))
+
+	var quest_halls := hall.rooms_done("quest_hall", 1_180)
+	assert_eq(quest_halls, 1)
+	assert_eq(dispatch.refusal("rats", quest_halls), "")
+	assert_true(dispatch.send("rats", ["bram"], 1, gold, 1_180, quest_halls))
+	assert_eq(dispatch.refusal("moonherbs", quest_halls), "2 parties out")
+	assert_eq(dispatch.party_refusal(["ilse"], 1_180, "moonherbs", quest_halls), "2 parties out")
+	assert_false(dispatch.send("moonherbs", ["ilse"], 1, gold, 1_180, quest_halls))
+	assert_eq(dispatch.outings.size(), 2)
+	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_200), 550)
+	assert_eq(dispatch.seconds_left(dispatch.outings[1], 1_200), 40)
+	dispatch.checkpoint(1_240, gold)
+	assert_eq(dispatch.refusal("moonherbs", quest_halls), "")
+
+
+func test_a_quest_already_out_cannot_be_sent_again_even_with_room_for_another() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.send("moonherbs", ["bram"], 1, gold, 1_000, 1))
+	assert_eq(dispatch.refusal("moonherbs", 1), "Already out")
+	assert_eq(dispatch.party_refusal(["ilse"], 1_010, "moonherbs", 1), "Already out")
+	assert_false(dispatch.send("moonherbs", ["ilse"], 1, gold, 1_010, 1))
+	assert_eq(dispatch.refusal("rats", 1), "")
+	assert_eq(dispatch.outings.size(), 1)
+	dispatch.checkpoint(1_180, gold)
+	assert_eq(dispatch.refusal("moonherbs", 1), "")
+
+
+func test_an_injury_lasts_150_seconds_with_an_infirmary_finished_before_the_return() -> void:
+	var gold := Gold.new(1_000)
+	var hall := _hall_converting("infirmary", gold)
+	var dispatch := Dispatch.new(1_000)
+	# Returns at 1_600; the Infirmary finished at 1_180, while the app was away.
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.checkpoint(1_700, gold, hall.first_done_at("infirmary"))
+	assert_eq(dispatch.injury_left("tobin", 1_700), 50)
+	assert_eq(dispatch.status("tobin", 1_700), "Injured · 0:50")
+	assert_true(dispatch.can_go("tobin", 1_750))
+
+
+func test_an_injury_lasts_300_seconds_when_the_infirmary_finishes_after_the_return() -> void:
+	var gold := Gold.new(1_000)
+	var dispatch := Dispatch.new(1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	var hall := Hall.new(1_000)
+	hall.restore("back_left", gold, 1_000)
+	hall.checkpoint(1_200)
+	hall.convert_room("back_left", "infirmary", gold, 1_550)
+	# Away until 1_700: the party returned at 1_600, the Infirmary finished at 1_610, and the hall
+	# took its checkpoint first.
+	hall.checkpoint(1_700)
+	dispatch.checkpoint(1_700, gold, hall.first_done_at("infirmary"))
+	assert_eq(dispatch.injury_left("tobin", 1_700), 200)
+	dispatch.checkpoint(1_800, gold, hall.first_done_at("infirmary"))
+	assert_eq(dispatch.injury_left("tobin", 1_899), 1)
+	assert_true(dispatch.can_go("tobin", 1_900))
+
+
+func test_two_infirmaries_still_heal_in_150_seconds() -> void:
+	var gold := Gold.new(1_000)
+	var hall := _hall_converting("infirmary", gold)
+	hall.restore("back_right", gold, 1_180)
+	hall.convert_room("back_right", "infirmary", gold, 1_300)
+	hall.checkpoint(1_360)
+	assert_eq(hall.rooms_done("infirmary", 1_360), 2)
+	var dispatch := Dispatch.new(1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_400)
+	dispatch.checkpoint(2_000, gold, hall.first_done_at("infirmary"))
+	assert_eq(dispatch.injury_left("tobin", 2_000), 150)
+
+
+func test_two_parties_back_in_the_same_checkpoint_come_home_in_the_order_they_returned() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	dispatch.send("goblins", ["bram", "ilse"], _seed("goblins", ["bram", "ilse"], true), gold, 1_000, 1)
+	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), gold, 1_100, 1)
+	# Rats came back at 1_160, the goblin camp at 1_600, though the goblin camp left first.
+	dispatch.checkpoint(2_000, gold)
+	assert_true(dispatch.outings.is_empty())
+	assert_eq(gold.amount, 500 + 12)
+	assert_eq(dispatch.last_return, "Goblin camp: success · +500 gold")
+
+
+func test_a_clock_set_back_never_changes_an_injury_already_decided() -> void:
+	var gold := Gold.new(1_000)
+	var dispatch := Dispatch.new(1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	var hall := Hall.new(1_000)
+	hall.restore("back_left", gold, 1_000)
+	hall.checkpoint(1_200)
+	hall.convert_room("back_left", "infirmary", gold, 1_550)
+	hall.checkpoint(1_650)
+	dispatch.checkpoint(1_650, gold, hall.first_done_at("infirmary"))
+	assert_eq(dispatch.injury_left("tobin", 1_650), 250)
+	assert_eq(gold.amount, 1_000 - 120 - 60 + 125)
+
+	# Set back to before the return and the Infirmary: nothing is re-decided, repaid or re-charged.
+	hall.checkpoint(1_500)
+	dispatch.checkpoint(1_500, gold, hall.first_done_at("infirmary"))
+	assert_eq(hall.state("back_left", 1_500), Hall.State.CONVERTED)
+	assert_eq(dispatch.injury_left("tobin", 1_500), 250)
+	assert_true(dispatch.outings.is_empty())
+	dispatch.checkpoint(1_700, gold, hall.first_done_at("infirmary"))
+	assert_eq(dispatch.injury_left("tobin", 1_899), 1)
+	assert_eq(gold.amount, 1_000 - 120 - 60 + 125)

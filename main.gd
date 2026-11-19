@@ -20,7 +20,7 @@ var _gold: Gold
 var _hall: Hall
 var _dispatch: Dispatch
 var _slots: Dictionary[String, TextureButton] = {}
-## The damaged slot the restore panel is open for.
+## The slot the restore or convert panel is open for.
 var _chosen_slot: String = ""
 
 @onready var _build_label: Label = $TopBar/BuildLabel
@@ -32,6 +32,7 @@ var _chosen_slot: String = ""
 @onready var _restore_panel: Control = $RestorePanel
 @onready var _restore_reason: Label = $RestorePanel/Box/Reason
 @onready var _restore_button: Button = $RestorePanel/Box/Buttons/Restore
+@onready var _convert_panel: ConvertPanel = $ConvertPanel
 @onready var _tick: Timer = $Tick
 
 
@@ -41,6 +42,7 @@ func _ready() -> void:
 	$RestorePanel/Box/Cost.text = "Restore — %d gold · %s" % [Hall.RESTORE_COST_GOLD, Duration.label(Hall.RESTORE_SECONDS)]
 	$RestorePanel/Box/Buttons/Cancel.pressed.connect(_restore_panel.hide)
 	_restore_button.pressed.connect(_on_restore_pressed)
+	_convert_panel.convert_pressed.connect(_on_convert_pressed)
 	($TabBar/Hall as Button).button_group.pressed.connect(_on_tab_pressed)
 	_board.send_pressed.connect(_on_send_pressed)
 	_picker.send_pressed.connect(_on_party_sent)
@@ -73,8 +75,8 @@ func _arrive() -> void:
 	var now := _now()
 	# A return summary goes here, before _checkpoint folds the absence in: a party back from its
 	# quest (Dispatch.returned_since_checkpoint(now); the checkpoint applies its outcome, the reward
-	# or the quarter and an injury, and records it in Dispatch.last_return) and a room restored
-	# (Hall.finished_since_checkpoint(now)) are what happened while the app was away.
+	# or the quarter and an injury, and records it in Dispatch.last_return) and a room restored or
+	# converted (Hall.finished_since_checkpoint(now)) are what happened while the app was away.
 	_checkpoint(now)
 	_tick.start()
 
@@ -93,7 +95,7 @@ func _on_tick() -> void:
 
 
 func _checkpoint(now: int) -> void:
-	_dispatch.checkpoint(now, _gold)
+	_dispatch.checkpoint(now, _gold, _hall.first_done_at("infirmary"))
 	_hall.checkpoint(now)
 	var file := ConfigFile.new()
 	_gold.write(file)
@@ -103,12 +105,14 @@ func _checkpoint(now: int) -> void:
 		push_error("Could not save to " + SAVE_PATH)
 	_gold_label.text = "Gold %d" % _gold.amount
 	_show_hall(now)
-	_board.show_dispatch(_dispatch, now)
+	_board.show_dispatch(_dispatch, now, _quest_halls(now))
 	_roster.show_dispatch(_dispatch, now)
 	if _picker.visible:
-		_picker.show_dispatch(_dispatch, now)
+		_picker.show_dispatch(_dispatch, now, _quest_halls(now))
 	if _restore_panel.visible:
 		_show_restore_panel(now)
+	if _convert_panel.visible:
+		_convert_panel.show_hall(_hall, _chosen_slot, _gold, now)
 
 
 func _build_floor() -> void:
@@ -152,6 +156,13 @@ func _show_hall(now: int) -> void:
 			Hall.State.DAMAGED:
 				_show_art(button, slot, "damaged")
 				label.text = "Damaged"
+			Hall.State.CONVERTING:
+				_show_art(button, slot, "restored")
+				label.text = Duration.label(_hall.seconds_left(now))
+			Hall.State.CONVERTED:
+				var type := _hall.room_type(slot)
+				_show_art(button, slot, type)
+				label.text = Hall.ROOM_TYPES[type]["name"]
 
 
 func _show_art(button: TextureButton, slot: String, look: String) -> void:
@@ -162,11 +173,15 @@ func _show_art(button: TextureButton, slot: String, look: String) -> void:
 
 func _on_slot_pressed(slot: String) -> void:
 	var now := _now()
-	if _hall.state(slot, now) != Hall.State.DAMAGED:
-		return
-	_chosen_slot = slot
-	_restore_panel.show()
-	_show_restore_panel(now)
+	match _hall.state(slot, now):
+		Hall.State.DAMAGED:
+			_chosen_slot = slot
+			_restore_panel.show()
+			_show_restore_panel(now)
+		Hall.State.RESTORED:
+			_chosen_slot = slot
+			_convert_panel.show()
+			_convert_panel.show_hall(_hall, slot, _gold, now)
 
 
 func _show_restore_panel(now: int) -> void:
@@ -183,14 +198,22 @@ func _on_restore_pressed() -> void:
 	_checkpoint(now)
 
 
+func _on_convert_pressed(type: String) -> void:
+	var now := _now()
+	if _hall.convert_room(_chosen_slot, type, _gold, now):
+		_convert_panel.hide()
+	_checkpoint(now)
+
+
 func _on_send_pressed(quest: String) -> void:
-	_picker.open(quest, _dispatch, _now())
+	var now := _now()
+	_picker.open(quest, _dispatch, now, _quest_halls(now))
 
 
 # The seed comes from the global generator; the outcome it fixes is rolled from the seed alone.
 func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
-	if _dispatch.send(quest, party, randi(), _gold, now):
+	if _dispatch.send(quest, party, randi(), _gold, now, _quest_halls(now), _hall.first_done_at("infirmary")):
 		_picker.hide()
 	_checkpoint(now)
 
@@ -200,7 +223,12 @@ func _on_tab_pressed(tab: BaseButton) -> void:
 	_board.visible = tab == $TabBar/Quests
 	_roster.visible = tab == $TabBar/Roster
 	_restore_panel.hide()
+	_convert_panel.hide()
 	_picker.hide()
+
+
+func _quest_halls(now: int) -> int:
+	return _hall.rooms_done("quest_hall", now)
 
 
 func _now() -> int:

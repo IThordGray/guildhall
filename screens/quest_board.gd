@@ -36,7 +36,8 @@ func _ready() -> void:
 		_list.add_child(row)
 
 
-func show_dispatch(dispatch: Dispatch, now: int) -> void:
+## Shows `dispatch` at `now`, with `quest_halls` Quest halls finished.
+func show_dispatch(dispatch: Dispatch, now: int, quest_halls: int) -> void:
 	var out := PackedStringArray()
 	for outing: Dictionary in dispatch.outings:
 		out.append("Party out: %s · %s" % [Dispatch.QUESTS[outing["quest"]]["name"], Duration.label(dispatch.seconds_left(outing, now))])
@@ -44,9 +45,9 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 ".join(out)
 	_result.text = dispatch.last_return
 	_result.visible = not dispatch.last_return.is_empty()
-	var reason := dispatch.refusal()
 	for quest: String in _send_buttons:
 		var send := _send_buttons[quest]
+		var reason := dispatch.refusal(quest, quest_halls)
 		send.disabled = not reason.is_empty()
 		send.text = "Send party" if reason.is_empty() else reason
 
