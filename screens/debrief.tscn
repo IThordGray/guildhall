@@ -68,28 +68,36 @@ autowrap_mode = 3
 [node name="Brought" type="PanelContainer" parent="Box"]
 layout_mode = 2
 
-[node name="Row" type="HBoxContainer" parent="Box/Brought"]
+[node name="Rows" type="VBoxContainer" parent="Box/Brought"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Row" type="HBoxContainer" parent="Box/Brought/Rows"]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Section" type="Label" parent="Box/Brought/Row"]
+[node name="Section" type="Label" parent="Box/Brought/Rows/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"Section"
 text = "BROUGHT BACK"
 vertical_alignment = 1
 
-[node name="Coin" type="Panel" parent="Box/Brought/Row"]
+[node name="Coin" type="Panel" parent="Box/Brought/Rows/Row"]
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 size_flags_vertical = 4
 theme_type_variation = &"Coin"
 
-[node name="Gold" type="Label" parent="Box/Brought/Row"]
+[node name="Gold" type="Label" parent="Box/Brought/Rows/Row"]
 layout_mode = 2
 theme_type_variation = &"GoldAmount"
 text = "+0"
 vertical_alignment = 1
+
+[node name="Items" type="VBoxContainer" parent="Box/Brought/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 16
 
 [node name="Spacer" type="Control" parent="Box"]
 layout_mode = 2

@@ -380,14 +380,9 @@ func _swatch(look: Look, size_px: Vector2) -> Control:
 	return swatch
 
 
-# Portraits come later; until then an adventurer is their initial.
-func _token(adventurer: String, injured: bool) -> Label:
-	var token := _label(adventurer.left(1).to_upper(), &"Token")
-	token.autowrap_mode = TextServer.AUTOWRAP_OFF
-	token.custom_minimum_size = Vector2(80, 80)
-	token.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	token.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	token.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+# An adventurer's face, or a count as text, marked with a dot when injured.
+func _token(who: String, injured: bool) -> Label:
+	var token := QuestBoard.token(who)
 	if injured:
 		var dot := Panel.new()
 		dot.theme_type_variation = &"InjuredDot"

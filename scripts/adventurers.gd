@@ -1,8 +1,8 @@
 class_name Adventurers
 extends RefCounted
 
-## The roster's growing state: each adventurer's stats, level, XP and level-ups. Who they are
-## (name, class, rank) never changes: see Dispatch.ADVENTURERS.
+## The roster's growing state: each adventurer's stats, level, XP, level-ups and gear. Who they
+## are (name, class, rank) never changes: see Dispatch.ADVENTURERS.
 
 ## The stats every adventurer has, in the order they are shown, with their names for the player.
 const STATS: Dictionary[String, String] = {"might": "Might", "agility": "Agility", "mind": "Mind", "grit": "Grit"}
@@ -29,6 +29,7 @@ const QUEST_SECONDS_PER_XP: int = 15
 const BASE_HEALTH: int = 10
 const HEALTH_PER_GRIT: int = 2
 
+## Each adventurer's own stats, without gear: see `stat_total` for what counts.
 var stats: Dictionary[String, Dictionary] = {}
 var levels: Dictionary[String, int] = {}
 ## XP banked toward the next level. It keeps building past what the next level needs, so several
@@ -37,6 +38,8 @@ var xp: Dictionary[String, int] = {}
 ## Each adventurer's level-ups, oldest first. Each is {"level": the level reached, "gains":
 ## {stat: points it rose by}}.
 var history: Dictionary[String, Array] = {}
+## What everyone wears and the guild's stash; worn items add to stats.
+var gear: Gear = Gear.new()
 
 
 func _init() -> void:
@@ -47,24 +50,22 @@ func _init() -> void:
 		history[adventurer] = []
 
 
-## The sum of `adventurer`'s stats ÷ 5, rounded.
+## `adventurer`'s `stat` as it counts: their own plus what their gear adds.
+func stat_total(adventurer: String, stat: String) -> int:
+	return int(stats[adventurer][stat]) + gear.bonus(adventurer, stat)
+
+
+## The sum of `adventurer`'s stats, gear included, ÷ 5, rounded.
 func power(adventurer: String) -> int:
 	var total := 0
 	for stat: String in STATS:
-		total += int(stats[adventurer][stat])
+		total += stat_total(adventurer, stat)
 	return roundi(total / 5.0)
 
 
-## Health `adventurer` heals up to, so a level-up that raises Grit raises it.
+## Health `adventurer` heals up to, so a level-up or gear that raises Grit raises it.
 func max_health(adventurer: String) -> int:
-	return BASE_HEALTH + HEALTH_PER_GRIT * int(stats[adventurer]["grit"])
-
-
-func party_power(party: PackedStringArray) -> int:
-	var total := 0
-	for adventurer: String in party:
-		total += power(adventurer)
-	return total
+	return BASE_HEALTH + HEALTH_PER_GRIT * stat_total(adventurer, "grit")
 
 
 ## The XP each member of a party gains from a quest of `quest_seconds` that ended in `success`.
@@ -121,12 +122,14 @@ func write(file: ConfigFile) -> void:
 	file.set_value("adventurers", "levels", levels)
 	file.set_value("adventurers", "xp", xp)
 	file.set_value("adventurers", "history", history)
+	gear.write(file)
 
 
 ## The adventurers saved at `path`, or everyone at their starting stats, level 1 and no XP when the
-## save has none.
+## save has none; their gear as Gear.load_or_start finds it.
 static func load_or_start(path: String) -> Adventurers:
 	var adventurers := Adventurers.new()
+	adventurers.gear = Gear.load_or_start(path)
 	var file := ConfigFile.new()
 	if file.load(path) != OK or not file.has_section("adventurers"):
 		return adventurers

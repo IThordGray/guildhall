@@ -5,34 +5,59 @@ extends Control
 signal back_pressed
 ## The player chose to level up `adventurer`, a key of Dispatch.ADVENTURERS.
 signal level_up_pressed(adventurer: String)
+## The player chose to put the stash item at `index` on `adventurer`.
+signal wear_pressed(adventurer: String, index: int)
 
 ## A stat at this value fills its bar.
 const STAT_BAR_FULL: int = 20
 
 var _adventurer: String = ""
+## Each stat's bar: own in purple over own plus gear in gold.
 var _bars: Dictionary[String, ProgressBar] = {}
+var _own_bars: Dictionary[String, ProgressBar] = {}
 var _values: Dictionary[String, Label] = {}
+var _gear_values: Dictionary[String, Label] = {}
 var _health: HBoxContainer
 ## The level-ups the history shows, so it is rebuilt only when they change.
 var _history_shown: Array = []
+## The adventurer, their gear, the stash and whether they may change gear, as shown, so the gear
+## and stash are rebuilt only when these change.
+var _gear_shown: Array = []
 
-@onready var _token: Label = $Box/Header/Row/Token
-@onready var _name: Label = $Box/Header/Row/Words/NameLine/Name
-@onready var _status: Label = $Box/Header/Row/Words/NameLine/Status
-@onready var _details: Label = $Box/Header/Row/Words/Details
-@onready var _level_up: Button = $Box/Header/Row/Words/LevelUp
-@onready var _xp: VBoxContainer = $Box/Header/Row/Words/Xp
-@onready var _xp_bar: ProgressBar = $Box/Header/Row/Words/Xp/Bar
-@onready var _xp_text: Label = $Box/Header/Row/Words/Xp/Text
-@onready var _history: VBoxContainer = $Box/Stats/Rows/History
+@onready var _token: Label = $Box/Scroll/Content/Header/Row/Token
+@onready var _name: Label = $Box/Scroll/Content/Header/Row/Words/NameLine/Name
+@onready var _status: Label = $Box/Scroll/Content/Header/Row/Words/NameLine/Status
+@onready var _details: Label = $Box/Scroll/Content/Header/Row/Words/Details
+@onready var _level_up: Button = $Box/Scroll/Content/Header/Row/Words/LevelUp
+@onready var _xp: VBoxContainer = $Box/Scroll/Content/Header/Row/Words/Xp
+@onready var _xp_bar: ProgressBar = $Box/Scroll/Content/Header/Row/Words/Xp/Bar
+@onready var _xp_text: Label = $Box/Scroll/Content/Header/Row/Words/Xp/Text
+@onready var _history: VBoxContainer = $Box/Scroll/Content/Stats/Rows/History
+@onready var _gear: GridContainer = $Box/Scroll/Content/Gear
+@onready var _stash_section: Label = $Box/Scroll/Content/StashSection
+@onready var _stash: VBoxContainer = $Box/Scroll/Content/Stash/Items
 
 
 func _ready() -> void:
-	var rows := $Box/Stats/Rows as VBoxContainer
+	var rows := $Box/Scroll/Content/Stats/Rows as VBoxContainer
 	for stat: String in Adventurers.STATS:
 		var row := stat_row(Adventurers.STATS[stat], &"Label")
-		_bars[stat] = row.get_child(1)
+		var bar: ProgressBar = row.get_child(1)
+		bar.theme_type_variation = &"GoldBar"
+		var own := ProgressBar.new()
+		own.theme_type_variation = &"OwnBarOverlay"
+		own.show_percentage = false
+		own.max_value = STAT_BAR_FULL
+		bar.add_child(own)
+		own.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_bars[stat] = bar
+		_own_bars[stat] = own
 		_values[stat] = row.get_child(2)
+		var from_gear := Label.new()
+		from_gear.theme_type_variation = &"GoldText"
+		from_gear.custom_minimum_size = Vector2(70, 0)
+		row.add_child(from_gear)
+		_gear_values[stat] = from_gear
 		rows.add_child(row)
 		rows.move_child(row, _bars.size() - 1)
 	_health = health_row()
@@ -66,8 +91,12 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, now: int) -> void:
 	_xp_bar.value = xp
 	_xp_text.text = xp_line(xp, needed, level + 1)
 	for stat: String in Adventurers.STATS:
-		_bars[stat].value = adventurers.stats[adventurer][stat]
-		_values[stat].text = str(adventurers.stats[adventurer][stat])
+		var total := adventurers.stat_total(adventurer, stat)
+		var from_gear := adventurers.gear.bonus(adventurer, stat)
+		_bars[stat].value = total
+		_own_bars[stat].value = total - from_gear
+		_values[stat].text = str(total)
+		_gear_values[stat].text = "+%d" % from_gear if from_gear > 0 else ""
 	var history: Array = adventurers.history[adventurer]
 	if history != _history_shown:
 		_history_shown = history.duplicate(true)
@@ -78,6 +107,130 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, now: int) -> void:
 			line.text = _history_line(history[i])
 			line.theme_type_variation = &"Secondary"
 			_history.add_child(line)
+	var gear := adventurers.gear
+	var can_change := dispatch.can_change_gear(adventurer)
+	var gear_shown := [adventurer, gear.worn[adventurer].duplicate(), gear.stash.duplicate(), can_change]
+	if gear_shown != _gear_shown:
+		_gear_shown = gear_shown
+		_show_gear(gear.worn[adventurer])
+		_show_stash(gear.stash, can_change)
+
+
+## An item's icon at a whole `scale` of its 28 × 28 pixels, so they stay crisp.
+static func item_icon(item: String, scale: int) -> TextureRect:
+	var icon := TextureRect.new()
+	icon.texture = load("res://assets/items/%s.png" % item)
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.custom_minimum_size = Vector2(28, 28) * scale
+	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return icon
+
+
+## A label with `item`'s name in its quality's colour.
+static func item_name(item: String) -> Label:
+	var label := Label.new()
+	label.text = Gear.ITEMS[item]["name"]
+	label.theme_type_variation = StringName("Item" + Gear.ITEMS[item]["quality"])
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return label
+
+
+# What `item` adds, "Might +3 · Grit +4", in gold; "none" when nothing.
+static func _bonus_label(item: String) -> Label:
+	var bonus: Dictionary = Gear.ITEMS[item]["bonus"]
+	var parts := PackedStringArray()
+	for stat: String in Adventurers.STATS:
+		if bonus.has(stat):
+			parts.append("%s +%d" % [Adventurers.STATS[stat], bonus[stat]])
+	var label := Label.new()
+	label.text = " · ".join(parts) if not parts.is_empty() else "none"
+	label.theme_type_variation = &"GoldText" if not parts.is_empty() else &"Caption"
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return label
+
+
+# The eight slots: each item's icon, the slot, its name and bonus; an empty slot dashed.
+func _show_gear(worn: Dictionary) -> void:
+	for cell: Node in _gear.get_children():
+		cell.queue_free()
+	for slot: String in Gear.SLOTS:
+		var item: String = worn.get(slot, "")
+		var box := PanelContainer.new()
+		box.custom_minimum_size = Vector2(172, 172)
+		box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		var slot_name := Label.new()
+		slot_name.text = Gear.SLOTS[slot].to_upper()
+		slot_name.theme_type_variation = &"Caption"
+		var cell := VBoxContainer.new()
+		cell.custom_minimum_size = Vector2(228, 0)
+		cell.add_theme_constant_override("separation", 6)
+		cell.add_child(box)
+		cell.add_child(slot_name)
+		if item.is_empty():
+			box.theme_type_variation = &"ItemBoxEmpty"
+			box.draw.connect(_draw_dashed_box.bind(box))
+			var empty := Label.new()
+			empty.text = "Empty"
+			empty.theme_type_variation = &"Caption"
+			cell.add_child(empty)
+		else:
+			box.theme_type_variation = &"ItemBox"
+			box.add_child(item_icon(item, 5))
+			cell.add_child(item_name(item))
+			cell.add_child(_bonus_label(item))
+		for label: Node in cell.get_children():
+			if label is Label:
+				(label as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_gear.add_child(cell)
+
+
+# The stash, each item with a Wear button, disabled while this adventurer is out.
+func _show_stash(stash: PackedStringArray, can_change: bool) -> void:
+	_stash_section.text = "STASH · %d / %d" % [stash.size(), Gear.STASH_CAP]
+	for row: Node in _stash.get_children():
+		row.queue_free()
+	if stash.is_empty():
+		var empty := Label.new()
+		empty.text = "Empty. Some quests bring back items."
+		empty.theme_type_variation = &"Caption"
+		var row := PanelContainer.new()
+		row.theme_type_variation = &"ProgressRow"
+		row.add_child(empty)
+		_stash.add_child(row)
+	for i: int in stash.size():
+		var words := VBoxContainer.new()
+		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		words.alignment = BoxContainer.ALIGNMENT_CENTER
+		words.add_child(item_name(stash[i]))
+		words.add_child(_bonus_label(stash[i]))
+		var wear := Button.new()
+		wear.text = "Wear" if can_change else "Out on a quest"
+		wear.disabled = not can_change
+		wear.custom_minimum_size = Vector2(200, 100)
+		wear.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		wear.pressed.connect(func() -> void: wear_pressed.emit(_adventurer, i))
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 32)
+		line.add_child(item_icon(stash[i], 3))
+		line.add_child(words)
+		line.add_child(wear)
+		var row := PanelContainer.new()
+		row.theme_type_variation = &"ProgressRow"
+		row.add_child(line)
+		_stash.add_child(row)
+
+
+# A StyleBox can't draw a dashed border, so an empty slot's box is drawn here.
+static func _draw_dashed_box(box: PanelContainer) -> void:
+	var color := box.get_theme_color(&"border_color")
+	var width := float(box.get_theme_constant(&"border_width"))
+	var inset := Rect2(Vector2.ONE * width / 2, box.size - Vector2.ONE * width)
+	var corners: Array[Vector2] = [inset.position, Vector2(inset.end.x, inset.position.y), inset.end, Vector2(inset.position.x, inset.end.y)]
+	for i: int in corners.size():
+		box.draw_dashed_line(corners[i], corners[(i + 1) % corners.size()], color, width, 14.0)
 
 
 ## A row for one stat: its name, a bar and a value, the name in `look`.

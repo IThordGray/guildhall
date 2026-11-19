@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=47 format=3]
+[gd_resource type="Theme" load_steps=50 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -449,6 +449,30 @@ content_margin_top = 6.0
 content_margin_right = 25.0
 content_margin_bottom = 6.0
 
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_bar_overlay"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_item_box"]
+content_margin_left = 16.0
+content_margin_top = 16.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(0.1294, 0.1137, 0.1569, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.2275, 0.2039, 0.2745, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_item_box_empty"]
+content_margin_left = 16.0
+content_margin_top = 16.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+
 [resource]
 default_font = ExtResource("1_sans")
 default_font_size = 42
@@ -563,12 +587,27 @@ Heading/font_sizes/font_size = 46
 Heading/fonts/font = SubResource("FontVariation_sans_semibold")
 InjuredDot/base_type = &"Panel"
 InjuredDot/styles/panel = SubResource("StyleBoxFlat_injured_dot")
+ItemBox/base_type = &"PanelContainer"
+ItemBox/styles/panel = SubResource("StyleBoxFlat_item_box")
+ItemBoxEmpty/base_type = &"PanelContainer"
+ItemBoxEmpty/colors/border_color = Color(0.2275, 0.2039, 0.2745, 1)
+ItemBoxEmpty/constants/border_width = 3
+ItemBoxEmpty/styles/panel = SubResource("StyleBoxEmpty_item_box_empty")
+ItemFine/base_type = &"Secondary"
+ItemFine/colors/font_color = Color(0.498, 0.7216, 0.902, 1)
+ItemLegendary/base_type = &"Secondary"
+ItemLegendary/colors/font_color = Color(0.949, 0.7569, 0.3059, 1)
+ItemStandard/base_type = &"Secondary"
+ItemStandard/colors/font_color = Color(0.9451, 0.9216, 0.9569, 1)
 InjuryBar/base_type = &"ProgressBar"
 InjuryBar/styles/background = SubResource("StyleBoxFlat_bar_track")
 InjuryBar/styles/fill = SubResource("StyleBoxFlat_bar_injury")
 OwnBar/base_type = &"ProgressBar"
 OwnBar/styles/background = SubResource("StyleBoxFlat_bar_track")
 OwnBar/styles/fill = SubResource("StyleBoxFlat_bar_own")
+OwnBarOverlay/base_type = &"ProgressBar"
+OwnBarOverlay/styles/background = SubResource("StyleBoxEmpty_bar_overlay")
+OwnBarOverlay/styles/fill = SubResource("StyleBoxFlat_bar_own")
 Label/colors/font_color = Color(0.9451, 0.9216, 0.9569, 1)
 Meta/base_type = &"Numbers"
 Meta/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)

@@ -41,9 +41,10 @@ var injury_lengths: Dictionary[String, int] = {}
 ## "returned_at": unix seconds it came back, "success": bool, "party": adventurer ids,
 ## "damage": {adventurer id: damage taken}, "injured": {adventurer id: seconds the injury lasts},
 ## "gold": gold it brought, "xp": XP each member gained, "revealed": the quest's challenges it
-## made known}. Only a report: its outcome was applied when the party came home.
+## made known, "loot": item ids it put in the stash, "lost": item ids it brought to a full stash}.
+## Only a report: its outcome was applied when the party came home.
 var debriefs: Array[Dictionary] = []
-## Each adventurer's stats, level and XP: their power decides quests, and returns grow them.
+## Each adventurer's stats, level, XP and gear: their power decides quests, and returns grow them.
 var adventurers: Adventurers = Adventurers.new()
 ## The health each adventurer below their maximum came home with: {"health": points, "at": unix
 ## seconds they came home}. Their health at home is computed from it; anyone missing is at full
@@ -191,6 +192,21 @@ func _outing_of(adventurer: String) -> Dictionary:
 	return {}
 
 
+## True when `adventurer` may change gear: not while out, so a party's chance and health stay
+## as they left.
+func can_change_gear(adventurer: String) -> bool:
+	return quest_of(adventurer).is_empty()
+
+
+## Puts the stash item at `index` on `adventurer`, the item it replaces into the stash; false, with
+## nothing changed, while they are out.
+func wear(adventurer: String, index: int) -> bool:
+	if not can_change_gear(adventurer):
+		return false
+	adventurers.gear.wear(adventurer, index)
+	return true
+
+
 ## True when `adventurer` can join a party at `now`: home and not injured.
 func can_go(adventurer: String, now: int) -> bool:
 	return quest_of(adventurer).is_empty() and injury_left(adventurer, now) == 0
@@ -251,7 +267,7 @@ func returned_since_checkpoint(now: int) -> bool:
 
 ## Brings every returned party home, once, in the order they returned: pays its reward into
 ## `gold`, gives each member XP and damage, injures those it leaves under a quarter of their
-## health, and adds its debrief. `infirmary_from` is the unix seconds the first Infirmary is
+## health, stows any loot, and adds its debrief. `infirmary_from` is the unix seconds the first Infirmary is
 ## finished at, -1 for none: from then on healing is faster, and an injury from a return at or
 ## after it is shorter. Records the time seen.
 func checkpoint(now: int, gold: Gold, infirmary_from: int = -1) -> void:
@@ -309,7 +325,16 @@ func _bring_home(outing: Dictionary, gold: Gold) -> void:
 	var xp := Adventurers.quest_xp(quest["seconds"], success)
 	for adventurer: String in party:
 		adventurers.gain_xp(adventurer, xp)
-	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "damage": damage, "injured": injured, "gold": reward, "xp": xp, "revealed": revealing})
+	# Loot comes whatever the outcome, from the seed the party left with.
+	var loot := PackedStringArray()
+	var lost := PackedStringArray()
+	var item := Gear.loot(outing["seed"], quest["rank"])
+	if not item.is_empty():
+		if adventurers.gear.stow(item):
+			loot.append(item)
+		else:
+			lost.append(item)
+	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "damage": damage, "injured": injured, "gold": reward, "xp": xp, "revealed": revealing, "loot": loot, "lost": lost})
 
 
 ## Files the debrief at `index` away once the player has read it; nothing else changes.

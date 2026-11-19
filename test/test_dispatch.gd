@@ -167,7 +167,7 @@ func test_a_success_pays_the_full_reward_and_injures_nobody() -> void:
 	dispatch.send("rats", ["bram", "maren"], _seed("rats", ["bram", "maren"], true), gold, 1_000)
 	dispatch.checkpoint(1_060, gold)
 	assert_eq(gold.amount, 55)
-	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram", "maren"]), "damage": {"bram": 0, "maren": 0}, "injured": {}, "gold": 50, "xp": 4, "revealed": PackedStringArray()}])
+	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram", "maren"]), "damage": {"bram": 0, "maren": 0}, "injured": {}, "gold": 50, "xp": 4, "revealed": PackedStringArray(), "loot": PackedStringArray(), "lost": PackedStringArray()}])
 	assert_eq(_statuses(dispatch, 1_060), ["Resting", "Resting", "Resting", "Resting"])
 
 
@@ -362,7 +362,7 @@ func test_a_party_out_and_an_injury_survive_save_and_load_with_the_same_outcome(
 	var loaded := Dispatch.load_or_start(SAVE_PATH, 99_999)
 	var loaded_gold := Gold.load_or_start(SAVE_PATH)
 	assert_eq(_statuses(loaded, 1_760), ["On quest: Gather moonherbs", "Resting", "Injured · 2:20", "On quest: Gather moonherbs"])
-	assert_eq(loaded.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 11}, "injured": {"tobin": 300}, "gold": 125, "xp": 20, "revealed": PackedStringArray(["Navigation"])}])
+	assert_eq(loaded.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 11}, "injured": {"tobin": 300}, "gold": 125, "xp": 20, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "lost": PackedStringArray()}])
 	assert_eq(loaded.outings[0]["seed"], roll_seed)
 	assert_eq(loaded.seconds_left(loaded.outings[0], 1_760), 170)
 	loaded.checkpoint(1_930, loaded_gold)
@@ -407,7 +407,7 @@ func test_an_m3_save_with_the_party_out_pays_that_quest_in_full_on_return_with_n
 	assert_eq(gold.amount, 20)
 	dispatch.checkpoint(1_600, gold)
 	assert_eq(gold.amount, 520)
-	assert_eq(dispatch.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(), "damage": {}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(["Navigation"])}])
+	assert_eq(dispatch.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(), "damage": {}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "lost": PackedStringArray()}])
 	assert_eq(_statuses(dispatch, 1_600), ["Resting", "Resting", "Resting", "Resting"])
 	assert_true(dispatch.outings.is_empty())
 
@@ -592,8 +592,8 @@ func test_a_clock_set_back_never_changes_an_injury_already_decided() -> void:
 	assert_eq(gold.amount, 1_000 - 120 - 60 + 125)
 
 
-var rats_debrief: Dictionary = {"quest": "rats", "returned_at": 1_160, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 1}, "injured": {}, "gold": 12, "xp": 2, "revealed": PackedStringArray()}
-var goblins_debrief: Dictionary = {"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(["bram", "ilse"]), "damage": {"bram": 6, "ilse": 6}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(["Navigation"])}
+var rats_debrief: Dictionary = {"quest": "rats", "returned_at": 1_160, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 1}, "injured": {}, "gold": 12, "xp": 2, "revealed": PackedStringArray(), "loot": PackedStringArray(), "lost": PackedStringArray()}
+var goblins_debrief: Dictionary = {"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(["bram", "ilse"]), "damage": {"bram": 6, "ilse": 6}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "lost": PackedStringArray()}
 
 
 ## Goblin camp succeeds for Bram and Ilse, sent at 1_000 (back at 1_600); Rats in the cellar
@@ -616,7 +616,7 @@ func test_a_returned_party_adds_a_debrief_with_its_quest_result_party_injured_me
 	dispatch.checkpoint(1_279, gold, hall.first_done_at("infirmary"))
 	assert_true(dispatch.debriefs.is_empty())
 	dispatch.checkpoint(1_400, gold, hall.first_done_at("infirmary"))
-	assert_eq(dispatch.debriefs, [{"quest": "moonherbs", "returned_at": 1_280, "success": false, "party": PARTY, "damage": {"bram": 6, "ilse": 6, "tobin": 6}, "injured": {"tobin": 150}, "gold": 37, "xp": 6, "revealed": PackedStringArray(["Attrition"])}])
+	assert_eq(dispatch.debriefs, [{"quest": "moonherbs", "returned_at": 1_280, "success": false, "party": PARTY, "damage": {"bram": 6, "ilse": 6, "tobin": 6}, "injured": {"tobin": 150}, "gold": 37, "xp": 6, "revealed": PackedStringArray(["Attrition"]), "loot": PackedStringArray(), "lost": PackedStringArray()}])
 
 
 func test_two_returns_give_two_debriefs_in_the_order_they_came_back() -> void:
@@ -704,7 +704,7 @@ func test_a_save_from_before_debriefs_loads_with_none_and_nothing_lost() -> void
 	assert_eq(dispatch.injury_seconds("tobin"), 150)
 	dispatch.checkpoint(1_060, gold)
 	assert_eq(gold.amount, 690)
-	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram"]), "damage": {"bram": 1}, "injured": {}, "gold": 50, "xp": 4, "revealed": PackedStringArray()}])
+	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram"]), "damage": {"bram": 1}, "injured": {}, "gold": 50, "xp": 4, "revealed": PackedStringArray(), "loot": PackedStringArray(), "lost": PackedStringArray()}])
 
 
 func _xp(dispatch: Dispatch) -> Array[int]:
@@ -1073,3 +1073,87 @@ func test_the_same_seed_sends_the_same_party_to_the_same_end() -> void:
 		if ends[0]["success"]:
 			successes += 1
 	assert_between(successes, 1, 39, "both outcomes occur, so the seed decides")
+
+
+## The first seed that brings back loot from a rank `rank` quest.
+func _loot_seed(rank: String) -> int:
+	for roll_seed: int in 1_000:
+		if not Gear.loot(roll_seed, rank).is_empty():
+			return roll_seed
+	fail_test("no seed found")
+	return -1
+
+
+func test_a_returning_party_puts_its_loot_in_the_stash_and_its_debrief_lists_it() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	var roll_seed := _loot_seed("E")
+	var item := Gear.loot(roll_seed, "E")
+	assert_true(dispatch.send("goblins", ["bram", "ilse"], roll_seed, gold, 1_000))
+	dispatch.checkpoint(1_599, gold)
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray())
+	dispatch.checkpoint(1_600, gold)
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray([item]))
+	assert_eq(dispatch.debriefs[0]["loot"], PackedStringArray([item]))
+	assert_eq(dispatch.debriefs[0]["lost"], PackedStringArray())
+	# A return whose seed brings nothing adds nothing.
+	assert_true(dispatch.send("goblins", ["bram"], 0, gold, 1_600))
+	assert_eq(Gear.loot(0, "E"), "")
+	dispatch.checkpoint(2_200, gold)
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray([item]))
+	assert_eq(dispatch.debriefs[1]["loot"], PackedStringArray())
+
+
+func test_loot_brought_to_a_full_stash_is_lost_and_the_debrief_says_so() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	for i: int in Gear.STASH_CAP:
+		assert_true(dispatch.adventurers.gear.stow("belt"))
+	var roll_seed := _loot_seed("F")
+	var item := Gear.loot(roll_seed, "F")
+	assert_true(dispatch.send("rats", ["bram"], roll_seed, gold, 1_000))
+	dispatch.checkpoint(1_060, gold)
+	assert_eq(dispatch.adventurers.gear.stash.size(), 20)
+	assert_eq(dispatch.debriefs[0]["loot"], PackedStringArray())
+	assert_eq(dispatch.debriefs[0]["lost"], PackedStringArray([item]))
+	assert_does_not_have(dispatch.adventurers.gear.stash, item if item != "belt" else "never")
+
+
+func test_gear_cannot_be_changed_while_out_and_can_once_home() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	dispatch.adventurers.gear.stow("chapel_plate")
+	var chance := dispatch.success_chance("rats", ["bram"])
+	assert_true(dispatch.send("rats", ["bram"], 1, gold, 1_000))
+	assert_false(dispatch.can_change_gear("bram"))
+	assert_false(dispatch.wear("bram", 0))
+	assert_eq(dispatch.adventurers.gear.worn["bram"]["armour"], "leather_vest")
+	assert_eq(dispatch.adventurers.gear.stash[0], "chapel_plate")
+	assert_eq(dispatch.outings[0]["chance"], chance)
+	# Someone home may change theirs meanwhile.
+	assert_true(dispatch.can_change_gear("ilse"))
+	dispatch.checkpoint(1_060, gold)
+	assert_true(dispatch.can_change_gear("bram"))
+	assert_true(dispatch.wear("bram", 0))
+	assert_eq(dispatch.adventurers.gear.worn["bram"]["armour"], "chapel_plate")
+	assert_eq(dispatch.adventurers.gear.stash[0], "leather_vest")
+
+
+func test_gear_the_stash_and_loot_in_debriefs_survive_save_and_load() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	var roll_seed := _loot_seed("E")
+	assert_true(dispatch.send("goblins", ["tobin"], roll_seed, gold, 1_000))
+	dispatch.checkpoint(1_600, gold)
+	dispatch.adventurers.gear.stow("night_cloak")
+	assert_true(dispatch.wear("ilse", dispatch.adventurers.gear.stash.size() - 1))
+	var file := ConfigFile.new()
+	dispatch.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_600)
+	assert_eq(loaded.adventurers.gear.worn, dispatch.adventurers.gear.worn)
+	assert_eq(loaded.adventurers.gear.worn["ilse"]["back"], "night_cloak")
+	assert_eq(loaded.adventurers.gear.stash, PackedStringArray([Gear.loot(roll_seed, "E")]))
+	assert_eq(loaded.debriefs, dispatch.debriefs)
+	assert_eq(loaded.adventurers.stat_total("ilse", "agility"), 5)

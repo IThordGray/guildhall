@@ -82,14 +82,26 @@ func show_board(quests: PackedStringArray, dispatch: Dispatch, now: int) -> void
 	_empty.visible = quests.is_empty()
 
 
-## An adventurer's round token: their initial, until portraits come.
-static func token(adventurer: String) -> Label:
-	var label := _label(adventurer.left(1).to_upper(), &"Token")
+## A round token: an adventurer's face, or `who` as text when it is not an adventurer, such as a
+## count.
+static func token(who: String) -> Label:
+	var is_adventurer := who in Dispatch.ADVENTURERS
+	var label := _label("" if is_adventurer else who, &"Token")
 	label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	label.custom_minimum_size = Vector2(80, 80)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	if is_adventurer:
+		# The 20 × 18 face at a whole 3×, so its pixels stay crisp, centred in the circle.
+		var face := TextureRect.new()
+		face.texture = load("res://assets/faces/%s.png" % who)
+		face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		face.position = Vector2(10, 13)
+		face.size = Vector2(60, 54)
+		label.add_child(face)
 	return label
 
 

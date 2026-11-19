@@ -8,7 +8,8 @@ signal done_pressed
 @onready var _result: Label = $Box/Header/Result
 @onready var _members: VBoxContainer = $Box/Who/Members
 @onready var _revealed: Label = $Box/Revealed
-@onready var _gold: Label = $Box/Brought/Row/Gold
+@onready var _gold: Label = $Box/Brought/Rows/Row/Gold
+@onready var _items: VBoxContainer = $Box/Brought/Rows/Items
 
 
 func _ready() -> void:
@@ -69,3 +70,29 @@ func show_debrief(debrief: Dictionary, adventurers: Adventurers) -> void:
 	_revealed.text = "Revealed: " + ", ".join(revealed)
 	_revealed.visible = not revealed.is_empty()
 	_gold.text = "+%d" % debrief["gold"]
+	for line: Node in _items.get_children():
+		line.queue_free()
+	# A debrief saved before loot brought none.
+	for item: String in debrief.get("loot", PackedStringArray()):
+		_items.add_child(_item_line(item, ""))
+	for item: String in debrief.get("lost", PackedStringArray()):
+		_items.add_child(_item_line(item, "The stash was full: lost"))
+	_items.visible = _items.get_child_count() > 0
+
+
+# An item's icon and name in its quality's colour, with `note` after it when there is one.
+func _item_line(item: String, note: String) -> HBoxContainer:
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 24)
+	line.add_child(Adventurer.item_icon(item, 3))
+	var name_label := Adventurer.item_name(item)
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	line.add_child(name_label)
+	if not note.is_empty():
+		var lost := Label.new()
+		lost.text = note
+		lost.theme_type_variation = &"Alert"
+		lost.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		line.add_child(lost)
+	return line

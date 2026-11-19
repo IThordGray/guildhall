@@ -43,6 +43,7 @@ func _ready() -> void:
 	_roster.adventurer_pressed.connect(_on_adventurer_pressed)
 	_adventurer.back_pressed.connect(_on_adventurer_back)
 	_adventurer.level_up_pressed.connect(_on_level_up_pressed)
+	_adventurer.wear_pressed.connect(_on_wear_pressed)
 	_level_up.continue_pressed.connect(_on_level_up_continue)
 	_tick.timeout.connect(_on_tick)
 	var now := _now()
@@ -183,6 +184,11 @@ func _on_level_up_pressed(adventurer: String) -> void:
 	_level_up.show_level_up(adventurer, gains, _dispatch.adventurers)
 	_adventurer.hide()
 	_level_up.show()
+	_checkpoint(_now())
+
+
+func _on_wear_pressed(adventurer: String, index: int) -> void:
+	_dispatch.wear(adventurer, index)
 	_checkpoint(_now())
 
 

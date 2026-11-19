@@ -19,9 +19,40 @@ func test_power_is_the_sum_of_the_stats_over_five_rounded_so_the_starters_keep_t
 	var adventurers := Adventurers.new()
 	# Bram 18 → 3.6, Ilse 18, Tobin 16 → 3.2, Maren 16.
 	assert_eq(_powers(adventurers), [4, 4, 3, 3])
-	assert_eq(adventurers.party_power(["bram", "tobin"]), 7)
 	adventurers.stats["tobin"]["agility"] = 9
 	assert_eq(adventurers.power("tobin"), 4)
+
+
+func test_everyone_starts_in_their_design_gear_which_leaves_their_power_and_health_as_before() -> void:
+	var adventurers := Adventurers.new()
+	assert_eq(adventurers.gear.worn["bram"], {"head": "iron_cap", "clothes": "red_tunic", "armour": "leather_vest", "weapon": "short_sword", "off_hand": "round_shield"})
+	assert_eq(adventurers.gear.worn["ilse"], {"head": "pointed_hat", "clothes": "apprentice_robe", "neck": "moonstone_amulet", "weapon": "oak_staff"})
+	assert_eq(adventurers.gear.worn["tobin"], {"head": "scouts_hood", "clothes": "leather_jerkin", "weapon": "hunting_bow", "back": "quiver"})
+	assert_eq(adventurers.gear.worn["maren"], {"clothes": "healers_robe", "belt": "green_sash", "weapon": "bell_mace"})
+	assert_eq(adventurers.gear.stash, PackedStringArray())
+	assert_eq(_powers(adventurers), [4, 4, 3, 3])
+	assert_eq(adventurers.max_health("bram"), 24)
+	assert_eq(adventurers.max_health("tobin"), 16)
+
+
+func test_a_stat_is_own_plus_gear_and_power_and_health_count_the_total() -> void:
+	var adventurers := Adventurers.new()
+	adventurers.gear.stow("chapel_plate")
+	adventurers.gear.wear("tobin", 0)
+	# Tobin's own 3 / 7 / 3 / 3 with Chapel plate's Might +3, Grit +4: 6 / 7 / 3 / 7 = 23 → 4.6.
+	assert_eq(adventurers.stat_total("tobin", "might"), 6)
+	assert_eq(adventurers.stat_total("tobin", "grit"), 7)
+	assert_eq(adventurers.stat_total("tobin", "agility"), 7)
+	assert_eq(adventurers.stats["tobin"], {"might": 3, "agility": 7, "mind": 3, "grit": 3})
+	assert_eq(adventurers.power("tobin"), 5)
+	assert_eq(adventurers.max_health("tobin"), 24)
+	assert_eq(adventurers.power("bram"), 4)
+	# Swapping it for a plain vest gives back what their own stats give.
+	adventurers.gear.stow("leather_vest")
+	adventurers.gear.wear("tobin", 0)
+	assert_eq(adventurers.gear.worn["tobin"]["armour"], "leather_vest")
+	assert_eq(adventurers.power("tobin"), 3)
+	assert_eq(adventurers.max_health("tobin"), 16)
 
 
 func test_everyone_starts_at_level_one_with_no_xp_and_their_starting_stats() -> void:
@@ -168,3 +199,22 @@ func test_a_save_from_the_previous_build_loads_with_starter_stats_and_nothing_el
 	loaded.checkpoint(1_600, gold)
 	assert_eq(loaded.debriefs.size(), 1)
 	assert_eq(loaded.adventurers.xp["bram"], loaded.debriefs[0]["xp"])
+
+
+func test_a_save_from_the_current_build_loads_with_starter_gear_an_empty_stash_and_nothing_else_lost() -> void:
+	var adventurers := Adventurers.new()
+	adventurers.gain_xp("ilse", 50)
+	adventurers.level_up("ilse")
+	var file := ConfigFile.new()
+	adventurers.write(file)
+	# The current build writes no gear.
+	file.erase_section("gear")
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Adventurers.load_or_start(SAVE_PATH)
+	assert_eq(loaded.gear.worn, Gear.STARTER_GEAR)
+	assert_eq(loaded.gear.stash, PackedStringArray())
+	assert_eq(loaded.levels["ilse"], 2)
+	assert_eq(loaded.xp["ilse"], 10)
+	assert_eq(loaded.stats, adventurers.stats)
+	assert_eq(loaded.history, adventurers.history)
