@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
@@ -10,6 +10,7 @@
 [ext_resource type="Texture2D" path="res://theme/icons/roster.svg" id="8_roster"]
 [ext_resource type="Texture2D" path="res://theme/icons/labyrinth.svg" id="9_labyrinth"]
 [ext_resource type="PackedScene" path="res://screens/hall_view.tscn" id="10_hall_view"]
+[ext_resource type="PackedScene" path="res://screens/debrief.tscn" id="11_debrief"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -81,6 +82,14 @@ offset_top = 168.0
 offset_right = -44.0
 offset_bottom = -216.0
 
+[node name="Debrief" parent="." instance=ExtResource("11_debrief")]
+visible = false
+layout_mode = 1
+offset_left = 44.0
+offset_top = 168.0
+offset_right = -44.0
+offset_bottom = -216.0
+
 [node name="Roster" parent="." instance=ExtResource("3_roster")]
 visible = false
 layout_mode = 1
@@ -126,6 +135,22 @@ text = "Quests"
 icon = ExtResource("7_quests")
 icon_alignment = 1
 vertical_icon_alignment = 0
+
+[node name="Badge" type="Label" parent="TabBar/Tabs/Quests"]
+visible = false
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 1
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = 18.0
+offset_top = 6.0
+offset_right = 62.0
+offset_bottom = 50.0
+mouse_filter = 2
+theme_type_variation = &"Badge"
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="Roster" type="Button" parent="TabBar/Tabs"]
 layout_mode = 2

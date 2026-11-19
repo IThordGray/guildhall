@@ -1,0 +1,95 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://screens/debrief.gd" id="1_debrief"]
+
+[node name="Debrief" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_debrief")
+
+[node name="Box" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 24
+
+[node name="Header" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Words" type="VBoxContainer" parent="Box/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="Section" type="Label" parent="Box/Header/Words"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "DEBRIEF"
+
+[node name="Quest" type="Label" parent="Box/Header/Words"]
+layout_mode = 2
+theme_type_variation = &"Title"
+autowrap_mode = 3
+
+[node name="Result" type="Label" parent="Box/Header"]
+layout_mode = 2
+size_flags_vertical = 8
+theme_type_variation = &"SuccessChip"
+text = "Success"
+
+[node name="WhoSection" type="Label" parent="Box"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "WHO CAME BACK"
+
+[node name="Who" type="PanelContainer" parent="Box"]
+layout_mode = 2
+theme_type_variation = &"ProgressList"
+
+[node name="Members" type="VBoxContainer" parent="Box/Who"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Brought" type="PanelContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Row" type="HBoxContainer" parent="Box/Brought"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Section" type="Label" parent="Box/Brought/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Section"
+text = "BROUGHT BACK"
+vertical_alignment = 1
+
+[node name="Coin" type="Panel" parent="Box/Brought/Row"]
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"Coin"
+
+[node name="Gold" type="Label" parent="Box/Brought/Row"]
+layout_mode = 2
+theme_type_variation = &"GoldAmount"
+text = "+0"
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="Box"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Done" type="Button" parent="Box"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+theme_type_variation = &"GoldButton"
+text = "Done"

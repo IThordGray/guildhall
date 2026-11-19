@@ -8,12 +8,16 @@ var _dispatch: Dispatch
 var _daily_board: Board
 ## The slot the convert panel is open for.
 var _chosen_slot: String = ""
+## Where the debrief the Debrief screen shows is in Dispatch.debriefs.
+var _open_debrief: int = -1
 
 @onready var _build_label: Label = $TopBar/Row/BuildLabel
 @onready var _gold_label: Label = $TopBar/Row/GoldLabel
 @onready var _parties_label: Label = $TopBar/Row/PartiesLabel
 @onready var _hall_view: HallView = $HallView
 @onready var _board: QuestBoard = $QuestBoard
+@onready var _debrief: Debrief = $Debrief
+@onready var _debrief_badge: Label = $TabBar/Tabs/Quests/Badge
 @onready var _roster: Roster = $Roster
 @onready var _picker: PartyPicker = $PartyPicker
 @onready var _convert_panel: ConvertPanel = $ConvertPanel
@@ -29,6 +33,8 @@ func _ready() -> void:
 	_convert_panel.convert_pressed.connect(_on_convert_pressed)
 	($TabBar/Tabs/Hall as Button).button_group.pressed.connect(_on_tab_pressed)
 	_board.send_pressed.connect(_on_send_pressed)
+	_board.debrief_pressed.connect(_on_debrief_pressed)
+	_debrief.done_pressed.connect(_on_debrief_done)
 	_picker.send_pressed.connect(_on_party_sent)
 	_tick.timeout.connect(_on_tick)
 	var now := _now()
@@ -57,10 +63,10 @@ func _arrive() -> void:
 	if not _tick.is_stopped():
 		return
 	var now := _now()
-	# A return summary goes here, before _checkpoint folds the absence in: a party back from its
-	# quest (Dispatch.returned_since_checkpoint(now); the checkpoint applies its outcome, the reward
-	# or the quarter and an injury, and records it in Dispatch.last_return) and a room restored or
-	# converted (Hall.finished_since_checkpoint(now)) are what happened while the app was away.
+	# A party back from its quest while the app was away needs nothing here: the checkpoint applies
+	# its outcome and adds its debrief, and the debriefs waiting on the Quests screen are the return
+	# summary. A summary of a room restored or converted while away
+	# (Hall.finished_since_checkpoint(now)) goes here, before _checkpoint folds the absence in.
 	_checkpoint(now)
 	_tick.start()
 
@@ -90,6 +96,8 @@ func _checkpoint(now: int) -> void:
 		push_error("Could not save to " + SAVE_PATH)
 	_gold_label.text = str(_gold.amount)
 	_parties_label.text = str(_dispatch.outings.size())
+	_debrief_badge.text = str(_dispatch.debriefs.size())
+	_debrief_badge.visible = not _dispatch.debriefs.is_empty()
 	var quests := _daily_board.quests(_dispatch, now, _utc_offset_minutes(), _quest_halls(now))
 	_hall_view.show_state(_hall, _dispatch, _gold, quests.size(), now)
 	_board.show_board(quests, _dispatch, now)
@@ -132,6 +140,20 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	_checkpoint(now)
 
 
+func _on_debrief_pressed(index: int) -> void:
+	_open_debrief = index
+	_debrief.show_debrief(_dispatch.debriefs[index])
+	_board.hide()
+	_debrief.show()
+
+
+func _on_debrief_done() -> void:
+	_dispatch.read_debrief(_open_debrief)
+	_debrief.hide()
+	_board.show()
+	_checkpoint(_now())
+
+
 # A tab pressed in code does not signal its group, so the tab is shown here.
 func _on_go_send() -> void:
 	var quests_tab := $TabBar/Tabs/Quests as Button
@@ -142,6 +164,7 @@ func _on_go_send() -> void:
 func _on_tab_pressed(tab: BaseButton) -> void:
 	_hall_view.visible = tab == $TabBar/Tabs/Hall
 	_board.visible = tab == $TabBar/Tabs/Quests
+	_debrief.hide()
 	_roster.visible = tab == $TabBar/Tabs/Roster
 	_convert_panel.hide()
 	_picker.hide()

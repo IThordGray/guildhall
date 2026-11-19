@@ -31,8 +31,11 @@ var outings: Array[Dictionary] = []
 var injured_until: Dictionary[String, int] = {}
 ## How many seconds each adventurer's latest injury lasts in all, fixed when it was decided.
 var injury_lengths: Dictionary[String, int] = {}
-## The latest return in words for the player; "" before the first.
-var last_return: String = ""
+## Returns the player has not read yet, in the order they came back. Each is {"quest": quest id,
+## "returned_at": unix seconds it came back, "success": bool, "party": adventurer ids,
+## "injured": {adventurer id: seconds the injury lasts}, "gold": gold it brought}. Only a report:
+## its outcome was applied when the party came home.
+var debriefs: Array[Dictionary] = []
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back neither
 ## adds time to a quest or an injury nor brings back a party that has returned.
 var checked_at: int
@@ -128,9 +131,9 @@ func returned_since_checkpoint(now: int) -> bool:
 
 
 ## Brings every returned party home, once, in the order they returned: pays its reward into
-## `gold`, injures on failure and records it as the last return. `infirmary_from` is the unix
-## seconds the first Infirmary is finished at, -1 for none: an injury from a return at or after it
-## is shorter. Records the time seen.
+## `gold`, injures on failure and adds its debrief. `infirmary_from` is the unix seconds the first
+## Infirmary is finished at, -1 for none: an injury from a return at or after it is shorter.
+## Records the time seen.
 func checkpoint(now: int, gold: Gold, infirmary_from: int = -1) -> void:
 	checked_at = maxi(checked_at, now)
 	var returned: Array[Dictionary] = []
@@ -146,25 +149,35 @@ func checkpoint(now: int, gold: Gold, infirmary_from: int = -1) -> void:
 func _bring_home(outing: Dictionary, gold: Gold, infirmary_from: int) -> void:
 	var quest: Dictionary = QUESTS[outing["quest"]]
 	var party: PackedStringArray = outing["party"]
+	var returns_at := _returns_at(outing)
 	var reward: int = quest["gold"]
-	var result := "%s: success" % quest["name"]
-	var injured := ""
+	var success := true
+	var injured: Dictionary = {}
 	# A party sent before adventurers existed has no members: it comes home as it was sent then,
 	# paid in full.
 	if not party.is_empty():
 		var outcome := Outcome.roll(outing["seed"], success_chance(outing["quest"], party), party)
 		if not outcome.success:
 			reward = floori(reward / 4.0)
-			result = "%s: failed" % quest["name"]
-			injured = outcome.injured
-			var returns_at := _returns_at(outing)
+			success = false
 			var healed_in := INFIRMARY_INJURY_SECONDS if infirmary_from >= 0 and infirmary_from <= returns_at else INJURY_SECONDS
-			injured_until[injured] = returns_at + healed_in
-			injury_lengths[injured] = healed_in
+			injured_until[outcome.injured] = returns_at + healed_in
+			injury_lengths[outcome.injured] = healed_in
+			injured[outcome.injured] = healed_in
 	gold.amount += reward
-	last_return = "%s · +%d gold" % [result, reward]
-	if not injured.is_empty():
-		last_return += " · %s injured" % ADVENTURERS[injured]["name"]
+	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "injured": injured, "gold": reward})
+
+
+## Files the debrief at `index` away once the player has read it; nothing else changes.
+func read_debrief(index: int) -> void:
+	debriefs.remove_at(index)
+
+
+## How long ago `debrief` came back at `now`, in words for the player: whole minutes, or "just
+## now" under one.
+func back_label(debrief: Dictionary, now: int) -> String:
+	var minutes := floori((maxi(now, checked_at) - int(debrief["returned_at"])) / 60.0)
+	return "Back just now" if minutes == 0 else "Back %d min ago" % minutes
 
 
 func _returns_at(outing: Dictionary) -> int:
@@ -176,7 +189,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("dispatch", "outings", outings)
 	file.set_value("dispatch", "injured_until", injured_until)
 	file.set_value("dispatch", "injury_lengths", injury_lengths)
-	file.set_value("dispatch", "last_return", last_return)
+	file.set_value("dispatch", "debriefs", debriefs)
 	file.set_value("dispatch", "checked_at", checked_at)
 
 
@@ -199,6 +212,6 @@ static func load_or_start(path: String, now: int) -> Dispatch:
 			dispatch.outings.erase(outing)
 	dispatch.injured_until.assign(file.get_value("dispatch", "injured_until", {}))
 	dispatch.injury_lengths.assign(file.get_value("dispatch", "injury_lengths", {}))
-	dispatch.last_return = file.get_value("dispatch", "last_return", "")
+	dispatch.debriefs.assign(file.get_value("dispatch", "debriefs", []))
 	dispatch.checked_at = int(file.get_value("dispatch", "checked_at", now))
 	return dispatch

@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=37 format=3]
+[gd_resource type="Theme" load_steps=41 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -334,11 +334,63 @@ draw_center = false
 border_width_bottom = 3
 border_color = Color(0.2275, 0.2039, 0.2745, 1)
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_badge"]
+content_margin_left = 12.0
+content_margin_right = 12.0
+bg_color = Color(0.9373, 0.4784, 0.3843, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_debrief_row"]
+content_margin_left = 33.0
+content_margin_top = 28.0
+content_margin_right = 33.0
+content_margin_bottom = 28.0
+bg_color = Color(0.1294, 0.1137, 0.1569, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.9373, 0.4784, 0.3843, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_success_chip"]
+content_margin_left = 28.0
+content_margin_top = 8.0
+content_margin_right = 28.0
+content_margin_bottom = 8.0
+bg_color = Color(0.4353, 0.8118, 0.5569, 0.12)
+corner_radius_top_left = 33
+corner_radius_top_right = 33
+corner_radius_bottom_right = 33
+corner_radius_bottom_left = 33
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_failed_chip"]
+content_margin_left = 28.0
+content_margin_top = 8.0
+content_margin_right = 28.0
+content_margin_bottom = 8.0
+bg_color = Color(0.9373, 0.4784, 0.3843, 0.12)
+corner_radius_top_left = 33
+corner_radius_top_right = 33
+corner_radius_bottom_right = 33
+corner_radius_bottom_left = 33
+
 [resource]
 default_font = ExtResource("1_sans")
 default_font_size = 42
 Alert/base_type = &"Label"
 Alert/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
+Badge/base_type = &"Label"
+Badge/colors/font_color = Color(0.08627, 0.07451, 0.1059, 1)
+Badge/font_sizes/font_size = 30
+Badge/fonts/font = SubResource("FontVariation_sans_semibold")
+Badge/styles/normal = SubResource("StyleBoxFlat_badge")
 BottomBar/base_type = &"PanelContainer"
 BottomBar/styles/panel = SubResource("StyleBoxFlat_bottom_bar")
 Button/colors/font_color = Color(0.9451, 0.9216, 0.9569, 1)
@@ -359,6 +411,8 @@ Caption/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 Caption/font_sizes/font_size = 28
 Coin/base_type = &"Panel"
 Coin/styles/panel = SubResource("StyleBoxFlat_coin")
+DebriefRow/base_type = &"PanelContainer"
+DebriefRow/styles/panel = SubResource("StyleBoxFlat_debrief_row")
 Dialog/base_type = &"PanelContainer"
 Dialog/styles/panel = SubResource("StyleBoxFlat_dialog")
 BuildBar/base_type = &"ProgressBar"
@@ -368,6 +422,11 @@ BuildText/base_type = &"Secondary"
 BuildText/colors/font_color = Color(0.498, 0.7216, 0.902, 1)
 Countdown/base_type = &"Numbers"
 Countdown/font_sizes/font_size = 54
+FailedChip/base_type = &"Label"
+FailedChip/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
+FailedChip/font_sizes/font_size = 36
+FailedChip/fonts/font = SubResource("FontVariation_sans_semibold")
+FailedChip/styles/normal = SubResource("StyleBoxFlat_failed_chip")
 Floor/base_type = &"Button"
 Floor/colors/font_color = Color(0.9451, 0.9216, 0.9569, 1)
 Floor/colors/font_disabled_color = Color(0.4196, 0.3922, 0.4706, 1)
@@ -459,6 +518,13 @@ Secondary/font_sizes/font_size = 36
 Section/base_type = &"Secondary"
 Section/font_sizes/font_size = 33
 Section/fonts/font = SubResource("FontVariation_sans_semibold")
+SectionAlert/base_type = &"Section"
+SectionAlert/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
+SuccessChip/base_type = &"Label"
+SuccessChip/colors/font_color = Color(0.4353, 0.8118, 0.5569, 1)
+SuccessChip/font_sizes/font_size = 36
+SuccessChip/fonts/font = SubResource("FontVariation_sans_semibold")
+SuccessChip/styles/normal = SubResource("StyleBoxFlat_success_chip")
 Title/base_type = &"Label"
 Title/font_sizes/font_size = 66
 Title/fonts/font = SubResource("FontVariation_pixel_semibold")

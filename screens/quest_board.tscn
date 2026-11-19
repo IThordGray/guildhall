@@ -11,36 +11,67 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_board")
 
-[node name="Box" type="VBoxContainer" parent="."]
+[node name="Scroll" type="ScrollContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 32
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 3
 
-[node name="Title" type="Label" parent="Box"]
+[node name="Box" type="VBoxContainer" parent="Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 24
+
+[node name="Title" type="Label" parent="Scroll/Box"]
 layout_mode = 2
 theme_type_variation = &"Title"
 text = "Quests"
 
-[node name="Status" type="Label" parent="Box"]
-layout_mode = 2
-theme_type_variation = &"Numbers"
-text = "Party is home"
-autowrap_mode = 3
-
-[node name="Result" type="Label" parent="Box"]
+[node name="DebriefsHeader" type="HBoxContainer" parent="Scroll/Box"]
 visible = false
 layout_mode = 2
-autowrap_mode = 3
+theme_override_constants/separation = 16
 
-[node name="List" type="VBoxContainer" parent="Box"]
+[node name="Section" type="Label" parent="Scroll/Box/DebriefsHeader"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "DEBRIEFS WAITING"
+
+[node name="Count" type="Label" parent="Scroll/Box/DebriefsHeader"]
+layout_mode = 2
+theme_type_variation = &"SectionAlert"
+text = "0"
+
+[node name="Debriefs" type="VBoxContainer" parent="Scroll/Box"]
+visible = false
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Empty" type="Label" parent="Box"]
+[node name="OutSection" type="Label" parent="Scroll/Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "OUT NOW"
+
+[node name="Out" type="VBoxContainer" parent="Scroll/Box"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="BoardSection" type="Label" parent="Scroll/Box"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "BOARD"
+
+[node name="List" type="VBoxContainer" parent="Scroll/Box"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Empty" type="Label" parent="Scroll/Box"]
 layout_mode = 2
 theme_type_variation = &"Secondary"
 text = "No more quests today"
