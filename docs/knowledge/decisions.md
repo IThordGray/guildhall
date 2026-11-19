@@ -18,14 +18,6 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **M2 — Restore a room.** Done when Home shows the Ground floor top-down as room slots, two
-  usable and the rest damaged; tapping a damaged slot spends gold to restore it on a timer (one
-  builder, so one restoration at a time); the slot then shows restored, also when it finished while
-  the app was closed. Restored rooms have no type yet (that is M5's convert).
-- **M3 — Send a party.** Done when a bottom bar switches Hall | Quests; the quest board lists three
-  fixed quests (duration, gold reward); the guild's one party (no individuals yet) goes on one
-  quest at a time and its gold lands when the timer ends, also while closed. Quests replace M1's
-  passive gold drip: gold now comes only from quests.
 - **M4 — Adventurers.** Done when a Roster tab lists four starting adventurers (name, class, rank
   F, power) with status; dispatch picks 1–3 idle ones and shows a success chance from party power
   vs quest difficulty; the outcome is fixed at dispatch from a saved seed; success pays in full,
@@ -34,7 +26,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   the builder, unusable meanwhile) into a Quest hall (+1 quest out at a time) or an Infirmary
   (injuries heal twice as fast), and the effect applies.
 - Done: M0 runs on my phone (Pages + APK per push, failing test blocks deploy) · M1 gold while
-  you're away (1 gold/s, away message after more than 30 s).
+  you're away (drip later replaced by quests; away message removed, its hook kept) · M2 restore
+  a room · M3 send a party.
 
 ## Stack
 
