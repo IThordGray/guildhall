@@ -1,6 +1,6 @@
 # Guildhall
 
-Single-player, timer-based guild-management game for phones (portrait), built in Godot with GDScript.
+Single-player, timer-based guild-management game for phones (portrait and landscape), built in Godot with GDScript.
 
 This repo runs on Shipyard: for anything bigger than a one-line change, work as the manager
 (`/shipyard`). Knowledge: [docs/knowledge/README.md](docs/knowledge/README.md).

@@ -18,8 +18,11 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** on hold while the human comments on the spec (quest concurrency, Quest hall, guild
-  level). The build stays as it is until then.
+- **Next:** on hold while the human answers the spec's open questions (quest concurrency, Quest
+  hall, guild level, quest difficulty shown or hidden). The build stays as it is until then.
+- Screens follow the v2 designs (linked from the spec): plain dark UI, four tabs (Hall, Quests,
+  Roster, Labyrinth), debriefs instead of a returns pop-up. Portrait and landscape are both in;
+  the build is portrait-only so far.
 - Done: M0 runs on my phone (Pages + APK per push, failing test blocks deploy) · M1 gold while
   you're away (drip later replaced by quests; away message removed, its hook kept) · M2 restore
   a room · M3 send a party · M4 adventurers (4 starters, seeded outcomes, injuries) · M5 rooms
@@ -48,5 +51,5 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
 
 ## Open — needs the human
 
-- What limits quests out at once, what a Quest hall gives, and a guild level that sets the caps:
-  open questions in the spec.
+- What limits quests out at once, what a Quest hall gives, a guild level that sets the caps, and
+  whether quest difficulty is shown: open questions in the spec.
