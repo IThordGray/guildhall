@@ -46,7 +46,7 @@ func refusal(slot: String, gold: Gold, now: int) -> String:
 		return "Not damaged"
 	if seconds_left(now) > 0:
 		return "Builder busy"
-	var short_gold := RESTORE_COST_GOLD - gold.amount(now)
+	var short_gold := RESTORE_COST_GOLD - gold.amount
 	if short_gold > 0:
 		return "Need %d more gold" % short_gold
 	return ""
@@ -57,7 +57,7 @@ func restore(slot: String, gold: Gold, now: int) -> bool:
 	if not refusal(slot, gold, now).is_empty():
 		return false
 	checkpoint(now)
-	gold.spend(RESTORE_COST_GOLD, now)
+	gold.spend(RESTORE_COST_GOLD)
 	restoring = slot
 	restoring_since = checked_at
 	return true

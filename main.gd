@@ -18,13 +18,15 @@ const ROOM_ART: String = "res://assets/hall/ground/%s_%s.png"
 
 var _gold: Gold
 var _hall: Hall
+var _dispatch: Dispatch
 var _slots: Dictionary[String, TextureButton] = {}
 ## The damaged slot the restore panel is open for.
 var _chosen_slot: String = ""
 
-@onready var _build_label: Label = $BuildLabel
+@onready var _build_label: Label = $TopBar/BuildLabel
 @onready var _gold_label: Label = $TopBar/GoldLabel
 @onready var _floor: Control = $Floor
+@onready var _board: QuestBoard = $QuestBoard
 @onready var _restore_panel: Control = $RestorePanel
 @onready var _restore_reason: Label = $RestorePanel/Box/Reason
 @onready var _restore_button: Button = $RestorePanel/Box/Buttons/Restore
@@ -34,13 +36,16 @@ var _chosen_slot: String = ""
 func _ready() -> void:
 	var version: String = ProjectSettings.get_setting("application/config/version", "")
 	_build_label.text = BuildInfo.label(version)
-	$RestorePanel/Box/Cost.text = "Restore — %d gold · %s" % [Hall.RESTORE_COST_GOLD, _minutes_seconds(Hall.RESTORE_SECONDS)]
+	$RestorePanel/Box/Cost.text = "Restore — %d gold · %s" % [Hall.RESTORE_COST_GOLD, Duration.label(Hall.RESTORE_SECONDS)]
 	$RestorePanel/Box/Buttons/Cancel.pressed.connect(_restore_panel.hide)
 	_restore_button.pressed.connect(_on_restore_pressed)
+	$TabBar/Hall.toggled.connect(_on_hall_tab_toggled)
+	_board.send_pressed.connect(_on_send_pressed)
 	_tick.timeout.connect(_on_tick)
 	var now := _now()
-	_gold = Gold.load_or_start(SAVE_PATH, now)
+	_gold = Gold.load_or_start(SAVE_PATH)
 	_hall = Hall.load_or_start(SAVE_PATH, now)
+	_dispatch = Dispatch.load_or_start(SAVE_PATH, now)
 	_build_floor()
 	_arrive()
 
@@ -63,8 +68,9 @@ func _arrive() -> void:
 	if not _tick.is_stopped():
 		return
 	var now := _now()
-	# A return summary goes here, before _checkpoint folds the absence in: Gold.away_report(now)
-	# and Hall.finished_since_checkpoint(now) say what happened while the app was away.
+	# A return summary goes here, before _checkpoint folds the absence in: a party back from its
+	# quest (Dispatch.returned_since_checkpoint(now), its reward paid at the checkpoint) and a room
+	# restored (Hall.finished_since_checkpoint(now)) are what happened while the app was away.
 	_checkpoint(now)
 	_tick.start()
 
@@ -83,15 +89,17 @@ func _on_tick() -> void:
 
 
 func _checkpoint(now: int) -> void:
-	_gold.checkpoint(now)
+	_dispatch.checkpoint(now, _gold)
 	_hall.checkpoint(now)
 	var file := ConfigFile.new()
 	_gold.write(file)
 	_hall.write(file)
+	_dispatch.write(file)
 	if file.save(SAVE_PATH) != OK:
 		push_error("Could not save to " + SAVE_PATH)
-	_gold_label.text = "Gold %d" % _gold.saved
+	_gold_label.text = "Gold %d" % _gold.amount
 	_show_hall(now)
+	_board.show_dispatch(_dispatch, now)
 	if _restore_panel.visible:
 		_show_restore_panel(now)
 
@@ -133,7 +141,7 @@ func _show_hall(now: int) -> void:
 				label.text = "Empty room"
 			Hall.State.RESTORING:
 				_show_art(button, slot, "damaged")
-				label.text = _minutes_seconds(_hall.seconds_left(now))
+				label.text = Duration.label(_hall.seconds_left(now))
 			Hall.State.DAMAGED:
 				_show_art(button, slot, "damaged")
 				label.text = "Damaged"
@@ -151,8 +159,7 @@ func _on_slot_pressed(slot: String) -> void:
 		return
 	_chosen_slot = slot
 	_restore_panel.show()
-	# Brings the top bar to the same moment, so it agrees with the shortfall the panel shows.
-	_checkpoint(now)
+	_show_restore_panel(now)
 
 
 func _show_restore_panel(now: int) -> void:
@@ -169,8 +176,17 @@ func _on_restore_pressed() -> void:
 	_checkpoint(now)
 
 
-func _minutes_seconds(seconds: int) -> String:
-	return "%d:%02d" % [floori(seconds / 60.0), seconds % 60]
+func _on_send_pressed(quest: String) -> void:
+	var now := _now()
+	_dispatch.send(quest, _gold, now)
+	_checkpoint(now)
+
+
+# The two tabs share a button group, so the Hall tab turning off means Quests turned on.
+func _on_hall_tab_toggled(hall: bool) -> void:
+	_floor.visible = hall
+	_board.visible = not hall
+	_restore_panel.hide()
 
 
 func _now() -> int:
