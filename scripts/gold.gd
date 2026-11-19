@@ -43,10 +43,24 @@ func checkpoint(now: int) -> void:
 	saved_at = maxi(saved_at, now)
 
 
-func save(path: String) -> Error:
-	var file := ConfigFile.new()
+## Takes `cost` from the gold held at `now`, or nothing when that is less than `cost`; true when paid.
+func spend(cost: int, now: int) -> bool:
+	checkpoint(now)
+	if saved < cost:
+		return false
+	saved -= cost
+	return true
+
+
+## Puts the snapshot into `file`, which other state shares, so one save holds the whole game.
+func write(file: ConfigFile) -> void:
 	file.set_value("gold", "saved", saved)
 	file.set_value("gold", "saved_at", saved_at)
+
+
+func save(path: String) -> Error:
+	var file := ConfigFile.new()
+	write(file)
 	return file.save(path)
 
 

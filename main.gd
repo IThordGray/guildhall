@@ -2,10 +2,32 @@ extends Control
 
 const SAVE_PATH: String = "user://save.cfg"
 
+# The Ground floor seen from above, as fractions of the floor area: y = 0 is the back wall,
+# y = 1 the front, at the bottom of the screen.
+const GROUND_FLOOR: Dictionary[String, Rect2] = {
+	"back_left": Rect2(0.0, 0.0, 0.5, 0.3),
+	"back_right": Rect2(0.5, 0.0, 0.5, 0.3),
+	"side_left": Rect2(0.0, 0.3, 0.3, 0.4),
+	"reception": Rect2(0.3, 0.3, 0.4, 0.4),
+	"side_right": Rect2(0.7, 0.3, 0.3, 0.4),
+	"entrance": Rect2(0.0, 0.7, 1.0, 0.3),
+}
+const USABLE_NAMES: Dictionary[String, String] = {"entrance": "Entrance hall", "reception": "Reception"}
+# Art is found by slot id and look, so replacing a file changes the art with no code change.
+const ROOM_ART: String = "res://assets/hall/ground/%s_%s.png"
+
 var _gold: Gold
+var _hall: Hall
+var _slots: Dictionary[String, TextureButton] = {}
+## The damaged slot the restore panel is open for.
+var _chosen_slot: String = ""
 
 @onready var _build_label: Label = $BuildLabel
 @onready var _gold_label: Label = $TopBar/GoldLabel
+@onready var _floor: Control = $Floor
+@onready var _restore_panel: Control = $RestorePanel
+@onready var _restore_reason: Label = $RestorePanel/Box/Reason
+@onready var _restore_button: Button = $RestorePanel/Box/Buttons/Restore
 @onready var _away_message: Button = $AwayMessage
 @onready var _tick: Timer = $Tick
 
@@ -13,9 +35,15 @@ var _gold: Gold
 func _ready() -> void:
 	var version: String = ProjectSettings.get_setting("application/config/version", "")
 	_build_label.text = BuildInfo.label(version)
+	$RestorePanel/Box/Cost.text = "Restore — %d gold · %s" % [Hall.RESTORE_COST_GOLD, _minutes_seconds(Hall.RESTORE_SECONDS)]
+	$RestorePanel/Box/Buttons/Cancel.pressed.connect(_restore_panel.hide)
+	_restore_button.pressed.connect(_on_restore_pressed)
 	_away_message.pressed.connect(_away_message.hide)
 	_tick.timeout.connect(_on_tick)
-	_gold = Gold.load_or_start(SAVE_PATH, _now())
+	var now := _now()
+	_gold = Gold.load_or_start(SAVE_PATH, now)
+	_hall = Hall.load_or_start(SAVE_PATH, now)
+	_build_floor()
 	_arrive()
 
 
@@ -37,9 +65,14 @@ func _arrive() -> void:
 	if not _tick.is_stopped():
 		return
 	var now := _now()
+	var news := PackedStringArray()
 	var away_gold := _gold.away_report(now)
 	if away_gold > 0:
-		_away_message.text = "While you were away: +%d gold" % away_gold
+		news.append("While you were away: +%d gold" % away_gold)
+	if _hall.finished_since_checkpoint(now):
+		news.append("Room restored")
+	if not news.is_empty():
+		_away_message.text = "\n".join(news)
 		_away_message.show()
 	_checkpoint(now)
 	_tick.start()
@@ -60,9 +93,93 @@ func _on_tick() -> void:
 
 func _checkpoint(now: int) -> void:
 	_gold.checkpoint(now)
-	if _gold.save(SAVE_PATH) != OK:
+	_hall.checkpoint(now)
+	var file := ConfigFile.new()
+	_gold.write(file)
+	_hall.write(file)
+	if file.save(SAVE_PATH) != OK:
 		push_error("Could not save to " + SAVE_PATH)
 	_gold_label.text = "Gold %d" % _gold.saved
+	_show_hall(now)
+	if _restore_panel.visible:
+		_show_restore_panel(now)
+
+
+func _build_floor() -> void:
+	for slot: String in GROUND_FLOOR:
+		var area: Rect2 = GROUND_FLOOR[slot]
+		var button := TextureButton.new()
+		button.ignore_texture_size = true
+		button.stretch_mode = TextureButton.STRETCH_SCALE
+		button.anchor_left = area.position.x
+		button.anchor_top = area.position.y
+		button.anchor_right = area.end.x
+		button.anchor_bottom = area.end.y
+		button.pressed.connect(_on_slot_pressed.bind(slot))
+		var label := Label.new()
+		label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.add_theme_font_size_override("font_size", 48)
+		label.add_theme_constant_override("outline_size", 14)
+		label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		button.add_child(label)
+		_floor.add_child(button)
+		_slots[slot] = button
+
+
+func _show_hall(now: int) -> void:
+	for slot: String in _slots:
+		var button := _slots[slot]
+		var label := button.get_child(0) as Label
+		match _hall.state(slot, now):
+			Hall.State.USABLE:
+				_show_art(button, slot, "restored")
+				label.text = USABLE_NAMES[slot]
+			Hall.State.RESTORED:
+				_show_art(button, slot, "restored")
+				label.text = "Empty room"
+			Hall.State.RESTORING:
+				_show_art(button, slot, "damaged")
+				label.text = _minutes_seconds(_hall.seconds_left(now))
+			Hall.State.DAMAGED:
+				_show_art(button, slot, "damaged")
+				label.text = "Damaged"
+
+
+func _show_art(button: TextureButton, slot: String, look: String) -> void:
+	var path := ROOM_ART % [slot, look]
+	if button.texture_normal == null or button.texture_normal.resource_path != path:
+		button.texture_normal = load(path)
+
+
+func _on_slot_pressed(slot: String) -> void:
+	var now := _now()
+	if _hall.state(slot, now) != Hall.State.DAMAGED:
+		return
+	_chosen_slot = slot
+	_restore_panel.show()
+	# Brings the top bar to the same moment, so it agrees with the shortfall the panel shows.
+	_checkpoint(now)
+
+
+func _show_restore_panel(now: int) -> void:
+	var reason := _hall.refusal(_chosen_slot, _gold, now)
+	_restore_reason.text = reason
+	_restore_reason.visible = not reason.is_empty()
+	_restore_button.disabled = not reason.is_empty()
+
+
+func _on_restore_pressed() -> void:
+	var now := _now()
+	if _hall.restore(_chosen_slot, _gold, now):
+		_restore_panel.hide()
+	_checkpoint(now)
+
+
+func _minutes_seconds(seconds: int) -> String:
+	return "%d:%02d" % [floori(seconds / 60.0), seconds % 60]
 
 
 func _now() -> int:

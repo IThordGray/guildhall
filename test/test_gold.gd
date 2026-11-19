@@ -63,3 +63,16 @@ func test_with_no_save_a_new_game_starts_with_no_gold_now() -> void:
 	var gold := Gold.load_or_start(SAVE_PATH, 5_000)
 	assert_eq(gold.amount(5_000), 0)
 	assert_eq(gold.amount(5_010), 10)
+
+
+func test_spending_takes_the_cost_from_the_gold_held_now() -> void:
+	var gold := Gold.new(0, 1_000)
+	assert_true(gold.spend(100, 1_150))
+	assert_eq(gold.amount(1_150), 50)
+	assert_eq(gold.amount(1_160), 60)
+
+
+func test_spending_more_than_is_held_is_refused_and_takes_nothing() -> void:
+	var gold := Gold.new(0, 1_000)
+	assert_false(gold.spend(100, 1_050))
+	assert_eq(gold.amount(1_050), 50)
