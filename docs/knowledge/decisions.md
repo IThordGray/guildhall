@@ -23,6 +23,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
 - **Later, not planned yet:** sprites that change with gear (needs per-item layer art); the spec's
   starting state and extending the hall, recruitment, guild level, Quest hall extras, the labyrinth.
 - Screens follow the v2 designs (linked from the spec).
+- Interim, for play-testing: a start screen (Continue / New game), to be revised; a Test speed
+  control (×1/×10/×60 while open), to be removed before release.
 - Done: M0 runs on my phone (Pages + APK per push, failing test blocks deploy) · M1 gold while
   you're away (drip later replaced by quests; away message removed, its hook kept) · M2 restore a
   room · M3 send a party · M4 adventurers (4 starters, seeded outcomes, injuries) · M5 rooms with
