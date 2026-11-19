@@ -56,6 +56,7 @@ func _ready() -> void:
 		send.text = "Send party"
 		send.theme_type_variation = &"GoldButton"
 		send.custom_minimum_size = Vector2(0, 122)
+		send.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		send.pressed.connect(send_pressed.emit.bind(quest))
 		var line := HBoxContainer.new()
 		line.add_theme_constant_override("separation", 32)
