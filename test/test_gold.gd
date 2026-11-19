@@ -21,6 +21,12 @@ func test_away_gain_is_the_gold_earned_since_leaving_not_the_total() -> void:
 	assert_eq(gold.amount(1_250 + 600), 850)
 
 
+func test_an_absence_of_30_seconds_or_less_is_not_reported() -> void:
+	var gold := Gold.new(100, 1_000)
+	assert_eq(gold.away_report(1_030), 0)
+	assert_eq(gold.away_report(1_031), 31)
+
+
 func test_a_checkpoint_keeps_the_total() -> void:
 	var gold := Gold.new(40, 1_000)
 	gold.checkpoint(1_100)

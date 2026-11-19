@@ -25,6 +25,18 @@ func gained_since_checkpoint(now: int) -> int:
 	return amount(now) - saved
 
 
+## Shorter absences pass without a "while you were away" message.
+const AWAY_NOTICE_AFTER_SECONDS: int = 30
+
+
+## The gold to report on return: what accrued since the last checkpoint, or 0 when the absence lasted
+## no more than AWAY_NOTICE_AFTER_SECONDS.
+func away_report(now: int) -> int:
+	if now - saved_at <= AWAY_NOTICE_AFTER_SECONDS:
+		return 0
+	return gained_since_checkpoint(now)
+
+
 ## Folds what accrued up to `now` into the snapshot; the total stays the same.
 func checkpoint(now: int) -> void:
 	saved = amount(now)

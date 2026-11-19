@@ -37,7 +37,7 @@ func _arrive() -> void:
 	if not _tick.is_stopped():
 		return
 	var now := _now()
-	var away_gold := _gold.gained_since_checkpoint(now)
+	var away_gold := _gold.away_report(now)
 	if away_gold > 0:
 		_away_message.text = "While you were away: +%d gold" % away_gold
 		_away_message.show()
