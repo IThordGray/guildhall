@@ -18,7 +18,8 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** to be planned with the human after M2–M5 are played.
+- **Next:** on hold while the human comments on the spec (quest concurrency, Quest hall, guild
+  level). The build stays as it is until then.
 - Done: M0 runs on my phone (Pages + APK per push, failing test blocks deploy) · M1 gold while
   you're away (drip later replaced by quests; away message removed, its hook kept) · M2 restore
   a room · M3 send a party · M4 adventurers (4 starters, seeded outcomes, injuries) · M5 rooms
@@ -47,4 +48,5 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
 
 ## Open — needs the human
 
-- Nothing open.
+- What limits quests out at once, what a Quest hall gives, and a guild level that sets the caps:
+  open questions in the spec.
