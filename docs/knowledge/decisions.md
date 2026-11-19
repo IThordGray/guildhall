@@ -20,19 +20,20 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
 
 - **Now, in order:**
   - M12 landscape: every screen in both orientations.
-- **Later, not planned yet:** sprites that change with gear (needs per-item layer art); the spec's starting state and extending the hall, recruitment,
-  guild level, Quest hall extras, the labyrinth.
+- **Later, not planned yet:** sprites that change with gear (needs per-item layer art); the spec's
+  starting state and extending the hall, recruitment, guild level, Quest hall extras, the labyrinth.
 - Screens follow the v2 designs (linked from the spec).
 - Done: M0 runs on my phone (Pages + APK per push, failing test blocks deploy) · M1 gold while
-  you're away (drip later replaced by quests; away message removed, its hook kept) · M2 restore
-  a room · M3 send a party · M4 adventurers (4 starters, seeded outcomes, injuries) · M5 rooms
-  with jobs (Quest hall, Infirmary) · M6 send everyone ready (daily board, no cap on parties out,
-  parties of up to 4) · M7 the v2 look (dark theme, four tabs, Hall as a floor plan with an
-  In progress list) · M8 debriefs (returned parties wait as debriefs, counted on the Quests tab) · M9a stats, XP and levels (four stats behind power, player-pressed
-  level-ups by hidden growth) · M9b health and damage (heals over time, heavy damage injures; no
-  death until recruitment exists) · M10 challenges and ranks (hidden difficulty, class coverage,
-  forecast as a range, reveal on return) · M11 gear and loot (eight slots, shared stash, loot by
-  rank and quality; design icons and faces). M2 onwards are on local `main`, not pushed.
+  you're away (drip later replaced by quests; away message removed, its hook kept) · M2 restore a
+  room · M3 send a party · M4 adventurers (4 starters, seeded outcomes, injuries) · M5 rooms with
+  jobs (Quest hall, Infirmary) · M6 send everyone ready (daily board, no cap on parties out, parties
+  of up to 4) · M7 the v2 look (dark theme, four tabs, Hall as a floor plan with an In progress
+  list) · M8 debriefs (returned parties wait as debriefs, counted on the Quests tab) · M9a stats, XP
+  and levels (four stats behind power, player-pressed level-ups by hidden growth) · M9b health and
+  damage (heals over time, heavy damage injures; no death until recruitment exists) · M10 challenges
+  and ranks (hidden difficulty, class coverage, forecast as a range, reveal on return) · M11 gear
+  and loot (eight slots, shared stash, loot by rank and quality; design icons and faces). M2 onwards
+  are on local `main`, not pushed.
 
 ## Stack
 
