@@ -23,5 +23,5 @@ it merges. Screens and wording live in the code.
 - How many parties are out is limited only by ready adventurers. A party has 1–4 members.
 - The board holds a fixed number of quests per local day. A quest sent is used until the next day,
   whatever its outcome.
-- A party's chance of success is fixed when it leaves; nothing done while it is out changes how
-  the quest ends.
+- A party's chance of success and each member's health are fixed when it leaves; nothing done
+  while it is out changes how the quest ends. Nobody heals while out.

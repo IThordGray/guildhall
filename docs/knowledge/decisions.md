@@ -19,8 +19,6 @@ Each milestone is the thinnest slice that makes the core loop more complete, is 
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
 - **Now, in order:**
-  - M9b health and damage: damage that heals over time, hurt adventurers at more risk, heavy
-    damage injures.
   - M10 challenges and ranks: quest ranks and challenges, class coverage, the forecast as a range.
   - M11 gear and loot: eight slots, the stash, loot from quests, layered sprites.
   - M12 landscape: every screen in both orientations.
@@ -33,7 +31,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   with jobs (Quest hall, Infirmary) · M6 send everyone ready (daily board, no cap on parties out,
   parties of up to 4) · M7 the v2 look (dark theme, four tabs, Hall as a floor plan with an
   In progress list) · M8 debriefs (returned parties wait as debriefs, counted on the Quests tab) · M9a stats, XP and levels (four stats behind power, player-pressed
-  level-ups by hidden growth). M2 onwards are on local `main`, not pushed.
+  level-ups by hidden growth) · M9b health and damage (heals over time, heavy damage injures; no
+  death until recruitment exists). M2 onwards are on local `main`, not pushed.
 
 ## Stack
 
