@@ -16,4 +16,4 @@ it merges. Screens and wording live in the code.
 
 ## Screen
 
-- Portrait 9:16. A top bar shows resources.
+- Portrait 9:16 and landscape. A top bar shows gold and how many parties are out.

@@ -18,17 +18,26 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** on hold while the human settles the spec's open questions (guild level, Quest hall
-  extras). The build stays as it is until then.
-- Dispatch is limited only by ready adventurers: no slots. The board holds a fixed number of
-  quests a day; a Quest hall raises it. The prototype's slot rule goes when the build resumes.
-- Screens follow the v2 designs (linked from the spec): plain dark UI, four tabs (Hall, Quests,
-  Roster, Labyrinth), debriefs instead of a returns pop-up. Portrait and landscape are both in;
-  the build is portrait-only so far.
+- **Now:** M6 send everyone who's ready: no cap on parties out, parties of up to 4, and a daily
+  board (3 quests a day, +1 per Quest hall; a used quest is gone until tomorrow). Top bar shows
+  parties out.
+- **Next, in order:**
+  - M7 the v2 look: dark UI from the designs, the Hall as a floor plan with an In progress list,
+    four tabs (Labyrinth locked). Later screens are built in this look.
+  - M8 debriefs: a returned party waits for a debrief (count on the Quests tab, list, debrief
+    screen). Fills the return-summary hook.
+  - M9 health and levels: damage that heals over time, XP, the Level up screen, four stats
+    behind power.
+  - M10 challenges and ranks: quest ranks and challenges, class coverage, the forecast as a range.
+  - M11 gear and loot: eight slots, the stash, loot from quests, layered sprites.
+  - M12 landscape: every screen in both orientations.
+- **Later, not planned yet:** the spec's starting state and extending the hall, recruitment,
+  guild level, Quest hall extras, the labyrinth.
+- Screens follow the v2 designs (linked from the spec).
 - Done: M0 runs on my phone (Pages + APK per push, failing test blocks deploy) · M1 gold while
   you're away (drip later replaced by quests; away message removed, its hook kept) · M2 restore
   a room · M3 send a party · M4 adventurers (4 starters, seeded outcomes, injuries) · M5 rooms
-  with jobs (Quest hall, Infirmary).
+  with jobs (Quest hall, Infirmary). M2–M5 are on local `main`, not pushed.
 
 ## Stack
 
