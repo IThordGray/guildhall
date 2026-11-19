@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
@@ -13,6 +13,7 @@
 [ext_resource type="PackedScene" path="res://screens/debrief.tscn" id="11_debrief"]
 [ext_resource type="PackedScene" path="res://screens/adventurer.tscn" id="12_adventurer"]
 [ext_resource type="PackedScene" path="res://screens/level_up.tscn" id="13_level_up"]
+[ext_resource type="PackedScene" path="res://screens/start.tscn" id="14_start"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -68,6 +69,12 @@ layout_mode = 2
 theme_type_variation = &"Numbers"
 text = "0"
 vertical_alignment = 1
+
+[node name="TestSpeed" type="Button" parent="TopBar/Row"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"TestSpeed"
+text = "Test speed ×1"
 
 [node name="Body" type="Control" parent="."]
 layout_mode = 1
@@ -208,6 +215,9 @@ layout_mode = 1
 
 [node name="PartyPicker" parent="." instance=ExtResource("4_picker")]
 visible = false
+layout_mode = 1
+
+[node name="Start" parent="." instance=ExtResource("14_start")]
 layout_mode = 1
 
 [node name="Tick" type="Timer" parent="."]

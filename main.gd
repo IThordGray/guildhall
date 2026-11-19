@@ -12,7 +12,10 @@ const END_MARGIN_PX: float = 32.0
 const COLUMN_WIDTH_PX: float = 1100.0
 ## In landscape, the share of the body's width the quest board takes; the party picker has the rest.
 const BOARD_SHARE: float = 0.42
+## Play-testing only: the speeds the Test speed control cycles through.
+const TEST_SPEEDS: Array[int] = [1, 10, 60]
 
+var _clock: GameClock
 var _gold: Gold
 var _hall: Hall
 var _dispatch: Dispatch
@@ -48,6 +51,8 @@ var _portrait_places: Dictionary[Control, Array] = {}
 @onready var _picker: PartyPicker = $PartyPicker
 @onready var _convert_panel: ConvertPanel = $ConvertPanel
 @onready var _tick: Timer = $Tick
+@onready var _start: StartScreen = $Start
+@onready var _test_speed: Button = $TopBar/Row/TestSpeed
 
 
 func _ready() -> void:
@@ -68,6 +73,9 @@ func _ready() -> void:
 	_adventurer.wear_pressed.connect(_on_wear_pressed)
 	_level_up.continue_pressed.connect(_on_level_up_continue)
 	_tick.timeout.connect(_on_tick)
+	_test_speed.pressed.connect(_on_test_speed_pressed)
+	_start.continue_pressed.connect(_open_game)
+	_start.new_game_pressed.connect(_on_new_game)
 	for part: Control in [_tab_bar, _body, _board, _debrief, _roster, _adventurer, _level_up, _picker]:
 		_portrait_places[part] = [
 			Vector4(part.anchor_left, part.anchor_top, part.anchor_right, part.anchor_bottom),
@@ -75,6 +83,18 @@ func _ready() -> void:
 		]
 	get_window().size_changed.connect(_lay_out)
 	_lay_out()
+	_start.show_start(FileAccess.file_exists(SAVE_PATH))
+
+
+func _on_new_game() -> void:
+	DirAccess.remove_absolute(SAVE_PATH)
+	_open_game()
+
+
+# Loads the saved guild, or starts a fresh one when there is no save, and starts the tick.
+func _open_game() -> void:
+	_start.queue_free()
+	_clock = GameClock.load_or_start(SAVE_PATH)
 	var now := _now()
 	_gold = Gold.load_or_start(SAVE_PATH)
 	_hall = Hall.load_or_start(SAVE_PATH, now)
@@ -100,6 +120,7 @@ func _notification(what: int) -> void:
 func _arrive() -> void:
 	if not _tick.is_stopped():
 		return
+	_clock.arrive(Time.get_unix_time_from_system())
 	var now := _now()
 	# A party back from its quest while the app was away needs nothing here: the checkpoint applies
 	# its outcome and adds its debrief, and the debriefs waiting on the Quests screen are the return
@@ -113,6 +134,7 @@ func _leave() -> void:
 	if _tick.is_stopped():
 		return
 	_checkpoint(_now())
+	_clock.leave(Time.get_unix_time_from_system())
 	_tick.stop()
 
 
@@ -126,6 +148,7 @@ func _checkpoint(now: int) -> void:
 	_dispatch.checkpoint(now, _gold, _hall.first_done_at("infirmary"))
 	_hall.checkpoint(now)
 	var file := ConfigFile.new()
+	_clock.write(file, Time.get_unix_time_from_system())
 	_gold.write(file)
 	_hall.write(file)
 	_dispatch.write(file)
@@ -264,6 +287,8 @@ func _lay_out() -> void:
 	_rail_gold.visible = landscape
 	_tabs.vertical = landscape
 	_tab_bar.theme_type_variation = &"Rail" if landscape else &"BottomBar"
+	_test_speed.reparent(_tabs if landscape else $TopBar/Row, false)
+	_test_speed.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if landscape else TextServer.AUTOWRAP_OFF
 	_hall_view.set_landscape(landscape)
 	_board.set_landscape(landscape)
 	_adventurer.set_landscape(landscape)
@@ -307,7 +332,15 @@ func _quest_halls(now: int) -> int:
 
 
 func _now() -> int:
-	return int(Time.get_unix_time_from_system())
+	return _clock.now(Time.get_unix_time_from_system())
+
+
+# Play-testing only: runs game time faster while the app is open. Removing it means deleting this
+# and the TestSpeed control; the clock then stays at ×1.
+func _on_test_speed_pressed() -> void:
+	var next := TEST_SPEEDS[(TEST_SPEEDS.find(_clock.speed) + 1) % TEST_SPEEDS.size()]
+	_clock.set_speed(next, Time.get_unix_time_from_system())
+	_test_speed.text = "Test speed ×%d" % next
 
 
 # Read each time, so the board's day follows a daylight-saving change.

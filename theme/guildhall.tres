@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=54 format=3]
+[gd_resource type="Theme" load_steps=55 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -530,6 +530,22 @@ content_margin_top = 16.0
 content_margin_right = 16.0
 content_margin_bottom = 16.0
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_test_speed"]
+content_margin_left = 18.0
+content_margin_top = 10.0
+content_margin_right = 18.0
+content_margin_bottom = 10.0
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.9373, 0.4784, 0.3843, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+bg_color = Color(0, 0, 0, 0)
+
 [resource]
 default_font = ExtResource("1_sans")
 default_font_size = 42
@@ -621,6 +637,8 @@ GoldLink/styles/normal = SubResource("StyleBoxEmpty_link")
 GoldLink/styles/pressed = SubResource("StyleBoxEmpty_link")
 GoldText/base_type = &"Secondary"
 GoldText/colors/font_color = Color(0.949, 0.7569, 0.3059, 1)
+GameTitle/base_type = &"Title"
+GameTitle/font_sizes/font_size = 150
 GoldAmount/base_type = &"Numbers"
 GoldAmount/colors/font_color = Color(0.949, 0.7569, 0.3059, 1)
 GoldAmount/font_sizes/font_size = 50
@@ -749,6 +767,17 @@ Tab/styles/hover = SubResource("StyleBoxEmpty_tab")
 Tab/styles/hover_pressed = SubResource("StyleBoxFlat_tab_current")
 Tab/styles/normal = SubResource("StyleBoxEmpty_tab")
 Tab/styles/pressed = SubResource("StyleBoxFlat_tab_current")
+TestSpeed/base_type = &"Button"
+TestSpeed/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
+TestSpeed/colors/font_focus_color = Color(0.9373, 0.4784, 0.3843, 1)
+TestSpeed/colors/font_hover_color = Color(0.9373, 0.4784, 0.3843, 1)
+TestSpeed/colors/font_hover_pressed_color = Color(0.9373, 0.4784, 0.3843, 1)
+TestSpeed/colors/font_pressed_color = Color(0.9373, 0.4784, 0.3843, 1)
+TestSpeed/font_sizes/font_size = 28
+TestSpeed/styles/hover = SubResource("StyleBoxFlat_test_speed")
+TestSpeed/styles/hover_pressed = SubResource("StyleBoxFlat_test_speed")
+TestSpeed/styles/normal = SubResource("StyleBoxFlat_test_speed")
+TestSpeed/styles/pressed = SubResource("StyleBoxFlat_test_speed")
 Token/base_type = &"Label"
 Token/font_sizes/font_size = 36
 Token/fonts/font = SubResource("FontVariation_sans_semibold")
