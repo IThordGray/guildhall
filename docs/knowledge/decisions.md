@@ -18,16 +18,11 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **M4 — Adventurers.** Done when a Roster tab lists four starting adventurers (name, class, rank
-  F, power) with status; dispatch picks 1–3 idle ones and shows a success chance from party power
-  vs quest difficulty; the outcome is fixed at dispatch from a saved seed; success pays in full,
-  failure pays a quarter and injures one member for a while. Still one quest out at a time.
-- **M5 — Rooms with jobs.** Done when a restored empty room can be converted (gold + timer, uses
-  the builder, unusable meanwhile) into a Quest hall (+1 quest out at a time) or an Infirmary
-  (injuries heal twice as fast), and the effect applies.
+- **Next:** to be planned with the human after M2–M5 are played.
 - Done: M0 runs on my phone (Pages + APK per push, failing test blocks deploy) · M1 gold while
   you're away (drip later replaced by quests; away message removed, its hook kept) · M2 restore
-  a room · M3 send a party.
+  a room · M3 send a party · M4 adventurers (4 starters, seeded outcomes, injuries) · M5 rooms
+  with jobs (Quest hall, Infirmary).
 
 ## Stack
 
