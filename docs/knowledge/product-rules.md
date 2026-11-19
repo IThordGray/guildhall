@@ -16,7 +16,8 @@ it merges. Screens and wording live in the code.
 
 ## Screen
 
-- Portrait 9:16 and landscape. A top bar shows gold and how many parties are out.
+- Portrait 9:16 and landscape, picked by the window's shape. Gold and how many parties are out are
+  always on screen: in portrait in the top bar, in landscape in the left rail and screen headers.
 
 ## Quests
 

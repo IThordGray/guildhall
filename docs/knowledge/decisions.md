@@ -18,8 +18,8 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Now, in order:**
-  - M12 landscape: every screen in both orientations.
+- **Next:** play-test M6–M12 (pushed); the open spec questions (guild level, Quest hall extras)
+  and the "Later" list decide what follows.
 - **Later, not planned yet:** sprites that change with gear (needs per-item layer art); the spec's
   starting state and extending the hall, recruitment, guild level, Quest hall extras, the labyrinth.
 - Screens follow the v2 designs (linked from the spec).
@@ -32,8 +32,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   and levels (four stats behind power, player-pressed level-ups by hidden growth) · M9b health and
   damage (heals over time, heavy damage injures; no death until recruitment exists) · M10 challenges
   and ranks (hidden difficulty, class coverage, forecast as a range, reveal on return) · M11 gear
-  and loot (eight slots, shared stash, loot by rank and quality; design icons and faces). M2 onwards
-  are on local `main`, not pushed.
+  and loot (eight slots, shared stash, loot by rank and quality; design icons and faces) · M12
+  landscape (left rail, side-by-side screens).
 
 ## Stack
 
