@@ -11,7 +11,7 @@ func after_each() -> void:
 
 ## A seed with which `party` on `quest` succeeds, or fails when `success` is false.
 func _seed(quest: String, party: PackedStringArray, success: bool) -> int:
-	var chance := Dispatch.success_chance(quest, party)
+	var chance := Dispatch.new(0).success_chance(quest, party)
 	for roll_seed: int in 10_000:
 		if Outcome.roll(roll_seed, chance, party).success == success:
 			return roll_seed
@@ -69,15 +69,15 @@ func test_the_roster_has_four_rank_f_adventurers_all_resting_in_a_new_game() -> 
 	assert_eq(Dispatch.ADVENTURERS.keys(), expected.keys())
 	for adventurer: String in expected:
 		var info: Dictionary = Dispatch.ADVENTURERS[adventurer]
-		assert_eq([info["name"], info["class"], info["rank"], info["power"]], expected[adventurer])
+		assert_eq([info["name"], info["class"], info["rank"], Dispatch.new(1_000).adventurers.power(adventurer)], expected[adventurer])
 	assert_eq(_statuses(Dispatch.new(1_000), 1_000), ["Resting", "Resting", "Resting", "Resting"])
 
 
 func test_the_success_chance_is_from_the_picked_party_against_the_quest() -> void:
-	assert_eq(Dispatch.success_chance("moonherbs", ["bram", "tobin"]), 50)
-	assert_eq(Dispatch.success_chance("moonherbs", ["bram", "ilse"]), 60)
-	assert_eq(Dispatch.success_chance("goblins", ["bram", "ilse", "maren"]), 40)
-	assert_eq(Dispatch.success_chance("rats", ["tobin"]), 50)
+	assert_eq(Dispatch.new(1_000).success_chance("moonherbs", ["bram", "tobin"]), 50)
+	assert_eq(Dispatch.new(1_000).success_chance("moonherbs", ["bram", "ilse"]), 60)
+	assert_eq(Dispatch.new(1_000).success_chance("goblins", ["bram", "ilse", "maren"]), 40)
+	assert_eq(Dispatch.new(1_000).success_chance("rats", ["tobin"]), 50)
 
 
 func test_four_one_person_parties_can_be_out() -> void:
@@ -154,7 +154,7 @@ func test_a_success_pays_the_full_reward_and_injures_nobody() -> void:
 	dispatch.send("rats", ["bram", "maren"], _seed("rats", ["bram", "maren"], true), gold, 1_000)
 	dispatch.checkpoint(1_060, gold)
 	assert_eq(gold.amount, 55)
-	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram", "maren"]), "injured": {}, "gold": 50}])
+	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram", "maren"]), "injured": {}, "gold": 50, "xp": 4}])
 	assert_eq(_statuses(dispatch, 1_060), ["Resting", "Resting", "Resting", "Resting"])
 
 
@@ -162,7 +162,7 @@ func test_a_failure_pays_a_quarter_rounded_down_and_injures_one_member_for_five_
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	var roll_seed := _seed("moonherbs", PARTY, false)
-	var injured := Outcome.roll(roll_seed, Dispatch.success_chance("moonherbs", PARTY), PARTY).injured
+	var injured := Outcome.roll(roll_seed, Dispatch.new(0).success_chance("moonherbs", PARTY), PARTY).injured
 	dispatch.send("moonherbs", PARTY, roll_seed, gold, 1_000)
 	# Returns at 1_180; the checkpoint comes 100 s later, as on opening the app.
 	dispatch.checkpoint(1_280, gold)
@@ -343,7 +343,7 @@ func test_a_party_out_and_an_injury_survive_save_and_load_with_the_same_outcome(
 	var loaded := Dispatch.load_or_start(SAVE_PATH, 99_999)
 	var loaded_gold := Gold.load_or_start(SAVE_PATH)
 	assert_eq(_statuses(loaded, 1_760), ["On quest: Gather moonherbs", "Resting", "Injured · 2:20", "On quest: Gather moonherbs"])
-	assert_eq(loaded.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": false, "party": PackedStringArray(["tobin"]), "injured": {"tobin": 300}, "gold": 125}])
+	assert_eq(loaded.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": false, "party": PackedStringArray(["tobin"]), "injured": {"tobin": 300}, "gold": 125, "xp": 20}])
 	assert_eq(loaded.outings[0]["seed"], roll_seed)
 	assert_eq(loaded.seconds_left(loaded.outings[0], 1_760), 170)
 	loaded.checkpoint(1_930, loaded_gold)
@@ -388,7 +388,7 @@ func test_an_m3_save_with_the_party_out_pays_that_quest_in_full_on_return_with_n
 	assert_eq(gold.amount, 20)
 	dispatch.checkpoint(1_600, gold)
 	assert_eq(gold.amount, 520)
-	assert_eq(dispatch.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(), "injured": {}, "gold": 500}])
+	assert_eq(dispatch.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(), "injured": {}, "gold": 500, "xp": 40}])
 	assert_eq(_statuses(dispatch, 1_600), ["Resting", "Resting", "Resting", "Resting"])
 	assert_true(dispatch.outings.is_empty())
 
@@ -566,8 +566,8 @@ func test_a_clock_set_back_never_changes_an_injury_already_decided() -> void:
 	assert_eq(gold.amount, 1_000 - 120 - 60 + 125)
 
 
-var rats_debrief: Dictionary = {"quest": "rats", "returned_at": 1_160, "success": false, "party": PackedStringArray(["tobin"]), "injured": {"tobin": 300}, "gold": 12}
-var goblins_debrief: Dictionary = {"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(["bram", "ilse"]), "injured": {}, "gold": 500}
+var rats_debrief: Dictionary = {"quest": "rats", "returned_at": 1_160, "success": false, "party": PackedStringArray(["tobin"]), "injured": {"tobin": 300}, "gold": 12, "xp": 2}
+var goblins_debrief: Dictionary = {"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(["bram", "ilse"]), "injured": {}, "gold": 500, "xp": 40}
 
 
 ## Goblin camp succeeds for Bram and Ilse, sent at 1_000 (back at 1_600); Rats in the cellar
@@ -586,12 +586,12 @@ func test_a_returned_party_adds_a_debrief_with_its_quest_result_party_injured_me
 	var hall := _hall_converting("infirmary", gold)
 	var dispatch := Dispatch.new(1_000)
 	var roll_seed := _seed("moonherbs", PARTY, false)
-	var injured := Outcome.roll(roll_seed, Dispatch.success_chance("moonherbs", PARTY), PARTY).injured
+	var injured := Outcome.roll(roll_seed, Dispatch.new(0).success_chance("moonherbs", PARTY), PARTY).injured
 	dispatch.send("moonherbs", PARTY, roll_seed, gold, 1_100)
 	dispatch.checkpoint(1_279, gold, hall.first_done_at("infirmary"))
 	assert_true(dispatch.debriefs.is_empty())
 	dispatch.checkpoint(1_400, gold, hall.first_done_at("infirmary"))
-	assert_eq(dispatch.debriefs, [{"quest": "moonherbs", "returned_at": 1_280, "success": false, "party": PARTY, "injured": {injured: 150}, "gold": 37}])
+	assert_eq(dispatch.debriefs, [{"quest": "moonherbs", "returned_at": 1_280, "success": false, "party": PARTY, "injured": {injured: 150}, "gold": 37, "xp": 6}])
 
 
 func test_two_returns_give_two_debriefs_in_the_order_they_came_back() -> void:
@@ -678,4 +678,76 @@ func test_a_save_from_before_debriefs_loads_with_none_and_nothing_lost() -> void
 	assert_eq(dispatch.injury_seconds("tobin"), 150)
 	dispatch.checkpoint(1_060, gold)
 	assert_eq(gold.amount, 690)
-	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram"]), "injured": {}, "gold": 50}])
+	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram"]), "injured": {}, "gold": 50, "xp": 4}])
+
+
+func _xp(dispatch: Dispatch) -> Array[int]:
+	var xp: Array[int] = []
+	for adventurer: String in EVERYONE:
+		xp.append(dispatch.adventurers.xp[adventurer])
+	return xp
+
+
+func test_every_member_of_a_returning_party_gains_xp_and_half_as_much_on_a_failure() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	dispatch.send("moonherbs", ["bram", "maren"], _seed("moonherbs", ["bram", "maren"], true), gold, 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.checkpoint(1_179, gold)
+	assert_eq(_xp(dispatch), [0, 0, 0, 0])
+	# 180 s of moonherbs gives 12 XP; 600 s of goblin camp 40, halved for failing.
+	dispatch.checkpoint(1_180, gold)
+	assert_eq(_xp(dispatch), [12, 0, 0, 12])
+	assert_eq(dispatch.debriefs[0]["xp"], 12)
+	dispatch.checkpoint(1_600, gold)
+	assert_eq(_xp(dispatch), [12, 0, 20, 12])
+	assert_eq(dispatch.debriefs[1]["xp"], 20)
+	dispatch.checkpoint(5_000, gold)
+	assert_eq(_xp(dispatch), [12, 0, 20, 12])
+
+
+func test_xp_banks_past_several_level_ups_and_an_adventurer_with_one_waiting_can_still_be_sent() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	var party: PackedStringArray = ["bram", "ilse"]
+	var now := 1_000
+	for quest: int in 3:
+		assert_true(dispatch.send("goblins", party, _seed("goblins", party, true), gold, now))
+		now += 600
+		dispatch.checkpoint(now, gold)
+	# 40 XP a goblin camp: enough for level 2 (40) and level 3 (80).
+	assert_eq(dispatch.adventurers.xp["bram"], 120)
+	assert_true(dispatch.adventurers.level_up_ready("bram"))
+	assert_true(dispatch.can_go("bram", now))
+	assert_eq(dispatch.adventurers.level_up("bram").size(), 4)
+	assert_eq(dispatch.adventurers.xp["bram"], 80)
+	assert_true(dispatch.adventurers.level_up_ready("bram"))
+	dispatch.adventurers.level_up("bram")
+	assert_eq(dispatch.adventurers.levels["bram"], 3)
+	assert_eq(dispatch.adventurers.xp["bram"], 0)
+	assert_false(dispatch.adventurers.level_up_ready("bram"))
+	assert_eq(dispatch.adventurers.levels["ilse"], 1)
+
+
+func test_a_level_up_while_out_never_changes_how_the_quest_ends() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	var grown := Dispatch.new(1_000)
+	for each: Dispatch in [dispatch, grown]:
+		each.adventurers.gain_xp("tobin", 1_000_000)
+	for level: int in 10:
+		grown.adventurers.level_up("tobin")
+	var chance := dispatch.success_chance("goblins", ["tobin"])
+	var grown_chance := grown.success_chance("goblins", ["tobin"])
+	assert_gt(grown_chance, chance)
+	var roll_seed := -1
+	for candidate: int in 10_000:
+		if not Outcome.roll(candidate, chance, ["tobin"]).success and Outcome.roll(candidate, grown_chance, ["tobin"]).success:
+			roll_seed = candidate
+			break
+	assert_true(dispatch.send("goblins", ["tobin"], roll_seed, gold, 1_000))
+	for level: int in 10:
+		dispatch.adventurers.level_up("tobin")
+	assert_eq(dispatch.success_chance("goblins", ["tobin"]), grown_chance)
+	dispatch.checkpoint(1_600, gold)
+	assert_false(dispatch.debriefs[0]["success"])

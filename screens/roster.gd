@@ -1,35 +1,65 @@
 class_name Roster
 extends Control
 
+## The player tapped `adventurer`, a key of Dispatch.ADVENTURERS, to see them.
+signal adventurer_pressed(adventurer: String)
+
 var _statuses: Dictionary[String, Label] = {}
+var _details: Dictionary[String, Label] = {}
 
 @onready var _list: VBoxContainer = $Box/List
 
 
 func _ready() -> void:
 	for adventurer: String in Dispatch.ADVENTURERS:
-		var info: Dictionary = Dispatch.ADVENTURERS[adventurer]
-		var words := VBoxContainer.new()
-		words.add_child(_label(info["name"], &"Heading"))
-		words.add_child(_label("%s · rank %s · power %d" % [info["class"], info["rank"], info["power"]], &"Secondary"))
+		var name_line := HBoxContainer.new()
+		name_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var name_label := _label(Dispatch.ADVENTURERS[adventurer]["name"], &"RowTitle")
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_line.add_child(name_label)
 		var status := _label("", &"Secondary")
-		words.add_child(status)
+		status.autowrap_mode = TextServer.AUTOWRAP_OFF
+		name_line.add_child(status)
 		_statuses[adventurer] = status
-		var row := PanelContainer.new()
-		row.add_child(words)
+		var details := _label("", &"Secondary")
+		_details[adventurer] = details
+		var words := VBoxContainer.new()
+		words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		words.alignment = BoxContainer.ALIGNMENT_CENTER
+		words.add_child(name_line)
+		words.add_child(details)
+		var line := HBoxContainer.new()
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		line.add_theme_constant_override("separation", 32)
+		line.add_child(QuestBoard.token(adventurer))
+		line.add_child(words)
+		var row := Button.new()
+		row.custom_minimum_size = Vector2(0, 176)
+		row.add_child(line)
+		line.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		line.offset_left = 36
+		line.offset_right = -36
+		row.pressed.connect(adventurer_pressed.emit.bind(adventurer))
 		_list.add_child(row)
 
 
 func show_dispatch(dispatch: Dispatch, now: int) -> void:
 	for adventurer: String in _statuses:
+		var info: Dictionary = Dispatch.ADVENTURERS[adventurer]
+		_details[adventurer].text = "%s · rank %s · level %d" % [info["class"], info["rank"], dispatch.adventurers.levels[adventurer]]
 		var status := _statuses[adventurer]
 		status.text = dispatch.status(adventurer, now)
-		if dispatch.injury_left(adventurer, now) > 0:
-			status.theme_type_variation = &"Alert"
-		elif dispatch.can_go(adventurer, now):
-			status.theme_type_variation = &"Ok"
-		else:
-			status.theme_type_variation = &"Secondary"
+		status.theme_type_variation = status_look(dispatch, adventurer, now)
+
+
+## How `adventurer`'s status reads at `now`: hurt, free to go, or busy.
+static func status_look(dispatch: Dispatch, adventurer: String, now: int) -> StringName:
+	if dispatch.injury_left(adventurer, now) > 0:
+		return &"Alert"
+	if dispatch.can_go(adventurer, now):
+		return &"Ok"
+	return &"Secondary"
 
 
 func _label(text: String, variation: StringName) -> Label:

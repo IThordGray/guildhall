@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
@@ -11,6 +11,8 @@
 [ext_resource type="Texture2D" path="res://theme/icons/labyrinth.svg" id="9_labyrinth"]
 [ext_resource type="PackedScene" path="res://screens/hall_view.tscn" id="10_hall_view"]
 [ext_resource type="PackedScene" path="res://screens/debrief.tscn" id="11_debrief"]
+[ext_resource type="PackedScene" path="res://screens/adventurer.tscn" id="12_adventurer"]
+[ext_resource type="PackedScene" path="res://screens/level_up.tscn" id="13_level_up"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -91,6 +93,22 @@ offset_right = -44.0
 offset_bottom = -216.0
 
 [node name="Roster" parent="." instance=ExtResource("3_roster")]
+visible = false
+layout_mode = 1
+offset_left = 44.0
+offset_top = 168.0
+offset_right = -44.0
+offset_bottom = -216.0
+
+[node name="Adventurer" parent="." instance=ExtResource("12_adventurer")]
+visible = false
+layout_mode = 1
+offset_left = 44.0
+offset_top = 168.0
+offset_right = -44.0
+offset_bottom = -216.0
+
+[node name="LevelUp" parent="." instance=ExtResource("13_level_up")]
 visible = false
 layout_mode = 1
 offset_left = 44.0

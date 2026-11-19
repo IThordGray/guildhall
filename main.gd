@@ -10,6 +10,8 @@ var _daily_board: Board
 var _chosen_slot: String = ""
 ## Where the debrief the Debrief screen shows is in Dispatch.debriefs.
 var _open_debrief: int = -1
+## The adventurer the Adventurer screen shows.
+var _shown_adventurer: String = ""
 
 @onready var _build_label: Label = $TopBar/Row/BuildLabel
 @onready var _gold_label: Label = $TopBar/Row/GoldLabel
@@ -19,6 +21,8 @@ var _open_debrief: int = -1
 @onready var _debrief: Debrief = $Debrief
 @onready var _debrief_badge: Label = $TabBar/Tabs/Quests/Badge
 @onready var _roster: Roster = $Roster
+@onready var _adventurer: Adventurer = $Adventurer
+@onready var _level_up: LevelUp = $LevelUp
 @onready var _picker: PartyPicker = $PartyPicker
 @onready var _convert_panel: ConvertPanel = $ConvertPanel
 @onready var _tick: Timer = $Tick
@@ -36,6 +40,10 @@ func _ready() -> void:
 	_board.debrief_pressed.connect(_on_debrief_pressed)
 	_debrief.done_pressed.connect(_on_debrief_done)
 	_picker.send_pressed.connect(_on_party_sent)
+	_roster.adventurer_pressed.connect(_on_adventurer_pressed)
+	_adventurer.back_pressed.connect(_on_adventurer_back)
+	_adventurer.level_up_pressed.connect(_on_level_up_pressed)
+	_level_up.continue_pressed.connect(_on_level_up_continue)
 	_tick.timeout.connect(_on_tick)
 	var now := _now()
 	_gold = Gold.load_or_start(SAVE_PATH)
@@ -102,6 +110,8 @@ func _checkpoint(now: int) -> void:
 	_hall_view.show_state(_hall, _dispatch, _gold, quests.size(), now)
 	_board.show_board(quests, _dispatch, now)
 	_roster.show_dispatch(_dispatch, now)
+	if _adventurer.visible:
+		_adventurer.show_adventurer(_shown_adventurer, _dispatch, now)
 	if _picker.visible:
 		_picker.show_dispatch(_dispatch, now)
 	if _convert_panel.visible:
@@ -142,7 +152,7 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 
 func _on_debrief_pressed(index: int) -> void:
 	_open_debrief = index
-	_debrief.show_debrief(_dispatch.debriefs[index])
+	_debrief.show_debrief(_dispatch.debriefs[index], _dispatch.adventurers)
 	_board.hide()
 	_debrief.show()
 
@@ -152,6 +162,34 @@ func _on_debrief_done() -> void:
 	_debrief.hide()
 	_board.show()
 	_checkpoint(_now())
+
+
+func _on_adventurer_pressed(adventurer: String) -> void:
+	_shown_adventurer = adventurer
+	_adventurer.show_adventurer(adventurer, _dispatch, _now())
+	_roster.hide()
+	_adventurer.show()
+
+
+func _on_adventurer_back() -> void:
+	_adventurer.hide()
+	_roster.show()
+
+
+func _on_level_up_pressed(adventurer: String) -> void:
+	var gains := _dispatch.adventurers.level_up(adventurer)
+	if gains.is_empty():
+		return
+	_level_up.show_level_up(adventurer, gains, _dispatch.adventurers)
+	_adventurer.hide()
+	_level_up.show()
+	_checkpoint(_now())
+
+
+func _on_level_up_continue() -> void:
+	_level_up.hide()
+	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _now())
+	_adventurer.show()
 
 
 # A tab pressed in code does not signal its group, so the tab is shown here.
@@ -166,6 +204,8 @@ func _on_tab_pressed(tab: BaseButton) -> void:
 	_board.visible = tab == $TabBar/Tabs/Quests
 	_debrief.hide()
 	_roster.visible = tab == $TabBar/Tabs/Roster
+	_adventurer.hide()
+	_level_up.hide()
 	_convert_panel.hide()
 	_picker.hide()
 

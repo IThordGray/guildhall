@@ -19,7 +19,7 @@ func _at(local_day: int, seconds: int) -> int:
 
 ## A seed with which `party` on `quest` succeeds, or fails when `success` is false.
 func _seed(quest: String, party: PackedStringArray, success: bool) -> int:
-	var chance := Dispatch.success_chance(quest, party)
+	var chance := Dispatch.new(0).success_chance(quest, party)
 	for roll_seed: int in 10_000:
 		if Outcome.roll(roll_seed, chance, party).success == success:
 			return roll_seed

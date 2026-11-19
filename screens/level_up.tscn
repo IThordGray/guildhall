@@ -1,0 +1,80 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://screens/level_up.gd" id="1_level_up"]
+
+[node name="LevelUp" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_level_up")
+
+[node name="Box" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 32
+
+[node name="Top" type="VBoxContainer" parent="Box"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Section" type="Label" parent="Box/Top"]
+layout_mode = 2
+theme_type_variation = &"GoldText"
+text = "LEVEL UP"
+horizontal_alignment = 1
+
+[node name="Token" type="Label" parent="Box/Top"]
+custom_minimum_size = Vector2(80, 80)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"Token"
+
+[node name="Title" type="Label" parent="Box/Top"]
+layout_mode = 2
+theme_type_variation = &"Title"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Details" type="Label" parent="Box/Top"]
+layout_mode = 2
+theme_type_variation = &"Secondary"
+horizontal_alignment = 1
+
+[node name="ChangedSection" type="Label" parent="Box"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "WHAT CHANGED"
+
+[node name="Changed" type="PanelContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Rows" type="VBoxContainer" parent="Box/Changed"]
+layout_mode = 2
+theme_override_constants/separation = 28
+
+[node name="XpBar" type="ProgressBar" parent="Box"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+theme_type_variation = &"OwnBar"
+show_percentage = false
+
+[node name="XpText" type="Label" parent="Box"]
+layout_mode = 2
+theme_type_variation = &"Meta"
+
+[node name="Spacer" type="Control" parent="Box"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Continue" type="Button" parent="Box"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+theme_type_variation = &"GoldButton"
+text = "Continue"

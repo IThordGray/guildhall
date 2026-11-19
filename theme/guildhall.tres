@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=41 format=3]
+[gd_resource type="Theme" load_steps=42 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -285,6 +285,13 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar_own"]
+bg_color = Color(0.651, 0.5333, 0.8784, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_token"]
 bg_color = Color(0.2275, 0.2039, 0.2745, 1)
 border_width_left = 3
@@ -477,6 +484,9 @@ InjuredDot/styles/panel = SubResource("StyleBoxFlat_injured_dot")
 InjuryBar/base_type = &"ProgressBar"
 InjuryBar/styles/background = SubResource("StyleBoxFlat_bar_track")
 InjuryBar/styles/fill = SubResource("StyleBoxFlat_bar_injury")
+OwnBar/base_type = &"ProgressBar"
+OwnBar/styles/background = SubResource("StyleBoxFlat_bar_track")
+OwnBar/styles/fill = SubResource("StyleBoxFlat_bar_own")
 Label/colors/font_color = Color(0.9451, 0.9216, 0.9569, 1)
 Meta/base_type = &"Numbers"
 Meta/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
@@ -556,3 +566,6 @@ TokenStack/base_type = &"HBoxContainer"
 TokenStack/constants/separation = -24
 TopBar/base_type = &"PanelContainer"
 TopBar/styles/panel = SubResource("StyleBoxFlat_top_bar")
+XpText/base_type = &"Numbers"
+XpText/colors/font_color = Color(0.651, 0.5333, 0.8784, 1)
+XpText/font_sizes/font_size = 33

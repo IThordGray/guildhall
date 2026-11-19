@@ -1,0 +1,109 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://screens/adventurer.gd" id="1_adventurer"]
+
+[node name="Adventurer" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_adventurer")
+
+[node name="Box" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 28
+
+[node name="Header" type="PanelContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Row" type="HBoxContainer" parent="Box/Header"]
+layout_mode = 2
+theme_override_constants/separation = 32
+
+[node name="Token" type="Label" parent="Box/Header/Row"]
+custom_minimum_size = Vector2(80, 80)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"Token"
+
+[node name="Words" type="VBoxContainer" parent="Box/Header/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="NameLine" type="HBoxContainer" parent="Box/Header/Row/Words"]
+layout_mode = 2
+
+[node name="Name" type="Label" parent="Box/Header/Row/Words/NameLine"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Title"
+
+[node name="Status" type="Label" parent="Box/Header/Row/Words/NameLine"]
+layout_mode = 2
+theme_type_variation = &"Ok"
+text = "Resting"
+vertical_alignment = 1
+
+[node name="Details" type="Label" parent="Box/Header/Row/Words"]
+layout_mode = 2
+theme_type_variation = &"Secondary"
+
+[node name="LevelUp" type="Button" parent="Box/Header/Row/Words"]
+visible = false
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+theme_type_variation = &"GoldButton"
+text = "Level up"
+
+[node name="Xp" type="VBoxContainer" parent="Box/Header/Row/Words"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Bar" type="ProgressBar" parent="Box/Header/Row/Words/Xp"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+theme_type_variation = &"OwnBar"
+show_percentage = false
+
+[node name="Text" type="Label" parent="Box/Header/Row/Words/Xp"]
+layout_mode = 2
+theme_type_variation = &"Meta"
+
+[node name="StatsSection" type="Label" parent="Box"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "STATS"
+
+[node name="Stats" type="PanelContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Rows" type="VBoxContainer" parent="Box/Stats"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="History" type="VBoxContainer" parent="Box/Stats/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Hint" type="Label" parent="Box/Stats/Rows"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "Growth is their own and hidden. Level-ups show it; a Training room gives hints."
+autowrap_mode = 3
+
+[node name="Spacer" type="Control" parent="Box"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Back" type="Button" parent="Box"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+text = "Back"
