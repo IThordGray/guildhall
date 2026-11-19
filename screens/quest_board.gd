@@ -6,11 +6,14 @@ signal send_pressed(quest: String)
 
 @export var row_style: StyleBox
 
-var _send_buttons: Dictionary[String, Button] = {}
+var _rows: Dictionary[String, Control] = {}
+## The quests shown, in board order, so the rows change only when the board does.
+var _shown: PackedStringArray = PackedStringArray()
 
 @onready var _status: Label = $Box/Status
 @onready var _result: Label = $Box/Result
 @onready var _list: VBoxContainer = $Box/List
+@onready var _empty: Label = $Box/Empty
 
 
 func _ready() -> void:
@@ -22,34 +25,38 @@ func _ready() -> void:
 		words.add_child(_label(info["name"], 52, Color.WHITE))
 		words.add_child(_label("%s · %d gold · difficulty %d" % [Duration.label(info["seconds"]), info["gold"], info["difficulty"]], 44, Color(1, 0.84, 0.4)))
 		var send := Button.new()
+		send.text = "Send party"
 		send.custom_minimum_size = Vector2(360, 140)
 		send.add_theme_font_size_override("font_size", 48)
 		send.pressed.connect(send_pressed.emit.bind(quest))
-		_send_buttons[quest] = send
 		var line := HBoxContainer.new()
 		line.add_theme_constant_override("separation", 32)
 		line.add_child(words)
 		line.add_child(send)
 		var row := PanelContainer.new()
+		row.visible = false
 		row.add_theme_stylebox_override("panel", row_style)
 		row.add_child(line)
+		_rows[quest] = row
 		_list.add_child(row)
 
 
-## Shows `dispatch` at `now`, with `quest_halls` Quest halls finished.
-func show_dispatch(dispatch: Dispatch, now: int, quest_halls: int) -> void:
+## Shows `quests`, the board in board order, and `dispatch` at `now`.
+func show_board(quests: PackedStringArray, dispatch: Dispatch, now: int) -> void:
 	var out := PackedStringArray()
 	for outing: Dictionary in dispatch.outings:
 		out.append("Party out: %s · %s" % [Dispatch.QUESTS[outing["quest"]]["name"], Duration.label(dispatch.seconds_left(outing, now))])
-	_status.text = "Party is home" if out.is_empty() else "
-".join(out)
+	_status.text = "Party is home" if out.is_empty() else "\n".join(out)
 	_result.text = dispatch.last_return
 	_result.visible = not dispatch.last_return.is_empty()
-	for quest: String in _send_buttons:
-		var send := _send_buttons[quest]
-		var reason := dispatch.refusal(quest, quest_halls)
-		send.disabled = not reason.is_empty()
-		send.text = "Send party" if reason.is_empty() else reason
+	if quests == _shown:
+		return
+	_shown = quests
+	for quest: String in _rows:
+		_rows[quest].visible = quest in quests
+	for i: int in quests.size():
+		_list.move_child(_rows[quests[i]], i)
+	_empty.visible = quests.is_empty()
 
 
 func _label(text: String, font_size: int, color: Color) -> Label:

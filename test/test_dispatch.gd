@@ -31,11 +31,14 @@ func _statuses(dispatch: Dispatch, now: int) -> Array[String]:
 	return statuses
 
 
-func test_the_board_has_three_quests_each_with_its_difficulty_paying_its_gold_after_its_duration() -> void:
+func test_the_pool_has_six_quests_each_with_its_difficulty_paying_its_gold_after_its_duration() -> void:
 	var expected := {
 		"rats": ["Rats in the cellar", 60, 50, 3],
 		"moonherbs": ["Gather moonherbs", 180, 150, 7],
 		"goblins": ["Goblin camp", 600, 500, 12],
+		"letters": ["Carry letters to the abbey", 120, 100, 5],
+		"wolves": ["Wolves at the mill", 300, 250, 9],
+		"crypt": ["Clear the old crypt", 480, 400, 11],
 	}
 	assert_eq(Dispatch.QUESTS.keys(), expected.keys())
 	for quest: String in expected:
@@ -70,19 +73,20 @@ func test_the_success_chance_is_from_the_picked_party_against_the_quest() -> voi
 	assert_eq(Dispatch.success_chance("rats", ["tobin"]), 50)
 
 
-func test_sending_the_party_starts_its_timer_and_refuses_another_send_while_out() -> void:
+func test_four_one_person_parties_can_be_out() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	assert_eq(dispatch.refusal(), "")
-	assert_true(_send_to_succeed(dispatch, "moonherbs", gold, 1_000))
+	assert_true(dispatch.send("moonherbs", ["tobin"], 0, gold, 1_000))
 	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_030), 150)
-	assert_eq(dispatch.refusal(), "Party is out")
-	assert_eq(dispatch.party_refusal(["maren"], 1_030), "Party is out")
-	assert_false(dispatch.send("rats", ["maren"], 0, gold, 1_030))
-	assert_eq(dispatch.outings.size(), 1)
-	assert_eq(dispatch.outings[0]["quest"], "moonherbs")
-	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_030), 150)
-	assert_eq(dispatch.status("maren", 1_030), "Resting")
+	assert_eq(dispatch.party_refusal(["maren"], 1_030), "")
+	assert_true(dispatch.send("rats", ["maren"], 0, gold, 1_030))
+	assert_true(dispatch.send("goblins", ["bram"], 0, gold, 1_040))
+	assert_true(dispatch.send("crypt", ["ilse"], 0, gold, 1_050))
+	assert_eq(dispatch.outings.size(), 4)
+	assert_eq(_statuses(dispatch, 1_050), ["On quest: Goblin camp", "On quest: Clear the old crypt", "On quest: Gather moonherbs", "On quest: Rats in the cellar"])
+	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_050), 130)
+	# With everyone out, nobody is left to send.
+	assert_eq(dispatch.party_refusal(["tobin"], 1_050), "Tobin can't go")
 
 
 func test_the_party_shows_as_on_its_quest_and_the_others_as_resting() -> void:
@@ -92,17 +96,25 @@ func test_the_party_shows_as_on_its_quest_and_the_others_as_resting() -> void:
 	assert_eq(_statuses(dispatch, 1_100), ["Resting", "On quest: Goblin camp", "Resting", "On quest: Goblin camp"])
 
 
-func test_a_party_is_one_to_three_adventurers_who_are_home_and_well() -> void:
+func test_a_party_is_one_to_four_adventurers_who_are_home_and_well() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	assert_eq(dispatch.party_refusal([], 1_000), "Pick at least one adventurer")
 	assert_false(dispatch.send("rats", [], 1, gold, 1_000))
-	assert_eq(dispatch.party_refusal(["bram", "ilse", "tobin", "maren"], 1_000), "At most 3 in a party")
-	assert_false(dispatch.send("rats", ["bram", "ilse", "tobin", "maren"], 1, gold, 1_000))
 	assert_true(dispatch.outings.is_empty())
 	assert_eq(dispatch.party_refusal(["tobin"], 1_000), "")
-	assert_eq(dispatch.party_refusal(["bram", "ilse", "tobin"], 1_000), "")
-	assert_true(dispatch.send("rats", ["bram", "ilse", "tobin"], 1, gold, 1_000))
+	assert_eq(dispatch.party_refusal(["bram", "ilse", "tobin", "maren"], 1_000), "")
+	assert_true(dispatch.send("rats", ["bram", "ilse", "tobin", "maren"], 1, gold, 1_000))
+	assert_eq(_statuses(dispatch, 1_000), ["On quest: Rats in the cellar", "On quest: Rats in the cellar", "On quest: Rats in the cellar", "On quest: Rats in the cellar"])
+
+
+func test_party_of_five_is_refused() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	var five: PackedStringArray = ["bram", "ilse", "tobin", "maren", "bram"]
+	assert_eq(dispatch.party_refusal(five, 1_000), "At most 4 in a party")
+	assert_false(dispatch.send("rats", five, 1, gold, 1_000))
+	assert_true(dispatch.outings.is_empty())
 
 
 func test_an_injured_adventurer_cannot_be_picked_until_recovered() -> void:
@@ -189,10 +201,10 @@ func test_the_reward_lands_exactly_when_the_quest_ends_and_not_a_second_before()
 	dispatch.checkpoint(1_059, gold)
 	assert_eq(gold.amount, 10)
 	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_059), 1)
-	assert_eq(dispatch.refusal(), "Party is out")
+	assert_eq(dispatch.outings.size(), 1)
 	dispatch.checkpoint(1_060, gold)
 	assert_eq(gold.amount, 60)
-	assert_eq(dispatch.refusal(), "")
+	assert_true(dispatch.outings.is_empty())
 
 
 func test_the_reward_is_paid_once_however_many_checkpoints_follow() -> void:
@@ -236,7 +248,7 @@ func test_a_clock_set_back_after_the_return_pays_nothing_extra_and_does_not_reru
 	dispatch.checkpoint(990, gold)
 	assert_eq(gold.amount, 50)
 	assert_true(dispatch.outings.is_empty())
-	assert_eq(dispatch.refusal(), "")
+	assert_true(dispatch.can_go("bram", 990))
 	assert_false(dispatch.returned_since_checkpoint(990))
 	dispatch.checkpoint(1_100, gold)
 	dispatch.checkpoint(2_000, gold)
@@ -298,7 +310,7 @@ func test_a_quest_in_progress_survives_save_and_load() -> void:
 	var loaded_gold := Gold.load_or_start(SAVE_PATH)
 	assert_eq(loaded.outings[0]["quest"], "moonherbs")
 	assert_eq(loaded.seconds_left(loaded.outings[0], 1_050), 130)
-	assert_eq(loaded.refusal(), "Party is out")
+	assert_eq(loaded.outings.size(), 1)
 	loaded.checkpoint(1_179, loaded_gold)
 	assert_eq(loaded_gold.amount, 30)
 	loaded.checkpoint(1_180, loaded_gold)
@@ -342,7 +354,7 @@ func test_an_m2_save_loads_with_its_gold_kept_and_the_party_home() -> void:
 	var gold := Gold.load_or_start(SAVE_PATH)
 	var dispatch := Dispatch.load_or_start(SAVE_PATH, 2_000)
 	assert_true(dispatch.outings.is_empty())
-	assert_eq(dispatch.refusal(), "")
+	assert_true(dispatch.can_go("bram", 2_000))
 	dispatch.checkpoint(2_000, gold)
 	assert_eq(gold.amount, 300)
 	assert_true(_send_to_succeed(dispatch, "rats", gold, 2_000))
@@ -361,7 +373,7 @@ func test_an_m3_save_with_the_party_out_pays_that_quest_in_full_on_return_with_n
 	_m3_save("goblins")
 	var gold := Gold.load_or_start(SAVE_PATH)
 	var dispatch := Dispatch.load_or_start(SAVE_PATH, 2_000)
-	assert_eq(dispatch.refusal(), "Party is out")
+	assert_eq(dispatch.outings.size(), 1)
 	assert_eq(_statuses(dispatch, 1_100), ["Resting", "Resting", "Resting", "Resting"])
 	dispatch.checkpoint(1_599, gold)
 	assert_eq(gold.amount, 20)
@@ -369,7 +381,7 @@ func test_an_m3_save_with_the_party_out_pays_that_quest_in_full_on_return_with_n
 	assert_eq(gold.amount, 520)
 	assert_eq(dispatch.last_return, "Goblin camp: success · +500 gold")
 	assert_eq(_statuses(dispatch, 1_600), ["Resting", "Resting", "Resting", "Resting"])
-	assert_eq(dispatch.refusal(), "")
+	assert_true(dispatch.outings.is_empty())
 
 
 func test_an_m3_save_with_the_party_home_loads_with_all_four_resting() -> void:
@@ -387,7 +399,7 @@ func test_a_save_naming_an_unknown_quest_loads_with_nobody_out() -> void:
 	var gold := Gold.load_or_start(SAVE_PATH)
 	var dispatch := Dispatch.load_or_start(SAVE_PATH, 2_000)
 	assert_true(dispatch.outings.is_empty())
-	assert_eq(dispatch.refusal(), "")
+	assert_true(dispatch.can_go("bram", 2_000))
 	dispatch.checkpoint(99_000, gold)
 	assert_eq(gold.amount, 20)
 	assert_eq(dispatch.last_return, "")
@@ -402,40 +414,35 @@ func _hall_converting(type: String, gold: Gold) -> Hall:
 	return hall
 
 
-func test_a_finished_quest_hall_lets_a_second_quest_go_out_and_a_third_is_refused() -> void:
+func test_save_from_previous_build_loads() -> void:
+	# Local day 20_001, whose board order starts goblins, moonherbs, letters, crypt.
+	var start := 20_001 * 86_400
 	var gold := Gold.new(1_000)
-	var hall := _hall_converting("quest_hall", gold)
-	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("goblins", ["tobin"], 1, gold, 1_150, hall.rooms_done("quest_hall", 1_150)))
-	# Until the Quest hall is finished it does nothing.
-	assert_eq(dispatch.refusal("rats", hall.rooms_done("quest_hall", 1_179)), "Party is out")
-	assert_false(dispatch.send("rats", ["bram"], 1, gold, 1_179, hall.rooms_done("quest_hall", 1_179)))
+	var hall := Hall.new(start)
+	assert_true(hall.restore("back_left", gold, start))
+	assert_true(hall.convert_room("back_left", "quest_hall", gold, start + 120))
+	hall.checkpoint(start + 180)
+	var dispatch := Dispatch.new(start)
+	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), gold, start + 200)
+	dispatch.send("goblins", ["bram", "ilse"], 1, gold, start + 300)
+	dispatch.checkpoint(start + 400, gold)
+	# The previous build wrote these three sections, and no board.
+	var file := ConfigFile.new()
+	gold.write(file)
+	hall.write(file)
+	dispatch.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
 
-	var quest_halls := hall.rooms_done("quest_hall", 1_180)
-	assert_eq(quest_halls, 1)
-	assert_eq(dispatch.refusal("rats", quest_halls), "")
-	assert_true(dispatch.send("rats", ["bram"], 1, gold, 1_180, quest_halls))
-	assert_eq(dispatch.refusal("moonherbs", quest_halls), "2 parties out")
-	assert_eq(dispatch.party_refusal(["ilse"], 1_180, "moonherbs", quest_halls), "2 parties out")
-	assert_false(dispatch.send("moonherbs", ["ilse"], 1, gold, 1_180, quest_halls))
-	assert_eq(dispatch.outings.size(), 2)
-	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_200), 550)
-	assert_eq(dispatch.seconds_left(dispatch.outings[1], 1_200), 40)
-	dispatch.checkpoint(1_240, gold)
-	assert_eq(dispatch.refusal("moonherbs", quest_halls), "")
-
-
-func test_a_quest_already_out_cannot_be_sent_again_even_with_room_for_another() -> void:
-	var gold := Gold.new(0)
-	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("moonherbs", ["bram"], 1, gold, 1_000, 1))
-	assert_eq(dispatch.refusal("moonherbs", 1), "Already out")
-	assert_eq(dispatch.party_refusal(["ilse"], 1_010, "moonherbs", 1), "Already out")
-	assert_false(dispatch.send("moonherbs", ["ilse"], 1, gold, 1_010, 1))
-	assert_eq(dispatch.refusal("rats", 1), "")
-	assert_eq(dispatch.outings.size(), 1)
-	dispatch.checkpoint(1_180, gold)
-	assert_eq(dispatch.refusal("moonherbs", 1), "")
+	var loaded_gold := Gold.load_or_start(SAVE_PATH)
+	var loaded_hall := Hall.load_or_start(SAVE_PATH, start + 500)
+	var loaded := Dispatch.load_or_start(SAVE_PATH, start + 500)
+	var board := Board.load_or_start(SAVE_PATH)
+	assert_eq(loaded_gold.amount, 1_000 - 120 - 60 + 12)
+	assert_eq(loaded_hall.room_type("back_left"), "quest_hall")
+	assert_eq(loaded_hall.rooms_done("quest_hall", start + 500), 1)
+	assert_eq(_statuses(loaded, start + 500), ["On quest: Goblin camp", "On quest: Goblin camp", "Injured · 1:00", "Resting"])
+	assert_eq(loaded.seconds_left(loaded.outings[0], start + 500), 400)
+	assert_eq(board.quests(loaded, start + 500, 0, loaded_hall.rooms_done("quest_hall", start + 500)), PackedStringArray(["moonherbs", "letters", "crypt"]))
 
 
 func test_an_injury_lasts_150_seconds_with_an_infirmary_finished_before_the_return() -> void:
@@ -484,8 +491,8 @@ func test_two_infirmaries_still_heal_in_150_seconds() -> void:
 func test_two_parties_back_in_the_same_checkpoint_come_home_in_the_order_they_returned() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["bram", "ilse"], _seed("goblins", ["bram", "ilse"], true), gold, 1_000, 1)
-	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), gold, 1_100, 1)
+	dispatch.send("goblins", ["bram", "ilse"], _seed("goblins", ["bram", "ilse"], true), gold, 1_000)
+	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), gold, 1_100)
 	# Rats came back at 1_160, the goblin camp at 1_600, though the goblin camp left first.
 	dispatch.checkpoint(2_000, gold)
 	assert_true(dispatch.outings.is_empty())

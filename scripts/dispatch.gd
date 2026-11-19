@@ -1,11 +1,14 @@
 class_name Dispatch
 extends RefCounted
 
-## The quests on the board, in board order. The save refers to a quest by its id.
+## Every quest a day's board can offer: see Board. The save refers to a quest by its id.
 const QUESTS: Dictionary[String, Dictionary] = {
 	"rats": {"name": "Rats in the cellar", "seconds": 60, "gold": 50, "difficulty": 3},
 	"moonherbs": {"name": "Gather moonherbs", "seconds": 180, "gold": 150, "difficulty": 7},
 	"goblins": {"name": "Goblin camp", "seconds": 600, "gold": 500, "difficulty": 12},
+	"letters": {"name": "Carry letters to the abbey", "seconds": 120, "gold": 100, "difficulty": 5},
+	"wolves": {"name": "Wolves at the mill", "seconds": 300, "gold": 250, "difficulty": 9},
+	"crypt": {"name": "Clear the old crypt", "seconds": 480, "gold": 400, "difficulty": 11},
 }
 ## The guild's adventurers, in roster order. The save refers to one by its id.
 const ADVENTURERS: Dictionary[String, Dictionary] = {
@@ -14,9 +17,7 @@ const ADVENTURERS: Dictionary[String, Dictionary] = {
 	"tobin": {"name": "Tobin", "class": "Scout", "rank": "F", "power": 3},
 	"maren": {"name": "Maren", "class": "Healer", "rank": "F", "power": 3},
 }
-## How many quests can be out at the same time without a Quest hall; each finished one adds one.
-const QUESTS_OUT: int = 1
-const MAX_PARTY_SIZE: int = 3
+const MAX_PARTY_SIZE: int = 4
 ## How long a failed quest injures one of its party, counted from the moment the party returns.
 const INJURY_SECONDS: int = 300
 ## The same with an Infirmary finished by the moment of return; more Infirmaries don't shorten it.
@@ -85,23 +86,9 @@ func status(adventurer: String, now: int) -> String:
 	return "Resting"
 
 
-## Why no party can be sent on `quest` now, with `quest_halls` Quest halls finished, in words for
-## the player; "" when one can. Without a quest, why no party can be sent on any.
-func refusal(quest: String = "", quest_halls: int = 0) -> String:
-	for outing: Dictionary in outings:
-		if outing["quest"] == quest:
-			return "Already out"
-	if outings.size() >= QUESTS_OUT + quest_halls:
-		return "Party is out" if outings.size() == 1 else "%d parties out" % outings.size()
-	return ""
-
-
-## Why `party` can't be sent on `quest` at `now`, with `quest_halls` Quest halls finished, in words
-## for the player; "" when it can.
-func party_refusal(party: PackedStringArray, now: int, quest: String = "", quest_halls: int = 0) -> String:
-	var reason := refusal(quest, quest_halls)
-	if not reason.is_empty():
-		return reason
+## Why `party` can't be sent at `now`, in words for the player; "" when it can. However many
+## parties are out, anyone home and well can go.
+func party_refusal(party: PackedStringArray, now: int) -> String:
 	if party.is_empty():
 		return "Pick at least one adventurer"
 	if party.size() > MAX_PARTY_SIZE:
@@ -113,11 +100,11 @@ func party_refusal(party: PackedStringArray, now: int, quest: String = "", quest
 
 
 ## Sends `party` on `quest_id` at `now`, its outcome fixed by `roll_seed`; false, with nothing
-## started, when `party_refusal` gives a reason. `quest_halls` and `infirmary_from` are as for
-## `party_refusal` and `checkpoint`.
-func send(quest_id: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int, quest_halls: int = 0, infirmary_from: int = -1) -> bool:
+## started, when `party_refusal` gives a reason. Which quests can be sent is Board's rule.
+## `infirmary_from` is as for `checkpoint`.
+func send(quest_id: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int, infirmary_from: int = -1) -> bool:
 	checkpoint(now, gold, infirmary_from)
-	if not party_refusal(party, now, quest_id, quest_halls).is_empty():
+	if not party_refusal(party, now).is_empty():
 		return false
 	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "seed": roll_seed})
 	return true

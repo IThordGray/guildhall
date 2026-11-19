@@ -57,3 +57,10 @@ autowrap_mode = 3
 [node name="List" type="VBoxContainer" parent="Box"]
 layout_mode = 2
 theme_override_constants/separation = 32
+
+[node name="Empty" type="Label" parent="Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "No more quests today"
+horizontal_alignment = 1
+autowrap_mode = 3

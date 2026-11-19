@@ -19,12 +19,14 @@ const ROOM_ART: String = "res://assets/hall/ground/%s_%s.png"
 var _gold: Gold
 var _hall: Hall
 var _dispatch: Dispatch
+var _daily_board: Board
 var _slots: Dictionary[String, TextureButton] = {}
 ## The slot the restore or convert panel is open for.
 var _chosen_slot: String = ""
 
 @onready var _build_label: Label = $TopBar/BuildLabel
 @onready var _gold_label: Label = $TopBar/GoldLabel
+@onready var _parties_label: Label = $TopBar/PartiesLabel
 @onready var _floor: Control = $Floor
 @onready var _board: QuestBoard = $QuestBoard
 @onready var _roster: Roster = $Roster
@@ -51,6 +53,7 @@ func _ready() -> void:
 	_gold = Gold.load_or_start(SAVE_PATH)
 	_hall = Hall.load_or_start(SAVE_PATH, now)
 	_dispatch = Dispatch.load_or_start(SAVE_PATH, now)
+	_daily_board = Board.load_or_start(SAVE_PATH)
 	_build_floor()
 	_arrive()
 
@@ -101,14 +104,16 @@ func _checkpoint(now: int) -> void:
 	_gold.write(file)
 	_hall.write(file)
 	_dispatch.write(file)
+	_daily_board.write(file)
 	if file.save(SAVE_PATH) != OK:
 		push_error("Could not save to " + SAVE_PATH)
 	_gold_label.text = "Gold %d" % _gold.amount
+	_parties_label.text = "Parties out %d" % _dispatch.outings.size()
 	_show_hall(now)
-	_board.show_dispatch(_dispatch, now, _quest_halls(now))
+	_board.show_board(_daily_board.quests(_dispatch, now, _utc_offset_minutes(), _quest_halls(now)), _dispatch, now)
 	_roster.show_dispatch(_dispatch, now)
 	if _picker.visible:
-		_picker.show_dispatch(_dispatch, now, _quest_halls(now))
+		_picker.show_dispatch(_dispatch, now)
 	if _restore_panel.visible:
 		_show_restore_panel(now)
 	if _convert_panel.visible:
@@ -207,13 +212,13 @@ func _on_convert_pressed(type: String) -> void:
 
 func _on_send_pressed(quest: String) -> void:
 	var now := _now()
-	_picker.open(quest, _dispatch, now, _quest_halls(now))
+	_picker.open(quest, _dispatch, now)
 
 
 # The seed comes from the global generator; the outcome it fixes is rolled from the seed alone.
 func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
-	if _dispatch.send(quest, party, randi(), _gold, now, _quest_halls(now), _hall.first_done_at("infirmary")):
+	if _daily_board.send(_dispatch, quest, party, randi(), _gold, now, _utc_offset_minutes(), _quest_halls(now), _hall.first_done_at("infirmary")):
 		_picker.hide()
 	_checkpoint(now)
 
@@ -233,3 +238,8 @@ func _quest_halls(now: int) -> int:
 
 func _now() -> int:
 	return int(Time.get_unix_time_from_system())
+
+
+# Read each time, so the board's day follows a daylight-saving change.
+func _utc_offset_minutes() -> int:
+	return int(Time.get_time_zone_from_system()["bias"])
