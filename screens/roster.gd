@@ -6,6 +6,7 @@ signal adventurer_pressed(adventurer: String)
 
 var _statuses: Dictionary[String, Label] = {}
 var _details: Dictionary[String, Label] = {}
+var _healths: Dictionary[String, HBoxContainer] = {}
 
 @onready var _list: VBoxContainer = $Box/List
 
@@ -29,13 +30,15 @@ func _ready() -> void:
 		words.alignment = BoxContainer.ALIGNMENT_CENTER
 		words.add_child(name_line)
 		words.add_child(details)
+		_healths[adventurer] = Adventurer.health_row()
+		words.add_child(_healths[adventurer])
 		var line := HBoxContainer.new()
 		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		line.add_theme_constant_override("separation", 32)
 		line.add_child(QuestBoard.token(adventurer))
 		line.add_child(words)
 		var row := Button.new()
-		row.custom_minimum_size = Vector2(0, 176)
+		row.custom_minimum_size = Vector2(0, 220)
 		row.add_child(line)
 		line.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		line.offset_left = 36
@@ -51,6 +54,7 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 		var status := _statuses[adventurer]
 		status.text = dispatch.status(adventurer, now)
 		status.theme_type_variation = status_look(dispatch, adventurer, now)
+		Adventurer.show_health(_healths[adventurer], adventurer, dispatch, now)
 
 
 ## How `adventurer`'s status reads at `now`: hurt, free to go, or busy.

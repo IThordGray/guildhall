@@ -23,14 +23,20 @@ func show_debrief(debrief: Dictionary, adventurers: Adventurers) -> void:
 	for row: Node in _members.get_children():
 		row.queue_free()
 	var injured: Dictionary = debrief["injured"]
+	# A debrief saved before damage was kept says "unhurt".
+	var damage: Dictionary = debrief.get("damage", {})
 	for adventurer: String in debrief["party"]:
 		var name_label := Label.new()
 		name_label.text = Dispatch.ADVENTURERS[adventurer]["name"]
 		name_label.theme_type_variation = &"RowTitle"
 		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		var state := Label.new()
-		state.text = "injured · " + Duration.label(injured[adventurer]) if adventurer in injured else "unhurt"
+		var dealt: int = damage.get(adventurer, 0)
+		state.text = "took %d damage" % dealt if dealt > 0 else "unhurt"
+		if adventurer in injured:
+			state.text += " · injured · " + Duration.label(injured[adventurer])
 		state.theme_type_variation = &"Secondary"
+		state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		state.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		# A debrief saved before XP was kept says +0: that party came home without any.

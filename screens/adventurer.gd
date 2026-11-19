@@ -12,6 +12,7 @@ const STAT_BAR_FULL: int = 20
 var _adventurer: String = ""
 var _bars: Dictionary[String, ProgressBar] = {}
 var _values: Dictionary[String, Label] = {}
+var _health: HBoxContainer
 ## The level-ups the history shows, so it is rebuilt only when they change.
 var _history_shown: Array = []
 
@@ -34,6 +35,8 @@ func _ready() -> void:
 		_values[stat] = row.get_child(2)
 		rows.add_child(row)
 		rows.move_child(row, _bars.size() - 1)
+	_health = health_row()
+	_details.add_sibling(_health)
 	_level_up.pressed.connect(func() -> void: level_up_pressed.emit(_adventurer))
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
 
@@ -53,6 +56,7 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, now: int) -> void:
 	_status.text = dispatch.status(adventurer, now)
 	_status.theme_type_variation = Roster.status_look(dispatch, adventurer, now)
 	_details.text = "%s · rank %s · level %d" % [info["class"], info["rank"], level]
+	show_health(_health, adventurer, dispatch, now)
 	var xp: int = adventurers.xp[adventurer]
 	var needed := adventurers.xp_needed(adventurer)
 	_level_up.visible = adventurers.level_up_ready(adventurer)
@@ -99,6 +103,40 @@ static func stat_row(stat_name: String, look: StringName) -> HBoxContainer:
 	row.add_child(bar)
 	row.add_child(value)
 	return row
+
+
+## A row for health: a bar, then current / maximum and how long until full.
+static func health_row() -> HBoxContainer:
+	var bar := ProgressBar.new()
+	bar.show_percentage = false
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.custom_minimum_size = Vector2(0, 16)
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# A fixed width, so bars line up whether or not the time until full is shown.
+	var text := Label.new()
+	text.theme_type_variation = &"Meta"
+	text.custom_minimum_size = Vector2(480, 0)
+	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 24)
+	row.add_child(bar)
+	row.add_child(text)
+	return row
+
+
+## Fills a `health_row` with `adventurer`'s health at `now`, the bar red under a quarter.
+static func show_health(row: HBoxContainer, adventurer: String, dispatch: Dispatch, now: int) -> void:
+	var points := dispatch.health(adventurer, now)
+	var most := dispatch.adventurers.max_health(adventurer)
+	var bar := row.get_child(0) as ProgressBar
+	bar.max_value = most
+	bar.value = points
+	bar.theme_type_variation = &"InjuryBar" if Dispatch.under_a_quarter(points, most) else &"HealthBar"
+	var to_full := dispatch.seconds_to_full(adventurer, now)
+	var text := row.get_child(1) as Label
+	text.text = "%d / %d" % [points, most] if to_full == 0 else "%d / %d · full in %s" % [points, most, Duration.label(to_full)]
 
 
 ## XP toward the next level, in words for the player.

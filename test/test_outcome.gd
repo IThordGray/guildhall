@@ -18,13 +18,13 @@ func test_the_chance_never_rises_above_95_or_falls_below_5() -> void:
 	assert_eq(Outcome.chance_percent(0, 12), 5)
 
 
-func test_the_same_seed_always_gives_the_same_outcome() -> void:
+func test_the_same_seed_always_gives_the_same_outcome_and_damage() -> void:
 	var successes := 0
 	for roll_seed: int in 100:
-		var first := Outcome.roll(roll_seed, 50, PARTY)
-		var again := Outcome.roll(roll_seed, 50, PARTY)
+		var first := Outcome.roll(roll_seed, 50, 12, PARTY)
+		var again := Outcome.roll(roll_seed, 50, 12, PARTY)
 		assert_eq(again.success, first.success)
-		assert_eq(again.injured, first.injured)
+		assert_eq(again.damage, first.damage)
 		if first.success:
 			successes += 1
 	assert_between(successes, 1, 99, "both outcomes occur, so the seed decides")
@@ -33,18 +33,30 @@ func test_the_same_seed_always_gives_the_same_outcome() -> void:
 func test_over_2000_seeds_a_60_percent_chance_succeeds_60_percent_of_the_time_within_4_points() -> void:
 	var successes := 0
 	for roll_seed: int in 2_000:
-		if Outcome.roll(roll_seed, 60, PARTY).success:
+		if Outcome.roll(roll_seed, 60, 7, PARTY).success:
 			successes += 1
 	assert_between(successes, 1_120, 1_280)
 
 
-func test_a_failure_injures_one_member_of_the_party_and_a_success_injures_nobody() -> void:
-	var injured := {}
-	for roll_seed: int in 300:
-		var outcome := Outcome.roll(roll_seed, 50, PARTY)
-		if outcome.success:
-			assert_eq(outcome.injured, "")
-		else:
-			assert_has(PARTY, outcome.injured)
-			injured[outcome.injured] = true
-	assert_eq(injured.size(), 3, "the seed picks who, so every member can be the one")
+func test_a_success_deals_each_member_0_to_half_the_difficulty_and_a_failure_half_to_all_of_it() -> void:
+	var seen := {true: {}, false: {}}
+	for roll_seed: int in 600:
+		var outcome := Outcome.roll(roll_seed, 50, 11, PARTY)
+		assert_eq(outcome.damage.keys(), Array(PARTY))
+		for adventurer: String in PARTY:
+			seen[outcome.success][outcome.damage[adventurer]] = true
+	var on_success: Array = seen[true].keys()
+	var on_failure: Array = seen[false].keys()
+	on_success.sort()
+	on_failure.sort()
+	assert_eq(on_success, [0, 1, 2, 3, 4, 5])
+	assert_eq(on_failure, [5, 6, 7, 8, 9, 10, 11])
+
+
+func test_members_of_one_party_can_take_different_damage() -> void:
+	var differs := false
+	for roll_seed: int in 50:
+		var damage := Outcome.roll(roll_seed, 50, 12, PARTY).damage
+		if damage["bram"] != damage["ilse"]:
+			differs = true
+	assert_true(differs)

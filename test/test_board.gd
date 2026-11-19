@@ -21,7 +21,7 @@ func _at(local_day: int, seconds: int) -> int:
 func _seed(quest: String, party: PackedStringArray, success: bool) -> int:
 	var chance := Dispatch.new(0).success_chance(quest, party)
 	for roll_seed: int in 10_000:
-		if Outcome.roll(roll_seed, chance, party).success == success:
+		if Outcome.roll(roll_seed, chance, Dispatch.QUESTS[quest]["difficulty"], party).success == success:
 			return roll_seed
 	fail_test("no seed found")
 	return -1

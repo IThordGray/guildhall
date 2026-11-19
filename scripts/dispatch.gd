@@ -19,30 +19,39 @@ const ADVENTURERS: Dictionary[String, Dictionary] = {
 	"maren": {"name": "Maren", "class": "Healer", "rank": "F"},
 }
 const MAX_PARTY_SIZE: int = 4
-## How long a failed quest injures one of its party, counted from the moment the party returns.
+## How long an injury lasts, counted from the moment the party returns.
 const INJURY_SECONDS: int = 300
 ## The same with an Infirmary finished by the moment of return; more Infirmaries don't shorten it.
 const INFIRMARY_INJURY_SECONDS: int = 150
+## Seconds to heal one point of health; from the moment the first Infirmary is finished, half that.
+const HEAL_SECONDS: int = 20
 
 ## Parties out, in the order they left. Each is {"quest": quest id, "since": unix seconds it left,
 ## "party": adventurer ids, "seed": the seed that fixes how it ends, "chance": its whole-percent
-## chance of success when it left}. A party counts as out until the checkpoint after its return
-## brings it home.
+## chance of success when it left, "health" and "max_health": {adventurer id: points} each member
+## left with}. A party counts as out until the checkpoint after its return brings it home.
 var outings: Array[Dictionary] = []
-## Unix seconds each adventurer hurt on a failed quest recovers at.
+## Unix seconds each injured adventurer recovers at. A member who comes home under a quarter of
+## their maximum health is injured.
 var injured_until: Dictionary[String, int] = {}
 ## How many seconds each adventurer's latest injury lasts in all, fixed when it was decided.
 var injury_lengths: Dictionary[String, int] = {}
 ## Returns the player has not read yet, in the order they came back. Each is {"quest": quest id,
 ## "returned_at": unix seconds it came back, "success": bool, "party": adventurer ids,
-## "injured": {adventurer id: seconds the injury lasts}, "gold": gold it brought, "xp": XP each
-## member gained}. Only a report: its outcome was applied when the party came home.
+## "damage": {adventurer id: damage taken}, "injured": {adventurer id: seconds the injury lasts},
+## "gold": gold it brought, "xp": XP each member gained}. Only a report: its outcome was applied when the party came home.
 var debriefs: Array[Dictionary] = []
 ## Each adventurer's stats, level and XP: their power decides quests, and returns grow them.
 var adventurers: Adventurers = Adventurers.new()
+## The health each adventurer below their maximum came home with: {"health": points, "at": unix
+## seconds they came home}. Their health at home is computed from it; anyone missing is at full
+## health.
+var wounds: Dictionary[String, Dictionary] = {}
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back neither
 ## adds time to a quest or an injury nor brings back a party that has returned.
 var checked_at: int
+## The unix seconds the first Infirmary is finished at, as the last checkpoint was told; -1 for none.
+var _infirmary_from: int = -1
 
 
 func _init(at: int) -> void:
@@ -70,12 +79,67 @@ func injury_seconds(adventurer: String) -> int:
 	return injury_lengths.get(adventurer, INJURY_SECONDS)
 
 
+## `adventurer`'s health at `now`. Out on a quest, what they left with: nobody heals while out. At
+## home, what their last return left them with, plus a point per HEAL_SECONDS since (twice as fast
+## from the moment the Infirmary is finished), up to their maximum.
+func health(adventurer: String, now: int) -> int:
+	var outing := _outing_of(adventurer)
+	if outing.has("health"):
+		return outing["health"][adventurer]
+	return _health_at(adventurer, maxi(now, checked_at))
+
+
+## Seconds from `now` until `adventurer` is back to full health; 0 when full, or out on a quest,
+## where nobody heals.
+func seconds_to_full(adventurer: String, now: int) -> int:
+	if not wounds.has(adventurer) or not _outing_of(adventurer).is_empty():
+		return 0
+	var at := maxi(now, checked_at)
+	var wound := wounds[adventurer]
+	var need := HEAL_SECONDS * (adventurers.max_health(adventurer) - int(wound["health"])) - _heal_units(int(wound["at"]), at)
+	if need <= 0:
+		return 0
+	if _infirmary_from < 0:
+		return need
+	var slow := maxi(0, _infirmary_from - at)
+	if need <= slow:
+		return need
+	return slow + ceili((need - slow) / 2.0)
+
+
+## True when `points` of health are under a quarter of `most`: coming home like that injures.
+static func under_a_quarter(points: int, most: int) -> bool:
+	return points * 4 < most
+
+
+func _health_at(adventurer: String, at: int) -> int:
+	var most := adventurers.max_health(adventurer)
+	if not wounds.has(adventurer):
+		return most
+	var wound := wounds[adventurer]
+	return mini(most, int(wound["health"]) + floori(_heal_units(int(wound["at"]), at) / float(HEAL_SECONDS)))
+
+
+# The healing from `from` to `to`, in seconds at the slow rate: each second from the moment the
+# Infirmary is finished counts twice.
+func _heal_units(from: int, to: int) -> int:
+	if to <= from:
+		return 0
+	var fast_from := to if _infirmary_from < 0 else clampi(_infirmary_from, from, to)
+	return (fast_from - from) + 2 * (to - fast_from)
+
+
 ## The quest `adventurer` is out on, or "" when home.
 func quest_of(adventurer: String) -> String:
+	return _outing_of(adventurer).get("quest", "")
+
+
+# The outing `adventurer` is on, or {} when home.
+func _outing_of(adventurer: String) -> Dictionary:
 	for outing: Dictionary in outings:
 		if adventurer in outing["party"]:
-			return outing["quest"]
-	return ""
+			return outing
+	return {}
 
 
 ## True when `adventurer` can join a party at `now`: home and not injured.
@@ -114,7 +178,14 @@ func send(quest_id: String, party: PackedStringArray, roll_seed: int, gold: Gold
 	checkpoint(now, gold, infirmary_from)
 	if not party_refusal(party, now).is_empty():
 		return false
-	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "seed": roll_seed, "chance": success_chance(quest_id, party)})
+	# Health is fixed on leaving, like the chance, so a level-up while out changes nothing about how
+	# the quest ends.
+	var health_left_with := {}
+	var max_left_with := {}
+	for adventurer: String in party:
+		health_left_with[adventurer] = health(adventurer, checked_at)
+		max_left_with[adventurer] = adventurers.max_health(adventurer)
+	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "seed": roll_seed, "chance": success_chance(quest_id, party), "health": health_left_with, "max_health": max_left_with})
 	return true
 
 
@@ -128,11 +199,13 @@ func returned_since_checkpoint(now: int) -> bool:
 
 
 ## Brings every returned party home, once, in the order they returned: pays its reward into
-## `gold`, gives each member XP, injures on failure and adds its debrief. `infirmary_from` is the unix seconds the first
-## Infirmary is finished at, -1 for none: an injury from a return at or after it is shorter.
-## Records the time seen.
+## `gold`, gives each member XP and damage, injures those it leaves under a quarter of their
+## health, and adds its debrief. `infirmary_from` is the unix seconds the first Infirmary is
+## finished at, -1 for none: from then on healing is faster, and an injury from a return at or
+## after it is shorter. Records the time seen.
 func checkpoint(now: int, gold: Gold, infirmary_from: int = -1) -> void:
 	checked_at = maxi(checked_at, now)
+	_infirmary_from = infirmary_from
 	var returned: Array[Dictionary] = []
 	for outing: Dictionary in outings:
 		if seconds_left(outing, checked_at) == 0:
@@ -140,15 +213,16 @@ func checkpoint(now: int, gold: Gold, infirmary_from: int = -1) -> void:
 	returned.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return _returns_at(a) < _returns_at(b))
 	for outing: Dictionary in returned:
 		outings.erase(outing)
-		_bring_home(outing, gold, infirmary_from)
+		_bring_home(outing, gold)
 
 
-func _bring_home(outing: Dictionary, gold: Gold, infirmary_from: int) -> void:
+func _bring_home(outing: Dictionary, gold: Gold) -> void:
 	var quest: Dictionary = QUESTS[outing["quest"]]
 	var party: PackedStringArray = outing["party"]
 	var returns_at := _returns_at(outing)
 	var reward: int = quest["gold"]
 	var success := true
+	var damage: Dictionary = {}
 	var injured: Dictionary = {}
 	# A party sent before adventurers existed has no members: it comes home as it was sent then,
 	# paid in full.
@@ -157,19 +231,31 @@ func _bring_home(outing: Dictionary, gold: Gold, infirmary_from: int) -> void:
 		# sent before chances were kept rolls with the power it has now, which is the power it had
 		# then: nobody could level up before.
 		var chance: int = outing.get("chance", success_chance(outing["quest"], party))
-		var outcome := Outcome.roll(outing["seed"], chance, party)
-		if not outcome.success:
+		var outcome := Outcome.roll(outing["seed"], chance, quest["difficulty"], party)
+		success = outcome.success
+		if not success:
 			reward = floori(reward / 4.0)
-			success = false
-			var healed_in := INFIRMARY_INJURY_SECONDS if infirmary_from >= 0 and infirmary_from <= returns_at else INJURY_SECONDS
-			injured_until[outcome.injured] = returns_at + healed_in
-			injury_lengths[outcome.injured] = healed_in
-			injured[outcome.injured] = healed_in
+		damage = outcome.damage
+		var healed_in := INFIRMARY_INJURY_SECONDS if _infirmary_from >= 0 and _infirmary_from <= returns_at else INJURY_SECONDS
+		for adventurer: String in party:
+			# One sent before health was kept left with what they have now.
+			var left_with: int = outing.get("health", {}).get(adventurer, _health_at(adventurer, returns_at))
+			var most: int = outing.get("max_health", {}).get(adventurer, adventurers.max_health(adventurer))
+			# Nobody dies yet: damage leaves at least 1 health.
+			var back_with := maxi(1, left_with - int(damage[adventurer]))
+			if back_with < adventurers.max_health(adventurer):
+				wounds[adventurer] = {"health": back_with, "at": returns_at}
+			else:
+				wounds.erase(adventurer)
+			if under_a_quarter(back_with, most):
+				injured_until[adventurer] = returns_at + healed_in
+				injury_lengths[adventurer] = healed_in
+				injured[adventurer] = healed_in
 	gold.amount += reward
 	var xp := Adventurers.quest_xp(quest["seconds"], success)
 	for adventurer: String in party:
 		adventurers.gain_xp(adventurer, xp)
-	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "injured": injured, "gold": reward, "xp": xp})
+	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "damage": damage, "injured": injured, "gold": reward, "xp": xp})
 
 
 ## Files the debrief at `index` away once the player has read it; nothing else changes.
@@ -194,6 +280,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("dispatch", "injured_until", injured_until)
 	file.set_value("dispatch", "injury_lengths", injury_lengths)
 	file.set_value("dispatch", "debriefs", debriefs)
+	file.set_value("dispatch", "wounds", wounds)
 	file.set_value("dispatch", "checked_at", checked_at)
 	adventurers.write(file)
 
@@ -219,5 +306,7 @@ static func load_or_start(path: String, now: int) -> Dispatch:
 	dispatch.injured_until.assign(file.get_value("dispatch", "injured_until", {}))
 	dispatch.injury_lengths.assign(file.get_value("dispatch", "injury_lengths", {}))
 	dispatch.debriefs.assign(file.get_value("dispatch", "debriefs", []))
+	# A save from before health has nobody hurt: everyone loads at full health.
+	dispatch.wounds.assign(file.get_value("dispatch", "wounds", {}))
 	dispatch.checked_at = int(file.get_value("dispatch", "checked_at", now))
 	return dispatch

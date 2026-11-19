@@ -50,7 +50,8 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 	for adventurer: String in _toggles:
 		var info: Dictionary = Dispatch.ADVENTURERS[adventurer]
 		var toggle := _toggles[adventurer]
-		toggle.text = "%s · %s %s · power %d\n%s" % [info["name"], info["class"], info["rank"], dispatch.adventurers.power(adventurer), dispatch.status(adventurer, now)]
+		var health := "health %d / %d" % [dispatch.health(adventurer, now), dispatch.adventurers.max_health(adventurer)]
+		toggle.text = "%s · %s %s · power %d\n%s · %s" % [info["name"], info["class"], info["rank"], dispatch.adventurers.power(adventurer), dispatch.status(adventurer, now), health]
 		toggle.disabled = not dispatch.can_go(adventurer, now)
 	_odds.text = "Party power %d · %d%% success" % [dispatch.adventurers.party_power(_picked), dispatch.success_chance(_quest, _picked)]
 	var reason := dispatch.party_refusal(_picked, now)

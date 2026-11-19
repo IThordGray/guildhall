@@ -25,6 +25,9 @@ const GROWTH: Dictionary[String, Dictionary] = {
 const XP_PER_LEVEL: int = 40
 ## A successful quest gives each member one XP per this many quest seconds; a failed one half that.
 const QUEST_SECONDS_PER_XP: int = 15
+## Maximum health is this plus HEALTH_PER_GRIT per point of Grit (stand-ins).
+const BASE_HEALTH: int = 10
+const HEALTH_PER_GRIT: int = 2
 
 var stats: Dictionary[String, Dictionary] = {}
 var levels: Dictionary[String, int] = {}
@@ -50,6 +53,11 @@ func power(adventurer: String) -> int:
 	for stat: String in STATS:
 		total += int(stats[adventurer][stat])
 	return roundi(total / 5.0)
+
+
+## Health `adventurer` heals up to, so a level-up that raises Grit raises it.
+func max_health(adventurer: String) -> int:
+	return BASE_HEALTH + HEALTH_PER_GRIT * int(stats[adventurer]["grit"])
 
 
 func party_power(party: PackedStringArray) -> int:

@@ -36,6 +36,20 @@ func test_everyone_starts_at_level_one_with_no_xp_and_their_starting_stats() -> 
 		assert_false(adventurers.level_up_ready(adventurer))
 
 
+func test_maximum_health_is_ten_plus_two_per_grit_and_a_level_up_that_raises_grit_raises_it() -> void:
+	var adventurers := Adventurers.new()
+	assert_eq(adventurers.max_health("bram"), 24)
+	assert_eq(adventurers.max_health("ilse"), 20)
+	assert_eq(adventurers.max_health("tobin"), 16)
+	assert_eq(adventurers.max_health("maren"), 20)
+	adventurers.gain_xp("bram", 1_000_000)
+	var grit_gain := 0
+	while grit_gain == 0:
+		grit_gain = adventurers.level_up("bram")["grit"]
+	assert_eq(adventurers.max_health("bram"), 10 + 2 * int(adventurers.stats["bram"]["grit"]))
+	assert_gt(adventurers.max_health("bram"), 24)
+
+
 func test_a_quest_gives_one_xp_per_fifteen_seconds_on_success_and_half_that_on_failure() -> void:
 	assert_eq(Adventurers.quest_xp(600, true), 40)
 	assert_eq(Adventurers.quest_xp(600, false), 20)

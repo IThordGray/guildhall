@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=42 format=3]
+[gd_resource type="Theme" load_steps=43 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -285,6 +285,13 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar_health"]
+bg_color = Color(0.4353, 0.8118, 0.5569, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar_own"]
 bg_color = Color(0.651, 0.5333, 0.8784, 1)
 corner_radius_top_left = 6
@@ -476,6 +483,9 @@ GoldButton/styles/hover = SubResource("StyleBoxFlat_gold")
 GoldButton/styles/hover_pressed = SubResource("StyleBoxFlat_gold_pressed")
 GoldButton/styles/normal = SubResource("StyleBoxFlat_gold")
 GoldButton/styles/pressed = SubResource("StyleBoxFlat_gold_pressed")
+HealthBar/base_type = &"ProgressBar"
+HealthBar/styles/background = SubResource("StyleBoxFlat_bar_track")
+HealthBar/styles/fill = SubResource("StyleBoxFlat_bar_health")
 Heading/base_type = &"Label"
 Heading/font_sizes/font_size = 46
 Heading/fonts/font = SubResource("FontVariation_sans_semibold")
