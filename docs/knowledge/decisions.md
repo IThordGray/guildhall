@@ -19,7 +19,7 @@ Each milestone is the thinnest slice that makes the core loop more complete, is 
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
 - **Next:** on hold while the human settles the spec's open questions (guild level, Quest hall
-  extras, quest difficulty shown or hidden). The build stays as it is until then.
+  extras). The build stays as it is until then.
 - Dispatch is limited only by ready adventurers: no slots. The board holds a fixed number of
   quests a day; a Quest hall raises it. The prototype's slot rule goes when the build resumes.
 - Screens follow the v2 designs (linked from the spec): plain dark UI, four tabs (Hall, Quests,
@@ -53,4 +53,4 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
 
 ## Open — needs the human
 
-- Guild level, Quest hall extras, and whether quest difficulty is shown: open questions in the spec.
+- Guild level and Quest hall extras: open questions in the spec.
