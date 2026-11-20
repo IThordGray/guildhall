@@ -19,6 +19,13 @@ it merges. Screens and wording live in the code.
 - Portrait 9:16 and landscape, picked by the window's shape. Gold and how many parties are out are
   always on screen: in portrait in the top bar, in landscape in the left rail and screen headers.
 
+## Roster
+
+- The roster never holds more adventurers than the guild has beds. A hire is refused with nothing
+  changed when gold is short or every bed is taken.
+- Candidate slots refill from saved timestamps only, like the quest board: being away gives the same
+  candidates as watching.
+
 ## Quests
 
 - How many parties are out is limited only by ready adventurers. A party has 1–4 members.
