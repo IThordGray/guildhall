@@ -94,10 +94,3 @@ text = "BOARD"
 [node name="List" type="VBoxContainer" parent="Scroll/Box"]
 layout_mode = 2
 theme_override_constants/separation = 24
-
-[node name="Empty" type="Label" parent="Scroll/Box"]
-layout_mode = 2
-theme_type_variation = &"Secondary"
-text = "No more quests today"
-horizontal_alignment = 1
-autowrap_mode = 3

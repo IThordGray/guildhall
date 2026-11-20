@@ -1,81 +1,84 @@
 class_name Board
 extends RefCounted
 
-## How many quests each local day's board has without a Quest hall; each finished one adds one.
-const QUESTS_A_DAY: int = 3
-const SECONDS_A_DAY: int = 86_400
+## How many slots the board has without a Quest hall; each finished one adds one.
+const QUESTS_A_REFRESH: int = 3
+## How long a slot takes to refill after its quest is sent.
+const REFRESH_SECONDS: int = 3_600
 
-## The local day `used` belongs to, in days since 1970-01-01.
-var day: int = 0
-## Quests sent on `day`. A quest sent stays off the board until the next local day.
-var used: PackedStringArray = PackedStringArray()
-
-
-## The local day `unix_seconds` falls on, in days since 1970-01-01, for a device
-## `utc_offset_minutes` ahead of UTC.
-static func day_of(unix_seconds: int, utc_offset_minutes: int) -> int:
-	return floori((unix_seconds + utc_offset_minutes * 60) / float(SECONDS_A_DAY))
+## Each slot's quest, a key of Dispatch.QUESTS, or "" while the slot refills.
+var slots: PackedStringArray = PackedStringArray()
+## Unix seconds each empty slot refills at; unused while the slot is filled.
+var refill_at: PackedInt64Array = PackedInt64Array()
 
 
-## Every quest in the order `local_day` offers them, fixed by the day alone: a board of N quests
-## shows the first N, so a Quest hall finished mid-day adds one without changing the others.
-static func order_of(local_day: int) -> PackedStringArray:
-	var order := PackedStringArray(Dispatch.QUESTS.keys())
-	var rng := RandomNumberGenerator.new()
-	rng.seed = local_day
-	for i: int in range(order.size() - 1, 0, -1):
-		var j := rng.randi_range(0, i)
-		var swapped := order[i]
-		order[i] = order[j]
-		order[j] = swapped
-	return order
+## Adds a slot for each Quest hall finished and fills each empty slot whose time has come, in slot
+## order, with a quest neither on the board nor out with a party; a slot with none free stays
+## empty and takes the first free one at a later call. A new slot fills at once without changing
+## the others. Time is read from no earlier than `dispatch` last saw, so a clock set back never
+## undoes a refill or restarts a countdown.
+func refill(dispatch: Dispatch, now: int, quest_halls: int) -> void:
+	var at := maxi(now, dispatch.checked_at)
+	while slots.size() < QUESTS_A_REFRESH + quest_halls:
+		slots.append("")
+		refill_at.append(at)
+	for i: int in slots.size():
+		if slots[i] == "" and refill_at[i] <= at:
+			slots[i] = _pick(i, dispatch)
 
 
-## The quests on the board at `now`, in board order, with `quest_halls` Quest halls finished: the
-## local day's, less those sent that day and those still out. The day is read from no earlier
-## than `dispatch` last saw, so a clock set back never brings back an earlier day's board.
-func quests(dispatch: Dispatch, now: int, utc_offset_minutes: int, quest_halls: int) -> PackedStringArray:
-	var today := day_of(maxi(now, dispatch.checked_at), utc_offset_minutes)
-	var out := PackedStringArray()
-	for outing: Dictionary in dispatch.outings:
-		out.append(outing["quest"])
-	var shown := PackedStringArray()
-	for quest: String in order_of(today).slice(0, QUESTS_A_DAY + quest_halls):
-		if not (today == day and quest in used) and quest not in out:
-			shown.append(quest)
-	return shown
-
-
-## Sends `party` on `quest` through `dispatch` and takes the quest off the board for the rest of
-## the local day; false, with nothing sent, when the board at `now` doesn't show it or `dispatch`
-## refuses the party. The other arguments are as for `quests` and `Dispatch.send`.
-func send(dispatch: Dispatch, quest: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int, utc_offset_minutes: int, quest_halls: int, infirmary_from: int = -1) -> bool:
-	# A party back by now no longer holds its quest off the board.
+## Sends `party` on `quest` through `dispatch`, empties its slot and starts that slot's countdown;
+## false, with nothing sent, when the board at `now` doesn't show `quest` or `dispatch` refuses the
+## party. The other arguments are as for `refill` and `Dispatch.send`.
+func send(dispatch: Dispatch, quest: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int, quest_halls: int, infirmary_from: int = -1) -> bool:
+	# A party back by now frees its quest for a slot refilling now.
 	dispatch.checkpoint(now, gold, infirmary_from)
-	if quest not in quests(dispatch, now, utc_offset_minutes, quest_halls):
+	refill(dispatch, now, quest_halls)
+	var slot := slots.find(quest)
+	if quest == "" or slot == -1:
 		return false
 	if not dispatch.send(quest, party, roll_seed, gold, now, infirmary_from):
 		return false
-	var today := day_of(dispatch.checked_at, utc_offset_minutes)
-	if today != day:
-		day = today
-		used = PackedStringArray()
-	used.append(quest)
+	slots[slot] = ""
+	refill_at[slot] = dispatch.checked_at + REFRESH_SECONDS
 	return true
+
+
+## Seconds from `now` until empty slot `slot` refills; 0 once due, while no quest is free.
+func seconds_to_refill(slot: int, dispatch: Dispatch, now: int) -> int:
+	return maxi(0, refill_at[slot] - maxi(now, dispatch.checked_at))
 
 
 ## Puts the board into `file`, which other state shares, so one save holds the whole game.
 func write(file: ConfigFile) -> void:
-	file.set_value("board", "day", day)
-	file.set_value("board", "used", used)
+	file.set_value("board", "slots", slots)
+	file.set_value("board", "refill_at", refill_at)
 
 
-## The board saved at `path`, or one with nothing used when the save has none.
+## The board saved at `path`, or one with no slots, which the first `refill` fills, when the save
+## has none.
 static func load_or_start(path: String) -> Board:
 	var board := Board.new()
 	var file := ConfigFile.new()
-	if file.load(path) != OK or not file.has_section("board"):
+	if file.load(path) != OK or not file.has_section_key("board", "slots"):
 		return board
-	board.day = int(file.get_value("board", "day", 0))
-	board.used = file.get_value("board", "used", PackedStringArray())
+	board.slots = file.get_value("board", "slots")
+	board.refill_at = file.get_value("board", "refill_at")
 	return board
+
+
+# A quest for slot `slot`, drawn from those free by a seed of the slot and its refill time, so the
+# same save always refills the same way; "" when none is free.
+func _pick(slot: int, dispatch: Dispatch) -> String:
+	var taken := slots.duplicate()
+	for outing: Dictionary in dispatch.outings:
+		taken.append(outing["quest"])
+	var free := PackedStringArray()
+	for quest: String in Dispatch.QUESTS:
+		if quest not in taken:
+			free.append(quest)
+	if free.is_empty():
+		return ""
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([slot, refill_at[slot]])
+	return free[rng.randi_range(0, free.size() - 1)]

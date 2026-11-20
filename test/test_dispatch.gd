@@ -443,7 +443,6 @@ func _hall_converting(type: String, gold: Gold) -> Hall:
 
 
 func test_save_from_previous_build_loads() -> void:
-	# Local day 20_001, whose board order starts goblins, moonherbs, letters, crypt.
 	var start := 20_001 * 86_400
 	var gold := Gold.new(1_000)
 	var hall := Hall.new(start)
@@ -471,7 +470,9 @@ func test_save_from_previous_build_loads() -> void:
 	assert_eq(loaded_hall.rooms_done("quest_hall", start + 500), 1)
 	assert_eq(_statuses(loaded, start + 500), ["On quest: Goblin camp", "On quest: Goblin camp", "Injured · 1:00", "Resting"])
 	assert_eq(loaded.seconds_left(loaded.outings[0], start + 500), 400)
-	assert_eq(board.quests(loaded, start + 500, 0, loaded_hall.rooms_done("quest_hall", start + 500)), PackedStringArray(["moonherbs", "letters", "crypt"]))
+	# Four slots for the Quest hall, filled with any quest but goblins, still out.
+	board.refill(loaded, start + 500, loaded_hall.rooms_done("quest_hall", start + 500))
+	assert_eq(board.slots, PackedStringArray(["crypt", "wolves", "moonherbs", "letters"]))
 
 
 func test_an_injury_lasts_150_seconds_with_an_infirmary_finished_before_the_return() -> void:

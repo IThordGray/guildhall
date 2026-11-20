@@ -19,7 +19,7 @@ var _clock: GameClock
 var _gold: Gold
 var _hall: Hall
 var _dispatch: Dispatch
-var _daily_board: Board
+var _quest_board: Board
 ## The slot the convert panel is open for.
 var _chosen_slot: String = ""
 ## Where the debrief the Debrief screen shows is in Dispatch.debriefs.
@@ -99,7 +99,7 @@ func _open_game() -> void:
 	_gold = Gold.load_or_start(SAVE_PATH)
 	_hall = Hall.load_or_start(SAVE_PATH, now)
 	_dispatch = Dispatch.load_or_start(SAVE_PATH, now)
-	_daily_board = Board.load_or_start(SAVE_PATH)
+	_quest_board = Board.load_or_start(SAVE_PATH)
 	_arrive()
 
 
@@ -147,12 +147,13 @@ func _on_tick() -> void:
 func _checkpoint(now: int) -> void:
 	_dispatch.checkpoint(now, _gold, _hall.first_done_at("infirmary"))
 	_hall.checkpoint(now)
+	_quest_board.refill(_dispatch, now, _quest_halls(now))
 	var file := ConfigFile.new()
 	_clock.write(file, Time.get_unix_time_from_system())
 	_gold.write(file)
 	_hall.write(file)
 	_dispatch.write(file)
-	_daily_board.write(file)
+	_quest_board.write(file)
 	if file.save(SAVE_PATH) != OK:
 		push_error("Could not save to " + SAVE_PATH)
 	_gold_label.text = str(_gold.amount)
@@ -160,9 +161,9 @@ func _checkpoint(now: int) -> void:
 	_parties_label.text = str(_dispatch.outings.size())
 	_debrief_badge.text = str(_dispatch.debriefs.size())
 	_debrief_badge.visible = not _dispatch.debriefs.is_empty()
-	var quests := _daily_board.quests(_dispatch, now, _utc_offset_minutes(), _quest_halls(now))
-	_hall_view.show_state(_hall, _dispatch, _gold, quests.size(), now)
-	_board.show_board(quests, _dispatch, now)
+	var slots := _quest_board.slots
+	_hall_view.show_state(_hall, _dispatch, _gold, slots.size() - slots.count(""), now)
+	_board.show_board(_quest_board, _dispatch, now)
 	_roster.show_dispatch(_dispatch, now)
 	if _adventurer.visible:
 		_adventurer.show_adventurer(_shown_adventurer, _dispatch, now)
@@ -199,7 +200,7 @@ func _on_send_pressed(quest: String) -> void:
 # The seed comes from the global generator; the outcome it fixes is rolled from the seed alone.
 func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
-	if _daily_board.send(_dispatch, quest, party, randi(), _gold, now, _utc_offset_minutes(), _quest_halls(now), _hall.first_done_at("infirmary")):
+	if _quest_board.send(_dispatch, quest, party, randi(), _gold, now, _quest_halls(now), _hall.first_done_at("infirmary")):
 		_picker.close()
 	_checkpoint(now)
 
@@ -341,8 +342,3 @@ func _on_test_speed_pressed() -> void:
 	var next := TEST_SPEEDS[(TEST_SPEEDS.find(_clock.speed) + 1) % TEST_SPEEDS.size()]
 	_clock.set_speed(next, Time.get_unix_time_from_system())
 	_test_speed.text = "Test speed ×%d" % next
-
-
-# Read each time, so the board's day follows a daylight-saving change.
-func _utc_offset_minutes() -> int:
-	return int(Time.get_time_zone_from_system()["bias"])

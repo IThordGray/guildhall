@@ -14,8 +14,11 @@ var _rows: Dictionary[String, Control] = {}
 ## only when a return reveals one.
 var _chips: Dictionary[String, HFlowContainer] = {}
 var _unknown_shown: Dictionary[String, int] = {}
-## The quests shown, in board order, so the rows change only when the board does.
+## The board's slots shown, so the rows change only when the board does.
 var _shown: PackedStringArray = PackedStringArray()
+## Each slot's row and countdown for while it refills, by slot, made as slots are added.
+var _refill_rows: Array[PanelContainer] = []
+var _refill_labels: Array[Label] = []
 ## The debriefs and parties out the rows were built for, so they are rebuilt only when those
 ## change; `_back_labels` and `_out_rows` are their parts that change with time, in the same order.
 var _debriefs_shown: Array[Dictionary] = []
@@ -29,7 +32,6 @@ var _out_rows: Array[OutRow] = []
 @onready var _out_section: Control = $Scroll/Box/OutSection
 @onready var _out: VBoxContainer = $Scroll/Box/Out
 @onready var _list: VBoxContainer = $Scroll/Box/List
-@onready var _empty: Label = $Scroll/Box/Empty
 @onready var _parties: Control = $Scroll/Box/Header/Parties
 @onready var _parties_count: Label = $Scroll/Box/Header/Parties/Count
 
@@ -74,21 +76,31 @@ func set_landscape(landscape: bool) -> void:
 	_parties.visible = landscape
 
 
-## Shows the debriefs waiting and the parties out in `dispatch` at `now`, then `quests`, the board
-## in board order.
-func show_board(quests: PackedStringArray, dispatch: Dispatch, now: int) -> void:
+## Shows the debriefs waiting and the parties out in `dispatch` at `now`, then `board`'s slots in
+## order: each its quest, or the countdown to its refill.
+func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 	_parties_count.text = str(dispatch.outings.size())
 	_show_debriefs(dispatch, now)
 	_show_out(dispatch, now)
 	_show_challenges(dispatch)
-	if quests == _shown:
-		return
-	_shown = quests
-	for quest: String in _rows:
-		_rows[quest].visible = quest in quests
-	for i: int in quests.size():
-		_list.move_child(_rows[quests[i]], i)
-	_empty.visible = quests.is_empty()
+	if board.slots != _shown:
+		_shown = board.slots.duplicate()
+		while _refill_rows.size() < _shown.size():
+			var label := _label("", &"Secondary")
+			var row := PanelContainer.new()
+			row.add_child(label)
+			_list.add_child(row)
+			_refill_rows.append(row)
+			_refill_labels.append(label)
+		for quest: String in _rows:
+			_rows[quest].visible = quest in _shown
+		for i: int in _shown.size():
+			_refill_rows[i].visible = _shown[i] == ""
+			_list.move_child(_refill_rows[i] if _shown[i] == "" else _rows[_shown[i]], i)
+	for i: int in _shown.size():
+		if _shown[i] == "":
+			var left := board.seconds_to_refill(i, dispatch, now)
+			_refill_labels[i].text = "New quest in " + Duration.label(left) if left > 0 else "New quest when one is free"
 
 
 ## A round token: an adventurer's face, or `who` as text when it is not an adventurer, such as a
