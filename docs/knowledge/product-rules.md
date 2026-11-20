@@ -32,5 +32,7 @@ it merges. Screens and wording live in the code.
 - The board has a fixed number of slots. Sending a quest empties its slot, which refills after its
   own countdown with a quest not on the board and not out, whatever the outcome. Refills depend only
   on saved timestamps, so being away gives the same board as watching.
+- The board offers only quests at most one rank above the guild's highest-ranked adventurer. A
+  player action that changes a rank brings the board up to date first.
 - A party's chance of success and each member's health are fixed when it leaves; nothing done
   while it is out changes how the quest ends. Nobody heals while out.

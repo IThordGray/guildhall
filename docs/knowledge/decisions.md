@@ -44,7 +44,9 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   landscape (left rail, side-by-side screens) · board slots each refill on their own countdown ·
   swipe between adventurers · M13 recruitment (roster saved; two candidate slots refilling on their
   own countdown, some stats hidden until hired; 100 gold a hire; 4 beds +2 per Bunk room, at most
-  8; placeholder faces for recruits).
+  8; placeholder faces for recruits) · M14 more quests and the first session (18 quests over F–D; a slot's
+  refill time by the rank sent; restores dearer and slower in order; 100 starting gold; damage by
+  rank, so a failed E quest can injure from full health).
 
 ## Stack
 
