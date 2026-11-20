@@ -29,7 +29,12 @@ it merges. Screens and wording live in the code.
 - Candidate slots refill from saved timestamps only, like the quest board: being away gives the same
   candidates as watching.
 - Taverns and training fill from saved timestamps only, up to their cap. Gold held changes only by
-  rewards, spending and collecting.
+  rewards (paid when their debrief is read), spending and collecting.
+
+## Hall
+
+- Each room type is built at most once; more of one will come from upgrading it, not a copy. Old
+  saves keep any copies they have.
 
 ## Quests
 
@@ -41,3 +46,5 @@ it merges. Screens and wording live in the code.
   player action that changes a rank brings the board up to date first.
 - A party's chance of success and each member's health are fixed when it leaves; nothing done
   while it is out changes how the quest ends. Nobody heals while out.
+- A returning party's damage, injuries and healing count from its return; its gold, XP and loot are
+  paid, and its members free for new quests, only when its debrief is read. A debrief pays once.
