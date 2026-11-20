@@ -50,7 +50,9 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   E→D at level 6 for 400g, on the Adventurer screen) · M16 Tavern (fills with 2 gold a minute up to
   120; tap Collect, a +N flies to the gold) · M17 first floor (Extend from the Entrance hall after 3
   restores, 400g · 10:00; four empty rooms on 1F; floor selector) · M18 Map room (a board quest's
-  unknown challenges show 5 minutes after it is on the board and a Map room is finished).
+  unknown challenges show 5 minutes after it is on the board and a Map room is finished) · M19
+  Training room (one trainee per room, 1 XP a minute up to 60 a stint, banked on Stop; after 10
+  minutes' training a hint names the fastest-growing stat).
 
 ## Stack
 
