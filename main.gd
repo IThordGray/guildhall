@@ -71,6 +71,7 @@ func _ready() -> void:
 	_adventurer.back_pressed.connect(_on_adventurer_back)
 	_adventurer.level_up_pressed.connect(_on_level_up_pressed)
 	_adventurer.wear_pressed.connect(_on_wear_pressed)
+	_adventurer.swiped.connect(_on_adventurer_swiped)
 	_level_up.continue_pressed.connect(_on_level_up_continue)
 	_tick.timeout.connect(_on_tick)
 	_test_speed.pressed.connect(_on_test_speed_pressed)
@@ -227,6 +228,11 @@ func _on_adventurer_pressed(adventurer: String) -> void:
 	_adventurer.show_adventurer(adventurer, _dispatch, _now())
 	_roster.hide()
 	_adventurer.show()
+
+
+func _on_adventurer_swiped(step: int) -> void:
+	_shown_adventurer = Roster.adventurer_after(_shown_adventurer, step)
+	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _now())
 
 
 func _on_adventurer_back() -> void:

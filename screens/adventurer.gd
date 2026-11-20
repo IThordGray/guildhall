@@ -7,11 +7,15 @@ signal back_pressed
 signal level_up_pressed(adventurer: String)
 ## The player chose to put the stash item at `index` on `adventurer`.
 signal wear_pressed(adventurer: String, index: int)
+## The player swiped to the next adventurer in roster order (`step` 1) or the previous (`step` -1).
+signal swiped(step: int)
 
 ## A stat at this value fills its bar.
 const STAT_BAR_FULL: int = 20
 ## The width a health row keeps for its text, so bars in a list line up.
 const HEALTH_TEXT_WIDTH_PX: float = 480.0
+## A press-drag-release at least this far sideways, and further sideways than up or down, is a swipe.
+const SWIPE_MIN_PX: float = 120.0
 
 var _adventurer: String = ""
 ## Each stat's bar: own in purple over own plus gear in gold.
@@ -27,6 +31,8 @@ var _history_shown: Array = []
 var _gear_shown: Array = []
 ## Whether the landscape layout shows, so the gear and stash are built to fit its narrower columns.
 var _landscape: bool = false
+## Where the latest press on this screen started, in viewport pixels.
+var _press_at: Vector2 = Vector2.ZERO
 
 @onready var _token: Label = $Box/Scroll/Content/Card/Header/Row/Token
 @onready var _name: Label = $Box/Scroll/Content/Card/Header/Row/Words/NameLine/Name
@@ -68,6 +74,29 @@ func _ready() -> void:
 	_details.add_sibling(_health)
 	_level_up.pressed.connect(func() -> void: level_up_pressed.emit(_adventurer))
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
+
+
+# Watched here, not in _gui_input: the scroll container and the buttons take the drags and presses
+# first. Nothing is marked handled, so they still get every event. Touch also arrives as mouse
+# events emulated from it; those are skipped, so a swipe counts once.
+func _input(event: InputEvent) -> void:
+	if not is_visible_in_tree() or event.device == InputEvent.DEVICE_ID_EMULATION:
+		return
+	var touch := event as InputEventScreenTouch
+	var click := event as InputEventMouseButton
+	if not ((touch != null and touch.index == 0) or (click != null and click.button_index == MOUSE_BUTTON_LEFT)):
+		return
+	var at: Vector2 = event.position
+	if event.is_pressed():
+		_press_at = at
+		return
+	var travel := at - _press_at
+	# A drag that ends on a button presses it, as it did before swipes, so it is not also a swipe.
+	if get_viewport().gui_get_hovered_control() is BaseButton:
+		return
+	if absf(travel.x) >= SWIPE_MIN_PX and absf(travel.x) > absf(travel.y):
+		# Swiping left brings the next adventurer in, as turning a page does.
+		swiped.emit(1 if travel.x < 0 else -1)
 
 
 ## Landscape sets the card, the gear and the stash side by side: the card stacks its face, name

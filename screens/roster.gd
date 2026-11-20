@@ -57,6 +57,12 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 		Adventurer.show_health(_healths[adventurer], adventurer, dispatch, now)
 
 
+## The adventurer `step` places after `adventurer` in roster order, wrapping around at the ends.
+static func adventurer_after(adventurer: String, step: int) -> String:
+	var order := Dispatch.ADVENTURERS.keys()
+	return order[posmod(order.find(adventurer) + step, order.size())]
+
+
 ## How `adventurer`'s status reads at `now`: hurt, free to go, or busy.
 static func status_look(dispatch: Dispatch, adventurer: String, now: int) -> StringName:
 	if dispatch.injury_left(adventurer, now) > 0:
