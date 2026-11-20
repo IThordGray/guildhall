@@ -218,3 +218,65 @@ func test_a_save_from_the_current_build_loads_with_starter_gear_an_empty_stash_a
 	assert_eq(loaded.xp["ilse"], 10)
 	assert_eq(loaded.stats, adventurers.stats)
 	assert_eq(loaded.history, adventurers.history)
+
+
+func test_an_added_adventurer_joins_last_at_level_1_with_no_xp_and_nothing_worn() -> void:
+	var adventurers := Adventurers.new()
+	_add_wren(adventurers)
+	assert_eq(adventurers.roster.keys(), ["bram", "ilse", "tobin", "maren", "wren"])
+	assert_eq(adventurers.roster["wren"]["name"], "Wren")
+	assert_eq(adventurers.levels["wren"], 1)
+	assert_eq(adventurers.xp["wren"], 0)
+	assert_eq(adventurers.history["wren"], [])
+	assert_eq(adventurers.gear.worn["wren"], {})
+	# 15 → 3, from their own stats alone; the starters keep their gear.
+	assert_eq(adventurers.power("wren"), 3)
+	assert_eq(adventurers.gear.worn["bram"], Gear.STARTER_GEAR["bram"])
+
+
+func test_an_added_adventurer_survives_save_and_load_and_levels_up_by_their_own_growth() -> void:
+	var adventurers := Adventurers.new()
+	_add_wren(adventurers)
+	var file := ConfigFile.new()
+	adventurers.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Adventurers.load_or_start(SAVE_PATH)
+	assert_eq(loaded.roster, adventurers.roster)
+	assert_eq(loaded.roster.keys(), ["bram", "ilse", "tobin", "maren", "wren"])
+	assert_eq(loaded.stats["wren"], {"might": 4, "agility": 2, "mind": 1, "grit": 8})
+	assert_eq(loaded.gear.worn["wren"], {})
+	assert_eq(loaded.gear.worn["tobin"], Gear.STARTER_GEAR["tobin"])
+	# Certain growth gives both points and none gives nothing, whatever the roll.
+	loaded.gain_xp("wren", 40)
+	assert_eq(loaded.level_up("wren"), {"might": 2, "agility": 0, "mind": 0, "grit": 2})
+	assert_eq(loaded.stats["wren"], {"might": 6, "agility": 2, "mind": 1, "grit": 10})
+
+
+func test_a_save_from_before_the_roster_was_saved_loads_the_four_starters_as_they_were() -> void:
+	var adventurers := Adventurers.new()
+	adventurers.gain_xp("tobin", 40)
+	adventurers.level_up("tobin")
+	var file := ConfigFile.new()
+	adventurers.write(file)
+	# The previous build wrote no roster and no growth.
+	file.erase_section_key("adventurers", "roster")
+	file.erase_section_key("adventurers", "growth")
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Adventurers.load_or_start(SAVE_PATH)
+	assert_eq(loaded.roster.keys(), EVERYONE)
+	assert_eq(loaded.roster["maren"], {"name": "Maren", "class": "Healer", "rank": "F", "face": "maren"})
+	assert_eq(loaded.roster["tobin"], {"name": "Tobin", "class": "Scout", "rank": "F", "face": "tobin"})
+	assert_eq(loaded.levels["tobin"], 2)
+	assert_eq(loaded.stats, adventurers.stats)
+	assert_eq(loaded.gear.worn, Gear.STARTER_GEAR)
+	# The starters still grow by their own growth.
+	loaded.gain_xp("tobin", 80)
+	adventurers.gain_xp("tobin", 80)
+	assert_eq(loaded.level_up("tobin"), adventurers.level_up("tobin"))
+
+
+# A Shield bearer with no art for their face, whose Might and Grit always grow and nothing else.
+static func _add_wren(adventurers: Adventurers) -> void:
+	adventurers.add("wren", {"name": "Wren", "class": "Shield bearer", "rank": "F", "face": "wren"}, {"might": 4, "agility": 2, "mind": 1, "grit": 8}, {"might": 1.0, "agility": 0.0, "mind": 0.0, "grit": 1.0})

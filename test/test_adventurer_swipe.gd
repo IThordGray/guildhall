@@ -21,7 +21,7 @@ func before_each() -> void:
 	_screen.show_adventurer(_shown, _dispatch, 1_000)
 	# The same as main.gd does with the signals.
 	_screen.swiped.connect(func(step: int) -> void:
-		_shown = Roster.adventurer_after(_shown, step)
+		_shown = Roster.adventurer_after(_shown, step, _dispatch.adventurers.roster)
 		_screen.show_adventurer(_shown, _dispatch, 1_000))
 	_screen.back_pressed.connect(func() -> void: _backs += 1)
 	_screen.wear_pressed.connect(func(_adventurer: String, _index: int) -> void: _wears += 1)
@@ -85,11 +85,12 @@ func _back_middle() -> Vector2:
 
 
 func test_the_roster_order_steps_forward_and_back_and_wraps_at_both_ends() -> void:
-	assert_eq(Roster.adventurer_after("bram", 1), "ilse")
-	assert_eq(Roster.adventurer_after("tobin", 1), "maren")
-	assert_eq(Roster.adventurer_after("maren", 1), "bram")
-	assert_eq(Roster.adventurer_after("ilse", -1), "bram")
-	assert_eq(Roster.adventurer_after("bram", -1), "maren")
+	var roster := _dispatch.adventurers.roster
+	assert_eq(Roster.adventurer_after("bram", 1, roster), "ilse")
+	assert_eq(Roster.adventurer_after("tobin", 1, roster), "maren")
+	assert_eq(Roster.adventurer_after("maren", 1, roster), "bram")
+	assert_eq(Roster.adventurer_after("ilse", -1, roster), "bram")
+	assert_eq(Roster.adventurer_after("bram", -1, roster), "maren")
 
 
 func test_a_mouse_drag_left_shows_the_next_adventurer_and_right_the_previous() -> void:

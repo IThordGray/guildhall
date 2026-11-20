@@ -13,7 +13,7 @@ func after_each() -> void:
 func _seed(quest: String, party: PackedStringArray, success: bool) -> int:
 	var chance := Dispatch.new(0).success_chance(quest, party)
 	for roll_seed: int in 10_000:
-		if Outcome.roll(roll_seed, chance, Dispatch.QUESTS[quest]["difficulty"], party).success == success:
+		if Outcome.roll(roll_seed, chance, Dispatch.QUESTS[quest]["difficulty"], party, Adventurers.STARTERS).success == success:
 			return roll_seed
 	fail_test("no seed found")
 	return -1
@@ -74,11 +74,29 @@ func test_the_roster_has_four_rank_f_adventurers_all_resting_in_a_new_game() -> 
 		"tobin": ["Tobin", "Scout", "F", 3],
 		"maren": ["Maren", "Healer", "F", 3],
 	}
-	assert_eq(Dispatch.ADVENTURERS.keys(), expected.keys())
+	var roster := Dispatch.new(1_000).adventurers.roster
+	assert_eq(roster.keys(), expected.keys())
 	for adventurer: String in expected:
-		var info: Dictionary = Dispatch.ADVENTURERS[adventurer]
+		var info: Dictionary = roster[adventurer]
 		assert_eq([info["name"], info["class"], info["rank"], Dispatch.new(1_000).adventurers.power(adventurer)], expected[adventurer])
+		# Each starter's face is their own art.
+		assert_eq(info["face"], adventurer)
 	assert_eq(_statuses(Dispatch.new(1_000), 1_000), ["Resting", "Resting", "Resting", "Resting"])
+
+
+func test_an_added_adventurer_can_be_sent_counts_with_their_own_class_and_comes_home_with_xp() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	dispatch.adventurers.add("wren", {"name": "Wren", "class": "Shield bearer", "rank": "F", "face": "wren"}, {"might": 4, "agility": 2, "mind": 1, "grit": 8}, {"might": 0.5, "agility": 0.5, "mind": 0.5, "grit": 0.5})
+	assert_eq(dispatch.status("wren", 1_000), "Resting")
+	# Power 3 against 5, less 15 for Navigation: as a Shield bearer, Wren covers Protect.
+	assert_eq(dispatch.success_chance("letters", ["wren"]), 15)
+	assert_true(dispatch.send("letters", ["wren", "tobin"], 7, gold, 1_000))
+	assert_eq(dispatch.status("wren", 1_000), "On quest: Carry letters to the abbey")
+	dispatch.checkpoint(1_120, gold)
+	assert_eq(dispatch.debriefs[0]["party"], PackedStringArray(["wren", "tobin"]))
+	assert_gt(dispatch.adventurers.xp["wren"], 0)
+	assert_eq(dispatch.adventurers.xp["wren"], dispatch.debriefs[0]["xp"])
 
 
 func test_the_success_chance_is_from_the_picked_party_against_the_quest() -> void:
@@ -769,7 +787,7 @@ func test_a_level_up_while_out_never_changes_how_the_quest_ends() -> void:
 	assert_gt(grown_chance, chance)
 	var roll_seed := -1
 	for candidate: int in 10_000:
-		if not Outcome.roll(candidate, chance, 12, ["tobin"]).success and Outcome.roll(candidate, grown_chance, 12, ["tobin"]).success:
+		if not Outcome.roll(candidate, chance, 12, ["tobin"], Adventurers.STARTERS).success and Outcome.roll(candidate, grown_chance, 12, ["tobin"], Adventurers.STARTERS).success:
 			roll_seed = candidate
 			break
 	assert_true(dispatch.send("goblins", ["tobin"], roll_seed, gold, 1_000))

@@ -1,7 +1,7 @@
 class_name PartyPicker
 extends PanelContainer
 
-## The player chose to send `party`, keys of Dispatch.ADVENTURERS, on `quest`.
+## The player chose to send `party`, keys of Adventurers.roster, on `quest`.
 signal send_pressed(quest: String, party: PackedStringArray)
 
 ## The tick on a picked adventurer's card in landscape.
@@ -19,10 +19,15 @@ const LANDSCAPE_GAP_PX: int = 12
 
 var _quest: String = ""
 var _picked: PackedStringArray = PackedStringArray()
+## The adventurers the toggles were built for, in roster order, so they are rebuilt only when
+## someone joins or leaves.
+var _built: Array = []
 var _toggles: Dictionary[String, Button] = {}
 ## Each adventurer's face for their landscape card, and the tick shown on it when picked.
 var _faces: Dictionary[String, Texture2D] = {}
 var _ticks: Dictionary[String, Control] = {}
+## The token standing in on the landscape card of each adventurer whose face has no art.
+var _stand_ins: Dictionary[String, Label] = {}
 ## The dispatch and time last shown, so picking someone can update the odds at once.
 var _dispatch: Dispatch
 var _now: int = 0
@@ -48,28 +53,6 @@ var _portrait_gaps: Dictionary[BoxContainer, int] = {}
 
 
 func _ready() -> void:
-	for adventurer: String in Dispatch.ADVENTURERS:
-		var toggle := Button.new()
-		toggle.toggle_mode = true
-		toggle.custom_minimum_size = Vector2(0, LINE_HEIGHT_PX)
-		toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		toggle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		toggle.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		toggle.toggled.connect(_on_toggled.bind(adventurer))
-		_toggles[adventurer] = toggle
-		_list.add_child(toggle)
-		var face := (load("res://assets/faces/%s.png" % adventurer) as Texture2D).get_image()
-		face.resize(face.get_width() * FACE_SCALE, face.get_height() * FACE_SCALE, Image.INTERPOLATE_NEAREST)
-		_faces[adventurer] = ImageTexture.create_from_image(face)
-		var tick := Control.new()
-		tick.visible = false
-		tick.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tick.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		tick.position = Vector2(-TICK_SIZE_PX - 12, 12)
-		tick.size = Vector2.ONE * TICK_SIZE_PX
-		tick.draw.connect(_draw_tick.bind(tick))
-		toggle.add_child(tick)
-		_ticks[adventurer] = tick
 	_send.pressed.connect(func() -> void: send_pressed.emit(_quest, _picked))
 	$Root/Buttons/Cancel.pressed.connect(close)
 	for stack: BoxContainer in [_root, $Root/Scroll/Box, $Root/Scroll/Box/Forecast/Box]:
@@ -84,22 +67,79 @@ func set_landscape(landscape: bool) -> void:
 	theme_type_variation = &"" if landscape else &"Dialog"
 	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER if landscape else ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL if landscape else Control.SIZE_FILL
-	_list.columns = _toggles.size() if landscape else 1
 	_title.theme_type_variation = &"Heading" if landscape else &"Title"
 	for stack: BoxContainer in _portrait_gaps:
 		stack.add_theme_constant_override(&"separation", LANDSCAPE_GAP_PX if landscape else _portrait_gaps[stack])
-	for adventurer: String in _toggles:
-		var toggle := _toggles[adventurer]
-		toggle.theme_type_variation = &"PickCard" if landscape else &""
-		toggle.custom_minimum_size.y = 0.0 if landscape else LINE_HEIGHT_PX
-		toggle.alignment = HORIZONTAL_ALIGNMENT_CENTER if landscape else HORIZONTAL_ALIGNMENT_LEFT
-		toggle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if landscape else TextServer.AUTOWRAP_OFF
-		toggle.icon = _faces[adventurer] if landscape else null
-		# A top icon makes room for itself even without one, so portrait keeps the defaults.
-		toggle.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER if landscape else HORIZONTAL_ALIGNMENT_LEFT
-		toggle.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP if landscape else VERTICAL_ALIGNMENT_CENTER
+	_lay_out_toggles()
 	if has_quest():
 		show_dispatch(_dispatch, _now)
+
+
+# Each adventurer as a landscape card or a portrait line, as `_docked` says.
+func _lay_out_toggles() -> void:
+	_list.columns = maxi(1, _toggles.size()) if _docked else 1
+	for adventurer: String in _toggles:
+		var toggle := _toggles[adventurer]
+		toggle.theme_type_variation = &"PickCard" if _docked else &""
+		toggle.custom_minimum_size.y = 0.0 if _docked else LINE_HEIGHT_PX
+		toggle.alignment = HORIZONTAL_ALIGNMENT_CENTER if _docked else HORIZONTAL_ALIGNMENT_LEFT
+		toggle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if _docked else TextServer.AUTOWRAP_OFF
+		toggle.icon = _faces[adventurer] if _docked else null
+		# A top icon makes room for itself even without one, so portrait keeps the defaults.
+		toggle.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER if _docked else HORIZONTAL_ALIGNMENT_LEFT
+		toggle.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP if _docked else VERTICAL_ALIGNMENT_CENTER
+		if adventurer in _stand_ins:
+			# Over the blank icon, which the card draws at its top margin.
+			_stand_ins[adventurer].visible = _docked
+			_stand_ins[adventurer].position.y = toggle.get_theme_stylebox(&"normal").get_margin(SIDE_TOP)
+
+
+# One toggle per adventurer in `roster`, with their face for the landscape card; those picked
+# stay picked.
+func _build(roster: Dictionary[String, Dictionary]) -> void:
+	_built = roster.keys()
+	for toggle: Button in _toggles.values():
+		_list.remove_child(toggle)
+		toggle.queue_free()
+	_toggles.clear()
+	_faces.clear()
+	_ticks.clear()
+	_stand_ins.clear()
+	for adventurer: String in roster:
+		var toggle := Button.new()
+		toggle.toggle_mode = true
+		toggle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		toggle.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		toggle.set_pressed_no_signal(adventurer in _picked)
+		toggle.toggled.connect(_on_toggled.bind(adventurer))
+		_toggles[adventurer] = toggle
+		_list.add_child(toggle)
+		var art := QuestBoard.face(roster[adventurer])
+		if art:
+			var face := art.get_image()
+			face.resize(face.get_width() * FACE_SCALE, face.get_height() * FACE_SCALE, Image.INTERPOLATE_NEAREST)
+			_faces[adventurer] = ImageTexture.create_from_image(face)
+		else:
+			# No art: their token, with their initial, over a blank icon that makes room for it.
+			var stand_in := QuestBoard.token(adventurer, roster)
+			var room := stand_in.custom_minimum_size
+			stand_in.anchor_left = 0.5
+			stand_in.anchor_right = 0.5
+			stand_in.offset_left = -room.x / 2.0
+			stand_in.offset_right = room.x / 2.0
+			toggle.add_child(stand_in)
+			_stand_ins[adventurer] = stand_in
+			_faces[adventurer] = ImageTexture.create_from_image(Image.create_empty(int(room.x), int(room.y), false, Image.FORMAT_RGBA8))
+		var tick := Control.new()
+		tick.visible = false
+		tick.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tick.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		tick.position = Vector2(-TICK_SIZE_PX - 12, 12)
+		tick.size = Vector2.ONE * TICK_SIZE_PX
+		tick.draw.connect(_draw_tick.bind(tick))
+		toggle.add_child(tick)
+		_ticks[adventurer] = tick
+	_lay_out_toggles()
 
 
 ## Whether a quest is picked, so the picker has a party to choose.
@@ -135,8 +175,11 @@ func open(quest: String, dispatch: Dispatch, now: int) -> void:
 func show_dispatch(dispatch: Dispatch, now: int) -> void:
 	_dispatch = dispatch
 	_now = now
+	var roster := dispatch.adventurers.roster
+	if roster.keys() != _built:
+		_build(roster)
 	for adventurer: String in _toggles:
-		var info: Dictionary = Dispatch.ADVENTURERS[adventurer]
+		var info: Dictionary = roster[adventurer]
 		var toggle := _toggles[adventurer]
 		var points := dispatch.health(adventurer, now)
 		var most := dispatch.adventurers.max_health(adventurer)
@@ -167,8 +210,9 @@ func _show_forecast() -> void:
 			_coverage.add_child(QuestBoard.chip("? unknown", &"ChipUnknown"))
 			continue
 		var names := PackedStringArray()
-		for adventurer: String in Challenges.covered_by(challenge, _picked):
-			names.append(Dispatch.ADVENTURERS[adventurer]["name"])
+		var roster := _dispatch.adventurers.roster
+		for adventurer: String in Challenges.covered_by(challenge, _picked, roster):
+			names.append(roster[adventurer]["name"])
 		if names.is_empty():
 			_coverage.add_child(QuestBoard.chip(challenge, &"ChipUncovered"))
 		else:

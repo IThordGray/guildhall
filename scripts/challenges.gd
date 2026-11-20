@@ -16,11 +16,12 @@ const COVERS: Dictionary[String, Array] = {
 }
 
 
-## The members of `party` who cover `challenge`, in party order; empty when nobody does.
-static func covered_by(challenge: String, party: PackedStringArray) -> PackedStringArray:
+## The members of `party` who cover `challenge`, in party order; empty when nobody does. Their
+## classes are as `roster` (Adventurers.roster) has them.
+static func covered_by(challenge: String, party: PackedStringArray, roster: Dictionary) -> PackedStringArray:
 	var covering := PackedStringArray()
 	for adventurer: String in party:
-		if challenge in COVERS.get(Dispatch.ADVENTURERS[adventurer]["class"], []):
+		if challenge in COVERS.get(roster[adventurer]["class"], []):
 			covering.append(adventurer)
 	return covering
 

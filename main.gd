@@ -231,7 +231,7 @@ func _on_adventurer_pressed(adventurer: String) -> void:
 
 
 func _on_adventurer_swiped(step: int) -> void:
-	_shown_adventurer = Roster.adventurer_after(_shown_adventurer, step)
+	_shown_adventurer = Roster.adventurer_after(_shown_adventurer, step, _dispatch.adventurers.roster)
 	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _now())
 
 

@@ -21,8 +21,8 @@ func test_the_chance_never_rises_above_95_or_falls_below_5() -> void:
 func test_the_same_seed_always_gives_the_same_outcome_and_damage() -> void:
 	var successes := 0
 	for roll_seed: int in 100:
-		var first := Outcome.roll(roll_seed, 50, 12, PARTY)
-		var again := Outcome.roll(roll_seed, 50, 12, PARTY)
+		var first := Outcome.roll(roll_seed, 50, 12, PARTY, Adventurers.STARTERS)
+		var again := Outcome.roll(roll_seed, 50, 12, PARTY, Adventurers.STARTERS)
 		assert_eq(again.success, first.success)
 		assert_eq(again.damage, first.damage)
 		if first.success:
@@ -33,7 +33,7 @@ func test_the_same_seed_always_gives_the_same_outcome_and_damage() -> void:
 func test_over_2000_seeds_a_60_percent_chance_succeeds_60_percent_of_the_time_within_4_points() -> void:
 	var successes := 0
 	for roll_seed: int in 2_000:
-		if Outcome.roll(roll_seed, 60, 7, PARTY).success:
+		if Outcome.roll(roll_seed, 60, 7, PARTY, Adventurers.STARTERS).success:
 			successes += 1
 	assert_between(successes, 1_120, 1_280)
 
@@ -41,7 +41,7 @@ func test_over_2000_seeds_a_60_percent_chance_succeeds_60_percent_of_the_time_wi
 func test_a_success_deals_each_member_0_to_half_the_difficulty_and_a_failure_half_to_all_of_it() -> void:
 	var seen := {true: {}, false: {}}
 	for roll_seed: int in 600:
-		var outcome := Outcome.roll(roll_seed, 50, 11, PARTY)
+		var outcome := Outcome.roll(roll_seed, 50, 11, PARTY, Adventurers.STARTERS)
 		assert_eq(outcome.damage.keys(), Array(PARTY))
 		for adventurer: String in PARTY:
 			seen[outcome.success][outcome.damage[adventurer]] = true
@@ -56,7 +56,7 @@ func test_a_success_deals_each_member_0_to_half_the_difficulty_and_a_failure_hal
 func test_members_of_one_party_can_take_different_damage() -> void:
 	var differs := false
 	for roll_seed: int in 50:
-		var damage := Outcome.roll(roll_seed, 50, 12, PARTY).damage
+		var damage := Outcome.roll(roll_seed, 50, 12, PARTY, Adventurers.STARTERS).damage
 		if damage["bram"] != damage["ilse"]:
 			differs = true
 	assert_true(differs)
@@ -77,8 +77,8 @@ func test_a_party_with_a_healer_takes_half_the_damage_rounded_down() -> void:
 	var unhealed: PackedStringArray = ["bram", "tobin"]
 	var seen := {true: {}, false: {}}
 	for roll_seed: int in 600:
-		var with_healer := Outcome.roll(roll_seed, 50, 11, healed)
-		var without := Outcome.roll(roll_seed, 50, 11, unhealed)
+		var with_healer := Outcome.roll(roll_seed, 50, 11, healed, Adventurers.STARTERS)
+		var without := Outcome.roll(roll_seed, 50, 11, unhealed, Adventurers.STARTERS)
 		assert_eq(with_healer.success, without.success)
 		assert_eq(with_healer.damage["bram"], floori(without.damage["bram"] / 2.0))
 		for adventurer: String in healed:

@@ -11,14 +11,6 @@ const QUESTS: Dictionary[String, Dictionary] = {
 	"wolves": {"name": "Wolves at the mill", "rank": "E", "seconds": 300, "gold": 250, "difficulty": 9, "challenges": ["Brute force", "Attrition"]},
 	"crypt": {"name": "Clear the old crypt", "rank": "E", "seconds": 480, "gold": 400, "difficulty": 11, "challenges": ["Curse", "Traps", "Attrition"]},
 }
-## The guild's adventurers, in roster order, as they always are. The save refers to one by its
-## id. How they grow is in `adventurers`.
-const ADVENTURERS: Dictionary[String, Dictionary] = {
-	"bram": {"name": "Bram", "class": "Swordsman", "rank": "F"},
-	"ilse": {"name": "Ilse", "class": "Mage", "rank": "F"},
-	"tobin": {"name": "Tobin", "class": "Scout", "rank": "F"},
-	"maren": {"name": "Maren", "class": "Healer", "rank": "F"},
-}
 const MAX_PARTY_SIZE: int = 4
 ## How long an injury lasts, counted from the moment the party returns.
 const INJURY_SECONDS: int = 300
@@ -44,7 +36,8 @@ var injury_lengths: Dictionary[String, int] = {}
 ## made known, "loot": item ids it put in the stash, "lost": item ids it brought to a full stash}.
 ## Only a report: its outcome was applied when the party came home.
 var debriefs: Array[Dictionary] = []
-## Each adventurer's stats, level, XP and gear: their power decides quests, and returns grow them.
+## Who is in the guild, and each one's stats, level, XP and gear: their power decides quests, and
+## returns grow them.
 var adventurers: Adventurers = Adventurers.new()
 ## The health each adventurer below their maximum came home with: {"health": points, "at": unix
 ## seconds they came home}. Their health at home is computed from it; anyone missing is at full
@@ -68,7 +61,7 @@ func _init(at: int) -> void:
 func success_chance(quest_id: String, party: PackedStringArray) -> int:
 	var uncovered := 0
 	for challenge: String in QUESTS[quest_id]["challenges"]:
-		if Challenges.covered_by(challenge, party).is_empty():
+		if Challenges.covered_by(challenge, party, adventurers.roster).is_empty():
 			uncovered += 1
 	return Outcome.chance_percent(party_power(party), int(QUESTS[quest_id]["difficulty"]), uncovered)
 
@@ -79,7 +72,7 @@ func chance_range(quest_id: String, party: PackedStringArray) -> Vector2i:
 	var unknown := unknown_challenges(quest_id)
 	var uncovered := 0
 	for challenge: String in QUESTS[quest_id]["challenges"]:
-		if challenge not in unknown and Challenges.covered_by(challenge, party).is_empty():
+		if challenge not in unknown and Challenges.covered_by(challenge, party, adventurers.roster).is_empty():
 			uncovered += 1
 	return Outcome.chance_range(party_power(party), int(QUESTS[quest_id]["difficulty"]), uncovered, unknown.size())
 
@@ -97,15 +90,15 @@ func unknown_challenges(quest_id: String) -> PackedStringArray:
 func party_power(party: PackedStringArray) -> int:
 	var total := 0
 	for adventurer: String in party:
-		if not is_healer(adventurer):
+		if not is_healer(adventurers.roster[adventurer]):
 			total += adventurers.power(adventurer)
 	return total
 
 
-## True when `adventurer` is a Healer: their power doesn't count, and a party with one takes half
-## damage.
-static func is_healer(adventurer: String) -> bool:
-	return ADVENTURERS[adventurer]["class"] == "Healer"
+## True when the adventurer who is `who`, as Adventurers.roster has them, is a Healer: their power
+## doesn't count, and a party with one takes half damage.
+static func is_healer(who: Dictionary) -> bool:
+	return who["class"] == "Healer"
 
 
 ## The gold `quest_id` brings when it fails: a quarter of its reward, rounded down.
@@ -231,10 +224,11 @@ func party_refusal(quest_id: String, party: PackedStringArray, now: int) -> Stri
 	if party.size() > MAX_PARTY_SIZE:
 		return "At most %d in a party" % MAX_PARTY_SIZE
 	for adventurer: String in party:
+		var who: Dictionary = adventurers.roster[adventurer]
 		if not can_go(adventurer, now):
-			return "%s can't go" % ADVENTURERS[adventurer]["name"]
-		if not Challenges.can_join(ADVENTURERS[adventurer]["rank"], QUESTS[quest_id]["rank"]):
-			return "%s's rank is too low" % ADVENTURERS[adventurer]["name"]
+			return "%s can't go" % who["name"]
+		if not Challenges.can_join(who["rank"], QUESTS[quest_id]["rank"]):
+			return "%s's rank is too low" % who["name"]
 	return ""
 
 
@@ -298,7 +292,7 @@ func _bring_home(outing: Dictionary, gold: Gold) -> void:
 		# sent before chances were kept rolls with the power it has now, which is the power it had
 		# then: nobody could level up before.
 		var chance: int = outing.get("chance", success_chance(outing["quest"], party))
-		var outcome := Outcome.roll(outing["seed"], chance, quest["difficulty"], party)
+		var outcome := Outcome.roll(outing["seed"], chance, quest["difficulty"], party, adventurers.roster)
 		success = outcome.success
 		if not success:
 			reward = failure_gold(outing["quest"])

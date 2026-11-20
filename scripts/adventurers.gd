@@ -1,20 +1,26 @@
 class_name Adventurers
 extends RefCounted
 
-## The roster's growing state: each adventurer's stats, level, XP, level-ups and gear. Who they
-## are (name, class, rank) never changes: see Dispatch.ADVENTURERS.
+## Who is in the guild, and each one's stats, growth, level, XP, level-ups and gear. All of it is
+## saved: a new game starts with the starters, and `add` brings in anyone else.
 
 ## The stats every adventurer has, in the order they are shown, with their names for the player.
 const STATS: Dictionary[String, String] = {"might": "Might", "agility": "Agility", "mind": "Mind", "grit": "Grit"}
-## Each adventurer's stats on joining the guild.
+## The adventurers a new game starts with, in roster order: who each one is, as `roster` keeps it.
+const STARTERS: Dictionary[String, Dictionary] = {
+	"bram": {"name": "Bram", "class": "Swordsman", "rank": "F", "face": "bram"},
+	"ilse": {"name": "Ilse", "class": "Mage", "rank": "F", "face": "ilse"},
+	"tobin": {"name": "Tobin", "class": "Scout", "rank": "F", "face": "tobin"},
+	"maren": {"name": "Maren", "class": "Healer", "rank": "F", "face": "maren"},
+}
+## The starters' stats on joining the guild.
 const STARTING_STATS: Dictionary[String, Dictionary] = {
 	"bram": {"might": 6, "agility": 3, "mind": 2, "grit": 7},
 	"ilse": {"might": 2, "agility": 3, "mind": 8, "grit": 5},
 	"tobin": {"might": 3, "agility": 7, "mind": 3, "grit": 3},
 	"maren": {"might": 2, "agility": 3, "mind": 6, "grit": 5},
 }
-## Each adventurer's growth per stat, never shown to the player: a level-up gives a stat up to
-## two points, each with this chance. Tobin's Agility grows far faster than the rest.
+## The starters' growth, as `growth` keeps it. Tobin's Agility grows far faster than the rest.
 const GROWTH: Dictionary[String, Dictionary] = {
 	"bram": {"might": 0.6, "agility": 0.3, "mind": 0.15, "grit": 0.55},
 	"ilse": {"might": 0.15, "agility": 0.3, "mind": 0.7, "grit": 0.35},
@@ -29,6 +35,12 @@ const QUEST_SECONDS_PER_XP: int = 15
 const BASE_HEALTH: int = 10
 const HEALTH_PER_GRIT: int = 2
 
+## Who is in the guild, in roster order: each one's {"name", "class", "rank", "face"}, the face
+## being the name of their art in assets/faces. The save refers to an adventurer by their id here.
+var roster: Dictionary[String, Dictionary] = {}
+## Each adventurer's growth per stat, never shown to the player: a level-up gives a stat up to two
+## points, each with this chance.
+var growth: Dictionary[String, Dictionary] = {}
 ## Each adventurer's own stats, without gear: see `stat_total` for what counts.
 var stats: Dictionary[String, Dictionary] = {}
 var levels: Dictionary[String, int] = {}
@@ -43,11 +55,22 @@ var gear: Gear = Gear.new()
 
 
 func _init() -> void:
-	for adventurer: String in STARTING_STATS:
-		stats[adventurer] = STARTING_STATS[adventurer].duplicate()
-		levels[adventurer] = 1
-		xp[adventurer] = 0
-		history[adventurer] = []
+	for adventurer: String in STARTERS:
+		add(adventurer, STARTERS[adventurer], STARTING_STATS[adventurer], GROWTH[adventurer])
+	# The starters join in their starter gear.
+	gear = Gear.new()
+
+
+## Brings `adventurer` into the guild as `who` ({"name", "class", "rank", "face"}), with
+## `starting_stats` and `grows` as their growth per stat, at level 1 with no XP and nothing worn.
+func add(adventurer: String, who: Dictionary, starting_stats: Dictionary, grows: Dictionary) -> void:
+	roster[adventurer] = who.duplicate()
+	growth[adventurer] = grows.duplicate()
+	stats[adventurer] = starting_stats.duplicate()
+	levels[adventurer] = 1
+	xp[adventurer] = 0
+	history[adventurer] = []
+	gear.worn[adventurer] = {}
 
 
 ## `adventurer`'s `stat` as it counts: their own plus what their gear adds.
@@ -110,7 +133,7 @@ func _gains(adventurer: String, level: int) -> Dictionary:
 	for stat: String in STATS:
 		var gain := 0
 		for point: int in 2:
-			if rng.randf() < float(GROWTH[adventurer][stat]):
+			if rng.randf() < float(growth[adventurer][stat]):
 				gain += 1
 		gains[stat] = gain
 	return gains
@@ -118,6 +141,10 @@ func _gains(adventurer: String, level: int) -> Dictionary:
 
 ## Puts the adventurers into `file`, which other state shares, so one save holds the whole game.
 func write(file: ConfigFile) -> void:
+	# A dictionary is saved with its keys sorted, so the roster order is saved on its own.
+	file.set_value("adventurers", "order", PackedStringArray(roster.keys()))
+	file.set_value("adventurers", "roster", roster)
+	file.set_value("adventurers", "growth", growth)
 	file.set_value("adventurers", "stats", stats)
 	file.set_value("adventurers", "levels", levels)
 	file.set_value("adventurers", "xp", xp)
@@ -125,14 +152,21 @@ func write(file: ConfigFile) -> void:
 	gear.write(file)
 
 
-## The adventurers saved at `path`, or everyone at their starting stats, level 1 and no XP when the
-## save has none; their gear as Gear.load_or_start finds it.
+## The adventurers saved at `path`, or the starters at their starting stats, level 1 and no XP when
+## the save has none; their gear as Gear.load_or_start finds it.
 static func load_or_start(path: String) -> Adventurers:
 	var adventurers := Adventurers.new()
 	adventurers.gear = Gear.load_or_start(path)
 	var file := ConfigFile.new()
 	if file.load(path) != OK or not file.has_section("adventurers"):
 		return adventurers
+	# A save from before the roster was saved holds the starters, as a new game has them.
+	if file.has_section_key("adventurers", "roster"):
+		var saved: Dictionary = file.get_value("adventurers", "roster")
+		adventurers.roster.clear()
+		for adventurer: String in file.get_value("adventurers", "order"):
+			adventurers.roster[adventurer] = saved[adventurer]
+	adventurers.growth.assign(file.get_value("adventurers", "growth", adventurers.growth))
 	adventurers.stats.assign(file.get_value("adventurers", "stats"))
 	adventurers.levels.assign(file.get_value("adventurers", "levels"))
 	adventurers.xp.assign(file.get_value("adventurers", "xp"))

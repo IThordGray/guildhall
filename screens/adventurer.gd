@@ -3,7 +3,7 @@ extends Control
 
 ## The player is done looking at this adventurer.
 signal back_pressed
-## The player chose to level up `adventurer`, a key of Dispatch.ADVENTURERS.
+## The player chose to level up `adventurer`, a key of Adventurers.roster.
 signal level_up_pressed(adventurer: String)
 ## The player chose to put the stash item at `index` on `adventurer`.
 signal wear_pressed(adventurer: String, index: int)
@@ -126,7 +126,7 @@ func set_landscape(landscape: bool) -> void:
 ## Shows `adventurer` as `dispatch` has them at `now`.
 func show_adventurer(adventurer: String, dispatch: Dispatch, now: int) -> void:
 	if adventurer != _adventurer:
-		var token := QuestBoard.token(adventurer)
+		var token := QuestBoard.token(adventurer, dispatch.adventurers.roster)
 		token.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		# Not replace_by: it would move the old token's face onto the new one.
 		_token.add_sibling(token)
@@ -134,8 +134,8 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, now: int) -> void:
 		_token.queue_free()
 		_token = token
 	_adventurer = adventurer
-	var info: Dictionary = Dispatch.ADVENTURERS[adventurer]
 	var adventurers := dispatch.adventurers
+	var info: Dictionary = adventurers.roster[adventurer]
 	var level: int = adventurers.levels[adventurer]
 	_name.text = info["name"]
 	_status.text = dispatch.status(adventurer, now)

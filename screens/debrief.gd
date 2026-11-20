@@ -29,7 +29,7 @@ func show_debrief(debrief: Dictionary, adventurers: Adventurers) -> void:
 	var damage: Dictionary = debrief.get("damage", {})
 	for adventurer: String in debrief["party"]:
 		var name_label := Label.new()
-		name_label.text = Dispatch.ADVENTURERS[adventurer]["name"]
+		name_label.text = adventurers.roster[adventurer]["name"]
 		name_label.theme_type_variation = &"RowTitle"
 		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		var state := Label.new()
@@ -57,7 +57,7 @@ func show_debrief(debrief: Dictionary, adventurers: Adventurers) -> void:
 			growth.add_child(ready)
 		var line := HBoxContainer.new()
 		line.add_theme_constant_override("separation", 32)
-		line.add_child(QuestBoard.token(adventurer))
+		line.add_child(QuestBoard.token(adventurer, adventurers.roster))
 		line.add_child(name_label)
 		line.add_child(state)
 		line.add_child(growth)

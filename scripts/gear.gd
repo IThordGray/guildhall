@@ -53,7 +53,7 @@ const ITEMS: Dictionary[String, Dictionary] = {
 	"green_sash": {"name": "Green sash", "slot": "belt", "quality": "Standard", "bonus": {}},
 	"moonstone_amulet": {"name": "Moonstone amulet", "slot": "neck", "quality": "Standard", "bonus": {}},
 }
-## What each adventurer wears on joining the guild, by slot. Every item here adds nothing, so
+## What each starter wears on joining the guild, by slot; anyone added later joins wearing nothing. Every item here adds nothing, so
 ## the starters' power and health are what their own stats give.
 const STARTER_GEAR: Dictionary[String, Dictionary] = {
 	"bram": {"head": "iron_cap", "clothes": "red_tunic", "armour": "leather_vest", "weapon": "short_sword", "off_hand": "round_shield"},

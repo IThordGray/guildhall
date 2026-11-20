@@ -35,13 +35,13 @@ func _ready() -> void:
 
 ## Shows the level-up `adventurer` just had in `adventurers`, which raised each stat by `gains`.
 func show_level_up(adventurer: String, gains: Dictionary, adventurers: Adventurers) -> void:
-	var token := QuestBoard.token(adventurer)
+	var token := QuestBoard.token(adventurer, adventurers.roster)
 	token.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_token.add_sibling(token)
 	_token.get_parent().remove_child(_token)
 	_token.queue_free()
 	_token = token
-	var info: Dictionary = Dispatch.ADVENTURERS[adventurer]
+	var info: Dictionary = adventurers.roster[adventurer]
 	var level: int = adventurers.levels[adventurer]
 	_title.text = "%s reached level %d" % [info["name"], level]
 	_details.text = "%s · rank %s" % [info["class"], info["rank"]]

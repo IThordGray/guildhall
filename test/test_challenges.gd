@@ -41,14 +41,14 @@ func test_each_class_covers_its_own_challenges_and_no_others() -> void:
 	for adventurer: String in expected:
 		var covered: Array[String] = []
 		for challenge: String in ALL_CHALLENGES:
-			if Challenges.covered_by(challenge, [adventurer]) == PackedStringArray([adventurer]):
+			if Challenges.covered_by(challenge, [adventurer], Adventurers.STARTERS) == PackedStringArray([adventurer]):
 				covered.append(challenge)
 		assert_eq(covered, expected[adventurer], adventurer)
 	assert_eq(Challenges.COVERS["Shield bearer"], ["Protect"])
 	# Nobody in the guild is a Shield bearer, so nobody covers Protect yet.
-	assert_eq(Challenges.covered_by("Protect", EVERYONE), PackedStringArray())
+	assert_eq(Challenges.covered_by("Protect", EVERYONE, Adventurers.STARTERS), PackedStringArray())
 
 
 func test_a_challenge_is_covered_only_by_the_members_whose_class_covers_it() -> void:
-	assert_eq(Challenges.covered_by("Navigation", ["bram", "tobin", "maren"]), PackedStringArray(["tobin"]))
-	assert_eq(Challenges.covered_by("Brute force", ["ilse", "tobin"]), PackedStringArray())
+	assert_eq(Challenges.covered_by("Navigation", ["bram", "tobin", "maren"], Adventurers.STARTERS), PackedStringArray(["tobin"]))
+	assert_eq(Challenges.covered_by("Brute force", ["ilse", "tobin"], Adventurers.STARTERS), PackedStringArray())

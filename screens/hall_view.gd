@@ -185,7 +185,8 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 # there is none; a ready one waits in Reception.
 func _show_tokens(dispatch: Dispatch, infirmary: String, now: int) -> void:
 	var people: Dictionary[String, Array] = {}
-	for adventurer: String in Dispatch.ADVENTURERS:
+	var roster := dispatch.adventurers.roster
+	for adventurer: String in roster:
 		if not dispatch.quest_of(adventurer).is_empty():
 			continue
 		var injured := dispatch.injury_left(adventurer, now) > 0
@@ -202,7 +203,7 @@ func _show_tokens(dispatch: Dispatch, infirmary: String, now: int) -> void:
 		for token: Node in room.tokens.get_children():
 			token.queue_free()
 		for person: Array in shown:
-			room.tokens.add_child(_token(person[0], person[1]))
+			room.tokens.add_child(_token(person[0], person[1], roster))
 		room.tokens.visible = not shown.is_empty()
 
 
@@ -226,10 +227,11 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 			entries.append({"swatch": Look.CONVERTING, "title": "Converting the " + place, "bar": &"GoldBar"})
 			waits.append(Vector2i(Hall.ROOM_TYPES[hall.building_into]["seconds"], build_left))
 	var at_hand := PackedStringArray()
-	for adventurer: String in Dispatch.ADVENTURERS:
+	var roster := dispatch.adventurers.roster
+	for adventurer: String in roster:
 		var injury_left := dispatch.injury_left(adventurer, now)
 		if injury_left > 0:
-			var healing: String = Dispatch.ADVENTURERS[adventurer]["name"]
+			var healing: String = roster[adventurer]["name"]
 			entries.append({"tokens": [adventurer], "injured": true, "title": healing + " is healing", "bar": &"InjuryBar"})
 			waits.append(Vector2i(dispatch.injury_seconds(adventurer), injury_left))
 		elif dispatch.can_go(adventurer, now):
@@ -239,12 +241,12 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 		var one := at_hand.size() == 1
 		entries.append({
 			"tokens": [at_hand[0] if one else str(at_hand.size())],
-			"title": "%s ready" % (Dispatch.ADVENTURERS[at_hand[0]]["name"] + " is" if one else str(at_hand.size())),
+			"title": "%s ready" % (roster[at_hand[0]]["name"] + " is" if one else str(at_hand.size())),
 			"sub": "%d quest%s on the board" % [quests_on_board, "" if quests_on_board == 1 else "s"],
 		})
 	if entries != _entries:
 		_entries = entries
-		_rebuild_rows()
+		_rebuild_rows(roster)
 	for i: int in waits.size():
 		_rows[i].bar.max_value = waits[i].x
 		_rows[i].bar.value = waits[i].x - waits[i].y
@@ -253,7 +255,7 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 	_list.visible = not entries.is_empty()
 
 
-func _rebuild_rows() -> void:
+func _rebuild_rows(roster: Dictionary) -> void:
 	for row: Node in _list_rows.get_children():
 		row.queue_free()
 	_rows.clear()
@@ -266,7 +268,7 @@ func _rebuild_rows() -> void:
 			var stack := HBoxContainer.new()
 			stack.theme_type_variation = &"TokenStack"
 			for who: String in entry["tokens"]:
-				stack.add_child(_token(who, entry.get("injured", false)))
+				stack.add_child(_token(who, entry.get("injured", false), roster))
 			line.add_child(stack)
 		var words := VBoxContainer.new()
 		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -393,8 +395,8 @@ func _swatch(look: Look, size_px: Vector2) -> Control:
 
 
 # An adventurer's face, or a count as text, marked with a dot when injured.
-func _token(who: String, injured: bool) -> Label:
-	var token := QuestBoard.token(who)
+func _token(who: String, injured: bool, roster: Dictionary) -> Label:
+	var token := QuestBoard.token(who, roster)
 	if injured:
 		var dot := Panel.new()
 		dot.theme_type_variation = &"InjuredDot"

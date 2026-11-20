@@ -37,10 +37,10 @@ static func chance_range(party_power: int, difficulty: int, uncovered: int, unkn
 	return Vector2i(clampi(low, MIN_CHANCE, MAX_CHANCE), clampi(high, MIN_CHANCE, MAX_CHANCE))
 
 
-## The outcome `roll_seed` gives `party` with `chance` percent of success on a quest of
-## `difficulty`. Uses its own generator, never the global one, so nothing else that draws random
-## numbers can change it.
-static func roll(roll_seed: int, chance: int, difficulty: int, party: PackedStringArray) -> Outcome:
+## The outcome `roll_seed` gives `party`, whose classes are as `roster` (Adventurers.roster) has
+## them, with `chance` percent of success on a quest of `difficulty`. Uses its own generator, never
+## the global one, so nothing else that draws random numbers can change it.
+static func roll(roll_seed: int, chance: int, difficulty: int, party: PackedStringArray, roster: Dictionary) -> Outcome:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = roll_seed
 	var outcome := Outcome.new()
@@ -48,7 +48,7 @@ static func roll(roll_seed: int, chance: int, difficulty: int, party: PackedStri
 	var half := floori(difficulty / 2.0)
 	var healed := false
 	for adventurer: String in party:
-		healed = healed or Dispatch.is_healer(adventurer)
+		healed = healed or Dispatch.is_healer(roster[adventurer])
 	for adventurer: String in party:
 		var dealt := rng.randi_range(0, half) if outcome.success else rng.randi_range(half, difficulty)
 		outcome.damage[adventurer] = floori(dealt / 2.0) if healed else dealt

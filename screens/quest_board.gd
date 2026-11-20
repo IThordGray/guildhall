@@ -103,27 +103,37 @@ func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 			_refill_labels[i].text = "New quest in " + Duration.label(left) if left > 0 else "New quest when one is free"
 
 
-## A round token: an adventurer's face, or `who` as text when it is not an adventurer, such as a
-## count.
-static func token(who: String) -> Label:
-	var is_adventurer := who in Dispatch.ADVENTURERS
-	var label := _label("" if is_adventurer else who, &"Token")
+## A round token: the face of `who` when they are in `roster` (Adventurers.roster), else `who` as
+## text, such as a count. An adventurer whose face has no art shows their initial instead.
+static func token(who: String, roster: Dictionary) -> Label:
+	var text := who
+	var art: Texture2D = null
+	if who in roster:
+		art = face(roster[who])
+		text = "" if art else String(roster[who]["name"]).left(1)
+	var label := _label(text, &"Token")
 	label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	label.custom_minimum_size = Vector2(80, 80)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	if is_adventurer:
+	if art:
 		# The 20 × 18 face at a whole 3×, so its pixels stay crisp, centred in the circle.
-		var face := TextureRect.new()
-		face.texture = load("res://assets/faces/%s.png" % who)
-		face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		face.position = Vector2(10, 13)
-		face.size = Vector2(60, 54)
-		label.add_child(face)
+		var picture := TextureRect.new()
+		picture.texture = art
+		picture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		picture.position = Vector2(10, 13)
+		picture.size = Vector2(60, 54)
+		label.add_child(picture)
 	return label
+
+
+## The art for the face of `who`, as Adventurers.roster has them; null when there is none.
+static func face(who: Dictionary) -> Texture2D:
+	var path := "res://assets/faces/%s.png" % who["face"]
+	return load(path) if ResourceLoader.exists(path) else null
 
 
 ## A challenge chip in `variation`: Chip, ChipCovered, ChipUncovered or ChipUnknown, the last with
@@ -188,7 +198,7 @@ func _show_debriefs(dispatch: Dispatch, now: int) -> void:
 			open.pressed.connect(debrief_pressed.emit.bind(i))
 			var line := HBoxContainer.new()
 			line.add_theme_constant_override("separation", 32)
-			line.add_child(_tokens(debrief["party"]))
+			line.add_child(_tokens(debrief["party"], dispatch.adventurers.roster))
 			line.add_child(words)
 			line.add_child(open)
 			var row := PanelContainer.new()
@@ -231,7 +241,7 @@ func _show_out(dispatch: Dispatch, now: int) -> void:
 			_out_rows.append(out)
 			var progress := HBoxContainer.new()
 			progress.add_theme_constant_override("separation", 32)
-			progress.add_child(_tokens(outing["party"]))
+			progress.add_child(_tokens(outing["party"], dispatch.adventurers.roster))
 			progress.add_child(out.bar)
 			progress.add_child(out.time)
 			var box := VBoxContainer.new()
@@ -249,11 +259,11 @@ func _show_out(dispatch: Dispatch, now: int) -> void:
 		_out_rows[i].time.text = Duration.label(left)
 
 
-func _tokens(party: PackedStringArray) -> HBoxContainer:
+func _tokens(party: PackedStringArray, roster: Dictionary) -> HBoxContainer:
 	var stack := HBoxContainer.new()
 	stack.theme_type_variation = &"TokenStack"
 	for adventurer: String in party:
-		stack.add_child(token(adventurer))
+		stack.add_child(token(adventurer, roster))
 	return stack
 
 
