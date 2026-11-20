@@ -1282,3 +1282,158 @@ func test_gear_the_stash_and_loot_in_debriefs_survive_save_and_load() -> void:
 	assert_eq(loaded.adventurers.gear.stash, PackedStringArray([Gear.loot(roll_seed, "E")]))
 	assert_eq(loaded.debriefs, dispatch.debriefs)
 	assert_eq(loaded.adventurers.stat_total("ilse", "agility"), 5)
+
+
+func test_training_is_refused_with_nothing_changed_when_no_place_is_free_out_on_a_quest_or_injured() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	assert_eq(dispatch.training_refusal("bram", 0, 1_000), "No free training place — convert a Training room")
+	assert_false(dispatch.train("bram", 0, 1_000))
+	assert_true(dispatch.send("rats", ["ilse"], 1, gold, 1_000))
+	assert_eq(dispatch.training_refusal("ilse", 1, 1_030), "Out on a quest")
+	assert_false(dispatch.train("ilse", 1, 1_030))
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	_worn_out(dispatch, "tobin")
+	dispatch.checkpoint(1_600, gold)
+	assert_eq(dispatch.training_refusal("tobin", 1, 1_600), "Injured")
+	assert_false(dispatch.train("tobin", 1, 1_600))
+	assert_true(dispatch.training.is_empty())
+	assert_eq(dispatch.status("tobin", 1_600), "Injured · 5:00")
+	# With a place free, someone home and well can.
+	assert_eq(dispatch.training_refusal("bram", 1, 1_600), "")
+	assert_true(dispatch.train("bram", 1, 1_600))
+
+
+func test_training_gives_1_xp_per_whole_minute_up_to_60_a_stint() -> void:
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.train("bram", 1, 1_000))
+	assert_eq(dispatch.training_xp("bram", 1_059), 0)
+	assert_eq(dispatch.training_xp("bram", 1_060), 1)
+	assert_eq(dispatch.training_xp("bram", 1_119), 1)
+	assert_eq(dispatch.training_xp("bram", 1_000 + 12 * 60 + 30), 12)
+	assert_eq(dispatch.training_xp("bram", 1_000 + 3_599), 59)
+	assert_eq(dispatch.training_xp("bram", 1_000 + 3_600), 60)
+	assert_eq(dispatch.training_xp("bram", 1_000 + 86_400), 60)
+	assert_eq(dispatch.training_xp("ilse", 1_000 + 3_600), 0)
+	# The XP waits in the stint; nothing is banked until it stops.
+	assert_eq(dispatch.adventurers.xp["bram"], 0)
+
+
+func test_stopping_banks_exactly_the_stints_xp_and_frees_the_adventurer() -> void:
+	var dispatch := Dispatch.new(1_000)
+	dispatch.adventurers.gain_xp("bram", 5)
+	assert_true(dispatch.train("bram", 1, 1_000))
+	assert_eq(dispatch.stop_training("bram", 1_000 + 12 * 60 + 30), 12)
+	assert_eq(dispatch.adventurers.xp["bram"], 17)
+	assert_false(dispatch.training.has("bram"))
+	assert_eq(dispatch.status("bram", 1_800), "Resting")
+	assert_true(dispatch.can_go("bram", 1_800))
+	# Stopping again banks nothing more.
+	assert_eq(dispatch.stop_training("bram", 5_000), 0)
+	assert_eq(dispatch.adventurers.xp["bram"], 17)
+	# A stint past the cap banks the cap.
+	assert_true(dispatch.train("bram", 1, 2_000))
+	assert_eq(dispatch.stop_training("bram", 2_000 + 7_200), 60)
+	assert_eq(dispatch.adventurers.xp["bram"], 77)
+
+
+func test_an_adventurer_in_training_shows_as_training_and_cannot_be_sent() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.train("bram", 1, 1_000))
+	assert_eq(_statuses(dispatch, 1_100), ["Training", "Resting", "Resting", "Resting"])
+	assert_false(dispatch.can_go("bram", 1_100))
+	assert_true(dispatch.can_go("ilse", 1_100))
+	assert_eq(dispatch.party_refusal("rats", ["bram", "ilse"], 1_100), "Bram can't go")
+	assert_false(dispatch.send("rats", ["bram", "ilse"], 1, gold, 1_100))
+	assert_true(dispatch.outings.is_empty())
+	dispatch.stop_training("bram", 1_200)
+	assert_true(dispatch.send("rats", ["bram", "ilse"], 1, gold, 1_200))
+
+
+func test_two_training_rooms_hold_two_and_a_stop_frees_a_place() -> void:
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.train("bram", 1, 1_000))
+	assert_eq(dispatch.training_refusal("ilse", 1, 1_000), "No free training place — convert a Training room")
+	assert_true(dispatch.train("ilse", 2, 1_000))
+	assert_eq(dispatch.training_refusal("tobin", 2, 1_000), "No free training place — convert a Training room")
+	assert_false(dispatch.train("tobin", 2, 1_000))
+	dispatch.stop_training("bram", 1_100)
+	assert_true(dispatch.train("tobin", 2, 1_100))
+	assert_eq(dispatch.training.keys(), ["ilse", "tobin"])
+
+
+func test_the_growth_hint_names_the_fastest_growing_stat_once_600_seconds_are_trained_across_stints() -> void:
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.train("tobin", 1, 1_000))
+	assert_eq(dispatch.training_hint("tobin", 1_300), "")
+	dispatch.stop_training("tobin", 1_300)
+	assert_eq(dispatch.training_hint("tobin", 50_000), "")
+	assert_true(dispatch.train("tobin", 1, 2_000))
+	assert_eq(dispatch.training_hint("tobin", 2_299), "")
+	assert_eq(dispatch.training_hint("tobin", 2_300), "Agility")
+	dispatch.stop_training("tobin", 2_300)
+	# Kept for good once earned.
+	assert_eq(dispatch.training_hint("tobin", 2_300), "Agility")
+	assert_eq(dispatch.training_hint("ilse", 2_300), "")
+	assert_true(dispatch.train("ilse", 1, 3_000))
+	assert_eq(dispatch.training_hint("ilse", 3_600), "Mind")
+
+
+func test_the_growth_hint_breaks_a_tie_by_the_order_stats_are_shown_in() -> void:
+	var dispatch := Dispatch.new(1_000)
+	dispatch.adventurers.add("wren", {"name": "Wren", "class": "Scout", "rank": "F", "face": "tobin"}, {"might": 3, "agility": 3, "mind": 3, "grit": 3}, {"might": 0.2, "agility": 0.5, "mind": 0.5, "grit": 0.1})
+	assert_true(dispatch.train("wren", 1, 1_000))
+	assert_eq(dispatch.training_hint("wren", 1_600), "Agility")
+
+
+func test_a_clock_set_back_never_lowers_training_xp_or_the_time_trained() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.train("tobin", 1, 1_000))
+	dispatch.checkpoint(1_000 + 900, gold)
+	assert_eq(dispatch.training_xp("tobin", 1_100), 15)
+	assert_eq(dispatch.training_hint("tobin", 1_100), "Agility")
+	assert_eq(dispatch.stop_training("tobin", 1_100), 15)
+	assert_eq(dispatch.adventurers.xp["tobin"], 15)
+	# A stint started with the clock still back starts from the latest time seen.
+	assert_true(dispatch.train("tobin", 1, 1_100))
+	assert_eq(dispatch.training_xp("tobin", 1_000 + 900 + 60), 1)
+
+
+func test_training_survives_save_and_load_mid_stint() -> void:
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.train("tobin", 1, 1_000))
+	dispatch.stop_training("tobin", 1_400)
+	assert_true(dispatch.train("tobin", 2, 2_000))
+	assert_true(dispatch.train("bram", 2, 2_100))
+	var file := ConfigFile.new()
+	dispatch.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 2_200)
+	assert_eq(_statuses(loaded, 2_200), ["Training", "Resting", "Training", "Resting"])
+	assert_eq(loaded.training_xp("tobin", 2_000 + 12 * 60), 12)
+	assert_eq(loaded.training_hint("tobin", 2_199), "")
+	assert_eq(loaded.training_hint("tobin", 2_200), "Agility")
+	assert_eq(loaded.training_refusal("ilse", 2, 2_200), "No free training place — convert a Training room")
+	assert_eq(loaded.stop_training("bram", 2_100 + 300), 5)
+	assert_eq(loaded.adventurers.xp["bram"], 5)
+
+
+func test_a_save_from_before_training_loads_with_nobody_training_and_nothing_else_lost() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.send("goblins", ["tobin"], 1, gold, 1_000))
+	var file := ConfigFile.new()
+	dispatch.write(file)
+	file.erase_section_key("dispatch", "training")
+	file.erase_section_key("dispatch", "trained_seconds")
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_100)
+	assert_true(loaded.training.is_empty())
+	assert_eq(_statuses(loaded, 1_100), ["Resting", "Resting", "On quest: Goblin camp", "Resting"])
+	assert_eq(loaded.training_hint("bram", 100_000), "")
+	assert_eq(loaded.outings, dispatch.outings)
+	assert_true(loaded.train("bram", 1, 1_100))

@@ -115,6 +115,31 @@ layout_mode = 2
 theme_type_variation = &"Alert"
 autowrap_mode = 3
 
+[node name="Training" type="BoxContainer" parent="Box/Scroll/Content/Card/Header/Row/Words"]
+layout_mode = 2
+theme_override_constants/separation = 28
+
+[node name="Xp" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/Training"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"GoldText"
+
+[node name="Stop" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Training"]
+custom_minimum_size = Vector2(240, 120)
+layout_mode = 2
+text = "Stop"
+
+[node name="Train" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Training"]
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Train"
+
+[node name="TrainReason" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words"]
+layout_mode = 2
+theme_type_variation = &"Alert"
+autowrap_mode = 3
+
 [node name="StatsSection" type="Label" parent="Box/Scroll/Content/Card"]
 layout_mode = 2
 theme_type_variation = &"Section"
@@ -130,6 +155,12 @@ theme_override_constants/separation = 24
 [node name="History" type="VBoxContainer" parent="Box/Scroll/Content/Card/Stats/Rows"]
 layout_mode = 2
 theme_override_constants/separation = 8
+
+[node name="TrainingNotes" type="Label" parent="Box/Scroll/Content/Card/Stats/Rows"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"GoldText"
+autowrap_mode = 3
 
 [node name="Hint" type="Label" parent="Box/Scroll/Content/Card/Stats/Rows"]
 layout_mode = 2

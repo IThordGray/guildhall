@@ -9,6 +9,10 @@ signal level_up_pressed(adventurer: String)
 signal promote_pressed(adventurer: String)
 ## The player chose to put the stash item at `index` on `adventurer`.
 signal wear_pressed(adventurer: String, index: int)
+## The player chose to put `adventurer` in training.
+signal train_pressed(adventurer: String)
+## The player chose to end `adventurer`'s training and bank its XP.
+signal stop_training_pressed(adventurer: String)
 ## The player swiped to the next adventurer in roster order (`step` 1) or the previous (`step` -1).
 signal swiped(step: int)
 
@@ -50,6 +54,11 @@ var _press_button: BaseButton = null
 @onready var _xp_text: Label = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Text
 @onready var _promote: Button = $Box/Scroll/Content/Card/Header/Row/Words/Promote
 @onready var _promote_reason: Label = $Box/Scroll/Content/Card/Header/Row/Words/PromoteReason
+@onready var _training_xp: Label = $Box/Scroll/Content/Card/Header/Row/Words/Training/Xp
+@onready var _stop: Button = $Box/Scroll/Content/Card/Header/Row/Words/Training/Stop
+@onready var _train: Button = $Box/Scroll/Content/Card/Header/Row/Words/Training/Train
+@onready var _train_reason: Label = $Box/Scroll/Content/Card/Header/Row/Words/TrainReason
+@onready var _training_notes: Label = $Box/Scroll/Content/Card/Stats/Rows/TrainingNotes
 @onready var _history: VBoxContainer = $Box/Scroll/Content/Card/Stats/Rows/History
 @onready var _gear: GridContainer = $Box/Scroll/Content/GearColumn/Gear
 @onready var _stash_section: Label = $Box/Scroll/Content/StashColumn/StashSection
@@ -82,6 +91,8 @@ func _ready() -> void:
 	_details.add_sibling(_health)
 	_level_up.pressed.connect(func() -> void: level_up_pressed.emit(_adventurer))
 	_promote.pressed.connect(func() -> void: promote_pressed.emit(_adventurer))
+	_train.pressed.connect(func() -> void: train_pressed.emit(_adventurer))
+	_stop.pressed.connect(func() -> void: stop_training_pressed.emit(_adventurer))
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
 
 
@@ -113,13 +124,14 @@ func _input(event: InputEvent) -> void:
 
 
 ## Landscape sets the card, the gear and the stash side by side: the card stacks its face, name
-## and status, the gear goes two to a row, as narrow as its boxes, and Wear buttons wrap. Portrait
+## and status, and its training XP and Stop, the gear goes two to a row, as narrow as its boxes, and Wear buttons wrap. Portrait
 ## stacks the three, the gear four to a row.
 func set_landscape(landscape: bool) -> void:
 	_landscape = landscape
 	($Box/Scroll/Content as BoxContainer).vertical = not landscape
 	($Box/Scroll/Content/Card/Header/Row as BoxContainer).vertical = landscape
 	($Box/Scroll/Content/Card/Header/Row/Words/NameLine as BoxContainer).vertical = landscape
+	($Box/Scroll/Content/Card/Header/Row/Words/Training as BoxContainer).vertical = landscape
 	_gear.columns = 2 if landscape else 4
 	# The card is too narrow in landscape for the health text's fixed width to leave room for a bar.
 	(_health.get_child(1) as Control).custom_minimum_size.x = 0.0 if landscape else HEALTH_TEXT_WIDTH_PX
@@ -128,8 +140,9 @@ func set_landscape(landscape: bool) -> void:
 		_show_stash(_gear_shown[2], _gear_shown[3])
 
 
-## Shows `adventurer` as `dispatch` has them at `now`, with whether `gold` pays for their promotion.
-func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, now: int) -> void:
+## Shows `adventurer` as `dispatch` has them at `now`, with whether `gold` pays for their promotion
+## and whether one of `training_places` is free for them.
+func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, training_places: int, now: int) -> void:
 	if adventurer != _adventurer:
 		var token := QuestBoard.token(adventurer, dispatch.adventurers.roster)
 		token.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -162,6 +175,18 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, now: in
 	_promote.disabled = not reason.is_empty()
 	_promote_reason.text = reason
 	_promote_reason.visible = _promote.visible and not reason.is_empty()
+	var training := dispatch.training.has(adventurer)
+	var train_reason := "" if training else dispatch.training_refusal(adventurer, training_places, now)
+	_training_xp.visible = training
+	_training_xp.text = "Training · +%d XP" % dispatch.training_xp(adventurer, now)
+	_stop.visible = training
+	_train.visible = not training
+	_train.disabled = not train_reason.is_empty()
+	_train_reason.text = train_reason
+	_train_reason.visible = not train_reason.is_empty()
+	var hint := dispatch.training_hint(adventurer, now)
+	_training_notes.text = "Training notes: grows fastest in " + hint
+	_training_notes.visible = not hint.is_empty()
 	for stat: String in Adventurers.STATS:
 		var total := adventurers.stat_total(adventurer, stat)
 		var from_gear := adventurers.gear.bonus(adventurer, stat)

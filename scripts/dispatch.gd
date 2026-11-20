@@ -32,6 +32,14 @@ const INJURY_SECONDS: int = 300
 const INFIRMARY_INJURY_SECONDS: int = 150
 ## Seconds to heal one point of health; from the moment the first Infirmary is finished, half that.
 const HEAL_SECONDS: int = 20
+## An adventurer in training gains this much XP per whole minute since their stint started, at most
+## TRAINING_MAX_XP a stint; the cap is the reason to come back (stand-ins).
+const TRAINING_XP_PER_MINUTE: int = 1
+const TRAINING_MAX_XP: int = 60
+## Once an adventurer has trained this many seconds in all, the Training room hints at their growth.
+const TRAINING_HINT_SECONDS: int = 600
+## Why an adventurer can't start training while every Training room's one place is taken.
+const NO_TRAINING_PLACE: String = "No free training place — convert a Training room"
 
 ## Parties out, in the order they left. Each is {"quest": quest id, "since": unix seconds it left,
 ## "party": adventurer ids, "seed": the seed that fixes how it ends, "chance": its whole-percent
@@ -59,6 +67,11 @@ var adventurers: Adventurers = Adventurers.new()
 var wounds: Dictionary[String, Dictionary] = {}
 ## Quests whose unknown challenges a returning party has made known, for good.
 var revealed: PackedStringArray = PackedStringArray()
+## Unix seconds each adventurer in training started their stint at. Their XP from it is computed
+## from this alone and banked when they stop.
+var training: Dictionary[String, int] = {}
+## Seconds each adventurer has trained in all over stints already stopped.
+var trained_seconds: Dictionary[String, int] = {}
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back neither
 ## adds time to a quest or an injury nor brings back a party that has returned.
 var checked_at: int
@@ -214,9 +227,9 @@ func wear(adventurer: String, index: int) -> bool:
 	return true
 
 
-## True when `adventurer` can join a party at `now`: home and not injured.
+## True when `adventurer` can join a party at `now`: home, not injured and not training.
 func can_go(adventurer: String, now: int) -> bool:
-	return quest_of(adventurer).is_empty() and injury_left(adventurer, now) == 0
+	return quest_of(adventurer).is_empty() and injury_left(adventurer, now) == 0 and not training.has(adventurer)
 
 
 ## What `adventurer` is doing at `now`, in words for the player.
@@ -227,7 +240,75 @@ func status(adventurer: String, now: int) -> String:
 	var injured := injury_left(adventurer, now)
 	if injured > 0:
 		return "Injured · " + Duration.label(injured)
+	if training.has(adventurer):
+		return "Training"
 	return "Resting"
+
+
+## Why `adventurer` can't start training at `now` with `places` finished Training rooms, one place
+## each, in words for the player; "" when they can.
+func training_refusal(adventurer: String, places: int, now: int) -> String:
+	if training.has(adventurer):
+		return "Already training"
+	if not quest_of(adventurer).is_empty():
+		return "Out on a quest"
+	if injury_left(adventurer, now) > 0:
+		return "Injured"
+	if training.size() >= places:
+		return NO_TRAINING_PLACE
+	return ""
+
+
+## Starts `adventurer` training at `now`; false, with nothing changed, when `training_refusal`
+## gives a reason.
+func train(adventurer: String, places: int, now: int) -> bool:
+	if not training_refusal(adventurer, places, now).is_empty():
+		return false
+	training[adventurer] = maxi(now, checked_at)
+	return true
+
+
+## The XP `adventurer`'s current stint has earned by `now`: TRAINING_XP_PER_MINUTE a whole minute,
+## at most TRAINING_MAX_XP; 0 when not training.
+func training_xp(adventurer: String, now: int) -> int:
+	if not training.has(adventurer):
+		return 0
+	var minutes := floori((maxi(now, checked_at) - training[adventurer]) / 60.0)
+	return mini(TRAINING_MAX_XP, minutes * TRAINING_XP_PER_MINUTE)
+
+
+## Ends `adventurer`'s stint at `now` and banks its XP into theirs; the XP banked. Not training
+## gives 0, with nothing changed.
+func stop_training(adventurer: String, now: int) -> int:
+	if not training.has(adventurer):
+		return 0
+	var xp := training_xp(adventurer, now)
+	trained_seconds[adventurer] = _seconds_trained(adventurer, now)
+	training.erase(adventurer)
+	adventurers.gain_xp(adventurer, xp)
+	return xp
+
+
+## The name of the stat `adventurer` grows fastest in, ties going to the first in
+## Adventurers.STATS, once they have trained TRAINING_HINT_SECONDS in all by `now`; "" before.
+## Growth numbers themselves are never shown.
+func training_hint(adventurer: String, now: int) -> String:
+	if _seconds_trained(adventurer, now) < TRAINING_HINT_SECONDS:
+		return ""
+	var growth: Dictionary = adventurers.growth[adventurer]
+	var fastest := ""
+	for stat: String in Adventurers.STATS:
+		if fastest.is_empty() or float(growth[stat]) > float(growth[fastest]):
+			fastest = stat
+	return Adventurers.STATS[fastest]
+
+
+# Seconds `adventurer` has trained in all by `now`, the current stint included.
+func _seconds_trained(adventurer: String, now: int) -> int:
+	var seconds: int = trained_seconds.get(adventurer, 0)
+	if training.has(adventurer):
+		seconds += maxi(now, checked_at) - training[adventurer]
+	return seconds
 
 
 ## Why `party` can't be sent on `quest_id` at `now`, in words for the player; "" when it can.
@@ -370,6 +451,8 @@ func write(file: ConfigFile) -> void:
 	file.set_value("dispatch", "debriefs", debriefs)
 	file.set_value("dispatch", "wounds", wounds)
 	file.set_value("dispatch", "revealed", revealed)
+	file.set_value("dispatch", "training", training)
+	file.set_value("dispatch", "trained_seconds", trained_seconds)
 	file.set_value("dispatch", "checked_at", checked_at)
 	adventurers.write(file)
 
@@ -399,5 +482,8 @@ static func load_or_start(path: String, now: int) -> Dispatch:
 	dispatch.wounds.assign(file.get_value("dispatch", "wounds", {}))
 	# A save from before challenges were known knows what every new guild knows.
 	dispatch.revealed = file.get_value("dispatch", "revealed", PackedStringArray())
+	# A save from before training has nobody training and nobody trained.
+	dispatch.training.assign(file.get_value("dispatch", "training", {}))
+	dispatch.trained_seconds.assign(file.get_value("dispatch", "trained_seconds", {}))
 	dispatch.checked_at = int(file.get_value("dispatch", "checked_at", now))
 	return dispatch

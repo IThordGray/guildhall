@@ -169,7 +169,7 @@ func show_state(hall: Hall, dispatch: Dispatch, gold: Gold, quests_on_board: int
 	_first_button.disabled = not hall.has_first_floor(now)
 	_show_summary()
 	_parties_count.text = str(dispatch.outings.size())
-	_show_tokens(dispatch, infirmary, now)
+	_show_tokens(hall, dispatch, infirmary, now)
 	_show_progress(hall, dispatch, quests_on_board, now)
 
 
@@ -275,8 +275,14 @@ func room_center(slot: String) -> Vector2:
 
 
 # Adventurers at home: an injured one rests in the first finished Infirmary, or in Reception when
-# there is none; a ready one waits in Reception.
-func _show_tokens(dispatch: Dispatch, infirmary: String, now: int) -> void:
+# there is none; one in training is in a finished Training room, one to a room in plan order; a
+# ready one waits in Reception.
+func _show_tokens(hall: Hall, dispatch: Dispatch, infirmary: String, now: int) -> void:
+	var training_rooms := PackedStringArray()
+	for slot: String in _rooms:
+		if hall.room_type(slot) == "training_room" and hall.state(slot, now) == Hall.State.CONVERTED:
+			training_rooms.append(slot)
+	var trainees := 0
 	var people: Dictionary[String, Array] = {}
 	var roster := dispatch.adventurers.roster
 	for adventurer: String in roster:
@@ -284,6 +290,9 @@ func _show_tokens(dispatch: Dispatch, infirmary: String, now: int) -> void:
 			continue
 		var injured := dispatch.injury_left(adventurer, now) > 0
 		var slot := infirmary if injured and not infirmary.is_empty() else "reception"
+		if dispatch.training.has(adventurer) and not training_rooms.is_empty():
+			slot = training_rooms[mini(trainees, training_rooms.size() - 1)]
+			trainees += 1
 		if not people.has(slot):
 			people[slot] = []
 		people[slot].append([adventurer, injured])

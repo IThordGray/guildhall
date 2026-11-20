@@ -80,6 +80,8 @@ func _ready() -> void:
 	_adventurer.level_up_pressed.connect(_on_level_up_pressed)
 	_adventurer.promote_pressed.connect(_on_promote_pressed)
 	_adventurer.wear_pressed.connect(_on_wear_pressed)
+	_adventurer.train_pressed.connect(_on_train_pressed)
+	_adventurer.stop_training_pressed.connect(_on_stop_training_pressed)
 	_adventurer.swiped.connect(_on_adventurer_swiped)
 	_level_up.continue_pressed.connect(_on_level_up_continue)
 	_tick.timeout.connect(_on_tick)
@@ -179,7 +181,7 @@ func _checkpoint(now: int) -> void:
 	_roster.show_dispatch(_dispatch, now)
 	_roster.show_recruits(_recruits, _dispatch.adventurers, _gold, _hall.beds(now), now)
 	if _adventurer.visible:
-		_adventurer.show_adventurer(_shown_adventurer, _dispatch, _gold, now)
+		_show_adventurer(now)
 	if _picker.visible and _picker.has_quest():
 		_picker.show_dispatch(_dispatch, now)
 	if _convert_panel.visible:
@@ -275,7 +277,7 @@ func _on_debrief_done() -> void:
 
 func _on_adventurer_pressed(adventurer: String) -> void:
 	_shown_adventurer = adventurer
-	_adventurer.show_adventurer(adventurer, _dispatch, _gold, _now())
+	_show_adventurer(_now())
 	_roster.hide()
 	_adventurer.show()
 
@@ -288,7 +290,7 @@ func _on_hire_pressed(slot: int) -> void:
 
 func _on_adventurer_swiped(step: int) -> void:
 	_shown_adventurer = Roster.adventurer_after(_shown_adventurer, step, _dispatch.adventurers.roster)
-	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _gold, _now())
+	_show_adventurer(_now())
 
 
 func _on_adventurer_back() -> void:
@@ -320,9 +322,26 @@ func _on_wear_pressed(adventurer: String, index: int) -> void:
 	_checkpoint(_now())
 
 
+func _on_train_pressed(adventurer: String) -> void:
+	var now := _now()
+	_dispatch.train(adventurer, _hall.rooms_done("training_room", now), now)
+	_checkpoint(now)
+
+
+func _on_stop_training_pressed(adventurer: String) -> void:
+	var now := _now()
+	_dispatch.stop_training(adventurer, now)
+	_checkpoint(now)
+
+
+# Shows the adventurer the Adventurer screen is on, as they are at `now`.
+func _show_adventurer(now: int) -> void:
+	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _gold, _hall.rooms_done("training_room", now), now)
+
+
 func _on_level_up_continue() -> void:
 	_level_up.hide()
-	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _gold, _now())
+	_show_adventurer(_now())
 	_adventurer.show()
 
 

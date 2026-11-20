@@ -182,7 +182,7 @@ func _hall_with_empty_room(slot: String, gold: Gold) -> Hall:
 
 
 func test_the_convert_choices_are_a_quest_hall_an_infirmary_a_bunk_room_and_a_tavern_each_60_gold_and_a_minute() -> void:
-	assert_eq(Hall.ROOM_TYPES.keys(), ["quest_hall", "infirmary", "bunk_room", "tavern", "map_room"])
+	assert_eq(Hall.ROOM_TYPES.keys(), ["quest_hall", "infirmary", "bunk_room", "tavern", "map_room", "training_room"])
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["name"], "Quest hall")
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["blurb"], "adds a slot to the quest board")
 	assert_eq(Hall.ROOM_TYPES["infirmary"]["name"], "Infirmary")
@@ -191,6 +191,8 @@ func test_the_convert_choices_are_a_quest_hall_an_infirmary_a_bunk_room_and_a_ta
 	assert_eq(Hall.ROOM_TYPES["bunk_room"]["blurb"], "2 more beds")
 	assert_eq(Hall.ROOM_TYPES["tavern"]["name"], "Tavern")
 	assert_eq(Hall.ROOM_TYPES["tavern"]["blurb"], "earns gold while you're away")
+	assert_eq(Hall.ROOM_TYPES["training_room"]["name"], "Training room")
+	assert_eq(Hall.ROOM_TYPES["training_room"]["blurb"], "trains one adventurer at a time")
 	for type: String in Hall.ROOM_TYPES:
 		assert_eq(Hall.ROOM_TYPES[type]["gold"], 60, type)
 		assert_eq(Hall.ROOM_TYPES[type]["seconds"], 60, type)
