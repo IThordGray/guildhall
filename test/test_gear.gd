@@ -55,6 +55,18 @@ func test_a_quarter_of_rank_f_returns_and_half_of_rank_e_ones_bring_an_item() ->
 	assert_between(brought["E"], 1_900, 2_100)
 
 
+func test_rank_d_returns_bring_an_item_more_often_than_rank_e_ones_but_not_always() -> void:
+	var brought := {"E": 0, "D": 0}
+	for roll_seed: int in 4_000:
+		for rank: String in brought:
+			var item := Gear.loot(roll_seed, rank)
+			if not item.is_empty():
+				assert_has(Gear.ITEMS, item)
+				brought[rank] += 1
+	assert_gt(brought["D"], brought["E"])
+	assert_lt(brought["D"], 4_000)
+
+
 func test_loot_is_standard_80_fine_18_and_legendary_2_percent_of_the_time_drawn_from_that_quality() -> void:
 	var by_quality := {"Standard": 0, "Fine": 0, "Legendary": 0}
 	var items_seen := {}

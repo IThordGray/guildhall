@@ -38,7 +38,7 @@ func test_over_2000_seeds_a_60_percent_chance_succeeds_60_percent_of_the_time_wi
 	assert_between(successes, 1_120, 1_280)
 
 
-func test_a_success_deals_each_member_0_to_half_the_difficulty_and_a_failure_half_to_all_of_it() -> void:
+func test_a_success_deals_each_member_0_to_half_the_most_damage_and_a_failure_half_to_all_of_it() -> void:
 	var seen := {true: {}, false: {}}
 	for roll_seed: int in 600:
 		var outcome := Outcome.roll(roll_seed, 50, 11, PARTY, Adventurers.STARTERS)

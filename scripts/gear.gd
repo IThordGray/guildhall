@@ -13,7 +13,7 @@ const SLOTS: Dictionary[String, String] = {
 ## (stand-ins).
 const QUALITY_PERCENT: Dictionary[String, int] = {"Standard": 80, "Fine": 18, "Legendary": 2}
 ## The whole-percent chance that a party back from a quest of each rank brings an item (stand-ins).
-const LOOT_PERCENT: Dictionary[String, int] = {"F": 25, "E": 50}
+const LOOT_PERCENT: Dictionary[String, int] = {"F": 25, "E": 50, "D": 75}
 ## Items the stash holds at most; loot that finds it full is lost (stand-in).
 const STASH_CAP: int = 20
 ## Every item, by the id the save and its icon use. Bonuses are stand-ins: Standard +1 to one stat

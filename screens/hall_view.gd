@@ -73,6 +73,8 @@ class Room extends Control:
 	## The [adventurer, injured] pairs shown in `tokens`, so they are rebuilt only when they change.
 	var shown: Array = []
 	var restore_row: HFlowContainer
+	## What the next restoration costs and takes.
+	var restore_cost: Label
 	var restore: Button
 	var reason: Label
 	var job: Button
@@ -150,6 +152,8 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 			look = Look.EMPTY
 		Hall.State.DAMAGED:
 			room.line.text = "Damaged"
+			var next := hall.next_restore()
+			room.restore_cost.text = "%dg · %s" % [next["gold"], Duration.label(next["seconds"])]
 			var reason := hall.refusal(slot, gold, now)
 			room.restore.disabled = not reason.is_empty()
 			room.reason.text = reason
@@ -159,7 +163,7 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 			room.line.text = "Restoring"
 			room.line.theme_type_variation = &"BuildText"
 			room.bar.theme_type_variation = &"BuildBar"
-			room.bar.max_value = Hall.RESTORE_SECONDS
+			room.bar.max_value = hall.job_seconds()
 			look = Look.RESTORING
 		Hall.State.CONVERTING:
 			room.line.text = "Converting to %s" % Hall.ROOM_TYPES[type]["name"]
@@ -222,7 +226,7 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 		var place: String = SLOT_NAMES[hall.building].to_lower()
 		if restoring:
 			entries.append({"swatch": Look.RESTORING, "title": "Restoring the " + place, "bar": &"BuildBar"})
-			waits.append(Vector2i(Hall.RESTORE_SECONDS, build_left))
+			waits.append(Vector2i(hall.job_seconds(), build_left))
 		else:
 			entries.append({"swatch": Look.CONVERTING, "title": "Converting the " + place, "bar": &"GoldBar"})
 			waits.append(Vector2i(Hall.ROOM_TYPES[hall.building_into]["seconds"], build_left))
@@ -319,9 +323,9 @@ func _add_room(slot: String) -> void:
 	room.tokens = HFlowContainer.new()
 	room.tokens.visible = false
 	room.restore_row = HFlowContainer.new()
-	var cost := _label("%dg · %s" % [Hall.RESTORE_COST_GOLD, Duration.label(Hall.RESTORE_SECONDS)], &"Meta")
-	cost.autowrap_mode = TextServer.AUTOWRAP_OFF
-	room.restore_row.add_child(cost)
+	room.restore_cost = _label("", &"Meta")
+	room.restore_cost.autowrap_mode = TextServer.AUTOWRAP_OFF
+	room.restore_row.add_child(room.restore_cost)
 	room.restore = Button.new()
 	room.restore.text = "Restore"
 	room.restore.theme_type_variation = &"RestoreButton"

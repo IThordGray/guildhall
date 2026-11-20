@@ -3,8 +3,14 @@ extends RefCounted
 
 enum State { USABLE, DAMAGED, RESTORING, RESTORED, CONVERTING, CONVERTED }
 
-const RESTORE_COST_GOLD: int = 120
-const RESTORE_SECONDS: int = 120
+## What restoring a room costs and takes, by the order rooms are restored in: the first room the
+## first entry, and so on; any after the last, the last (stand-ins). Cheap and quick first.
+const RESTORES: Array[Dictionary] = [
+	{"gold": 60, "seconds": 30},
+	{"gold": 120, "seconds": 120},
+	{"gold": 200, "seconds": 300},
+	{"gold": 300, "seconds": 600},
+]
 ## Rooms usable from the start; every other slot starts damaged.
 const STARTING_USABLE: Array[String] = ["entrance", "reception"]
 ## What an empty restored room can be converted into, in panel order. The save and the art refer
@@ -103,15 +109,37 @@ func seconds_left(now: int) -> int:
 func refusal(slot: String, gold: Gold, now: int) -> String:
 	if state(slot, now) != State.DAMAGED:
 		return "Not damaged"
-	return _builder_refusal(RESTORE_COST_GOLD, gold, now)
+	return _builder_refusal(next_restore()["gold"], gold, now)
 
 
 ## Pays and starts restoring `slot` at `now`; false, with nothing paid, when `refusal` gives a reason.
 func restore(slot: String, gold: Gold, now: int) -> bool:
 	if not refusal(slot, gold, now).is_empty():
 		return false
-	_start(slot, "", RESTORE_COST_GOLD, gold, now)
+	_start(slot, "", next_restore()["gold"], gold, now)
 	return true
+
+
+## What the next restoration costs and takes, {"gold", "seconds"} from RESTORES: the rooms
+## restored and one under way come before it.
+func next_restore() -> Dictionary:
+	var before := restored.size()
+	if not building.is_empty() and building_into.is_empty():
+		before += 1
+	return _restore_after(before)
+
+
+## How many seconds the builder's current job takes in all.
+func job_seconds() -> int:
+	if building_into.is_empty():
+		# The room under way is not yet among those restored.
+		return _restore_after(restored.size())["seconds"]
+	return ROOM_TYPES[building_into]["seconds"]
+
+
+# What restoring a room costs and takes once `before` rooms are restored.
+static func _restore_after(before: int) -> Dictionary:
+	return RESTORES[mini(before, RESTORES.size() - 1)]
 
 
 ## Why `slot` can't be converted into `type` at `now`, in words for the player; "" when it can.
@@ -166,8 +194,7 @@ func _start(slot: String, into: String, cost: int, gold: Gold, now: int) -> void
 
 
 func _done_at() -> int:
-	var seconds: int = RESTORE_SECONDS if building_into.is_empty() else ROOM_TYPES[building_into]["seconds"]
-	return building_since + seconds
+	return building_since + job_seconds()
 
 
 ## Puts the hall into `file`, which other state shares, so one save holds the whole game.

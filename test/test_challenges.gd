@@ -4,7 +4,7 @@ const EVERYONE: PackedStringArray = ["bram", "ilse", "tobin", "maren"]
 const ALL_CHALLENGES: Array[String] = ["Brute force", "Curse", "Traps", "Navigation", "Attrition", "Protect"]
 
 
-func test_each_quest_has_its_rank_and_the_challenges_that_make_it_hard() -> void:
+func test_the_quests_old_saves_name_keep_their_rank_and_challenges() -> void:
 	var expected := {
 		"rats": ["F", ["Brute force"]],
 		"moonherbs": ["F", ["Navigation", "Attrition"]],
@@ -13,9 +13,25 @@ func test_each_quest_has_its_rank_and_the_challenges_that_make_it_hard() -> void
 		"wolves": ["E", ["Brute force", "Attrition"]],
 		"crypt": ["E", ["Curse", "Traps", "Attrition"]],
 	}
-	assert_eq(Dispatch.QUESTS.keys(), expected.keys())
 	for quest: String in expected:
 		assert_eq([Dispatch.QUESTS[quest]["rank"], Dispatch.QUESTS[quest]["challenges"]], expected[quest], quest)
+
+
+func test_every_quest_has_one_to_three_challenges_and_every_challenge_appears_at_ranks_f_e_and_d() -> void:
+	var seen := {"F": {}, "E": {}, "D": {}}
+	for quest: String in Dispatch.QUESTS:
+		var challenges: Array = Dispatch.QUESTS[quest]["challenges"]
+		assert_between(challenges.size(), 1, 3, quest)
+		for challenge: String in challenges:
+			assert_has(ALL_CHALLENGES, challenge, quest)
+			seen[Dispatch.QUESTS[quest]["rank"]][challenge] = true
+	for rank: String in seen:
+		var at_rank: Array[String] = []
+		at_rank.assign(seen[rank].keys())
+		at_rank.sort()
+		var all := ALL_CHALLENGES.duplicate()
+		all.sort()
+		assert_eq(at_rank, all, rank)
 
 
 func test_ranks_run_from_f_to_s_and_an_adventurer_can_join_a_quest_at_most_one_rank_above_their_own() -> void:

@@ -1,7 +1,7 @@
 class_name Outcome
 extends RefCounted
 
-## How a quest ends. It depends only on the seed, chance, difficulty and party it is rolled from,
+## How a quest ends. It depends only on the seed, chance, most damage and party it is rolled from,
 ## so a quest's end is fixed the moment it is sent and rolling it again gives the same answer.
 
 ## No chance is surer than this nor more hopeless than MIN_CHANCE, in whole percent.
@@ -12,10 +12,13 @@ const UNCOVERED_POINTS: int = 15
 ## How far each end of the chance range the player sees is widened, because the difficulty is
 ## hidden.
 const HIDDEN_DIFFICULTY_POINTS: int = 10
+## The most damage a failed quest of each rank deals a member (stand-ins): enough that a failed E
+## quest can injure from full health, while a successful F quest never does.
+const MOST_DAMAGE: Dictionary[String, int] = {"F": 16, "E": 30, "D": 48}
 
 var success: bool = true
-## The damage the quest deals each member: 0 to difficulty ÷ 2 on success, difficulty ÷ 2 to
-## difficulty on failure (stand-ins); half that, rounded down, when a Healer is in the party.
+## The damage the quest deals each member: 0 to most ÷ 2 on success, most ÷ 2 to most on failure,
+## most being the quest's MOST_DAMAGE; half that, rounded down, when a Healer is in the party.
 var damage: Dictionary = {}
 
 
@@ -38,18 +41,18 @@ static func chance_range(party_power: int, difficulty: int, uncovered: int, unkn
 
 
 ## The outcome `roll_seed` gives `party`, whose classes are as `roster` (Adventurers.roster) has
-## them, with `chance` percent of success on a quest of `difficulty`. Uses its own generator, never
-## the global one, so nothing else that draws random numbers can change it.
-static func roll(roll_seed: int, chance: int, difficulty: int, party: PackedStringArray, roster: Dictionary) -> Outcome:
+## them, with `chance` percent of success on a quest that deals at most `most_damage`. Uses its own
+## generator, never the global one, so nothing else that draws random numbers can change it.
+static func roll(roll_seed: int, chance: int, most_damage: int, party: PackedStringArray, roster: Dictionary) -> Outcome:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = roll_seed
 	var outcome := Outcome.new()
 	outcome.success = rng.randi_range(1, 100) <= chance
-	var half := floori(difficulty / 2.0)
+	var half := floori(most_damage / 2.0)
 	var healed := false
 	for adventurer: String in party:
 		healed = healed or Dispatch.is_healer(roster[adventurer])
 	for adventurer: String in party:
-		var dealt := rng.randi_range(0, half) if outcome.success else rng.randi_range(half, difficulty)
+		var dealt := rng.randi_range(0, half) if outcome.success else rng.randi_range(half, most_damage)
 		outcome.damage[adventurer] = floori(dealt / 2.0) if healed else dealt
 	return outcome

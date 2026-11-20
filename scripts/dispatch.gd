@@ -2,14 +2,28 @@ class_name Dispatch
 extends RefCounted
 
 ## Every quest the board can offer: see Board. The save refers to a quest by its id. A
-## quest's challenges say why it is hard (see Challenges); its difficulty is never shown.
+## quest's challenges say why it is hard (see Challenges); its difficulty is never shown. Durations,
+## gold and difficulties are stand-ins, tuned so the four starters have good odds on every rank F
+## quest, fair odds together on rank E and little hope on rank D.
 const QUESTS: Dictionary[String, Dictionary] = {
 	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 60, "gold": 50, "difficulty": 3, "challenges": ["Brute force"]},
-	"moonherbs": {"name": "Gather moonherbs", "rank": "F", "seconds": 180, "gold": 150, "difficulty": 7, "challenges": ["Navigation", "Attrition"]},
-	"goblins": {"name": "Goblin camp", "rank": "E", "seconds": 600, "gold": 500, "difficulty": 12, "challenges": ["Brute force", "Traps", "Navigation"]},
-	"letters": {"name": "Carry letters to the abbey", "rank": "F", "seconds": 120, "gold": 100, "difficulty": 5, "challenges": ["Navigation", "Protect"]},
+	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 90, "gold": 70, "difficulty": 4, "challenges": ["Curse"]},
+	"letters": {"name": "Carry letters to the abbey", "rank": "F", "seconds": 120, "gold": 100, "difficulty": 4, "challenges": ["Navigation", "Protect"]},
+	"spiders": {"name": "Spiders in the gatehouse", "rank": "F", "seconds": 120, "gold": 100, "difficulty": 5, "challenges": ["Brute force", "Attrition"]},
+	"cartographer": {"name": "Escort the cartographer to the first gate", "rank": "F", "seconds": 150, "gold": 120, "difficulty": 4, "challenges": ["Protect", "Traps"]},
+	"mouth": {"name": "Chart the labyrinth's mouth", "rank": "F", "seconds": 150, "gold": 120, "difficulty": 5, "challenges": ["Traps", "Navigation"]},
+	"moonherbs": {"name": "Gather moonherbs", "rank": "F", "seconds": 180, "gold": 150, "difficulty": 4, "challenges": ["Navigation", "Attrition"]},
 	"wolves": {"name": "Wolves at the mill", "rank": "E", "seconds": 300, "gold": 250, "difficulty": 9, "challenges": ["Brute force", "Attrition"]},
+	"sealed_door": {"name": "Break the curse on the sealed door", "rank": "E", "seconds": 360, "gold": 300, "difficulty": 10, "challenges": ["Curse", "Navigation"]},
+	"lurker": {"name": "Hunt the cave lurker", "rank": "E", "seconds": 420, "gold": 350, "difficulty": 9, "challenges": ["Brute force", "Curse"]},
 	"crypt": {"name": "Clear the old crypt", "rank": "E", "seconds": 480, "gold": 400, "difficulty": 11, "challenges": ["Curse", "Traps", "Attrition"]},
+	"pilgrims": {"name": "Guard pilgrims through the low halls", "rank": "E", "seconds": 540, "gold": 450, "difficulty": 10, "challenges": ["Protect", "Attrition"]},
+	"goblins": {"name": "Goblin camp", "rank": "E", "seconds": 600, "gold": 500, "difficulty": 11, "challenges": ["Brute force", "Traps", "Navigation"]},
+	"maze": {"name": "Map the shifting maze", "rank": "D", "seconds": 900, "gold": 700, "difficulty": 14, "challenges": ["Navigation", "Traps"]},
+	"chapel": {"name": "Unbind the drowned chapel", "rank": "D", "seconds": 1_080, "gold": 800, "difficulty": 15, "challenges": ["Curse", "Attrition"]},
+	"minotaur": {"name": "Slay the minotaur of the third ring", "rank": "D", "seconds": 1_200, "gold": 900, "difficulty": 15, "challenges": ["Brute force", "Attrition"]},
+	"envoy": {"name": "Escort the envoy to the deep market", "rank": "D", "seconds": 1_500, "gold": 1_000, "difficulty": 14, "challenges": ["Protect", "Traps", "Navigation"]},
+	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 1_800, "gold": 1_200, "difficulty": 16, "challenges": ["Curse", "Traps", "Protect"]},
 }
 const MAX_PARTY_SIZE: int = 4
 ## How long an injury lasts, counted from the moment the party returns.
@@ -292,7 +306,7 @@ func _bring_home(outing: Dictionary, gold: Gold) -> void:
 		# sent before chances were kept rolls with the power it has now, which is the power it had
 		# then: nobody could level up before.
 		var chance: int = outing.get("chance", success_chance(outing["quest"], party))
-		var outcome := Outcome.roll(outing["seed"], chance, quest["difficulty"], party, adventurers.roster)
+		var outcome := Outcome.roll(outing["seed"], chance, Outcome.MOST_DAMAGE[quest["rank"]], party, adventurers.roster)
 		success = outcome.success
 		if not success:
 			reward = failure_gold(outing["quest"])
