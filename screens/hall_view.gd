@@ -457,7 +457,6 @@ func _add_landing() -> void:
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, ROOM_PADDING_PX)
 	_boxes.append(box)
 	box.add_child(_label("Landing", &"RoomName"))
-	box.add_child(_label("Stairs down to the Entrance hall", &"Secondary"))
 	landing.add_child(box)
 	_lay(landing, LANDING, _upstairs)
 
