@@ -7,11 +7,12 @@ extends RefCounted
 ## The stats every adventurer has, in the order they are shown, with their names for the player.
 const STATS: Dictionary[String, String] = {"might": "Might", "agility": "Agility", "mind": "Mind", "grit": "Grit"}
 ## The adventurers a new game starts with, in roster order: who each one is, as `roster` keeps it.
+## Their faces come from their ids (Faces.seed_of).
 const STARTERS: Dictionary[String, Dictionary] = {
-	"bram": {"name": "Bram", "class": "Swordsman", "rank": "F", "face": "bram"},
-	"ilse": {"name": "Ilse", "class": "Mage", "rank": "F", "face": "ilse"},
-	"tobin": {"name": "Tobin", "class": "Scout", "rank": "F", "face": "tobin"},
-	"maren": {"name": "Maren", "class": "Healer", "rank": "F", "face": "maren"},
+	"bram": {"name": "Bram", "class": "Swordsman", "rank": "F"},
+	"ilse": {"name": "Ilse", "class": "Mage", "rank": "F"},
+	"tobin": {"name": "Tobin", "class": "Scout", "rank": "F"},
+	"maren": {"name": "Maren", "class": "Healer", "rank": "F"},
 }
 ## The starters' stats on joining the guild.
 const STARTING_STATS: Dictionary[String, Dictionary] = {
@@ -41,8 +42,8 @@ const HEALTH_PER_LEVEL: int = 3
 ## gold it costs (stand-ins). No promotion reaches a rank missing here.
 const PROMOTIONS: Dictionary[String, Dictionary] = {"E": {"level": 3, "gold": 150}, "D": {"level": 6, "gold": 400}}
 
-## Who is in the guild, in roster order: each one's {"name", "class", "rank", "face"}, the face
-## being the name of their art in assets/faces. The save refers to an adventurer by their id here.
+## Who is in the guild, in roster order: each one's {"name", "class", "rank"} and, for a recruit,
+## "face_seed", their face's (Faces.seed_of). The save refers to an adventurer by their id here.
 var roster: Dictionary[String, Dictionary] = {}
 ## Each adventurer's growth per stat, never shown to the player: a level-up gives a stat up to two
 ## points, each with this chance.
@@ -67,7 +68,7 @@ func _init() -> void:
 	gear = Gear.new()
 
 
-## Brings `adventurer` into the guild as `who` ({"name", "class", "rank", "face"}), with
+## Brings `adventurer` into the guild as `who` (as `roster` keeps them), with
 ## `starting_stats` and `grows` as their growth per stat, at `level` with no XP and nothing worn.
 func add(adventurer: String, who: Dictionary, starting_stats: Dictionary, grows: Dictionary, level: int = 1) -> void:
 	roster[adventurer] = who.duplicate()

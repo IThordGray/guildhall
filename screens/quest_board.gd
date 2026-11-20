@@ -8,6 +8,11 @@ signal debrief_pressed(index: int)
 
 ## The length of each dash in an unknown challenge's chip border.
 const DASH_LENGTH: float = 12.0
+## How many times larger than its pixels a face shows: a whole number, so the pixels stay crisp.
+const FACE_SCALE: int = 3
+
+## Each face shown so far, by its seed, as `face` makes it.
+static var _faces: Dictionary[int, Texture2D] = {}
 
 var _rows: Dictionary[String, Control] = {}
 ## Each quest's challenge chips, and how many of them were unknown when last shown, so they change
@@ -110,36 +115,45 @@ func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 
 
 ## A round token: the face of `who` when they are in `roster` (Adventurers.roster), else `who` as
-## text, such as a count. An adventurer whose face has no art shows their initial instead.
+## text, such as a count.
 static func token(who: String, roster: Dictionary) -> Label:
-	var text := who
-	var art: Texture2D = null
 	if who in roster:
-		art = face(roster[who])
-		text = "" if art else String(roster[who]["name"]).left(1)
+		return face_token(Faces.seed_of(who, roster[who]))
+	return _token(who)
+
+
+## A round token showing the face made from `face_seed`, such as a candidate's before they are hired.
+static func face_token(face_seed: int) -> Label:
+	var label := _token("")
+	# The face at FACE_SCALE, a whole number, so its pixels stay crisp, centred in the circle.
+	var picture := TextureRect.new()
+	picture.texture = face(face_seed)
+	picture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	picture.position = Vector2(10, 13)
+	label.add_child(picture)
+	return label
+
+
+# A round token with `text` in it.
+static func _token(text: String) -> Label:
 	var label := _label(text, &"Token")
 	label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	label.custom_minimum_size = Vector2(80, 80)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	if art:
-		# The 20 × 18 face at a whole 3×, so its pixels stay crisp, centred in the circle.
-		var picture := TextureRect.new()
-		picture.texture = art
-		picture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		picture.position = Vector2(10, 13)
-		picture.size = Vector2(60, 54)
-		label.add_child(picture)
 	return label
 
 
-## The art for the face of `who`, as Adventurers.roster has them; null when there is none.
-static func face(who: Dictionary) -> Texture2D:
-	var path := "res://assets/faces/%s.png" % who["face"]
-	return load(path) if ResourceLoader.exists(path) else null
+## The face made from `face_seed`, FACE_SCALE times its pixels. Each face is made once and kept, so
+## no more are kept than the guild has had adventurers and candidates.
+static func face(face_seed: int) -> Texture2D:
+	if face_seed not in _faces:
+		var image := Faces.image(face_seed)
+		image.resize(image.get_width() * FACE_SCALE, image.get_height() * FACE_SCALE, Image.INTERPOLATE_NEAREST)
+		_faces[face_seed] = ImageTexture.create_from_image(image)
+	return _faces[face_seed]
 
 
 ## A challenge chip in `variation`: Chip, ChipCovered, ChipUncovered or ChipUnknown, the last with

@@ -10,11 +10,6 @@ signal back_pressed
 const TICK_SIZE_PX: float = 40.0
 const TICK_GOLD: Color = Color("#f2c14e")
 const TICK_MARK: Color = Color("#16131b")
-## How many times larger than its pixels a face shows on a landscape card, a whole number so the
-## pixels stay crisp.
-const FACE_SCALE: int = 3
-## A face's art in pixels, so a card without one makes the same room for its stand-in.
-const FACE_SIZE_PX: Vector2i = Vector2i(20, 18)
 ## The most landscape cards in a row; more wrap to the next.
 const CARDS_ACROSS: int = 4
 ## A portrait adventurer line's height.
@@ -32,8 +27,6 @@ var _toggles: Dictionary[String, Button] = {}
 ## Each adventurer's face for their landscape card, and the tick shown on it when picked.
 var _faces: Dictionary[String, Texture2D] = {}
 var _ticks: Dictionary[String, Control] = {}
-## The token standing in on the landscape card of each adventurer whose face has no art.
-var _stand_ins: Dictionary[String, Label] = {}
 ## The dispatch and time last shown, so picking someone can update the odds at once.
 var _dispatch: Dispatch
 var _now: int = 0
@@ -105,10 +98,6 @@ func _lay_out_toggles() -> void:
 		# A top icon makes room for itself even without one, so portrait keeps the defaults.
 		toggle.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER if _docked else HORIZONTAL_ALIGNMENT_LEFT
 		toggle.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP if _docked else VERTICAL_ALIGNMENT_CENTER
-		if adventurer in _stand_ins:
-			# Over the blank icon, which the card draws at its top margin.
-			_stand_ins[adventurer].visible = _docked
-			_stand_ins[adventurer].position.y = toggle.get_theme_stylebox(&"normal").get_margin(SIDE_TOP)
 
 
 # One toggle per adventurer in `roster`, with their face for the landscape card; those picked
@@ -121,7 +110,6 @@ func _build(roster: Dictionary[String, Dictionary]) -> void:
 	_toggles.clear()
 	_faces.clear()
 	_ticks.clear()
-	_stand_ins.clear()
 	for adventurer: String in roster:
 		var toggle := Button.new()
 		toggle.toggle_mode = true
@@ -131,24 +119,7 @@ func _build(roster: Dictionary[String, Dictionary]) -> void:
 		toggle.toggled.connect(_on_toggled.bind(adventurer))
 		_toggles[adventurer] = toggle
 		_list.add_child(toggle)
-		var art := QuestBoard.face(roster[adventurer])
-		if art:
-			var face := art.get_image()
-			face.resize(face.get_width() * FACE_SCALE, face.get_height() * FACE_SCALE, Image.INTERPOLATE_NEAREST)
-			_faces[adventurer] = ImageTexture.create_from_image(face)
-		else:
-			# No art: their token, with their initial, over a blank icon as large as a face, so the
-			# card's text lines up with the others'; the token shrinks to the face's height to fit.
-			var room := Vector2(FACE_SIZE_PX * FACE_SCALE)
-			var stand_in := QuestBoard.token(adventurer, roster)
-			stand_in.custom_minimum_size = Vector2.ONE * room.y
-			stand_in.anchor_left = 0.5
-			stand_in.anchor_right = 0.5
-			stand_in.offset_left = -room.y / 2.0
-			stand_in.offset_right = room.y / 2.0
-			toggle.add_child(stand_in)
-			_stand_ins[adventurer] = stand_in
-			_faces[adventurer] = ImageTexture.create_from_image(Image.create_empty(int(room.x), int(room.y), false, Image.FORMAT_RGBA8))
+		_faces[adventurer] = QuestBoard.face(Faces.seed_of(adventurer, roster[adventurer]))
 		var tick := Control.new()
 		tick.visible = false
 		tick.mouse_filter = Control.MOUSE_FILTER_IGNORE

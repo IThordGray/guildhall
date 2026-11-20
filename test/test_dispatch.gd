@@ -177,8 +177,8 @@ func test_the_roster_has_four_rank_f_adventurers_all_resting_in_a_new_game() -> 
 	for adventurer: String in expected:
 		var info: Dictionary = roster[adventurer]
 		assert_eq([info["name"], info["class"], info["rank"], Dispatch.new(1_000).adventurers.power(adventurer)], expected[adventurer])
-		# Each starter's face is their own art.
-		assert_eq(info["face"], adventurer)
+		# Each starter's face is their own, from their id.
+		assert_eq(Faces.seed_of(adventurer, info), hash(adventurer))
 	assert_eq(_statuses(Dispatch.new(1_000), 1_000), ["Resting", "Resting", "Resting", "Resting"])
 
 

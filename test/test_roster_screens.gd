@@ -7,7 +7,7 @@ func before_each() -> void:
 	_dispatch = Dispatch.new(1_000)
 
 
-# Wren has no art for their face.
+# Wren joins after the starters.
 func _add_wren() -> void:
 	_dispatch.adventurers.add("wren", {"name": "Wren", "class": "Shield bearer", "rank": "F", "face": "wren"}, {"might": 4, "agility": 2, "mind": 1, "grit": 8}, {"might": 0.5, "agility": 0.5, "mind": 0.5, "grit": 0.5})
 
@@ -26,7 +26,7 @@ func _texts(node: Node) -> Array[String]:
 	return texts
 
 
-func test_after_an_adventurer_joins_the_roster_shows_five_rows_the_newcomer_last_with_their_initial() -> void:
+func test_after_an_adventurer_joins_the_roster_shows_five_rows_the_newcomer_last_with_their_face() -> void:
 	var roster := _screen("res://screens/roster.tscn") as Roster
 	var list := roster.get_node("Scroll/Box/List")
 	roster.show_dispatch(_dispatch, 1_000)
@@ -39,7 +39,7 @@ func test_after_an_adventurer_joins_the_roster_shows_five_rows_the_newcomer_last
 	roster.show_dispatch(_dispatch, 1_002)
 	assert_eq(list.get_child_count(), 5)
 	assert_has(_texts(list.get_child(4)), "Wren")
-	assert_has(_texts(list.get_child(4)), "W")
+	assert_eq(list.get_child(4).find_children("*", "TextureRect", true, false).size(), 1)
 	assert_has(_texts(list.get_child(0)), "Bram")
 	assert_does_not_have(_texts(list.get_child(0)), "B")
 	await wait_process_frames(1)
@@ -82,12 +82,12 @@ func test_the_party_picker_keeps_its_toggles_while_nobody_joins_or_leaves() -> v
 	await wait_process_frames(1)
 
 
-func test_a_face_less_adventurer_shows_their_initial_in_a_token_and_on_the_landscape_picker_card() -> void:
+func test_a_newcomer_shows_their_face_not_their_initial_in_a_token_and_on_the_landscape_picker_card() -> void:
 	_add_wren()
 	var roster := _dispatch.adventurers.roster
 	var token := autofree(QuestBoard.token("wren", roster)) as Label
-	assert_eq(token.text, "W")
-	assert_eq(token.get_child_count(), 0)
+	assert_eq(token.text, "")
+	assert_true(token.get_child(0) is TextureRect)
 	var starter := autofree(QuestBoard.token("bram", roster)) as Label
 	assert_eq(starter.text, "")
 	assert_true(starter.get_child(0) is TextureRect)
@@ -97,13 +97,10 @@ func test_a_face_less_adventurer_shows_their_initial_in_a_token_and_on_the_lands
 	picker.open("rats", _dispatch, 1_000)
 	var cards := picker.get_node("Root/Scroll/Box/List")
 	var card := cards.get_child(4) as Button
-	assert_not_null(card.icon)
-	assert_has(_texts(card), "W")
-	var stand_in := card.find_children("*", "Label", true, false)[0] as Label
-	assert_true(stand_in.visible)
+	assert_eq(card.icon.get_size(), Vector2(60, 54))
+	assert_eq(_texts(card), [] as Array[String])
 	# A starter's card shows their face, with no initial over it.
 	assert_eq(_texts(cards.get_child(0)), [] as Array[String])
 	await wait_process_frames(1)
 	picker.set_landscape(false)
 	assert_null(card.icon)
-	assert_false(stand_in.visible)

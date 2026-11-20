@@ -493,19 +493,78 @@ func test_a_rank_e_candidate_arrives_at_level_3_with_each_stat_at_least_the_same
 	assert_eq(Recruits.candidate_for(1, START + 5, PackedStringArray(), START), first)
 
 
-func test_a_rank_f_candidate_is_drawn_exactly_as_before_with_or_without_a_common_room() -> void:
-	assert_eq(Recruits.candidate_for(0, 1_000_000, PackedStringArray()), {
-		"who": {"name": "Corwin", "class": "Healer", "rank": "F", "face": ""},
+func test_a_rank_f_candidate_is_drawn_exactly_as_before_with_or_without_a_common_room_but_now_with_a_face() -> void:
+	var corwin := Recruits.candidate_for(0, 1_000_000, PackedStringArray())
+	var linnea := Recruits.candidate_for(3, 1_000_500, PackedStringArray(), 1_000_000)
+	assert_ne(corwin["who"]["face_seed"], linnea["who"]["face_seed"])
+	corwin["who"].erase("face_seed")
+	linnea["who"].erase("face_seed")
+	assert_eq(corwin, {
+		"who": {"name": "Corwin", "class": "Healer", "rank": "F"},
 		"stats": {"might": 2, "agility": 3, "mind": 6, "grit": 5},
 		"growth": {"might": 0.2, "agility": 0.3, "mind": 0.55, "grit": 0.5},
 		"shown": PackedStringArray(["grit", "mind"]),
 	})
-	assert_eq(Recruits.candidate_for(3, 1_000_500, PackedStringArray(), 1_000_000), {
-		"who": {"name": "Linnea", "class": "Shield bearer", "rank": "F", "face": ""},
+	assert_eq(linnea, {
+		"who": {"name": "Linnea", "class": "Shield bearer", "rank": "F"},
 		"stats": {"might": 3, "agility": 2, "mind": 1, "grit": 8},
 		"growth": {"might": 0.45, "agility": 0.2, "mind": 0.15, "grit": 0.6},
 		"shown": PackedStringArray(["mind", "might"]),
 	})
+
+
+func test_a_candidates_face_seed_is_the_face_they_have_once_hired_and_after_save_and_load() -> void:
+	var adventurers := Adventurers.new()
+	var recruits := _recruits(adventurers)
+	var face_seed: int = recruits.candidates[1]["who"]["face_seed"]
+	assert_ne(face_seed, recruits.candidates[0]["who"]["face_seed"])
+	_hire(recruits, 1, adventurers, START + 10)
+	var id: String = adventurers.roster.keys()[4]
+	assert_eq(Faces.seed_of(id, adventurers.roster[id]), face_seed)
+	assert_ne(face_seed, hash(id))
+	var waiting: int = recruits.candidates[0]["who"]["face_seed"]
+	var file := ConfigFile.new()
+	recruits.write(file)
+	adventurers.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded_guild := Adventurers.load_or_start(SAVE_PATH)
+	var loaded := Recruits.load_or_start(SAVE_PATH)
+	assert_eq(Faces.seed_of(id, loaded_guild.roster[id]), face_seed)
+	assert_eq(loaded.candidates[0]["who"]["face_seed"], waiting)
+	_hire(loaded, 0, loaded_guild, START + 20)
+	var later: String = loaded_guild.roster.keys()[5]
+	assert_eq(Faces.seed_of(later, loaded_guild.roster[later]), waiting)
+
+
+func test_a_save_from_before_faces_loads_with_faces_from_each_adventurers_id_and_keeps_a_candidates_face_on_hire() -> void:
+	var adventurers := Adventurers.new()
+	var recruits := _recruits(adventurers)
+	_hire(recruits, 1, adventurers, START + 10)
+	var id: String = adventurers.roster.keys()[4]
+	# The previous build kept each face as the name of its art and drew no face seeds.
+	for who: Dictionary in adventurers.roster.values():
+		who.erase("face_seed")
+	adventurers.roster["bram"]["face"] = "bram"
+	recruits.candidates[0]["who"].erase("face_seed")
+	recruits.candidates[0]["who"]["face"] = ""
+	var file := ConfigFile.new()
+	recruits.write(file)
+	adventurers.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded_guild := Adventurers.load_or_start(SAVE_PATH)
+	var loaded := Recruits.load_or_start(SAVE_PATH)
+	assert_eq(loaded_guild.roster.keys(), adventurers.roster.keys())
+	for adventurer: String in ["bram", "maren", id]:
+		assert_eq(Faces.seed_of(adventurer, loaded_guild.roster[adventurer]), hash(adventurer))
+	var waiting: int = loaded.candidates[0]["who"]["face_seed"]
+	# The waiting candidate has the face they would arrive with now, however often the save loads.
+	assert_eq(waiting, Recruits.candidate_for(0, START, PackedStringArray())["who"]["face_seed"])
+	assert_eq(Recruits.load_or_start(SAVE_PATH).candidates[0]["who"]["face_seed"], waiting)
+	_hire(loaded, 0, loaded_guild, START + 20)
+	var later: String = loaded_guild.roster.keys()[5]
+	assert_eq(Faces.seed_of(later, loaded_guild.roster[later]), waiting)
 
 
 func test_hiring_a_rank_e_candidate_brings_them_in_at_level_3_with_0_xp_and_their_stats() -> void:

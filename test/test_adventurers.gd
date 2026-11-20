@@ -268,8 +268,8 @@ func test_a_save_from_before_the_roster_was_saved_loads_the_four_starters_as_the
 
 	var loaded := Adventurers.load_or_start(SAVE_PATH)
 	assert_eq(loaded.roster.keys(), EVERYONE)
-	assert_eq(loaded.roster["maren"], {"name": "Maren", "class": "Healer", "rank": "F", "face": "maren"})
-	assert_eq(loaded.roster["tobin"], {"name": "Tobin", "class": "Scout", "rank": "F", "face": "tobin"})
+	assert_eq(loaded.roster["maren"], {"name": "Maren", "class": "Healer", "rank": "F"})
+	assert_eq(loaded.roster["tobin"], {"name": "Tobin", "class": "Scout", "rank": "F"})
 	assert_eq(loaded.levels["tobin"], 2)
 	assert_eq(loaded.stats, adventurers.stats)
 	assert_eq(loaded.gear.worn, Gear.STARTER_GEAR)

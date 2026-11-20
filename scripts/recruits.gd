@@ -42,7 +42,8 @@ const LATE_BLOOMER_CHANCE: float = 0.1
 const LATE_BLOOMER_STAT_LOSS: int = 2
 const LATE_BLOOMER_GROWTH: float = 0.95
 
-## Each slot's candidate, {} while it refills: {"who": as Adventurers.roster keeps it, "stats" and
+## Each slot's candidate, {} while it refills: {"who": as Adventurers.roster keeps it, face_seed
+## included, "stats" and
 ## "growth": as Adventurers.add takes them, "shown": the stats shown before hiring}, and for a
 ## rank-E one "level": the level they arrive and are hired at.
 var candidates: Array[Dictionary] = []
@@ -153,7 +154,7 @@ static func candidate_for(slot: int, arrived_at: int, taken: PackedStringArray, 
 	if better_from >= 0 and arrived_at >= better_from and rng.randf() < RANK_E_CHANCE:
 		rank = "E"
 	var candidate := {
-		"who": {"name": name, "class": type, "rank": rank, "face": ""},
+		"who": {"name": name, "class": type, "rank": rank},
 		"stats": stats,
 		"growth": growth,
 		"shown": order.slice(0, STATS_SHOWN),
@@ -166,7 +167,15 @@ static func candidate_for(slot: int, arrived_at: int, taken: PackedStringArray, 
 			for stat: String in gains:
 				stats[stat] += gains[stat]
 		candidate["level"] = level
+	candidate["who"]["face_seed"] = _face_seed(slot, arrived_at)
 	return candidate
+
+
+# The seed of the face of whoever arrives in `slot` at `arrived_at`. Not drawn from the candidate's
+# generator: how much that draws depends on their rank, and a face never does, nor does it change
+# anything else about them.
+static func _face_seed(slot: int, arrived_at: int) -> int:
+	return hash([slot, arrived_at, "face"])
 
 
 ## `candidate`'s stats for the player, those not shown as "?", such as "Might 5 · Agility ? · Mind 3
@@ -196,6 +205,10 @@ static func load_or_start(path: String) -> Recruits:
 	recruits.candidates.assign(file.get_value("recruits", "candidates"))
 	recruits.refill_at = file.get_value("recruits", "refill_at")
 	recruits.checked_at = file.get_value("recruits", "checked_at")
+	# A candidate saved before faces were made gets the one they would arrive with now.
+	for slot: int in recruits.candidates.size():
+		if not recruits.candidates[slot].is_empty() and not recruits.candidates[slot]["who"].has("face_seed"):
+			recruits.candidates[slot]["who"]["face_seed"] = _face_seed(slot, recruits.refill_at[slot])
 	return recruits
 
 

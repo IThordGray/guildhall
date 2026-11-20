@@ -152,7 +152,7 @@ func _build_candidates(candidates: Array[Dictionary]) -> void:
 		_hires[slot] = hire
 		var line := HBoxContainer.new()
 		line.add_theme_constant_override("separation", 32)
-		line.add_child(QuestBoard.token(String(who["name"]).left(1), {}))
+		line.add_child(QuestBoard.face_token(who["face_seed"]))
 		line.add_child(words)
 		line.add_child(hire)
 		# The stats and the reason a hire is refused take the row's full width, beside nothing.
