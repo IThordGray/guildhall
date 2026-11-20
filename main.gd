@@ -72,6 +72,7 @@ func _ready() -> void:
 	_roster.hire_pressed.connect(_on_hire_pressed)
 	_adventurer.back_pressed.connect(_on_adventurer_back)
 	_adventurer.level_up_pressed.connect(_on_level_up_pressed)
+	_adventurer.promote_pressed.connect(_on_promote_pressed)
 	_adventurer.wear_pressed.connect(_on_wear_pressed)
 	_adventurer.swiped.connect(_on_adventurer_swiped)
 	_level_up.continue_pressed.connect(_on_level_up_continue)
@@ -172,7 +173,7 @@ func _checkpoint(now: int) -> void:
 	_roster.show_dispatch(_dispatch, now)
 	_roster.show_recruits(_recruits, _dispatch.adventurers, _gold, _hall.beds(now), now)
 	if _adventurer.visible:
-		_adventurer.show_adventurer(_shown_adventurer, _dispatch, now)
+		_adventurer.show_adventurer(_shown_adventurer, _dispatch, _gold, now)
 	if _picker.visible and _picker.has_quest():
 		_picker.show_dispatch(_dispatch, now)
 	if _convert_panel.visible:
@@ -231,7 +232,7 @@ func _on_debrief_done() -> void:
 
 func _on_adventurer_pressed(adventurer: String) -> void:
 	_shown_adventurer = adventurer
-	_adventurer.show_adventurer(adventurer, _dispatch, _now())
+	_adventurer.show_adventurer(adventurer, _dispatch, _gold, _now())
 	_roster.hide()
 	_adventurer.show()
 
@@ -244,7 +245,7 @@ func _on_hire_pressed(slot: int) -> void:
 
 func _on_adventurer_swiped(step: int) -> void:
 	_shown_adventurer = Roster.adventurer_after(_shown_adventurer, step, _dispatch.adventurers.roster)
-	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _now())
+	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _gold, _now())
 
 
 func _on_adventurer_back() -> void:
@@ -262,6 +263,15 @@ func _on_level_up_pressed(adventurer: String) -> void:
 	_checkpoint(_now())
 
 
+# The checkpoint before the promotion fills the board's slots due by now at the rank before it, so
+# only refills after it can draw on the new rank.
+func _on_promote_pressed(adventurer: String) -> void:
+	var now := _now()
+	_checkpoint(now)
+	_dispatch.adventurers.promote(adventurer, _gold, not _dispatch.quest_of(adventurer).is_empty())
+	_checkpoint(now)
+
+
 func _on_wear_pressed(adventurer: String, index: int) -> void:
 	_dispatch.wear(adventurer, index)
 	_checkpoint(_now())
@@ -269,7 +279,7 @@ func _on_wear_pressed(adventurer: String, index: int) -> void:
 
 func _on_level_up_continue() -> void:
 	_level_up.hide()
-	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _now())
+	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _gold, _now())
 	_adventurer.show()
 
 

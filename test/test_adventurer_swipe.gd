@@ -18,11 +18,11 @@ func before_each() -> void:
 	layer.layer = 128
 	add_child_autofree(layer)
 	layer.add_child(_screen)
-	_screen.show_adventurer(_shown, _dispatch, 1_000)
+	_screen.show_adventurer(_shown, _dispatch, Gold.new(0), 1_000)
 	# The same as main.gd does with the signals.
 	_screen.swiped.connect(func(step: int) -> void:
 		_shown = Roster.adventurer_after(_shown, step, _dispatch.adventurers.roster)
-		_screen.show_adventurer(_shown, _dispatch, 1_000))
+		_screen.show_adventurer(_shown, _dispatch, Gold.new(0), 1_000))
 	_screen.back_pressed.connect(func() -> void: _backs += 1)
 	_screen.wear_pressed.connect(func(_adventurer: String, _index: int) -> void: _wears += 1)
 	# Containers lay out their children on the next frame.
@@ -154,7 +154,7 @@ func test_a_drag_that_starts_on_back_and_ends_off_it_pages_and_does_not_press_ba
 
 func test_a_swipe_from_the_stash_row_that_ends_on_wear_pages_in_landscape_and_does_not_wear() -> void:
 	_dispatch.adventurers.gear.stow("chapel_plate")
-	_screen.show_adventurer(_shown, _dispatch, 1_000)
+	_screen.show_adventurer(_shown, _dispatch, Gold.new(0), 1_000)
 	_screen.set_landscape(true)
 	await wait_process_frames(1)
 	var wear := _screen.get_node("Box/Scroll/Content/StashColumn/Stash/Items").get_child(0).get_child(0).get_child(2) as Button

@@ -5,6 +5,8 @@ extends Control
 signal back_pressed
 ## The player chose to level up `adventurer`, a key of Adventurers.roster.
 signal level_up_pressed(adventurer: String)
+## The player chose to promote `adventurer` to their next rank.
+signal promote_pressed(adventurer: String)
 ## The player chose to put the stash item at `index` on `adventurer`.
 signal wear_pressed(adventurer: String, index: int)
 ## The player swiped to the next adventurer in roster order (`step` 1) or the previous (`step` -1).
@@ -46,6 +48,8 @@ var _press_button: BaseButton = null
 @onready var _xp: VBoxContainer = $Box/Scroll/Content/Card/Header/Row/Words/Xp
 @onready var _xp_bar: ProgressBar = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Bar
 @onready var _xp_text: Label = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Text
+@onready var _promote: Button = $Box/Scroll/Content/Card/Header/Row/Words/Promote
+@onready var _promote_reason: Label = $Box/Scroll/Content/Card/Header/Row/Words/PromoteReason
 @onready var _history: VBoxContainer = $Box/Scroll/Content/Card/Stats/Rows/History
 @onready var _gear: GridContainer = $Box/Scroll/Content/GearColumn/Gear
 @onready var _stash_section: Label = $Box/Scroll/Content/StashColumn/StashSection
@@ -77,6 +81,7 @@ func _ready() -> void:
 	_health = health_row()
 	_details.add_sibling(_health)
 	_level_up.pressed.connect(func() -> void: level_up_pressed.emit(_adventurer))
+	_promote.pressed.connect(func() -> void: promote_pressed.emit(_adventurer))
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
 
 
@@ -123,8 +128,8 @@ func set_landscape(landscape: bool) -> void:
 		_show_stash(_gear_shown[2], _gear_shown[3])
 
 
-## Shows `adventurer` as `dispatch` has them at `now`.
-func show_adventurer(adventurer: String, dispatch: Dispatch, now: int) -> void:
+## Shows `adventurer` as `dispatch` has them at `now`, with whether `gold` pays for their promotion.
+func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, now: int) -> void:
 	if adventurer != _adventurer:
 		var token := QuestBoard.token(adventurer, dispatch.adventurers.roster)
 		token.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -150,6 +155,13 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, now: int) -> void:
 	_xp_bar.max_value = needed
 	_xp_bar.value = xp
 	_xp_text.text = xp_line(xp, needed, level + 1)
+	var next_rank := adventurers.next_rank(adventurer)
+	var reason := adventurers.promotion_refusal(adventurer, gold, not dispatch.quest_of(adventurer).is_empty())
+	_promote.visible = not next_rank.is_empty()
+	_promote.text = "" if next_rank.is_empty() else "Promote to %s · %dg" % [next_rank, Adventurers.PROMOTIONS[next_rank]["gold"]]
+	_promote.disabled = not reason.is_empty()
+	_promote_reason.text = reason
+	_promote_reason.visible = _promote.visible and not reason.is_empty()
 	for stat: String in Adventurers.STATS:
 		var total := adventurers.stat_total(adventurer, stat)
 		var from_gear := adventurers.gear.bonus(adventurer, stat)

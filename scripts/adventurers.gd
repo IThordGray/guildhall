@@ -34,6 +34,9 @@ const QUEST_SECONDS_PER_XP: int = 15
 ## Maximum health is this plus HEALTH_PER_GRIT per point of Grit (stand-ins).
 const BASE_HEALTH: int = 10
 const HEALTH_PER_GRIT: int = 2
+## Each rank an adventurer can be promoted to, one rank at a time, with the level it needs and the
+## gold it costs (stand-ins). No promotion reaches a rank missing here.
+const PROMOTIONS: Dictionary[String, Dictionary] = {"E": {"level": 3, "gold": 150}, "D": {"level": 6, "gold": 400}}
 
 ## Who is in the guild, in roster order: each one's {"name", "class", "rank", "face"}, the face
 ## being the name of their art in assets/faces. The save refers to an adventurer by their id here.
@@ -122,6 +125,41 @@ func level_up(adventurer: String) -> Dictionary:
 		stats[adventurer][stat] += gains[stat]
 	history[adventurer].append({"level": levels[adventurer], "gains": gains})
 	return gains
+
+
+## The rank `adventurer` can be promoted to next; "" at the highest rank PROMOTIONS has.
+func next_rank(adventurer: String) -> String:
+	var next := Challenges.RANKS.find(roster[adventurer]["rank"]) + 1
+	if next < Challenges.RANKS.size() and PROMOTIONS.has(Challenges.RANKS[next]):
+		return Challenges.RANKS[next]
+	return ""
+
+
+## Why `adventurer` can't be promoted with `gold`, `out_on_quest` or not, in words for the player;
+## "" when they can. Promotion needs a minimum level, but nobody is ever promoted for reaching it.
+func promotion_refusal(adventurer: String, gold: Gold, out_on_quest: bool) -> String:
+	var next := next_rank(adventurer)
+	if next.is_empty():
+		return "Highest rank"
+	if out_on_quest:
+		return "Out on a quest"
+	if levels[adventurer] < PROMOTIONS[next]["level"]:
+		return "Needs level %d" % PROMOTIONS[next]["level"]
+	if gold.amount < PROMOTIONS[next]["gold"]:
+		return "Not enough gold"
+	return ""
+
+
+## Pays for and promotes `adventurer` to `next_rank`; false, with nothing paid or changed, when
+## `promotion_refusal` gives a reason. A new rank changes which quests the board draws, so whoever
+## calls this brings the board up to date first.
+func promote(adventurer: String, gold: Gold, out_on_quest: bool) -> bool:
+	if not promotion_refusal(adventurer, gold, out_on_quest).is_empty():
+		return false
+	var next := next_rank(adventurer)
+	gold.spend(PROMOTIONS[next]["gold"])
+	roster[adventurer]["rank"] = next
+	return true
 
 
 # Seeded from the adventurer and the level reached, never the global generator, so the same
