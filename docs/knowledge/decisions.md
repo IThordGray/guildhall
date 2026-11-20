@@ -47,7 +47,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   8; placeholder faces for recruits) · M14 more quests and the first session (18 quests over F–D; a slot's
   refill time by the rank sent; restores dearer and slower in order; 100 starting gold; damage by
   rank, so a failed E quest can injure from full health) · M15 promotion (F→E at level 3 for 150g,
-  E→D at level 6 for 400g, on the Adventurer screen).
+  E→D at level 6 for 400g, on the Adventurer screen) · M16 Tavern (fills with 2 gold a minute up to
+  120; tap Collect, a +N flies to the gold).
 
 ## Stack
 

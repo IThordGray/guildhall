@@ -499,7 +499,11 @@ func test_a_clock_set_back_neither_removes_nor_adds_tavern_gold() -> void:
 	assert_eq(hall.tavern_gold("back_left", 500), 0)
 	assert_eq(hall.collect("back_left", gold, 500), 0)
 	assert_eq(hall.tavern_gold("back_left", 1_260 + 22 * 60), 2)
-	assert_eq(gold.amount, 880 + 42)
+	# Collected while the clock is set back, it starts filling again from the latest time seen.
+	hall.checkpoint(1_260 + 25 * 60)
+	assert_eq(hall.collect("back_left", gold, 500), 8)
+	assert_eq(hall.tavern_gold("back_left", 1_260 + 25 * 60), 0)
+	assert_eq(gold.amount, 880 + 42 + 8)
 
 
 func test_one_read_after_an_absence_equals_reading_every_second() -> void:
