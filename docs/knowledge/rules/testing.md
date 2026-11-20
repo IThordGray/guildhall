@@ -14,4 +14,5 @@ Setup and stack rules for this repo. The universal testing rules live in Shipyar
 - Test game rules directly, with `now` passed in: "after 3600 s away, gold is 360". Never sleep or
   wait on real timers.
 - Save/load gets a round-trip test: save, load into a fresh state, same values.
-- Screens are checked by hand on a phone at the end of each milestone, not by UI tests.
+- Screens are checked by hand on a phone at the end of each milestone. A screen test only for
+  behaviour a hand check misses: input handling (swipes) and rebuilding when the roster changes.
