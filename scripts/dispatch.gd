@@ -1,7 +1,7 @@
 class_name Dispatch
 extends RefCounted
 
-## Every quest a day's board can offer: see Board. The save refers to a quest by its id. A
+## Every quest the board can offer: see Board. The save refers to a quest by its id. A
 ## quest's challenges say why it is hard (see Challenges); its difficulty is never shown.
 const QUESTS: Dictionary[String, Dictionary] = {
 	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 60, "gold": 50, "difficulty": 3, "challenges": ["Brute force"]},

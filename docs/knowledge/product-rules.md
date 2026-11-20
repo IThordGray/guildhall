@@ -22,7 +22,8 @@ it merges. Screens and wording live in the code.
 ## Quests
 
 - How many parties are out is limited only by ready adventurers. A party has 1–4 members.
-- The board holds a fixed number of quests per local day. A quest sent is used until the next day,
-  whatever its outcome.
+- The board has a fixed number of slots. Sending a quest empties its slot, which refills after its
+  own countdown with a quest not on the board and not out, whatever the outcome. Refills depend only
+  on saved timestamps, so being away gives the same board as watching.
 - A party's chance of success and each member's health are fixed when it leaves; nothing done
   while it is out changes how the quest ends. Nobody heals while out.

@@ -10,7 +10,7 @@ const STARTING_USABLE: Array[String] = ["entrance", "reception"]
 ## What an empty restored room can be converted into, in panel order. The save and the art refer
 ## to a type by its id. What a type does is applied where its effect is: see Dispatch.
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
-	"quest_hall": {"name": "Quest hall", "blurb": "adds a quest to the board each day", "gold": 60, "seconds": 60},
+	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "gold": 60, "seconds": 60},
 	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 60},
 }
 
