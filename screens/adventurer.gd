@@ -31,8 +31,12 @@ var _history_shown: Array = []
 var _gear_shown: Array = []
 ## Whether the landscape layout shows, so the gear and stash are built to fit its narrower columns.
 var _landscape: bool = false
-## Where the latest press on this screen started, in viewport pixels.
+## Whether a press that started on this screen is held, so its release may be a swipe.
+var _press_held: bool = false
+## Where the held press started, in viewport pixels.
 var _press_at: Vector2 = Vector2.ZERO
+## The button the held press started on, if any.
+var _press_button: BaseButton = null
 
 @onready var _token: Label = $Box/Scroll/Content/Card/Header/Row/Token
 @onready var _name: Label = $Box/Scroll/Content/Card/Header/Row/Words/NameLine/Name
@@ -77,23 +81,27 @@ func _ready() -> void:
 
 
 # Watched here, not in _gui_input: the scroll container and the buttons take the drags and presses
-# first. Nothing is marked handled, so they still get every event. Touch also arrives as mouse
-# events emulated from it; those are skipped, so a swipe counts once.
+# first. Nothing is marked handled, so they still get every event. Only mouse events are read: touch
+# arrives as the mouse events Godot emulates from it (on by default), the same ones buttons press on,
+# so a swipe counts once.
 func _input(event: InputEvent) -> void:
-	if not is_visible_in_tree() or event.device == InputEvent.DEVICE_ID_EMULATION:
-		return
-	var touch := event as InputEventScreenTouch
 	var click := event as InputEventMouseButton
-	if not ((touch != null and touch.index == 0) or (click != null and click.button_index == MOUSE_BUTTON_LEFT)):
+	if click == null or click.button_index != MOUSE_BUTTON_LEFT or not is_visible_in_tree():
 		return
-	var at: Vector2 = event.position
-	if event.is_pressed():
-		_press_at = at
+	var hovered := get_viewport().gui_get_hovered_control()
+	if click.pressed:
+		_press_held = get_global_rect().has_point(click.position)
+		_press_at = click.position
+		_press_button = hovered as BaseButton
 		return
-	var travel := at - _press_at
-	# A drag that ends on a button presses it, as it did before swipes, so it is not also a swipe.
-	if get_viewport().gui_get_hovered_control() is BaseButton:
+	var held := _press_held
+	_press_held = false
+	if not held or click.canceled:
 		return
+	# A release on the button the press started on presses it, so it is not also a swipe.
+	if hovered != null and hovered == _press_button:
+		return
+	var travel := click.position - _press_at
 	if absf(travel.x) >= SWIPE_MIN_PX and absf(travel.x) > absf(travel.y):
 		# Swiping left brings the next adventurer in, as turning a page does.
 		swiped.emit(1 if travel.x < 0 else -1)
