@@ -160,8 +160,8 @@ func _on_tick() -> void:
 func _checkpoint(now: int) -> void:
 	_dispatch.checkpoint(now, _gold, _hall.first_done_at("infirmary"))
 	_hall.checkpoint(now)
-	_quest_board.refill(_dispatch, now, _quest_halls_done(), _hall.first_done_at("map_room"))
-	_recruits.refill(_dispatch.adventurers, now)
+	_quest_board.refill(_dispatch, now, _rooms_done("quest_hall"), _hall.first_done_at("map_room"))
+	_recruits.refill(_dispatch.adventurers, now, _rooms_done("common_room"))
 	var file := ConfigFile.new()
 	_clock.write(file, Time.get_unix_time_from_system())
 	_gold.write(file)
@@ -254,7 +254,7 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
 	# A Quest hall finished since the last tick adds its slot before the send.
 	_hall.checkpoint(now)
-	if _quest_board.send(_dispatch, quest, party, randi(), _gold, now, _quest_halls_done(), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room")):
+	if _quest_board.send(_dispatch, quest, party, randi(), _gold, now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room")):
 		_picker.close()
 	_checkpoint(now)
 
@@ -284,7 +284,9 @@ func _on_adventurer_pressed(adventurer: String) -> void:
 
 func _on_hire_pressed(slot: int) -> void:
 	var now := _now()
-	_recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now)
+	# A Common room finished since the last tick adds its slot before the hire.
+	_hall.checkpoint(now)
+	_recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now, _rooms_done("common_room"))
 	_checkpoint(now)
 
 
@@ -419,11 +421,11 @@ func _show_picker() -> void:
 	_picker.visible = _board.visible and (_landscape or _picker.has_quest())
 
 
-# When each Quest hall the hall's last checkpoint saw finished, in unix seconds.
-func _quest_halls_done() -> PackedInt64Array:
+# When each room of `type` the hall's last checkpoint saw finished, in unix seconds.
+func _rooms_done(type: String) -> PackedInt64Array:
 	var done := PackedInt64Array()
 	for room: Dictionary in _hall.converted.values():
-		if room["type"] == "quest_hall":
+		if room["type"] == type:
 			done.append(room["done_at"])
 	return done
 

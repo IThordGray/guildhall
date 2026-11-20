@@ -44,8 +44,8 @@ func show_recruits(recruits: Recruits, adventurers: Adventurers, gold: Gold, bed
 	_beds.text = "%d adventurers · %d beds" % [adventurers.roster.size(), beds]
 	if recruits.candidates != _candidates_shown:
 		_build_candidates(recruits.candidates)
-	var reason := Recruits.refusal(adventurers, gold, beds)
 	for slot: int in _hires:
+		var reason := Recruits.refusal(adventurers, gold, beds, Recruits.hire_gold(recruits.candidates[slot]))
 		_hires[slot].disabled = not reason.is_empty()
 		_hire_reasons[slot].text = reason
 		_hire_reasons[slot].visible = not reason.is_empty()
@@ -138,7 +138,7 @@ func _build_candidates(candidates: Array[Dictionary]) -> void:
 		words.add_child(_label(who["name"], &"RowTitle"))
 		words.add_child(_label("%s · rank %s" % [who["class"], who["rank"]], &"Secondary"))
 		var hire := Button.new()
-		hire.text = "Hire · %dg" % Recruits.HIRE_GOLD
+		hire.text = "Hire · %dg" % Recruits.hire_gold(candidate)
 		hire.theme_type_variation = &"GoldButton"
 		hire.custom_minimum_size = Vector2(0, 122)
 		hire.size_flags_vertical = Control.SIZE_SHRINK_CENTER
