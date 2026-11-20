@@ -26,7 +26,6 @@ theme_override_constants/separation = 28
 [node name="Scroll" type="ScrollContainer" parent="Root"]
 layout_mode = 2
 horizontal_scroll_mode = 0
-vertical_scroll_mode = 0
 
 [node name="Box" type="VBoxContainer" parent="Root/Scroll"]
 layout_mode = 2
@@ -108,7 +107,7 @@ theme_type_variation = &"Secondary"
 text = "If it fails: 125 gold."
 autowrap_mode = 3
 
-[node name="Reason" type="Label" parent="Root/Scroll/Box"]
+[node name="Reason" type="Label" parent="Root"]
 layout_mode = 2
 theme_type_variation = &"Alert"
 text = "Pick at least one adventurer"

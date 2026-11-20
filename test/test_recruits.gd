@@ -235,6 +235,22 @@ func test_a_hire_is_refused_with_nothing_changed_when_gold_is_short_or_every_bed
 	assert_eq(adventurers.roster.size(), 5)
 
 
+func test_with_every_bed_taken_a_bunk_room_is_suggested_only_below_the_most_beds_there_can_be() -> void:
+	var adventurers := Adventurers.new()
+	var recruits := _recruits(adventurers)
+	var gold := Gold.new(1_000)
+	for at: int in range(START, START + 4 * Recruits.CANDIDATE_REFILL_SECONDS, Recruits.CANDIDATE_REFILL_SECONDS):
+		_hire(recruits, 0, adventurers, at)
+	assert_eq(adventurers.roster.size(), 8)
+	recruits.refill(adventurers, START + 4 * Recruits.CANDIDATE_REFILL_SECONDS)
+	assert_eq(Recruits.refusal(adventurers, gold, 8), "No free bed")
+	assert_false(recruits.hire(0, adventurers, gold, 8, START + 4 * Recruits.CANDIDATE_REFILL_SECONDS))
+	assert_eq(adventurers.roster.size(), 8)
+	assert_eq(gold.amount, 1_000)
+	assert_eq(Recruits.refusal(Adventurers.new(), gold, 4), "No free bed — convert a Bunk room")
+	assert_eq(Recruits.refusal(Adventurers.new(), gold, 6), "")
+
+
 func test_a_hired_shield_bearer_can_be_sent_on_a_quest_and_covers_protect() -> void:
 	var dispatch := Dispatch.new(START)
 	var recruits := Recruits.new()

@@ -73,10 +73,10 @@ func seconds_to_refill(slot: int, now: int) -> int:
 
 
 ## Why nobody can be hired into `adventurers` with `gold` and `beds`, in words for the player; ""
-## when they can.
+## when they can. A Bunk room is suggested only while another would add beds.
 static func refusal(adventurers: Adventurers, gold: Gold, beds: int) -> String:
 	if adventurers.roster.size() >= beds:
-		return "No free bed — convert a Bunk room"
+		return "No free bed" if beds >= Hall.MAX_ROSTER else "No free bed — convert a Bunk room"
 	if gold.amount < HIRE_GOLD:
 		return "Not enough gold"
 	return ""

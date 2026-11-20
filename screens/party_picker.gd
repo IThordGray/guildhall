@@ -49,7 +49,7 @@ var _portrait_gaps: Dictionary[BoxContainer, int] = {}
 @onready var _band: Control = $Root/Scroll/Box/Forecast/Box/Band
 @onready var _band_fill: Control = $Root/Scroll/Box/Forecast/Box/Band/Fill
 @onready var _note: Label = $Root/Scroll/Box/Forecast/Box/Note
-@onready var _reason: Label = $Root/Scroll/Box/Reason
+@onready var _reason: Label = $Root/Reason
 @onready var _send: Button = $Root/Buttons/Send
 @onready var _root: BoxContainer = $Root
 @onready var _scroll: ScrollContainer = $Root/Scroll
@@ -61,22 +61,40 @@ func _ready() -> void:
 	$Root/Buttons/Cancel.pressed.connect(close)
 	for stack: BoxContainer in [_root, $Root/Scroll/Box, $Root/Scroll/Box/Forecast/Box]:
 		_portrait_gaps[stack] = stack.get_theme_constant(&"separation")
+	$Root/Scroll/Box.minimum_size_changed.connect(_fit_scroll)
+	_reason.minimum_size_changed.connect(_fit_scroll)
+	_reason.visibility_changed.connect(_fit_scroll)
 
 
 ## Landscape docks the picker beside the board, a panel whose adventurers are cards four across:
 ## face, name, power and health, or their status when they can't go. Portrait pops it up over the
-## board, as tall as its content, one adventurer per line.
+## board, as tall as its content, one adventurer per line, up to the height it is placed at, past
+## which the lines and forecast scroll above the reason and buttons.
 func set_landscape(landscape: bool) -> void:
 	_docked = landscape
 	theme_type_variation = &"" if landscape else &"Dialog"
-	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER if landscape else ScrollContainer.SCROLL_MODE_DISABLED
+	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER if landscape else ScrollContainer.SCROLL_MODE_AUTO
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL if landscape else Control.SIZE_FILL
 	_title.theme_type_variation = &"Heading" if landscape else &"Title"
 	for stack: BoxContainer in _portrait_gaps:
 		stack.add_theme_constant_override(&"separation", LANDSCAPE_GAP_PX if landscape else _portrait_gaps[stack])
 	_lay_out_toggles()
+	_fit_scroll()
 	if has_quest():
 		show_dispatch(_dispatch, _now)
+
+
+# In portrait the scrolled part is as tall as its content while that fits in the height the panel is
+# placed at, centred, with the reason and buttons below; taller, it stops there and scrolls, so the
+# buttons stay on screen. Docked, it fills whatever the panel leaves.
+func _fit_scroll() -> void:
+	if _docked:
+		_scroll.custom_minimum_size.y = 0.0
+		return
+	var content := ($Root/Scroll/Box as Control).get_combined_minimum_size().y
+	var below := _root.get_combined_minimum_size().y - _scroll.get_combined_minimum_size().y
+	var placed := offset_bottom - offset_top - get_theme_stylebox(&"panel").get_minimum_size().y
+	_scroll.custom_minimum_size.y = minf(content, placed - below)
 
 
 # Each adventurer as a landscape card or a portrait line, as `_docked` says.
