@@ -5,6 +5,8 @@ extends Control
 signal adventurer_pressed(adventurer: String)
 ## The player asked to hire the candidate in `slot` of Recruits.candidates.
 signal hire_pressed(slot: int)
+## The player asked to see the guild's gear.
+signal armory_pressed
 
 ## The adventurers the rows were built for, in roster order, so they are rebuilt only when someone
 ## joins or leaves.
@@ -23,6 +25,10 @@ var _countdowns: Dictionary[int, Label] = {}
 @onready var _list: VBoxContainer = $Scroll/Box/List
 @onready var _beds: Label = $Scroll/Box/Header/Beds
 @onready var _candidates: VBoxContainer = $Scroll/Box/Candidates
+
+
+func _ready() -> void:
+	($Scroll/Box/Header/Armory as Button).pressed.connect(armory_pressed.emit)
 
 
 func show_dispatch(dispatch: Dispatch, now: int) -> void:

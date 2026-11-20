@@ -39,13 +39,6 @@ theme_override_constants/separation = 28
 [node name="GearColumn" type="VBoxContainer" parent="Box/Scroll/Content"]
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_stretch_ratio = 0.8
-theme_override_constants/separation = 28
-
-[node name="StashColumn" type="VBoxContainer" parent="Box/Scroll/Content"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_stretch_ratio = 1.4
 theme_override_constants/separation = 28
 
 [node name="Header" type="PanelContainer" parent="Box/Scroll/Content/Card"]
@@ -162,12 +155,6 @@ layout_mode = 2
 theme_type_variation = &"GoldText"
 autowrap_mode = 3
 
-[node name="Hint" type="Label" parent="Box/Scroll/Content/Card/Stats/Rows"]
-layout_mode = 2
-theme_type_variation = &"Caption"
-text = "Growth is their own and hidden. Level-ups show it; a Training room gives hints."
-autowrap_mode = 3
-
 [node name="GearSection" type="Label" parent="Box/Scroll/Content/GearColumn"]
 layout_mode = 2
 theme_type_variation = &"Section"
@@ -178,25 +165,6 @@ layout_mode = 2
 theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 24
 columns = 4
-
-[node name="StashSection" type="Label" parent="Box/Scroll/Content/StashColumn"]
-layout_mode = 2
-theme_type_variation = &"Section"
-text = "STASH"
-
-[node name="Stash" type="PanelContainer" parent="Box/Scroll/Content/StashColumn"]
-layout_mode = 2
-theme_type_variation = &"ProgressList"
-
-[node name="Items" type="VBoxContainer" parent="Box/Scroll/Content/StashColumn/Stash"]
-layout_mode = 2
-theme_override_constants/separation = 0
-
-[node name="StashHint" type="Label" parent="Box/Scroll/Content/StashColumn"]
-layout_mode = 2
-theme_type_variation = &"Caption"
-text = "The stash is shared by the whole guild. Any class can wear any item."
-autowrap_mode = 3
 
 [node name="Back" type="Button" parent="Box"]
 custom_minimum_size = Vector2(0, 144)

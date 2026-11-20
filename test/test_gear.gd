@@ -128,6 +128,43 @@ func test_wearing_a_stash_item_swaps_it_in_and_puts_the_replaced_one_in_the_stas
 	assert_eq(gear.worn["ilse"], Gear.STARTER_GEAR["ilse"])
 
 
+func test_the_items_that_fit_a_slot_are_found_where_they_are_in_the_stash() -> void:
+	var gear := Gear.new()
+	for item: String in ["night_cloak", "sash", "chapel_plate", "forest_cloak"]:
+		gear.stow(item)
+	assert_eq(gear.fitting("back"), PackedInt32Array([0, 3]))
+	assert_eq(gear.fitting("belt"), PackedInt32Array([1]))
+	# Nothing in the stash goes on the neck.
+	assert_eq(gear.fitting("neck"), PackedInt32Array())
+	# Bram wore nothing on his back, so wearing the first cloak brings nothing back.
+	gear.wear("bram", 0)
+	assert_eq(gear.fitting("back"), PackedInt32Array([2]))
+
+
+func test_taking_off_puts_the_item_in_the_stash_and_empties_the_slot_and_wearing_it_puts_it_back() -> void:
+	var gear := Gear.new()
+	gear.stow("sash")
+	assert_true(gear.take_off("bram", "weapon"))
+	assert_false(gear.worn["bram"].has("weapon"))
+	assert_eq(gear.stash, PackedStringArray(["sash", "short_sword"]))
+	assert_eq(gear.worn["bram"]["head"], "iron_cap")
+	gear.wear("bram", 1)
+	assert_eq(gear.worn["bram"]["weapon"], "short_sword")
+	assert_eq(gear.stash, PackedStringArray(["sash"]))
+
+
+func test_taking_off_is_refused_with_nothing_changed_when_the_stash_is_full_or_the_slot_empty() -> void:
+	var gear := Gear.new()
+	assert_false(gear.take_off("bram", "back"))
+	assert_eq(gear.stash, PackedStringArray())
+	for i: int in Gear.STASH_CAP:
+		gear.stow("belt")
+	assert_false(gear.take_off("bram", "weapon"))
+	assert_eq(gear.worn["bram"]["weapon"], "short_sword")
+	assert_eq(gear.stash.size(), 20)
+	assert_does_not_have(gear.stash, "short_sword")
+
+
 func test_worn_gear_and_the_stash_survive_save_and_load() -> void:
 	var gear := Gear.new()
 	gear.stow("chapel_plate")

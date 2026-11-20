@@ -124,6 +124,26 @@ func wear(adventurer: String, index: int) -> void:
 		stash[index] = replaced
 
 
+## Where in the stash the items that go in `slot` are, in stash order.
+func fitting(slot: String) -> PackedInt32Array:
+	var found := PackedInt32Array()
+	for i: int in stash.size():
+		if ITEMS[stash[i]]["slot"] == slot:
+			found.append(i)
+	return found
+
+
+## Puts what `adventurer` wears in `slot` into the stash, leaving the slot empty; false, with
+## nothing changed, when the stash is full or the slot already empty. Whether they may change gear
+## is Dispatch's rule.
+func take_off(adventurer: String, slot: String) -> bool:
+	var item: String = worn[adventurer].get(slot, "")
+	if item.is_empty() or not stow(item):
+		return false
+	worn[adventurer].erase(slot)
+	return true
+
+
 ## Puts the gear into `file`, which other state shares, so one save holds the whole game.
 func write(file: ConfigFile) -> void:
 	file.set_value("gear", "worn", worn)

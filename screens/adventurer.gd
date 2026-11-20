@@ -7,8 +7,8 @@ signal back_pressed
 signal level_up_pressed(adventurer: String)
 ## The player chose to promote `adventurer` to their next rank.
 signal promote_pressed(adventurer: String)
-## The player chose to put the stash item at `index` on `adventurer`.
-signal wear_pressed(adventurer: String, index: int)
+## The player tapped `adventurer`'s gear `slot`, a key of Gear.SLOTS, to change what goes in it.
+signal slot_pressed(adventurer: String, slot: String)
 ## The player chose to put `adventurer` in training.
 signal train_pressed(adventurer: String)
 ## The player chose to end `adventurer`'s training and bank its XP.
@@ -32,10 +32,9 @@ var _gear_values: Dictionary[String, Label] = {}
 var _health: HBoxContainer
 ## The level-ups the history shows, so it is rebuilt only when they change.
 var _history_shown: Array = []
-## The adventurer, their gear, the stash and whether they may change gear, as shown, so the gear
-## and stash are rebuilt only when these change.
+## The adventurer and their gear, as shown, so the gear is rebuilt only when these change.
 var _gear_shown: Array = []
-## Whether the landscape layout shows, so the gear and stash are built to fit its narrower columns.
+## Whether the landscape layout shows, so the gear is built to fit its narrower column.
 var _landscape: bool = false
 ## Whether a press that started on this screen is held, so its release may be a swipe.
 var _press_held: bool = false
@@ -59,8 +58,6 @@ var _press_at: Vector2 = Vector2.ZERO
 @onready var _training_notes: Label = $Box/Scroll/Content/Card/Stats/Rows/TrainingNotes
 @onready var _history: VBoxContainer = $Box/Scroll/Content/Card/Stats/Rows/History
 @onready var _gear: GridContainer = $Box/Scroll/Content/GearColumn/Gear
-@onready var _stash_section: Label = $Box/Scroll/Content/StashColumn/StashSection
-@onready var _stash: VBoxContainer = $Box/Scroll/Content/StashColumn/Stash/Items
 
 
 func _ready() -> void:
@@ -118,21 +115,19 @@ func _input(event: InputEvent) -> void:
 		swiped.emit(1 if travel.x < 0 else -1)
 
 
-## Landscape sets the card, the gear and the stash side by side: the card stacks its face, name
-## and status, and its training XP and Stop, the gear goes two to a row, as narrow as its boxes, and Wear buttons wrap. Portrait
-## stacks the three, the gear four to a row.
+## Landscape sets the card and the gear side by side: the card stacks its face, name and status,
+## and its training XP and Stop, and the gear's cells are as narrow as their boxes. Portrait stacks
+## the two. The gear goes four to a row either way.
 func set_landscape(landscape: bool) -> void:
 	_landscape = landscape
 	($Box/Scroll/Content as BoxContainer).vertical = not landscape
 	($Box/Scroll/Content/Card/Header/Row as BoxContainer).vertical = landscape
 	($Box/Scroll/Content/Card/Header/Row/Words/NameLine as BoxContainer).vertical = landscape
 	($Box/Scroll/Content/Card/Header/Row/Words/Training as BoxContainer).vertical = landscape
-	_gear.columns = 2 if landscape else 4
 	# The card is too narrow in landscape for the health text's fixed width to leave room for a bar.
 	(_health.get_child(1) as Control).custom_minimum_size.x = 0.0 if landscape else HEALTH_TEXT_WIDTH_PX
 	if not _gear_shown.is_empty():
 		_show_gear(_gear_shown[1])
-		_show_stash(_gear_shown[2], _gear_shown[3])
 
 
 ## Shows `adventurer` as `dispatch` has them at `now`, with whether `gold` pays for their promotion
@@ -180,7 +175,7 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	_train_reason.text = train_reason
 	_train_reason.visible = not train_reason.is_empty()
 	var hint := dispatch.training_hint(adventurer, now)
-	_training_notes.text = "Training notes: grows fastest in " + hint
+	_training_notes.text = "Grows fastest in " + hint
 	_training_notes.visible = not hint.is_empty()
 	for stat: String in Adventurers.STATS:
 		var total := adventurers.stat_total(adventurer, stat)
@@ -199,13 +194,10 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 			line.text = _history_line(history[i])
 			line.theme_type_variation = &"Secondary"
 			_history.add_child(line)
-	var gear := adventurers.gear
-	var can_change := dispatch.can_change_gear(adventurer)
-	var gear_shown := [adventurer, gear.worn[adventurer].duplicate(), gear.stash.duplicate(), can_change]
+	var gear_shown := [adventurer, adventurers.gear.worn[adventurer].duplicate()]
 	if gear_shown != _gear_shown:
 		_gear_shown = gear_shown
-		_show_gear(gear.worn[adventurer])
-		_show_stash(gear.stash, can_change)
+		_show_gear(gear_shown[1])
 
 
 ## An item's icon at a whole `scale` of its 28 × 28 pixels, so they stay crisp.
@@ -230,8 +222,8 @@ static func item_name(item: String) -> Label:
 	return label
 
 
-# What `item` adds, "Might +3 · Grit +4", in gold; "none" when nothing.
-static func _bonus_label(item: String) -> Label:
+## What `item` adds, "Might +3 · Grit +4", in gold; "none" when nothing.
+static func bonus_label(item: String) -> Label:
 	var bonus: Dictionary = Gear.ITEMS[item]["bonus"]
 	var parts := PackedStringArray()
 	for stat: String in Adventurers.STATS:
@@ -244,7 +236,8 @@ static func _bonus_label(item: String) -> Label:
 	return label
 
 
-# The eight slots: each item's icon, the slot, its name and bonus; an empty slot dashed.
+# The eight slots: each item's icon, the slot, its name and bonus; an empty slot dashed. A tap
+# anywhere on a slot, box or words, opens it.
 func _show_gear(worn: Dictionary) -> void:
 	for cell: Node in _gear.get_children():
 		cell.queue_free()
@@ -272,48 +265,19 @@ func _show_gear(worn: Dictionary) -> void:
 			box.theme_type_variation = &"ItemBox"
 			box.add_child(item_icon(item, 5))
 			cell.add_child(item_name(item))
-			cell.add_child(_bonus_label(item))
+			cell.add_child(bonus_label(item))
 		for label: Node in cell.get_children():
 			if label is Label:
 				(label as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_gear.add_child(cell)
-
-
-# The stash, each item with a Wear button, disabled while this adventurer is out.
-func _show_stash(stash: PackedStringArray, can_change: bool) -> void:
-	_stash_section.text = "STASH · %d / %d" % [stash.size(), Gear.STASH_CAP]
-	for row: Node in _stash.get_children():
-		row.queue_free()
-	if stash.is_empty():
-		var empty := Label.new()
-		empty.text = "Empty. Some quests bring back items."
-		empty.theme_type_variation = &"Caption"
-		var row := PanelContainer.new()
-		row.theme_type_variation = &"ProgressRow"
-		row.add_child(empty)
-		_stash.add_child(row)
-	for i: int in stash.size():
-		var words := VBoxContainer.new()
-		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		words.alignment = BoxContainer.ALIGNMENT_CENTER
-		words.add_child(item_name(stash[i]))
-		words.add_child(_bonus_label(stash[i]))
-		var wear := Button.new()
-		wear.text = "Wear" if can_change else "Out on a quest"
-		wear.disabled = not can_change
-		wear.custom_minimum_size = Vector2(200, 100)
-		wear.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if _landscape else TextServer.AUTOWRAP_OFF
-		wear.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		wear.pressed.connect(func() -> void: wear_pressed.emit(_adventurer, i))
-		var line := HBoxContainer.new()
-		line.add_theme_constant_override("separation", 32)
-		line.add_child(item_icon(stash[i], 3))
-		line.add_child(words)
-		line.add_child(wear)
-		var row := PanelContainer.new()
-		row.theme_type_variation = &"ProgressRow"
-		row.add_child(line)
-		_stash.add_child(row)
+		# A MarginContainer stacks its children, so the button covers the whole cell and the cell
+		# sets the size.
+		var open := Button.new()
+		open.flat = true
+		open.pressed.connect(slot_pressed.emit.bind(_adventurer, slot))
+		var stack := MarginContainer.new()
+		stack.add_child(cell)
+		stack.add_child(open)
+		_gear.add_child(stack)
 
 
 # A StyleBox can't draw a dashed border, so an empty slot's box is drawn here.

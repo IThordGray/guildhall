@@ -3,6 +3,8 @@ extends Control
 
 ## The player read the debrief and filed it away.
 signal done_pressed
+## The player tapped `adventurer`, one of the party, to see them.
+signal adventurer_pressed(adventurer: String)
 
 @onready var _quest: Label = $Scroll/Box/Header/Words/Quest
 @onready var _result: Label = $Scroll/Box/Header/Result
@@ -23,6 +25,7 @@ func show_debrief(debrief: Dictionary, adventurers: Adventurers) -> void:
 	_result.text = "Success" if debrief["success"] else "Failed"
 	_result.theme_type_variation = &"SuccessChip" if debrief["success"] else &"FailedChip"
 	for row: Node in _members.get_children():
+		_members.remove_child(row)
 		row.queue_free()
 	var injured: Dictionary = debrief["injured"]
 	# A debrief saved before damage was kept says "unhurt".
@@ -64,6 +67,11 @@ func show_debrief(debrief: Dictionary, adventurers: Adventurers) -> void:
 		var row := PanelContainer.new()
 		row.theme_type_variation = &"ProgressRow"
 		row.add_child(line)
+		# Over the whole row, so a tap anywhere on it opens the member.
+		var open := Button.new()
+		open.flat = true
+		open.pressed.connect(adventurer_pressed.emit.bind(adventurer))
+		row.add_child(open)
 		_members.add_child(row)
 	# A debrief saved before challenges revealed none.
 	var revealed: PackedStringArray = debrief.get("revealed", PackedStringArray())

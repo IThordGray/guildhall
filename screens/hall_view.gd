@@ -49,8 +49,6 @@ const SLOT_NAMES: Dictionary[String, String] = {
 	"entrance": "Entrance hall",
 	"reception": "Reception",
 }
-## What the rooms usable from the start are for.
-const USABLE_LINES: Dictionary[String, String] = {"entrance": "Staircase closed", "reception": "Ranks, quest intake"}
 
 const ROOM_GAP_PX: float = 4.0
 const ROOM_PADDING_PX: int = 22
@@ -208,7 +206,7 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 	room.line.theme_type_variation = &"Secondary"
 	match state:
 		Hall.State.USABLE:
-			room.line.text = USABLE_LINES[slot]
+			room.line.text = "Staircase closed" if slot == STAIRS else "In use"
 			if slot == STAIRS and hall.has_first_floor(now):
 				room.line.text = "Stairs to 1F"
 			elif slot == STAIRS and hall.building == Hall.EXTENSION:
@@ -221,10 +219,8 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 				_offer(room, "%dg · %s" % [Hall.EXTEND_GOLD, Duration.label(Hall.EXTEND_SECONDS)], hall.extend_refusal(gold, now))
 				offered = true
 		Hall.State.CONVERTED:
-			var info: Dictionary = Hall.ROOM_TYPES[type]
-			var blurb: String = info["blurb"]
-			room.title.text = info["name"]
-			room.line.text = blurb.left(1).to_upper() + blurb.substr(1)
+			room.title.text = Hall.ROOM_TYPES[type]["name"]
+			room.line.text = "In use"
 			if type == "tavern":
 				_show_tavern(room, held)
 			look = Look.INFIRMARY if type == "infirmary" else Look.CONVERTED

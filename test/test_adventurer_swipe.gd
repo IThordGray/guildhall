@@ -4,14 +4,15 @@ var _screen: Adventurer
 var _dispatch: Dispatch
 var _shown: String = "bram"
 var _backs: int = 0
-var _wears: int = 0
+## The gear slots tapped open, as "adventurer:slot".
+var _slots_opened: Array[String] = []
 
 
 func before_each() -> void:
 	_dispatch = Dispatch.new(1_000)
 	_shown = "bram"
 	_backs = 0
-	_wears = 0
+	_slots_opened = []
 	_screen = (load("res://screens/adventurer.tscn") as PackedScene).instantiate()
 	# On a layer above GUT's own output window, which would otherwise take some of the presses.
 	var layer := CanvasLayer.new()
@@ -26,7 +27,7 @@ func before_each() -> void:
 		_shown = Roster.adventurer_after(_shown, step, _dispatch.adventurers.roster)
 		_screen.show_adventurer(_shown, _dispatch, Gold.new(0), 0, 1_000))
 	_screen.back_pressed.connect(func() -> void: _backs += 1)
-	_screen.wear_pressed.connect(func(_adventurer: String, _index: int) -> void: _wears += 1)
+	_screen.slot_pressed.connect(func(adventurer: String, slot: String) -> void: _slots_opened.append(adventurer + ":" + slot))
 	# Containers lay out their children on the next frame.
 	await wait_process_frames(1)
 
@@ -153,20 +154,33 @@ func test_a_drag_that_starts_on_back_and_ends_off_it_pages_and_does_not_press_ba
 	assert_eq(_backs, 0)
 
 
-func test_a_swipe_from_the_stash_row_that_ends_on_wear_pages_in_landscape_and_does_not_wear() -> void:
-	_dispatch.adventurers.gear.stow("chapel_plate")
-	_screen.show_adventurer(_shown, _dispatch, Gold.new(0), 0, 1_000)
+func test_a_swipe_that_ends_on_a_gear_slot_pages_in_landscape_and_does_not_open_it() -> void:
 	_screen.set_landscape(true)
 	await wait_process_frames(1)
-	var wear := _screen.get_node("Box/Scroll/Content/StashColumn/Stash/Items").get_child(0).get_child(0).get_child(2) as Button
-	assert_eq(wear.text, "Wear")
-	var on_wear := wear.get_global_rect().get_center()
-	# A tap on Wear still wears, so the swipe below lands on a live button.
-	_mouse_drag(on_wear, on_wear)
-	assert_eq(_wears, 1)
-	_mouse_drag(on_wear + Vector2(-300, 0), on_wear)
+	var slots := _screen.get_node("Box/Scroll/Content/GearColumn/Gear").find_children("*", "Button", true, false)
+	assert_eq(slots.size(), 8)
+	# The second slot is Clothes.
+	var on_slot := (slots[1] as Button).get_global_rect().get_center()
+	# A tap on a slot opens it, so the swipe below lands on a live button.
+	_mouse_drag(on_slot, on_slot)
+	assert_eq(_slots_opened, ["bram:clothes"] as Array[String])
+	_mouse_drag(on_slot + Vector2(-300, 0), on_slot)
 	assert_eq(_shown_name(), "Maren")
-	assert_eq(_wears, 1)
+	assert_eq(_slots_opened.size(), 1)
+
+
+func test_a_tap_on_a_gear_slots_box_or_its_name_under_it_opens_that_slot() -> void:
+	# In landscape the gear is beside the card, in view without scrolling.
+	_screen.set_landscape(true)
+	await wait_process_frames(1)
+	# The second slot is Clothes: its box, then its slot name and Bram's Red tunic under it.
+	var cell := _screen.get_node("Box/Scroll/Content/GearColumn/Gear").get_child(1).get_child(0)
+	var item_name := cell.get_child(2) as Label
+	assert_eq(item_name.text, "Red tunic")
+	for part: Control in [cell.get_child(0), item_name]:
+		var at := part.get_global_rect().get_center()
+		_mouse_drag(at, at)
+	assert_eq(_slots_opened, ["bram:clothes", "bram:clothes"] as Array[String])
 
 
 func test_a_cancelled_touch_is_not_a_swipe() -> void:

@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
@@ -15,6 +15,8 @@
 [ext_resource type="PackedScene" path="res://screens/level_up.tscn" id="13_level_up"]
 [ext_resource type="PackedScene" path="res://screens/start.tscn" id="14_start"]
 [ext_resource type="Script" path="res://screens/touch.gd" id="15_touch"]
+[ext_resource type="PackedScene" path="res://screens/gear_slot.tscn" id="16_gear_slot"]
+[ext_resource type="PackedScene" path="res://screens/armory.tscn" id="17_armory"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -114,6 +116,16 @@ layout_mode = 1
 offset_bottom = -24.0
 
 [node name="LevelUp" parent="Body" instance=ExtResource("13_level_up")]
+visible = false
+layout_mode = 1
+offset_bottom = -24.0
+
+[node name="GearSlot" parent="Body" instance=ExtResource("16_gear_slot")]
+visible = false
+layout_mode = 1
+offset_bottom = -24.0
+
+[node name="Armory" parent="Body" instance=ExtResource("17_armory")]
 visible = false
 layout_mode = 1
 offset_bottom = -24.0

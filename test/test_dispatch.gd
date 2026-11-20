@@ -1264,6 +1264,45 @@ func test_gear_cannot_be_changed_while_out_and_can_once_home() -> void:
 	assert_eq(dispatch.adventurers.gear.stash[0], "leather_vest")
 
 
+func test_gear_cannot_be_taken_off_while_out_and_can_once_home_unless_the_stash_is_full() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.send("rats", ["bram"], 1, gold, 1_000))
+	assert_false(dispatch.take_off("bram", "armour"))
+	assert_eq(dispatch.adventurers.gear.worn["bram"]["armour"], "leather_vest")
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray())
+	dispatch.checkpoint(1_060, gold)
+	# Home again: Gear's own refusals still hold, an empty slot and then a full stash.
+	assert_false(dispatch.take_off("bram", "back"))
+	assert_true(dispatch.take_off("bram", "armour"))
+	assert_false(dispatch.adventurers.gear.worn["bram"].has("armour"))
+	assert_has(dispatch.adventurers.gear.stash, "leather_vest")
+	while dispatch.adventurers.gear.stow("belt"):
+		pass
+	assert_false(dispatch.take_off("bram", "weapon"))
+	assert_eq(dispatch.adventurers.gear.worn["bram"]["weapon"], "short_sword")
+
+
+func test_taking_off_and_wearing_say_why_they_are_refused_out_on_a_quest_nothing_worn_or_stash_full() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.send("rats", ["bram"], 1, gold, 1_000))
+	assert_eq(dispatch.take_off_refusal("bram", "armour"), "Out on a quest")
+	assert_eq(dispatch.wear_refusal("bram"), "Out on a quest")
+	# Someone home may.
+	assert_eq(dispatch.take_off_refusal("ilse", "weapon"), "")
+	assert_eq(dispatch.wear_refusal("ilse"), "")
+	dispatch.checkpoint(1_060, gold)
+	assert_eq(dispatch.take_off_refusal("bram", "armour"), "")
+	assert_eq(dispatch.wear_refusal("bram"), "")
+	assert_eq(dispatch.take_off_refusal("bram", "back"), "Nothing worn")
+	while dispatch.adventurers.gear.stow("belt"):
+		pass
+	assert_eq(dispatch.take_off_refusal("bram", "armour"), "Stash full")
+	# Wearing swaps, so a full stash doesn't stop it.
+	assert_eq(dispatch.wear_refusal("bram"), "")
+
+
 func test_gear_the_stash_and_loot_in_debriefs_survive_save_and_load() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)

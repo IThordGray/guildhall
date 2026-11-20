@@ -218,13 +218,36 @@ func can_change_gear(adventurer: String) -> bool:
 	return quest_of(adventurer).is_empty()
 
 
+## Why `adventurer` can't put a stash item on, in words for the player; "" when they can.
+func wear_refusal(adventurer: String) -> String:
+	return "" if can_change_gear(adventurer) else "Out on a quest"
+
+
 ## Puts the stash item at `index` on `adventurer`, the item it replaces into the stash; false, with
-## nothing changed, while they are out.
+## nothing changed, when wear_refusal gives a reason.
 func wear(adventurer: String, index: int) -> bool:
-	if not can_change_gear(adventurer):
+	if not wear_refusal(adventurer).is_empty():
 		return false
 	adventurers.gear.wear(adventurer, index)
 	return true
+
+
+## Why `adventurer` can't take off what they wear in `slot`, in words for the player; "" when they
+## can.
+func take_off_refusal(adventurer: String, slot: String) -> String:
+	if not can_change_gear(adventurer):
+		return "Out on a quest"
+	if not adventurers.gear.worn[adventurer].has(slot):
+		return "Nothing worn"
+	if adventurers.gear.stash.size() >= Gear.STASH_CAP:
+		return "Stash full"
+	return ""
+
+
+## Puts what `adventurer` wears in `slot` into the stash; false, with nothing changed, when
+## take_off_refusal gives a reason.
+func take_off(adventurer: String, slot: String) -> bool:
+	return take_off_refusal(adventurer, slot).is_empty() and adventurers.gear.take_off(adventurer, slot)
 
 
 ## True when `adventurer` can join a party at `now`: home, not injured and not training.

@@ -46,6 +46,12 @@ horizontal_alignment = 2
 vertical_alignment = 1
 autowrap_mode = 3
 
+[node name="Armory" type="Button" parent="Scroll/Box/Header"]
+custom_minimum_size = Vector2(240, 120)
+layout_mode = 2
+size_flags_vertical = 4
+text = "Armory"
+
 [node name="List" type="VBoxContainer" parent="Scroll/Box"]
 layout_mode = 2
 theme_override_constants/separation = 24
