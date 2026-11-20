@@ -18,9 +18,14 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** play-test M13; then M14 and M15 below. Death stays deferred: its own decision.
-- **Then:** M14 more quests (15–20 over ranks F–D) and the first session (starting gold, short early
-  timers, the odds and injury findings) · M15 rooms that fill up, with collect effects.
+- **Next:** M14–M20 below, built and merged locally one after another; the human plays them before
+  any push. Death stays deferred: its own decision.
+- **Then:** M14 more quests (about 18 over ranks F–D) and the first session (starting gold, short
+  early timers, the odds and injury findings) · M15 promotion at Reception (rank up for gold at a
+  minimum level; higher ranks open higher quests) · M16 rooms that fill up (Tavern; tap to collect,
+  with collect effects) · M17 extend the hall (a first floor, floor selector) · M18 Map room
+  (reveals board challenges over time) · M19 Training room (idle XP, growth hints) · M20 Common
+  room (more and better candidates).
 - **Later, not planned yet:** sprites that change with gear (needs per-item layer art); the spec's
   starting state and extending the hall, guild level, Quest hall extras, the labyrinth.
 - Screens follow the v2 designs (linked from the spec).
