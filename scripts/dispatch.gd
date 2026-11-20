@@ -55,10 +55,11 @@ var injury_lengths: Dictionary[String, int] = {}
 ## "returned_at": unix seconds it came back, "success": bool, "party": adventurer ids,
 ## "damage": {adventurer id: damage taken}, "injured": {adventurer id: seconds the injury lasts},
 ## "gold": gold it brought, "xp": XP each member gained, "revealed": the quest's challenges it
-## made known, "loot": item ids it brought, "paid": false}. Damage, injuries and the reveal were
-## applied when the party came home; its gold, XP and loot are paid when it is read. A debrief
-## saved before reading paid has no "paid": it was paid on coming home, its "loot" the items put in
-## the stash and "lost" those brought to a full stash.
+## made known, "loot": item ids it brought, "paid": false, "xp_given": true}. Damage, injuries, XP
+## and the reveal were applied when the party came home, so a member can level up from the debrief;
+## its gold and loot are paid when it is read. One saved without "xp_given" still owes its XP, paid
+## when read. One saved before reading paid has no "paid": it was paid on coming home, its "loot"
+## the items put in the stash and "lost" those brought to a full stash.
 var debriefs: Array[Dictionary] = []
 ## Who is in the guild, and each one's stats, level, XP and gear: their power decides quests, and
 ## returns grow them.
@@ -403,9 +404,9 @@ func returned_since_checkpoint(now: int) -> bool:
 	return false
 
 
-## Brings every returned party home, once, in the order they returned: gives each member damage,
-## injures those it leaves under a quarter of their health, reveals the quest's challenges, and adds
-## its debrief holding the gold, XP and loot it earned, paid when read. `infirmary_from` is the unix
+## Brings every returned party home, once, in the order they returned: gives each member damage and
+## XP, injures those it leaves under a quarter of their health, reveals the quest's challenges, and
+## adds its debrief holding the gold and loot it earned, paid when read. `infirmary_from` is the unix
 ## seconds the first Infirmary is finished at, -1 for none: from then on healing is faster, and an
 ## injury from a return at or after it is shorter. Records the time seen.
 func checkpoint(now: int, infirmary_from: int = -1) -> void:
@@ -460,17 +461,19 @@ func _bring_home(outing: Dictionary) -> void:
 	if not revealing.is_empty():
 		revealed.append(outing["quest"])
 	var xp := Adventurers.quest_xp(quest["seconds"], success)
+	for adventurer: String in party:
+		adventurers.gain_xp(adventurer, xp)
 	# Loot comes whatever the outcome, from the seed the party left with.
 	var loot := PackedStringArray()
 	var item := Gear.loot(outing["seed"], quest["rank"])
 	if not item.is_empty():
 		loot.append(item)
-	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "damage": damage, "injured": injured, "gold": reward, "xp": xp, "revealed": revealing, "loot": loot, "paid": false})
+	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "damage": damage, "injured": injured, "gold": reward, "xp": xp, "revealed": revealing, "loot": loot, "paid": false, "xp_given": true})
 
 
 ## Files the debrief at `index` away once the player has read it, and pays what its party earned:
-## its gold into `gold`, its XP to each member, and its loot into the stash, where an item that
-## finds the stash full is lost. One saved before reading paid was paid already, so it is only
+## its gold into `gold` and its loot into the stash, where an item that finds the stash full is
+## lost, and its XP to each member if coming home did not give it already. One saved before reading paid was paid already, so it is only
 ## filed away.
 func read_debrief(index: int, gold: Gold) -> void:
 	var debrief := debriefs[index]
@@ -478,8 +481,9 @@ func read_debrief(index: int, gold: Gold) -> void:
 	if debrief.get("paid", true):
 		return
 	gold.amount += int(debrief["gold"])
-	for adventurer: String in debrief["party"]:
-		adventurers.gain_xp(adventurer, int(debrief["xp"]))
+	if not debrief.get("xp_given", false):
+		for adventurer: String in debrief["party"]:
+			adventurers.gain_xp(adventurer, int(debrief["xp"]))
 	for item: String in debrief["loot"]:
 		adventurers.gear.stow(item)
 

@@ -46,5 +46,6 @@ it merges. Screens and wording live in the code.
   player action that changes a rank brings the board up to date first.
 - A party's chance of success and each member's health are fixed when it leaves; nothing done
   while it is out changes how the quest ends. Nobody heals while out.
-- A returning party's damage, injuries and healing count from its return; its gold, XP and loot are
-  paid, and its members free for new quests, only when its debrief is read. A debrief pays once.
+- A returning party's damage, injuries, healing and XP count from its return, so members can level
+  up from the debrief; its gold and loot are paid, and its members free for new quests, only when
+  its debrief is read. A debrief pays once.
