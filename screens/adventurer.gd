@@ -41,8 +41,6 @@ var _landscape: bool = false
 var _press_held: bool = false
 ## Where the held press started, in viewport pixels.
 var _press_at: Vector2 = Vector2.ZERO
-## The button the held press started on, if any.
-var _press_button: BaseButton = null
 
 @onready var _token: Label = $Box/Scroll/Content/Card/Header/Row/Token
 @onready var _name: Label = $Box/Scroll/Content/Card/Header/Row/Words/NameLine/Name
@@ -104,19 +102,16 @@ func _input(event: InputEvent) -> void:
 	var click := event as InputEventMouseButton
 	if click == null or click.button_index != MOUSE_BUTTON_LEFT or not is_visible_in_tree():
 		return
-	var hovered := get_viewport().gui_get_hovered_control()
 	if click.pressed:
 		_press_held = get_global_rect().has_point(click.position)
 		_press_at = click.position
-		_press_button = hovered as BaseButton
 		return
 	var held := _press_held
 	_press_held = false
 	if not held or click.canceled:
 		return
-	# A release on the button the press started on presses it, so it is not also a swipe.
-	if hovered != null and hovered == _press_button:
-		return
+	# A swipe is far past the tap's slop, so Touch has already kept the button it started on from
+	# firing.
 	var travel := click.position - _press_at
 	if absf(travel.x) >= SWIPE_MIN_PX and absf(travel.x) > absf(travel.y):
 		# Swiping left brings the next adventurer in, as turning a page does.

@@ -25,7 +25,7 @@ var _hall: Hall
 var _dispatch: Dispatch
 var _quest_board: Board
 var _recruits: Recruits
-## The slot the convert panel is open for.
+## The slot the Give it a job screen is open for.
 var _chosen_slot: String = ""
 ## Where the debrief the Debrief screen shows is in Dispatch.debriefs.
 var _open_debrief: int = -1
@@ -53,8 +53,8 @@ var _portrait_places: Dictionary[Control, Array] = {}
 @onready var _roster: Roster = $Body/Roster
 @onready var _adventurer: Adventurer = $Body/Adventurer
 @onready var _level_up: LevelUp = $Body/LevelUp
-@onready var _picker: PartyPicker = $PartyPicker
-@onready var _convert_panel: ConvertPanel = $ConvertPanel
+@onready var _picker: PartyPicker = $Body/PartyPicker
+@onready var _convert_panel: ConvertPanel = $Body/ConvertPanel
 @onready var _tick: Timer = $Tick
 @onready var _start: StartScreen = $Start
 @onready var _test_speed: Button = $TopBar/Row/TestSpeed
@@ -69,11 +69,13 @@ func _ready() -> void:
 	_hall_view.collect_pressed.connect(_on_collect_pressed)
 	_hall_view.extend_pressed.connect(_on_extend_pressed)
 	_convert_panel.convert_pressed.connect(_on_convert_pressed)
+	_convert_panel.back_pressed.connect(_close_convert)
 	($TabBar/Tabs/Hall as Button).button_group.pressed.connect(_on_tab_pressed)
 	_board.send_pressed.connect(_on_send_pressed)
 	_board.debrief_pressed.connect(_on_debrief_pressed)
 	_debrief.done_pressed.connect(_on_debrief_done)
 	_picker.send_pressed.connect(_on_party_sent)
+	_picker.back_pressed.connect(_close_picker)
 	_roster.adventurer_pressed.connect(_on_adventurer_pressed)
 	_roster.hire_pressed.connect(_on_hire_pressed)
 	_adventurer.back_pressed.connect(_on_adventurer_back)
@@ -88,7 +90,7 @@ func _ready() -> void:
 	_test_speed.pressed.connect(_on_test_speed_pressed)
 	_start.continue_pressed.connect(_open_game)
 	_start.new_game_pressed.connect(_on_new_game)
-	for part: Control in [_tab_bar, _body, _board, _debrief, _roster, _adventurer, _level_up, _picker]:
+	for part: Control in [_tab_bar, _body, _board, _debrief, _roster, _adventurer, _level_up, _convert_panel, _picker]:
 		_portrait_places[part] = [
 			Vector4(part.anchor_left, part.anchor_top, part.anchor_right, part.anchor_bottom),
 			Vector4(part.offset_left, part.offset_top, part.offset_right, part.offset_bottom),
@@ -233,20 +235,27 @@ func _show_collected(amount: int, from: Vector2) -> void:
 
 func _on_job_pressed(slot: String) -> void:
 	_chosen_slot = slot
-	_convert_panel.show()
 	_convert_panel.show_hall(_hall, slot, _gold, _now())
+	_hall_view.hide()
+	_convert_panel.show()
 
 
 func _on_convert_pressed(type: String) -> void:
 	var now := _now()
 	if _hall.convert_room(_chosen_slot, type, _gold, now):
-		_convert_panel.hide()
+		_close_convert()
 	_checkpoint(now)
+
+
+func _close_convert() -> void:
+	_convert_panel.hide()
+	_hall_view.show()
 
 
 func _on_send_pressed(quest: String) -> void:
 	var now := _now()
 	_picker.open(quest, _dispatch, now)
+	_show_quests(true)
 
 
 # The seed comes from the global generator; the outcome it fixes is rolled from the seed alone.
@@ -255,23 +264,26 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	# A Quest hall finished since the last tick adds its slot before the send.
 	_hall.checkpoint(now)
 	if _quest_board.send(_dispatch, quest, party, randi(), _gold, now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room")):
-		_picker.close()
+		_close_picker()
 	_checkpoint(now)
+
+
+func _close_picker() -> void:
+	_picker.close()
+	_show_quests(true)
 
 
 func _on_debrief_pressed(index: int) -> void:
 	_open_debrief = index
 	_debrief.show_debrief(_dispatch.debriefs[index], _dispatch.adventurers)
-	_board.hide()
+	_show_quests(false)
 	_debrief.show()
-	_show_picker()
 
 
 func _on_debrief_done() -> void:
 	_dispatch.read_debrief(_open_debrief)
 	_debrief.hide()
-	_board.show()
-	_show_picker()
+	_show_quests(true)
 	_checkpoint(_now())
 
 
@@ -356,14 +368,13 @@ func _on_go_send() -> void:
 
 func _on_tab_pressed(tab: BaseButton) -> void:
 	_hall_view.visible = tab == $TabBar/Tabs/Hall
-	_board.visible = tab == $TabBar/Tabs/Quests
 	_debrief.hide()
 	_roster.visible = tab == $TabBar/Tabs/Roster
 	_adventurer.hide()
 	_level_up.hide()
 	_convert_panel.hide()
 	_picker.close()
-	_show_picker()
+	_show_quests(tab == $TabBar/Tabs/Quests)
 
 
 # The window's shape picks the layout, wider than tall being landscape: the rail instead of the
@@ -396,14 +407,10 @@ func _lay_out() -> void:
 		_place(_body, full, Vector4(RAIL_WIDTH_PX + SIDE_MARGIN_PX, END_MARGIN_PX, -SIDE_MARGIN_PX, -END_MARGIN_PX))
 		_place(_board, Vector4(0, 0, BOARD_SHARE, 1), Vector4(0, 0, -SIDE_MARGIN_PX / 2, 0))
 		_place(_adventurer, full, Vector4.ZERO)
-		for column: Control in [_debrief, _roster, _level_up]:
+		for column: Control in [_debrief, _roster, _level_up, _convert_panel]:
 			_place(column, Vector4(0.5, 0, 0.5, 1), Vector4(-COLUMN_WIDTH_PX / 2, 0, COLUMN_WIDTH_PX / 2, 0))
-		# The picker is not in the body, so it is placed against the window: from half a gap right
-		# of the board's edge, BOARD_SHARE of the way across the body, to the body's right edge.
-		var body_left := RAIL_WIDTH_PX + SIDE_MARGIN_PX
-		var picker_left := body_left - BOARD_SHARE * (body_left + SIDE_MARGIN_PX) + SIDE_MARGIN_PX / 2
-		_place(_picker, Vector4(BOARD_SHARE, 0, 1, 1), Vector4(picker_left, END_MARGIN_PX, -SIDE_MARGIN_PX, -END_MARGIN_PX))
-	_show_picker()
+		_place(_picker, Vector4(BOARD_SHARE, 0, 1, 1), Vector4(SIDE_MARGIN_PX / 2, 0, 0, 0))
+	_show_quests(_board.visible or _picker.visible)
 
 
 # Sets `control`'s anchors and offsets, each given as left, top, right, bottom. Anchors pushed
@@ -415,10 +422,12 @@ static func _place(control: Control, anchors: Vector4, offsets: Vector4) -> void
 	control.set_anchor_and_offset(SIDE_BOTTOM, anchors.w, offsets.w, true)
 
 
-# In landscape the party picker sits beside the board whenever the board shows, prompting for a
-# quest until one is picked; in portrait it pops up over the board only while a quest is picked.
-func _show_picker() -> void:
-	_picker.visible = _board.visible and (_landscape or _picker.has_quest())
+# Shows the Quests screen, or hides it when `shown` is false. In landscape the party picker sits
+# beside the board, prompting for a quest until one is picked; in portrait it takes the board's
+# place while a quest is picked.
+func _show_quests(shown: bool) -> void:
+	_board.visible = shown and (_landscape or not _picker.has_quest())
+	_picker.visible = shown and (_landscape or _picker.has_quest())
 
 
 # When each room of `type` the hall's last checkpoint saw finished, in unix seconds.

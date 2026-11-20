@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
@@ -14,6 +14,7 @@
 [ext_resource type="PackedScene" path="res://screens/adventurer.tscn" id="12_adventurer"]
 [ext_resource type="PackedScene" path="res://screens/level_up.tscn" id="13_level_up"]
 [ext_resource type="PackedScene" path="res://screens/start.tscn" id="14_start"]
+[ext_resource type="Script" path="res://screens/touch.gd" id="15_touch"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -117,6 +118,16 @@ visible = false
 layout_mode = 1
 offset_bottom = -24.0
 
+[node name="ConvertPanel" parent="Body" instance=ExtResource("5_convert")]
+visible = false
+layout_mode = 1
+offset_bottom = -24.0
+
+[node name="PartyPicker" parent="Body" instance=ExtResource("4_picker")]
+visible = false
+layout_mode = 1
+offset_bottom = -24.0
+
 [node name="TabBar" type="PanelContainer" parent="."]
 layout_mode = 1
 anchors_preset = 12
@@ -209,15 +220,10 @@ icon = ExtResource("9_labyrinth")
 icon_alignment = 1
 vertical_icon_alignment = 0
 
-[node name="ConvertPanel" parent="." instance=ExtResource("5_convert")]
-visible = false
-layout_mode = 1
-
-[node name="PartyPicker" parent="." instance=ExtResource("4_picker")]
-visible = false
-layout_mode = 1
-
 [node name="Start" parent="." instance=ExtResource("14_start")]
 layout_mode = 1
 
 [node name="Tick" type="Timer" parent="."]
+
+[node name="Touch" type="Node" parent="."]
+script = ExtResource("15_touch")

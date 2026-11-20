@@ -14,8 +14,8 @@ signal new_game_pressed
 func _ready() -> void:
 	_continue.pressed.connect(continue_pressed.emit)
 	$Menu/Choices/NewGame.pressed.connect(_on_new_game_pressed)
-	$Menu/Confirm/Box/Buttons/StartOver.pressed.connect(new_game_pressed.emit)
-	$Menu/Confirm/Box/Buttons/Cancel.pressed.connect(_show_confirm.bind(false))
+	$Menu/Confirm/Buttons/StartOver.pressed.connect(new_game_pressed.emit)
+	$Menu/Confirm/Buttons/Cancel.pressed.connect(_show_confirm.bind(false))
 
 
 ## Offers Continue only when there is a saved guild to continue.

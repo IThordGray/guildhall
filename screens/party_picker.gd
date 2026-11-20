@@ -3,6 +3,8 @@ extends PanelContainer
 
 ## The player chose to send `party`, keys of Adventurers.roster, on `quest`.
 signal send_pressed(quest: String, party: PackedStringArray)
+## The player is done with the quest picked without sending a party.
+signal back_pressed
 
 ## The tick on a picked adventurer's card in landscape.
 const TICK_SIZE_PX: float = 40.0
@@ -38,10 +40,12 @@ var _now: int = 0
 ## The quest's unknown challenges the forecast was last shown with, so a reveal while the picker
 ## is open shows at once and nothing else rebuilds it.
 var _forecast_unknown: PackedStringArray = PackedStringArray()
-## Whether the picker sits beside the board rather than popping up over it.
+## Whether the picker sits beside the board rather than being a screen of its own.
 var _docked: bool = false
 ## The picker's stacks and their gaps as the scene has them, for portrait.
 var _portrait_gaps: Dictionary[BoxContainer, int] = {}
+## The picker's panel as the scene has it, for portrait: none.
+var _portrait_panel: StyleBox
 
 @onready var _title: Label = $Root/Scroll/Box/Heading/Title
 @onready var _meta: Label = $Root/Scroll/Box/Heading/Meta
@@ -56,48 +60,36 @@ var _portrait_gaps: Dictionary[BoxContainer, int] = {}
 @onready var _send: Button = $Root/Buttons/Send
 @onready var _root: BoxContainer = $Root
 @onready var _scroll: ScrollContainer = $Root/Scroll
+@onready var _back: Button = $Root/Buttons/Cancel
 @onready var _prompt: Label = $Prompt
 
 
 func _ready() -> void:
 	_send.pressed.connect(func() -> void: send_pressed.emit(_quest, _picked))
-	$Root/Buttons/Cancel.pressed.connect(close)
+	_back.pressed.connect(back_pressed.emit)
 	for stack: BoxContainer in [_root, $Root/Scroll/Box, $Root/Scroll/Box/Forecast/Box]:
 		_portrait_gaps[stack] = stack.get_theme_constant(&"separation")
-	$Root/Scroll/Box.minimum_size_changed.connect(_fit_scroll)
-	_reason.minimum_size_changed.connect(_fit_scroll)
-	_reason.visibility_changed.connect(_fit_scroll)
+	_portrait_panel = get_theme_stylebox(&"panel")
 
 
 ## Landscape docks the picker beside the board, a panel whose adventurers are cards four across:
-## face, name, power and health, or their status when they can't go. Portrait pops it up over the
-## board, as tall as its content, one adventurer per line, up to the height it is placed at, past
-## which the lines and forecast scroll above the reason and buttons.
+## face, name, power and health, or their status when they can't go; Cancel drops the quest. Portrait
+## makes it a screen of its own, with no panel, one adventurer per line, and Back. Either way the
+## lines and forecast scroll above the reason and buttons.
 func set_landscape(landscape: bool) -> void:
 	_docked = landscape
-	theme_type_variation = &"" if landscape else &"Dialog"
+	if landscape:
+		remove_theme_stylebox_override(&"panel")
+	else:
+		add_theme_stylebox_override(&"panel", _portrait_panel)
+	_back.text = "Cancel" if landscape else "Back"
 	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER if landscape else ScrollContainer.SCROLL_MODE_AUTO
-	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL if landscape else Control.SIZE_FILL
 	_title.theme_type_variation = &"Heading" if landscape else &"Title"
 	for stack: BoxContainer in _portrait_gaps:
 		stack.add_theme_constant_override(&"separation", LANDSCAPE_GAP_PX if landscape else _portrait_gaps[stack])
 	_lay_out_toggles()
-	_fit_scroll()
 	if has_quest():
 		show_dispatch(_dispatch, _now)
-
-
-# In portrait the scrolled part is as tall as its content while that fits in the height the panel is
-# placed at, centred, with the reason and buttons below; taller, it stops there and scrolls, so the
-# buttons stay on screen. Docked, it fills whatever the panel leaves.
-func _fit_scroll() -> void:
-	if _docked:
-		_scroll.custom_minimum_size.y = 0.0
-		return
-	var content := ($Root/Scroll/Box as Control).get_combined_minimum_size().y
-	var below := _root.get_combined_minimum_size().y - _scroll.get_combined_minimum_size().y
-	var placed := offset_bottom - offset_top - get_theme_stylebox(&"panel").get_minimum_size().y
-	_scroll.custom_minimum_size.y = minf(content, placed - below)
 
 
 # Each adventurer as a landscape card or a portrait line, as `_docked` says.
@@ -174,12 +166,11 @@ func has_quest() -> bool:
 	return not _quest.is_empty()
 
 
-## Drops the quest: docked, the picker prompts for one instead; otherwise it hides.
+## Drops the quest, so the picker prompts for one.
 func close() -> void:
 	_quest = ""
 	_root.hide()
 	_prompt.show()
-	visible = _docked
 
 
 ## Opens the picker for `quest` with nobody picked.
@@ -193,7 +184,6 @@ func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	var info: Dictionary = Dispatch.QUESTS[quest]
 	_title.text = info["name"]
 	_meta.text = "Rank %s · %s · %d gold" % [info["rank"], Duration.label(info["seconds"]), info["gold"]]
-	show()
 	_dispatch = dispatch
 	_show_forecast()
 	show_dispatch(dispatch, now)

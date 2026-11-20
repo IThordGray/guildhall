@@ -17,6 +17,8 @@ func before_each() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 128
 	add_child_autofree(layer)
+	# As in main.tscn, which keeps a press that turns into a drag from firing a button.
+	layer.add_child(Touch.new())
 	layer.add_child(_screen)
 	_screen.show_adventurer(_shown, _dispatch, Gold.new(0), 0, 1_000)
 	# The same as main.gd does with the signals.
@@ -127,13 +129,12 @@ func test_a_tap_on_back_goes_back_and_does_not_page() -> void:
 	assert_eq(_shown_name(), "Bram")
 
 
-func test_a_sideways_drag_that_starts_and_ends_on_back_presses_back_and_does_not_page() -> void:
+func test_a_sideways_drag_that_starts_and_ends_on_back_pages_and_does_not_press_back() -> void:
 	_mouse_drag(_back_middle(), _back_middle() + Vector2(-200, 0))
-	assert_eq(_backs, 1)
-	assert_eq(_shown_name(), "Bram")
+	assert_eq(_shown_name(), "Ilse")
 	_touch_drag(_back_middle(), _back_middle() + Vector2(-200, 0))
-	assert_eq(_backs, 2)
-	assert_eq(_shown_name(), "Bram")
+	assert_eq(_shown_name(), "Tobin")
+	assert_eq(_backs, 0)
 
 
 func test_a_swipe_from_the_content_that_ends_on_back_pages_and_does_not_press_back() -> void:

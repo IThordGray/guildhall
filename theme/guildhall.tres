@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=55 format=3]
+[gd_resource type="Theme" load_steps=54 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -44,24 +44,6 @@ corner_radius_top_left = 22
 corner_radius_top_right = 22
 corner_radius_bottom_right = 22
 corner_radius_bottom_left = 22
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dialog"]
-content_margin_left = 48.0
-content_margin_top = 44.0
-content_margin_right = 48.0
-content_margin_bottom = 44.0
-bg_color = Color(0.1294, 0.1137, 0.1569, 1)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0.3529, 0.3137, 0.4078, 1)
-corner_radius_top_left = 28
-corner_radius_top_right = 28
-corner_radius_bottom_right = 28
-corner_radius_bottom_left = 28
-shadow_color = Color(0, 0, 0, 0.6)
-shadow_size = 48
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_top_bar"]
 content_margin_left = 44.0
@@ -596,8 +578,6 @@ Coin/base_type = &"Panel"
 Coin/styles/panel = SubResource("StyleBoxFlat_coin")
 DebriefRow/base_type = &"PanelContainer"
 DebriefRow/styles/panel = SubResource("StyleBoxFlat_debrief_row")
-Dialog/base_type = &"PanelContainer"
-Dialog/styles/panel = SubResource("StyleBoxFlat_dialog")
 BuildBar/base_type = &"ProgressBar"
 BuildBar/styles/background = SubResource("StyleBoxFlat_bar_track")
 BuildBar/styles/fill = SubResource("StyleBoxFlat_bar_build")
