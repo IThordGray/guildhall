@@ -18,14 +18,7 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** M14–M20 below, built and merged locally one after another; the human plays them before
-  any push. Death stays deferred: its own decision.
-- **Then:** M14 more quests (about 18 over ranks F–D) and the first session (starting gold, short
-  early timers, the odds and injury findings) · M15 promotion at Reception (rank up for gold at a
-  minimum level; higher ranks open higher quests) · M16 rooms that fill up (Tavern; tap to collect,
-  with collect effects) · M17 extend the hall (a first floor, floor selector) · M18 Map room
-  (reveals board challenges over time) · M19 Training room (idle XP, growth hints) · M20 Common
-  room (more and better candidates).
+- **Next:** the human plays M14–M20 locally, then push. Death stays deferred: its own decision.
 - **Later, not planned yet:** sprites that change with gear (needs per-item layer art); the spec's
   starting state and extending the hall, guild level, Quest hall extras, the labyrinth.
 - Screens follow the v2 designs (linked from the spec).
@@ -52,7 +45,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   restores, 400g · 10:00; four empty rooms on 1F; floor selector) · M18 Map room (a board quest's
   unknown challenges show 5 minutes after it is on the board and a Map room is finished) · M19
   Training room (one trainee per room, 1 XP a minute up to 60 a stint, banked on Stop; after 10
-  minutes' training a hint names the fastest-growing stat).
+  minutes' training a hint names the fastest-growing stat). · M20 Common room (+1 candidate slot each, at most 4;
+  after the first, a quarter of candidates are rank E at 180g).
 
 ## Stack
 

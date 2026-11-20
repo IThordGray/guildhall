@@ -25,6 +25,8 @@ it merges. Screens and wording live in the code.
   changed when gold is short or every bed is taken.
 - Candidate slots refill from saved timestamps only, like the quest board: being away gives the same
   candidates as watching.
+- Taverns and training fill from saved timestamps only, up to their cap. Gold held changes only by
+  rewards, spending and collecting.
 
 ## Quests
 

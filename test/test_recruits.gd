@@ -432,7 +432,7 @@ func test_common_room_slots_and_rank_e_candidates_survive_save_and_load() -> voi
 	var recruits := _rank_e_guild(adventurers)
 	if recruits == null:
 		return
-	var rooms :=PackedInt64Array([recruits.checked_at, recruits.checked_at + 10])
+	var rooms := PackedInt64Array([recruits.checked_at, recruits.checked_at + 10])
 	recruits.refill(adventurers, recruits.checked_at + 20, rooms)
 	var file := ConfigFile.new()
 	recruits.write(file)
