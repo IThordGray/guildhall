@@ -55,8 +55,10 @@ var injury_lengths: Dictionary[String, int] = {}
 ## "returned_at": unix seconds it came back, "success": bool, "party": adventurer ids,
 ## "damage": {adventurer id: damage taken}, "injured": {adventurer id: seconds the injury lasts},
 ## "gold": gold it brought, "xp": XP each member gained, "revealed": the quest's challenges it
-## made known, "loot": item ids it put in the stash, "lost": item ids it brought to a full stash}.
-## Only a report: its outcome was applied when the party came home.
+## made known, "loot": item ids it brought, "paid": false}. Damage, injuries and the reveal were
+## applied when the party came home; its gold, XP and loot are paid when it is read. A debrief
+## saved before reading paid has no "paid": it was paid on coming home, its "loot" the items put in
+## the stash and "lost" those brought to a full stash.
 var debriefs: Array[Dictionary] = []
 ## Who is in the guild, and each one's stats, level, XP and gear: their power decides quests, and
 ## returns grow them.
@@ -250,9 +252,19 @@ func take_off(adventurer: String, slot: String) -> bool:
 	return take_off_refusal(adventurer, slot).is_empty() and adventurers.gear.take_off(adventurer, slot)
 
 
-## True when `adventurer` can join a party at `now`: home, not injured and not training.
+## True when `adventurer` can join a party at `now`: home, their debriefs read, not injured and not
+## training.
 func can_go(adventurer: String, now: int) -> bool:
-	return quest_of(adventurer).is_empty() and injury_left(adventurer, now) == 0 and not training.has(adventurer)
+	return quest_of(adventurer).is_empty() and not debrief_waiting(adventurer) and injury_left(adventurer, now) == 0 and not training.has(adventurer)
+
+
+## True when a debrief of a party `adventurer` was in waits unread: until every one is read, they
+## are not available.
+func debrief_waiting(adventurer: String) -> bool:
+	for debrief: Dictionary in debriefs:
+		if adventurer in debrief["party"]:
+			return true
+	return false
 
 
 ## What `adventurer` is doing at `now`, in words for the player.
@@ -260,6 +272,8 @@ func status(adventurer: String, now: int) -> String:
 	var quest := quest_of(adventurer)
 	if not quest.is_empty():
 		return "On quest: " + QUESTS[quest]["name"]
+	if debrief_waiting(adventurer):
+		return "Debrief waiting"
 	var injured := injury_left(adventurer, now)
 	if injured > 0:
 		return "Injured · " + Duration.label(injured)
@@ -275,6 +289,8 @@ func training_refusal(adventurer: String, places: int, now: int) -> String:
 		return "Already training"
 	if not quest_of(adventurer).is_empty():
 		return "Out on a quest"
+	if debrief_waiting(adventurer):
+		return "Debrief waiting"
 	if injury_left(adventurer, now) > 0:
 		return "Injured"
 	if training.size() >= places:
@@ -363,8 +379,8 @@ func party_refusal(quest_id: String, party: PackedStringArray, now: int) -> Stri
 ## Sends `party` on `quest_id` at `now`, its outcome fixed by `roll_seed`; false, with nothing
 ## started, when `party_refusal` gives a reason. Which quests can be sent is Board's rule.
 ## `infirmary_from` is as for `checkpoint`.
-func send(quest_id: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int, infirmary_from: int = -1) -> bool:
-	checkpoint(now, gold, infirmary_from)
+func send(quest_id: String, party: PackedStringArray, roll_seed: int, now: int, infirmary_from: int = -1) -> bool:
+	checkpoint(now, infirmary_from)
 	if not party_refusal(quest_id, party, now).is_empty():
 		return false
 	# Health is fixed on leaving, like the chance, so a level-up while out changes nothing about how
@@ -387,12 +403,12 @@ func returned_since_checkpoint(now: int) -> bool:
 	return false
 
 
-## Brings every returned party home, once, in the order they returned: pays its reward into
-## `gold`, gives each member XP and damage, injures those it leaves under a quarter of their
-## health, stows any loot, and adds its debrief. `infirmary_from` is the unix seconds the first Infirmary is
-## finished at, -1 for none: from then on healing is faster, and an injury from a return at or
-## after it is shorter. Records the time seen.
-func checkpoint(now: int, gold: Gold, infirmary_from: int = -1) -> void:
+## Brings every returned party home, once, in the order they returned: gives each member damage,
+## injures those it leaves under a quarter of their health, reveals the quest's challenges, and adds
+## its debrief holding the gold, XP and loot it earned, paid when read. `infirmary_from` is the unix
+## seconds the first Infirmary is finished at, -1 for none: from then on healing is faster, and an
+## injury from a return at or after it is shorter. Records the time seen.
+func checkpoint(now: int, infirmary_from: int = -1) -> void:
 	checked_at = maxi(checked_at, now)
 	_infirmary_from = infirmary_from
 	var returned: Array[Dictionary] = []
@@ -402,10 +418,10 @@ func checkpoint(now: int, gold: Gold, infirmary_from: int = -1) -> void:
 	returned.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return back_at(a) < back_at(b))
 	for outing: Dictionary in returned:
 		outings.erase(outing)
-		_bring_home(outing, gold)
+		_bring_home(outing)
 
 
-func _bring_home(outing: Dictionary, gold: Gold) -> void:
+func _bring_home(outing: Dictionary) -> void:
 	var quest: Dictionary = QUESTS[outing["quest"]]
 	var party: PackedStringArray = outing["party"]
 	var returns_at := back_at(outing)
@@ -414,7 +430,7 @@ func _bring_home(outing: Dictionary, gold: Gold) -> void:
 	var damage: Dictionary = {}
 	var injured: Dictionary = {}
 	# A party sent before adventurers existed has no members: it comes home as it was sent then,
-	# paid in full.
+	# earning its reward in full.
 	if not party.is_empty():
 		# The chance is the one it left with, so a level-up while out never changes how it ends. One
 		# sent before chances were kept rolls with the power it has now, which is the power it had
@@ -443,25 +459,40 @@ func _bring_home(outing: Dictionary, gold: Gold) -> void:
 	var revealing := unknown_challenges(outing["quest"])
 	if not revealing.is_empty():
 		revealed.append(outing["quest"])
-	gold.amount += reward
 	var xp := Adventurers.quest_xp(quest["seconds"], success)
-	for adventurer: String in party:
-		adventurers.gain_xp(adventurer, xp)
 	# Loot comes whatever the outcome, from the seed the party left with.
 	var loot := PackedStringArray()
-	var lost := PackedStringArray()
 	var item := Gear.loot(outing["seed"], quest["rank"])
 	if not item.is_empty():
-		if adventurers.gear.stow(item):
-			loot.append(item)
-		else:
-			lost.append(item)
-	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "damage": damage, "injured": injured, "gold": reward, "xp": xp, "revealed": revealing, "loot": loot, "lost": lost})
+		loot.append(item)
+	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "damage": damage, "injured": injured, "gold": reward, "xp": xp, "revealed": revealing, "loot": loot, "paid": false})
 
 
-## Files the debrief at `index` away once the player has read it; nothing else changes.
-func read_debrief(index: int) -> void:
+## Files the debrief at `index` away once the player has read it, and pays what its party earned:
+## its gold into `gold`, its XP to each member, and its loot into the stash, where an item that
+## finds the stash full is lost. One saved before reading paid was paid already, so it is only
+## filed away.
+func read_debrief(index: int, gold: Gold) -> void:
+	var debrief := debriefs[index]
 	debriefs.remove_at(index)
+	if debrief.get("paid", true):
+		return
+	gold.amount += int(debrief["gold"])
+	for adventurer: String in debrief["party"]:
+		adventurers.gain_xp(adventurer, int(debrief["xp"]))
+	for item: String in debrief["loot"]:
+		adventurers.gear.stow(item)
+
+
+## The items `debrief` brings, split as reading it now would: {"loot": item ids that go into the
+## stash, "lost": those that find it full}. One saved before reading paid keeps the split it was
+## paid with.
+func debrief_loot(debrief: Dictionary) -> Dictionary:
+	if debrief.get("paid", true):
+		return {"loot": debrief.get("loot", PackedStringArray()), "lost": debrief.get("lost", PackedStringArray())}
+	var items: PackedStringArray = debrief["loot"]
+	var room := maxi(0, Gear.STASH_CAP - adventurers.gear.stash.size())
+	return {"loot": items.slice(0, room), "lost": items.slice(room)}
 
 
 ## How long ago `debrief` came back at `now`, in words for the player: whole minutes, or "just

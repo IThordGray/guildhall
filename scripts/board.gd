@@ -82,13 +82,13 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, ma
 ## Sends `party` on `quest` through `dispatch`, empties its slot and starts that slot's countdown;
 ## false, with nothing sent, when the board at `now` doesn't show `quest` or `dispatch` refuses the
 ## party. The other arguments are as for `refill` and `Dispatch.send`.
-func send(dispatch: Dispatch, quest: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int, quest_halls_done: PackedInt64Array, infirmary_from: int = -1, map_room_from: int = -1) -> bool:
-	dispatch.checkpoint(now, gold, infirmary_from)
+func send(dispatch: Dispatch, quest: String, party: PackedStringArray, roll_seed: int, now: int, quest_halls_done: PackedInt64Array, infirmary_from: int = -1, map_room_from: int = -1) -> bool:
+	dispatch.checkpoint(now, infirmary_from)
 	refill(dispatch, now, quest_halls_done, map_room_from)
 	var slot := slots.find(quest)
 	if quest == "" or slot == -1:
 		return false
-	if not dispatch.send(quest, party, roll_seed, gold, now, infirmary_from):
+	if not dispatch.send(quest, party, roll_seed, now, infirmary_from):
 		return false
 	_note_outings(dispatch)
 	slots[slot] = ""

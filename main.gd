@@ -173,7 +173,7 @@ func _on_tick() -> void:
 
 
 func _checkpoint(now: int) -> void:
-	_dispatch.checkpoint(now, _gold, _hall.first_done_at("infirmary"))
+	_dispatch.checkpoint(now, _hall.first_done_at("infirmary"))
 	_hall.checkpoint(now)
 	_quest_board.refill(_dispatch, now, _rooms_done("quest_hall"), _hall.first_done_at("map_room"))
 	_recruits.refill(_dispatch.adventurers, now, _rooms_done("common_room"))
@@ -280,7 +280,7 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
 	# A Quest hall finished since the last tick adds its slot before the send.
 	_hall.checkpoint(now)
-	if _quest_board.send(_dispatch, quest, party, randi(), _gold, now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room")):
+	if _quest_board.send(_dispatch, quest, party, randi(), now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room")):
 		_close_picker()
 	_checkpoint(now)
 
@@ -292,13 +292,13 @@ func _close_picker() -> void:
 
 func _on_debrief_pressed(index: int) -> void:
 	_open_debrief = index
-	_debrief.show_debrief(_dispatch.debriefs[index], _dispatch.adventurers)
+	_debrief.show_debrief(_dispatch.debriefs[index], _dispatch)
 	_show_quests(false)
 	_debrief.show()
 
 
 func _on_debrief_done() -> void:
-	_dispatch.read_debrief(_open_debrief)
+	_dispatch.read_debrief(_open_debrief, _gold)
 	_debrief.hide()
 	_show_quests(true)
 	_checkpoint(_now())
@@ -340,9 +340,9 @@ func _on_adventurer_swiped(step: int) -> void:
 
 func _on_adventurer_back() -> void:
 	_adventurer.hide()
-	# A level-up taken meanwhile no longer waits.
+	# A level-up taken meanwhile no longer waits, and gear taken off may have filled the stash.
 	if _adventurer_from == _debrief:
-		_debrief.show_debrief(_dispatch.debriefs[_open_debrief], _dispatch.adventurers)
+		_debrief.show_debrief(_dispatch.debriefs[_open_debrief], _dispatch)
 	_adventurer_from.show()
 
 

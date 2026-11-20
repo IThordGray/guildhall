@@ -28,8 +28,8 @@ func _worn_out(dispatch: Dispatch, adventurer: String) -> void:
 
 
 ## Sends PARTY on `quest` with a seed it succeeds with.
-func _send_to_succeed(dispatch: Dispatch, quest: String, gold: Gold, now: int) -> bool:
-	return dispatch.send(quest, PARTY, _seed(quest, PARTY, true), gold, now)
+func _send_to_succeed(dispatch: Dispatch, quest: String, now: int) -> bool:
+	return dispatch.send(quest, PARTY, _seed(quest, PARTY, true), now)
 
 
 func _debriefed_quests(dispatch: Dispatch) -> Array[String]:
@@ -44,6 +44,12 @@ func _statuses(dispatch: Dispatch, now: int) -> Array[String]:
 	for adventurer: String in EVERYONE:
 		statuses.append(dispatch.status(adventurer, now))
 	return statuses
+
+
+## Reads every debrief waiting, oldest first, paying each into `gold`.
+func _read_all(dispatch: Dispatch, gold: Gold) -> void:
+	while not dispatch.debriefs.is_empty():
+		dispatch.read_debrief(0, gold)
 
 
 func test_the_pool_has_7_f_6_e_and_5_d_quests_longer_and_richer_by_rank_each_paying_its_gold_after_its_duration() -> void:
@@ -67,11 +73,12 @@ func test_the_pool_has_7_f_6_e_and_5_d_quests_longer_and_richer_by_rank_each_pay
 		var dispatch := Dispatch.new(1_000)
 		for adventurer: String in PARTY:
 			dispatch.adventurers.roster[adventurer]["rank"] = "E"
-		assert_true(_send_to_succeed(dispatch, quest, gold, 1_000), quest)
+		assert_true(_send_to_succeed(dispatch, quest, 1_000), quest)
 		assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_000), info["seconds"], quest)
-		dispatch.checkpoint(1_000 + info["seconds"] - 1, gold)
+		dispatch.checkpoint(1_000 + info["seconds"] - 1)
 		assert_eq(gold.amount, 0, quest)
-		dispatch.checkpoint(1_000 + info["seconds"], gold)
+		dispatch.checkpoint(1_000 + info["seconds"])
+		_read_all(dispatch, gold)
 		assert_eq(gold.amount, info["gold"], quest)
 	assert_eq(count, {"F": 7, "E": 6, "D": 5})
 	assert_lt(most_gold["F"], least_gold["E"])
@@ -123,11 +130,10 @@ func test_a_new_guild_has_good_odds_on_every_f_quest_fair_odds_together_on_e_and
 func _injuring_returns(quest: String, party: PackedStringArray, success: bool, seeds: int) -> int:
 	var injuring := 0
 	for roll_seed: int in seeds:
-		var gold := Gold.new(0)
 		var dispatch := Dispatch.new(1_000)
-		assert_true(dispatch.send(quest, party, roll_seed, gold, 1_000))
+		assert_true(dispatch.send(quest, party, roll_seed, 1_000))
 		dispatch.outings[0]["chance"] = 100 if success else 0
-		dispatch.checkpoint(9_999, gold)
+		dispatch.checkpoint(9_999)
 		assert_eq(dispatch.debriefs[0]["success"], success)
 		if not dispatch.debriefs[0]["injured"].is_empty():
 			injuring += 1
@@ -152,9 +158,9 @@ func test_from_full_health_a_failed_f_quest_rarely_injures_a_failed_e_quest_ofte
 	var damaged := false
 	for roll_seed: int in 20:
 		var won := Dispatch.new(1_000)
-		won.send("rats", ["tobin"], roll_seed, Gold.new(0), 1_000)
+		won.send("rats", ["tobin"], roll_seed, 1_000)
 		won.outings[0]["chance"] = 100
-		won.checkpoint(1_060, Gold.new(0))
+		won.checkpoint(1_060)
 		damaged = damaged or int(won.debriefs[0]["damage"]["tobin"]) > 0
 	assert_true(damaged)
 
@@ -183,12 +189,14 @@ func test_an_added_adventurer_can_be_sent_counts_with_their_own_class_and_comes_
 	assert_eq(dispatch.status("wren", 1_000), "Resting")
 	# Power 3 against 4, less 15 for Navigation: as a Shield bearer, Wren covers Protect.
 	assert_eq(dispatch.success_chance("letters", ["wren"]), 25)
-	assert_true(dispatch.send("letters", ["wren", "tobin"], 7, gold, 1_000))
+	assert_true(dispatch.send("letters", ["wren", "tobin"], 7, 1_000))
 	assert_eq(dispatch.status("wren", 1_000), "On quest: Carry letters to the abbey")
-	dispatch.checkpoint(1_120, gold)
+	dispatch.checkpoint(1_120)
 	assert_eq(dispatch.debriefs[0]["party"], PackedStringArray(["wren", "tobin"]))
+	var xp: int = dispatch.debriefs[0]["xp"]
+	_read_all(dispatch, gold)
 	assert_gt(dispatch.adventurers.xp["wren"], 0)
-	assert_eq(dispatch.adventurers.xp["wren"], dispatch.debriefs[0]["xp"])
+	assert_eq(dispatch.adventurers.xp["wren"], xp)
 
 
 func test_the_success_chance_is_from_the_picked_party_against_the_quest() -> void:
@@ -203,14 +211,13 @@ func test_the_success_chance_is_from_the_picked_party_against_the_quest() -> voi
 
 
 func test_four_one_person_parties_can_be_out() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("moonherbs", ["tobin"], 0, gold, 1_000))
+	assert_true(dispatch.send("moonherbs", ["tobin"], 0, 1_000))
 	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_030), 150)
 	assert_eq(dispatch.party_refusal("rats", ["maren"], 1_030), "")
-	assert_true(dispatch.send("rats", ["maren"], 0, gold, 1_030))
-	assert_true(dispatch.send("goblins", ["bram"], 0, gold, 1_040))
-	assert_true(dispatch.send("crypt", ["ilse"], 0, gold, 1_050))
+	assert_true(dispatch.send("rats", ["maren"], 0, 1_030))
+	assert_true(dispatch.send("goblins", ["bram"], 0, 1_040))
+	assert_true(dispatch.send("crypt", ["ilse"], 0, 1_050))
 	assert_eq(dispatch.outings.size(), 4)
 	assert_eq(_statuses(dispatch, 1_050), ["On quest: Goblin camp", "On quest: Clear the old crypt", "On quest: Gather moonherbs", "On quest: Rats in the cellar"])
 	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_050), 130)
@@ -219,65 +226,66 @@ func test_four_one_person_parties_can_be_out() -> void:
 
 
 func test_the_party_shows_as_on_its_quest_and_the_others_as_resting() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("goblins", ["ilse", "maren"], 7, gold, 1_000))
+	assert_true(dispatch.send("goblins", ["ilse", "maren"], 7, 1_000))
 	assert_eq(_statuses(dispatch, 1_100), ["Resting", "On quest: Goblin camp", "Resting", "On quest: Goblin camp"])
 
 
 func test_a_party_is_one_to_four_adventurers_who_are_home_and_well() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	assert_eq(dispatch.party_refusal("rats", [], 1_000), "Pick at least one adventurer")
-	assert_false(dispatch.send("rats", [], 1, gold, 1_000))
+	assert_false(dispatch.send("rats", [], 1, 1_000))
 	assert_true(dispatch.outings.is_empty())
 	assert_eq(dispatch.party_refusal("rats", ["tobin"], 1_000), "")
 	assert_eq(dispatch.party_refusal("rats", ["bram", "ilse", "tobin", "maren"], 1_000), "")
-	assert_true(dispatch.send("rats", ["bram", "ilse", "tobin", "maren"], 1, gold, 1_000))
+	assert_true(dispatch.send("rats", ["bram", "ilse", "tobin", "maren"], 1, 1_000))
 	assert_eq(_statuses(dispatch, 1_000), ["On quest: Rats in the cellar", "On quest: Rats in the cellar", "On quest: Rats in the cellar", "On quest: Rats in the cellar"])
 
 
 func test_party_of_five_is_refused() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	var five: PackedStringArray = ["bram", "ilse", "tobin", "maren", "bram"]
 	assert_eq(dispatch.party_refusal("rats", five, 1_000), "At most 4 in a party")
-	assert_false(dispatch.send("rats", five, 1, gold, 1_000))
+	assert_false(dispatch.send("rats", five, 1, 1_000))
 	assert_true(dispatch.outings.is_empty())
 
 
 func test_an_injured_adventurer_cannot_be_picked_until_recovered() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_600, gold)
+	dispatch.checkpoint(1_600)
 	assert_false(dispatch.can_go("tobin", 1_600))
 	assert_true(dispatch.can_go("bram", 1_600))
 	assert_eq(dispatch.party_refusal("rats", ["bram", "tobin"], 1_600), "Tobin can't go")
-	assert_false(dispatch.send("rats", ["bram", "tobin"], 1, gold, 1_600))
+	assert_false(dispatch.send("rats", ["bram", "tobin"], 1, 1_600))
 	assert_true(dispatch.outings.is_empty())
+	_read_all(dispatch, gold)
+	assert_false(dispatch.can_go("tobin", 1_899))
 	assert_true(dispatch.can_go("tobin", 1_900))
-	assert_true(dispatch.send("rats", ["bram", "tobin"], 1, gold, 1_900))
+	assert_true(dispatch.send("rats", ["bram", "tobin"], 1, 1_900))
 
 
 func test_an_adventurer_out_on_a_quest_cannot_be_picked_and_is_free_once_home() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("rats", ["bram"], _seed("rats", ["bram"], true), gold, 1_000)
+	dispatch.send("rats", ["bram"], _seed("rats", ["bram"], true), 1_000)
 	assert_false(dispatch.can_go("bram", 1_030))
 	assert_true(dispatch.can_go("ilse", 1_030))
-	dispatch.checkpoint(1_060, gold)
+	dispatch.checkpoint(1_060)
+	_read_all(dispatch, gold)
 	assert_true(dispatch.can_go("bram", 1_060))
 
 
 func test_a_success_pays_the_full_reward_and_injures_nobody() -> void:
 	var gold := Gold.new(5)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("rats", ["bram", "maren"], _seed("rats", ["bram", "maren"], true), gold, 1_000)
-	dispatch.checkpoint(1_060, gold)
+	dispatch.send("rats", ["bram", "maren"], _seed("rats", ["bram", "maren"], true), 1_000)
+	dispatch.checkpoint(1_060)
+	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram", "maren"]), "damage": {"bram": 1, "maren": 1}, "injured": {}, "gold": 50, "xp": 4, "revealed": PackedStringArray(), "loot": PackedStringArray(), "paid": false}])
+	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 55)
-	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram", "maren"]), "damage": {"bram": 1, "maren": 1}, "injured": {}, "gold": 50, "xp": 4, "revealed": PackedStringArray(), "loot": PackedStringArray(), "lost": PackedStringArray()}])
 	assert_eq(_statuses(dispatch, 1_060), ["Resting", "Resting", "Resting", "Resting"])
 
 
@@ -285,10 +293,13 @@ func test_a_failure_pays_a_quarter_rounded_down_and_injures_a_worn_out_member_fo
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	var injured := "tobin"
-	dispatch.send("moonherbs", PARTY, _seed("moonherbs", PARTY, false), gold, 1_000)
+	dispatch.send("moonherbs", PARTY, _seed("moonherbs", PARTY, false), 1_000)
 	_worn_out(dispatch, injured)
 	# Returns at 1_180; the checkpoint comes 100 s later, as on opening the app.
-	dispatch.checkpoint(1_280, gold)
+	dispatch.checkpoint(1_280)
+	assert_eq(dispatch.debriefs[0]["injured"], {injured: 300})
+	assert_eq(dispatch.debriefs[0]["gold"], 37)
+	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 37)
 	var hurt: Array[String] = []
 	for adventurer: String in EVERYONE:
@@ -298,8 +309,6 @@ func test_a_failure_pays_a_quarter_rounded_down_and_injures_a_worn_out_member_fo
 	assert_eq(dispatch.injury_left(injured, 1_280), 200)
 	assert_eq(dispatch.injury_seconds(injured), 300)
 	assert_eq(dispatch.status(injured, 1_280), "Injured · 3:20")
-	assert_eq(dispatch.debriefs[0]["injured"], {injured: 300})
-	assert_eq(dispatch.debriefs[0]["gold"], 37)
 	assert_eq(dispatch.injury_left(injured, 1_479), 1)
 	assert_eq(dispatch.status(injured, 1_480), "Resting")
 
@@ -307,35 +316,37 @@ func test_a_failure_pays_a_quarter_rounded_down_and_injures_a_worn_out_member_fo
 func test_a_failed_goblin_camp_pays_125_and_names_the_injured() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_600, gold)
-	assert_eq(gold.amount, 125)
+	dispatch.checkpoint(1_600)
 	assert_eq(dispatch.debriefs[0]["injured"], {"tobin": 300})
 	assert_eq(dispatch.debriefs[0]["gold"], 125)
+	_read_all(dispatch, gold)
+	assert_eq(gold.amount, 125)
 
 
 func test_the_outcome_is_not_revealed_before_the_party_returns() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
-	dispatch.checkpoint(1_599, gold)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
+	dispatch.checkpoint(1_599)
 	assert_true(dispatch.debriefs.is_empty())
 	assert_eq(gold.amount, 0)
 	assert_eq(dispatch.status("tobin", 1_599), "On quest: Goblin camp")
-	dispatch.checkpoint(1_600, gold)
+	dispatch.checkpoint(1_600)
 	assert_eq(dispatch.debriefs.size(), 1)
 
 
 func test_the_reward_lands_exactly_when_the_quest_ends_and_not_a_second_before() -> void:
 	var gold := Gold.new(10)
 	var dispatch := Dispatch.new(1_000)
-	_send_to_succeed(dispatch, "rats", gold, 1_000)
-	dispatch.checkpoint(1_059, gold)
+	_send_to_succeed(dispatch, "rats", 1_000)
+	dispatch.checkpoint(1_059)
 	assert_eq(gold.amount, 10)
 	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_059), 1)
 	assert_eq(dispatch.outings.size(), 1)
-	dispatch.checkpoint(1_060, gold)
+	dispatch.checkpoint(1_060)
+	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 60)
 	assert_true(dispatch.outings.is_empty())
 
@@ -343,20 +354,23 @@ func test_the_reward_lands_exactly_when_the_quest_ends_and_not_a_second_before()
 func test_the_reward_is_paid_once_however_many_checkpoints_follow() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	_send_to_succeed(dispatch, "rats", gold, 1_000)
+	_send_to_succeed(dispatch, "rats", 1_000)
 	for now: int in [1_060, 1_061, 1_200, 5_000, 5_000]:
-		dispatch.checkpoint(now, gold)
+		dispatch.checkpoint(now)
+	_read_all(dispatch, gold)
+	dispatch.checkpoint(6_000)
 	assert_eq(gold.amount, 50)
 
 
 func test_a_quest_that_ended_while_the_app_was_closed_pays_on_the_first_checkpoint_after() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	_send_to_succeed(dispatch, "goblins", gold, 1_000)
-	dispatch.checkpoint(1_010, gold)
+	_send_to_succeed(dispatch, "goblins", 1_000)
+	dispatch.checkpoint(1_010)
 	assert_false(dispatch.returned_since_checkpoint(1_500))
 	assert_true(dispatch.returned_since_checkpoint(9_000))
-	dispatch.checkpoint(9_000, gold)
+	dispatch.checkpoint(9_000)
+	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 500)
 	assert_false(dispatch.returned_since_checkpoint(9_000))
 
@@ -364,12 +378,13 @@ func test_a_quest_that_ended_while_the_app_was_closed_pays_on_the_first_checkpoi
 func test_an_injury_runs_out_while_the_app_is_closed() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_010, gold)
-	dispatch.checkpoint(1_000 + 600 + 299, gold)
+	dispatch.checkpoint(1_010)
+	dispatch.checkpoint(1_000 + 600 + 299)
+	_read_all(dispatch, gold)
 	assert_eq(dispatch.status("tobin", 1_899), "Injured · 0:01")
-	dispatch.checkpoint(1_000 + 600 + 300, gold)
+	dispatch.checkpoint(1_000 + 600 + 300)
 	assert_eq(gold.amount, 125)
 	assert_eq(dispatch.status("tobin", 1_900), "Resting")
 
@@ -377,37 +392,39 @@ func test_an_injury_runs_out_while_the_app_is_closed() -> void:
 func test_a_clock_set_back_after_the_return_pays_nothing_extra_and_does_not_rerun_the_quest() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	_send_to_succeed(dispatch, "rats", gold, 1_000)
-	dispatch.checkpoint(1_100, gold)
+	_send_to_succeed(dispatch, "rats", 1_000)
+	dispatch.checkpoint(1_100)
+	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 50)
 
-	dispatch.checkpoint(990, gold)
+	dispatch.checkpoint(990)
 	assert_eq(gold.amount, 50)
 	assert_true(dispatch.outings.is_empty())
 	assert_true(dispatch.can_go("bram", 990))
 	assert_false(dispatch.returned_since_checkpoint(990))
-	dispatch.checkpoint(1_100, gold)
-	dispatch.checkpoint(2_000, gold)
+	dispatch.checkpoint(1_100)
+	dispatch.checkpoint(2_000)
 	assert_eq(gold.amount, 50)
 
 
 func test_a_clock_set_back_after_a_failure_never_rerolls_repays_or_heals_early() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_700, gold)
+	dispatch.checkpoint(1_700)
+	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 125)
 	assert_eq(dispatch.injury_left("tobin", 1_700), 200)
 
-	dispatch.checkpoint(500, gold)
+	dispatch.checkpoint(500)
 	assert_eq(dispatch.injury_left("tobin", 500), 200)
 	assert_eq(dispatch.status("tobin", 500), "Injured · 3:20")
 	assert_false(dispatch.can_go("tobin", 500))
-	dispatch.checkpoint(1_000, gold)
-	dispatch.checkpoint(1_600, gold)
+	dispatch.checkpoint(1_000)
+	dispatch.checkpoint(1_600)
 	assert_eq(gold.amount, 125)
-	assert_eq(dispatch.debriefs.size(), 1)
+	assert_true(dispatch.debriefs.is_empty())
 	assert_eq(dispatch.injury_left("tobin", 1_899), 1)
 	assert_true(dispatch.can_go("tobin", 1_900))
 
@@ -415,29 +432,31 @@ func test_a_clock_set_back_after_a_failure_never_rerolls_repays_or_heals_early()
 func test_a_clock_set_back_mid_quest_adds_no_time_to_the_countdown() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	_send_to_succeed(dispatch, "moonherbs", gold, 1_000)
-	dispatch.checkpoint(1_100, gold)
-	dispatch.checkpoint(500, gold)
+	_send_to_succeed(dispatch, "moonherbs", 1_000)
+	dispatch.checkpoint(1_100)
+	dispatch.checkpoint(500)
 	assert_eq(dispatch.seconds_left(dispatch.outings[0], 500), 80)
-	dispatch.checkpoint(1_180, gold)
+	dispatch.checkpoint(1_180)
+	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 150)
 
 
 func test_with_the_party_home_time_passing_adds_no_gold() -> void:
 	var gold := Gold.new(70)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.checkpoint(1_000 + 3_600, gold)
+	dispatch.checkpoint(1_000 + 3_600)
 	assert_eq(gold.amount, 70)
-	assert_true(_send_to_succeed(dispatch, "rats", gold, 4_600))
-	dispatch.checkpoint(4_660 + 3_600, gold)
+	assert_true(_send_to_succeed(dispatch, "rats", 4_600))
+	dispatch.checkpoint(4_660 + 3_600)
+	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 120)
 
 
 func test_a_quest_in_progress_survives_save_and_load() -> void:
 	var gold := Gold.new(30)
 	var dispatch := Dispatch.new(1_000)
-	_send_to_succeed(dispatch, "moonherbs", gold, 1_000)
-	dispatch.checkpoint(1_050, gold)
+	_send_to_succeed(dispatch, "moonherbs", 1_000)
+	dispatch.checkpoint(1_050)
 	var file := ConfigFile.new()
 	gold.write(file)
 	dispatch.write(file)
@@ -448,22 +467,23 @@ func test_a_quest_in_progress_survives_save_and_load() -> void:
 	assert_eq(loaded.outings[0]["quest"], "moonherbs")
 	assert_eq(loaded.seconds_left(loaded.outings[0], 1_050), 130)
 	assert_eq(loaded.outings.size(), 1)
-	loaded.checkpoint(1_179, loaded_gold)
+	loaded.checkpoint(1_179)
 	assert_eq(loaded_gold.amount, 30)
-	loaded.checkpoint(1_180, loaded_gold)
+	loaded.checkpoint(1_180)
+	_read_all(loaded, loaded_gold)
 	assert_eq(loaded_gold.amount, 180)
 
 
 func test_a_party_out_and_an_injury_survive_save_and_load_with_the_same_outcome() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_700, gold)
+	dispatch.checkpoint(1_700)
 	var party: PackedStringArray = ["bram", "maren"]
 	var roll_seed := _seed("moonherbs", party, false)
-	dispatch.send("moonherbs", party, roll_seed, gold, 1_750)
-	dispatch.checkpoint(1_760, gold)
+	dispatch.send("moonherbs", party, roll_seed, 1_750)
+	dispatch.checkpoint(1_760)
 	var file := ConfigFile.new()
 	gold.write(file)
 	dispatch.write(file)
@@ -471,15 +491,17 @@ func test_a_party_out_and_an_injury_survive_save_and_load_with_the_same_outcome(
 
 	var loaded := Dispatch.load_or_start(SAVE_PATH, 99_999)
 	var loaded_gold := Gold.load_or_start(SAVE_PATH)
-	assert_eq(_statuses(loaded, 1_760), ["On quest: Gather moonherbs", "Resting", "Injured · 2:20", "On quest: Gather moonherbs"])
-	assert_eq(loaded.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 26}, "injured": {"tobin": 300}, "gold": 125, "xp": 20, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "lost": PackedStringArray()}])
+	assert_eq(_statuses(loaded, 1_760), ["On quest: Gather moonherbs", "Resting", "Debrief waiting", "On quest: Gather moonherbs"])
+	assert_eq(loaded.injury_left("tobin", 1_760), 140)
+	assert_eq(loaded.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 26}, "injured": {"tobin": 300}, "gold": 125, "xp": 20, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "paid": false}])
 	assert_eq(loaded.outings[0]["seed"], roll_seed)
 	assert_eq(loaded.seconds_left(loaded.outings[0], 1_760), 170)
-	loaded.checkpoint(1_930, loaded_gold)
-	dispatch.checkpoint(1_930, gold)
-	assert_eq(loaded_gold.amount, 125 + 37)
+	loaded.checkpoint(1_930)
+	dispatch.checkpoint(1_930)
 	assert_eq(loaded.debriefs, dispatch.debriefs)
 	assert_eq(_statuses(loaded, 1_930), _statuses(dispatch, 1_930))
+	_read_all(loaded, loaded_gold)
+	assert_eq(loaded_gold.amount, 125 + 37)
 
 
 func test_an_m2_save_loads_with_its_gold_kept_and_the_party_home() -> void:
@@ -493,9 +515,9 @@ func test_an_m2_save_loads_with_its_gold_kept_and_the_party_home() -> void:
 	var dispatch := Dispatch.load_or_start(SAVE_PATH, 2_000)
 	assert_true(dispatch.outings.is_empty())
 	assert_true(dispatch.can_go("bram", 2_000))
-	dispatch.checkpoint(2_000, gold)
+	dispatch.checkpoint(2_000)
 	assert_eq(gold.amount, 300)
-	assert_true(_send_to_succeed(dispatch, "rats", gold, 2_000))
+	assert_true(_send_to_succeed(dispatch, "rats", 2_000))
 
 
 func _m3_save(quest: String) -> void:
@@ -513,11 +535,12 @@ func test_an_m3_save_with_the_party_out_pays_that_quest_in_full_on_return_with_n
 	var dispatch := Dispatch.load_or_start(SAVE_PATH, 2_000)
 	assert_eq(dispatch.outings.size(), 1)
 	assert_eq(_statuses(dispatch, 1_100), ["Resting", "Resting", "Resting", "Resting"])
-	dispatch.checkpoint(1_599, gold)
+	dispatch.checkpoint(1_599)
 	assert_eq(gold.amount, 20)
-	dispatch.checkpoint(1_600, gold)
+	dispatch.checkpoint(1_600)
+	assert_eq(dispatch.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(), "damage": {}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "paid": false}])
+	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 520)
-	assert_eq(dispatch.debriefs, [{"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(), "damage": {}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "lost": PackedStringArray()}])
 	assert_eq(_statuses(dispatch, 1_600), ["Resting", "Resting", "Resting", "Resting"])
 	assert_true(dispatch.outings.is_empty())
 
@@ -529,7 +552,7 @@ func test_an_m3_save_with_the_party_home_loads_with_all_four_resting() -> void:
 	assert_true(dispatch.outings.is_empty())
 	assert_eq(_statuses(dispatch, 2_000), ["Resting", "Resting", "Resting", "Resting"])
 	assert_eq(gold.amount, 20)
-	assert_true(_send_to_succeed(dispatch, "rats", gold, 2_000))
+	assert_true(_send_to_succeed(dispatch, "rats", 2_000))
 
 
 func test_a_save_naming_an_unknown_quest_loads_with_nobody_out() -> void:
@@ -538,10 +561,10 @@ func test_a_save_naming_an_unknown_quest_loads_with_nobody_out() -> void:
 	var dispatch := Dispatch.load_or_start(SAVE_PATH, 2_000)
 	assert_true(dispatch.outings.is_empty())
 	assert_true(dispatch.can_go("bram", 2_000))
-	dispatch.checkpoint(99_000, gold)
+	dispatch.checkpoint(99_000)
 	assert_eq(gold.amount, 20)
 	assert_true(dispatch.debriefs.is_empty())
-	assert_true(_send_to_succeed(dispatch, "rats", gold, 99_000))
+	assert_true(_send_to_succeed(dispatch, "rats", 99_000))
 
 
 ## A hall at 1_000 converting `back_left` into `type`: restored by 1_120, converted at 1_180.
@@ -560,10 +583,11 @@ func test_save_from_previous_build_loads() -> void:
 	assert_true(hall.convert_room("back_left", "quest_hall", gold, start + 120))
 	hall.checkpoint(start + 180)
 	var dispatch := Dispatch.new(start)
-	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), gold, start + 200)
+	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), start + 200)
 	_worn_out(dispatch, "tobin")
-	dispatch.send("goblins", ["bram", "ilse"], 1, gold, start + 300)
-	dispatch.checkpoint(start + 400, gold)
+	dispatch.send("goblins", ["bram", "ilse"], 1, start + 300)
+	dispatch.checkpoint(start + 400)
+	_read_all(dispatch, gold)
 	# The previous build wrote these three sections, and no board.
 	var file := ConfigFile.new()
 	gold.write(file)
@@ -590,9 +614,10 @@ func test_an_injury_lasts_150_seconds_with_an_infirmary_finished_before_the_retu
 	var hall := _hall_converting("infirmary", gold)
 	var dispatch := Dispatch.new(1_000)
 	# Returns at 1_600; the Infirmary finished at 1_180, while the app was away.
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_700, gold, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_700, hall.first_done_at("infirmary"))
+	_read_all(dispatch, gold)
 	assert_eq(dispatch.injury_left("tobin", 1_700), 50)
 	assert_eq(dispatch.injury_seconds("tobin"), 150)
 	assert_eq(dispatch.status("tobin", 1_700), "Injured · 0:50")
@@ -602,7 +627,7 @@ func test_an_injury_lasts_150_seconds_with_an_infirmary_finished_before_the_retu
 func test_an_injury_lasts_300_seconds_when_the_infirmary_finishes_after_the_return() -> void:
 	var gold := Gold.new(1_000)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
 	_worn_out(dispatch, "tobin")
 	var hall := Hall.new(1_000)
 	hall.restore("back_left", gold, 1_000)
@@ -611,9 +636,10 @@ func test_an_injury_lasts_300_seconds_when_the_infirmary_finishes_after_the_retu
 	# Away until 1_700: the party returned at 1_600, the Infirmary finished at 1_610, and the hall
 	# took its checkpoint first.
 	hall.checkpoint(1_700)
-	dispatch.checkpoint(1_700, gold, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_700, hall.first_done_at("infirmary"))
 	assert_eq(dispatch.injury_left("tobin", 1_700), 200)
-	dispatch.checkpoint(1_800, gold, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_800, hall.first_done_at("infirmary"))
+	_read_all(dispatch, gold)
 	assert_eq(dispatch.injury_seconds("tobin"), 300)
 	assert_eq(dispatch.injury_left("tobin", 1_899), 1)
 	assert_true(dispatch.can_go("tobin", 1_900))
@@ -623,13 +649,13 @@ func test_an_injury_keeps_its_length_through_save_and_load() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_converting("infirmary", gold)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
-	dispatch.send("rats", ["bram"], _seed("rats", ["bram"], false), gold, 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
+	dispatch.send("rats", ["bram"], _seed("rats", ["bram"], false), 1_000)
 	_worn_out(dispatch, "tobin")
 	_worn_out(dispatch, "bram")
 	# Bram returned at 1_060, before the Infirmary; Tobin at 1_600, after it.
-	dispatch.checkpoint(1_100, gold, hall.first_done_at("infirmary"))
-	dispatch.checkpoint(1_700, gold, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_100, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_700, hall.first_done_at("infirmary"))
 	var file := ConfigFile.new()
 	dispatch.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
@@ -656,65 +682,68 @@ func test_two_infirmaries_still_heal_in_150_seconds() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_converting("infirmary", gold)
 	hall.restore("back_right", gold, 1_180)
-	hall.convert_room("back_right", "infirmary", gold, 1_300)
+	# A second Infirmary, as a save from before rooms were unique can hold.
+	hall.converted["back_right"] = {"type": "infirmary", "done_at": 1_360}
 	hall.checkpoint(1_360)
 	assert_eq(hall.rooms_done("infirmary", 1_360), 2)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_400)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_400)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(2_000, gold, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(2_000, hall.first_done_at("infirmary"))
 	assert_eq(dispatch.injury_left("tobin", 2_000), 150)
 
 
 func test_two_parties_back_in_the_same_checkpoint_come_home_in_the_order_they_returned() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["bram", "ilse"], _seed("goblins", ["bram", "ilse"], true), gold, 1_000)
-	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), gold, 1_100)
+	dispatch.send("goblins", ["bram", "ilse"], _seed("goblins", ["bram", "ilse"], true), 1_000)
+	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), 1_100)
 	# Rats came back at 1_160, the goblin camp at 1_600, though the goblin camp left first.
-	dispatch.checkpoint(2_000, gold)
+	dispatch.checkpoint(2_000)
 	assert_true(dispatch.outings.is_empty())
-	assert_eq(gold.amount, 500 + 12)
 	assert_eq(_debriefed_quests(dispatch), ["rats", "goblins"])
+	_read_all(dispatch, gold)
+	assert_eq(gold.amount, 500 + 12)
 
 
 func test_a_clock_set_back_never_changes_an_injury_already_decided() -> void:
 	var gold := Gold.new(1_000)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
 	_worn_out(dispatch, "tobin")
 	var hall := Hall.new(1_000)
 	hall.restore("back_left", gold, 1_000)
 	hall.checkpoint(1_200)
 	hall.convert_room("back_left", "infirmary", gold, 1_550)
 	hall.checkpoint(1_650)
-	dispatch.checkpoint(1_650, gold, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_650, hall.first_done_at("infirmary"))
+	_read_all(dispatch, gold)
 	assert_eq(dispatch.injury_left("tobin", 1_650), 250)
 	assert_eq(gold.amount, 1_000 - 60 - 60 + 125)
 
 	# Set back to before the return and the Infirmary: nothing is re-decided, repaid or re-charged.
 	hall.checkpoint(1_500)
-	dispatch.checkpoint(1_500, gold, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_500, hall.first_done_at("infirmary"))
 	assert_eq(hall.state("back_left", 1_500), Hall.State.CONVERTED)
 	assert_eq(dispatch.injury_left("tobin", 1_500), 250)
 	assert_true(dispatch.outings.is_empty())
-	dispatch.checkpoint(1_700, gold, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_700, hall.first_done_at("infirmary"))
 	assert_eq(dispatch.injury_left("tobin", 1_899), 1)
 	assert_eq(gold.amount, 1_000 - 60 - 60 + 125)
 
 
-var rats_debrief: Dictionary = {"quest": "rats", "returned_at": 1_160, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 14}, "injured": {"tobin": 300}, "gold": 12, "xp": 2, "revealed": PackedStringArray(), "loot": PackedStringArray(), "lost": PackedStringArray()}
-var goblins_debrief: Dictionary = {"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(["bram", "ilse"]), "damage": {"bram": 9, "ilse": 12}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "lost": PackedStringArray()}
+var rats_debrief: Dictionary = {"quest": "rats", "returned_at": 1_160, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 14}, "injured": {"tobin": 300}, "gold": 12, "xp": 2, "revealed": PackedStringArray(), "loot": PackedStringArray(), "paid": false}
+var goblins_debrief: Dictionary = {"quest": "goblins", "returned_at": 1_600, "success": true, "party": PackedStringArray(["bram", "ilse"]), "damage": {"bram": 9, "ilse": 12}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "paid": false}
 
 
 ## Goblin camp succeeds for Bram and Ilse, sent at 1_000 (back at 1_600); Rats in the cellar
 ## fails for Tobin, sent at 1_100 (back at 1_160). Brought home at 1_200 and 2_000.
-func _two_returns(gold: Gold) -> Dispatch:
+func _two_returns() -> Dispatch:
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["bram", "ilse"], _seed("goblins", ["bram", "ilse"], true), gold, 1_000)
-	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), gold, 1_100)
-	dispatch.checkpoint(1_200, gold)
-	dispatch.checkpoint(2_000, gold)
+	dispatch.send("goblins", ["bram", "ilse"], _seed("goblins", ["bram", "ilse"], true), 1_000)
+	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), 1_100)
+	dispatch.checkpoint(1_200)
+	dispatch.checkpoint(2_000)
 	return dispatch
 
 
@@ -722,43 +751,45 @@ func test_a_returned_party_adds_a_debrief_with_its_quest_result_party_injured_me
 	var gold := Gold.new(1_000)
 	var hall := _hall_converting("infirmary", gold)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("moonherbs", PARTY, _seed("moonherbs", PARTY, false), gold, 1_100)
+	dispatch.send("moonherbs", PARTY, _seed("moonherbs", PARTY, false), 1_100)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_279, gold, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_279, hall.first_done_at("infirmary"))
 	assert_true(dispatch.debriefs.is_empty())
-	dispatch.checkpoint(1_400, gold, hall.first_done_at("infirmary"))
-	assert_eq(dispatch.debriefs, [{"quest": "moonherbs", "returned_at": 1_280, "success": false, "party": PARTY, "damage": {"bram": 14, "ilse": 10, "tobin": 8}, "injured": {"tobin": 150}, "gold": 37, "xp": 6, "revealed": PackedStringArray(["Attrition"]), "loot": PackedStringArray(), "lost": PackedStringArray()}])
+	dispatch.checkpoint(1_400, hall.first_done_at("infirmary"))
+	assert_eq(dispatch.debriefs, [{"quest": "moonherbs", "returned_at": 1_280, "success": false, "party": PARTY, "damage": {"bram": 14, "ilse": 10, "tobin": 8}, "injured": {"tobin": 150}, "gold": 37, "xp": 6, "revealed": PackedStringArray(["Attrition"]), "loot": PackedStringArray(), "paid": false}])
 
 
 func test_two_returns_give_two_debriefs_in_the_order_they_came_back() -> void:
-	var gold := Gold.new(0)
-	var dispatch := _two_returns(gold)
+	var dispatch := _two_returns()
 	assert_eq(dispatch.debriefs, [rats_debrief, goblins_debrief])
 
 
-func test_reading_a_debrief_files_only_that_one_and_changes_nothing_else() -> void:
+func test_reading_a_debrief_files_only_that_one_and_pays_only_its_party() -> void:
 	var gold := Gold.new(0)
-	var dispatch := _two_returns(gold)
-	assert_eq(gold.amount, 512)
+	var dispatch := _two_returns()
+	assert_eq(gold.amount, 0)
 	assert_eq(dispatch.injury_left("tobin", 2_000), 0)
-	dispatch.read_debrief(0)
+	dispatch.read_debrief(0, gold)
 	assert_eq(dispatch.debriefs, [goblins_debrief])
-	assert_eq(gold.amount, 512)
-	assert_eq(_statuses(dispatch, 2_000), ["Resting", "Resting", "Resting", "Resting"])
-	dispatch.checkpoint(2_100, gold)
-	assert_eq(gold.amount, 512)
-	dispatch.read_debrief(0)
+	assert_eq(gold.amount, 12)
+	assert_eq(_statuses(dispatch, 2_000), ["Debrief waiting", "Debrief waiting", "Resting", "Resting"])
+	dispatch.checkpoint(2_100)
+	assert_eq(gold.amount, 12)
+	dispatch.read_debrief(0, gold)
 	assert_true(dispatch.debriefs.is_empty())
+	assert_eq(gold.amount, 512)
+	assert_eq(_statuses(dispatch, 2_100), ["Resting", "Resting", "Resting", "Resting"])
 
 
 func test_reading_a_debrief_leaves_an_injury_running() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), gold, 1_000)
+	dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), 1_000)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_100, gold)
-	assert_eq(gold.amount, 12)
-	dispatch.read_debrief(0)
+	dispatch.checkpoint(1_100)
+	assert_eq(gold.amount, 0)
+	assert_eq(dispatch.status("tobin", 1_100), "Debrief waiting")
+	dispatch.read_debrief(0, gold)
 	assert_true(dispatch.debriefs.is_empty())
 	assert_eq(gold.amount, 12)
 	assert_eq(dispatch.status("tobin", 1_100), "Injured · 4:20")
@@ -766,22 +797,216 @@ func test_reading_a_debrief_leaves_an_injury_running() -> void:
 
 func test_debriefs_survive_save_and_load() -> void:
 	var gold := Gold.new(0)
-	var dispatch := _two_returns(gold)
+	var dispatch := _two_returns()
 	var file := ConfigFile.new()
 	dispatch.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 
 	var loaded := Dispatch.load_or_start(SAVE_PATH, 2_000)
 	assert_eq(loaded.debriefs, [rats_debrief, goblins_debrief])
-	loaded.read_debrief(1)
+	loaded.read_debrief(1, gold)
 	loaded.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 	assert_eq(Dispatch.load_or_start(SAVE_PATH, 2_000).debriefs, [rats_debrief])
 
 
-func test_a_debrief_says_how_many_whole_minutes_ago_the_party_came_back() -> void:
+## Bram and Ilse sent at 1_000 on Goblin camp with a seed they succeed with and bring loot back
+## from: back at 1_600 with 500 gold, 40 XP each and the loot.
+func _goblins_with_loot() -> Dispatch:
+	var party: PackedStringArray = ["bram", "ilse"]
+	var chance := Dispatch.new(0).success_chance("goblins", party)
+	var roll_seed := -1
+	for candidate: int in 10_000:
+		if Outcome.roll(candidate, chance, Outcome.MOST_DAMAGE["E"], party, Adventurers.STARTERS).success and not Gear.loot(candidate, "E").is_empty():
+			roll_seed = candidate
+			break
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.send("goblins", party, roll_seed, 1_000))
+	return dispatch
+
+
+func test_after_a_return_gold_xp_and_the_stash_are_unchanged_and_the_party_cannot_go() -> void:
+	var gold := Gold.new(100)
+	var dispatch := _goblins_with_loot()
+	dispatch.checkpoint(1_600)
+	assert_eq(dispatch.debriefs.size(), 1)
+	assert_eq(gold.amount, 100)
+	assert_eq(_xp(dispatch), [0, 0, 0, 0])
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray())
+	assert_eq(_statuses(dispatch, 1_600), ["Debrief waiting", "Debrief waiting", "Resting", "Resting"])
+	assert_false(dispatch.can_go("bram", 1_600))
+	assert_true(dispatch.can_go("tobin", 1_600))
+	assert_eq(dispatch.party_refusal("rats", ["tobin", "bram"], 1_600), "Bram can't go")
+	assert_false(dispatch.send("rats", ["bram"], 1, 1_600))
+	# However long it waits unread, nothing is paid and nobody is freed.
+	dispatch.checkpoint(9_000)
+	assert_eq(gold.amount, 100)
+	assert_eq(_xp(dispatch), [0, 0, 0, 0])
+	assert_false(dispatch.can_go("ilse", 9_000))
+
+
+func test_while_the_debrief_waits_healing_and_injuries_count_from_the_return() -> void:
 	var gold := Gold.new(0)
-	var dispatch := _two_returns(gold)
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.send("goblins", ["bram"], _seed("goblins", ["bram"], false), 1_000))
+	_worn_out(dispatch, "bram")
+	# Tobin fails Gather moonherbs with seed 2: back at 1_600 with 5 of his 16 health.
+	assert_true(dispatch.send("moonherbs", ["tobin"], 2, 1_420))
+	# Both came back at 1_600; the first checkpoint after is at 1_800, and nothing is read.
+	dispatch.checkpoint(1_800)
+	assert_eq(dispatch.debriefs.size(), 2)
+	assert_eq(dispatch.health("tobin", 1_800), 15)
+	assert_eq(dispatch.injury_left("bram", 1_800), 100)
+	assert_eq(dispatch.status("bram", 1_800), "Debrief waiting")
+	# Reading changes neither.
+	_read_all(dispatch, gold)
+	assert_eq(dispatch.health("tobin", 1_800), 15)
+	assert_eq(dispatch.injury_left("bram", 1_800), 100)
+	assert_eq(dispatch.status("bram", 1_800), "Injured · 1:40")
+
+
+func test_reading_the_debrief_pays_exactly_its_gold_xp_and_loot_and_frees_its_party() -> void:
+	var gold := Gold.new(100)
+	var dispatch := _goblins_with_loot()
+	var item := Gear.loot(dispatch.outings[0]["seed"], "E")
+	dispatch.checkpoint(1_600)
+	assert_eq(dispatch.debriefs[0]["gold"], 500)
+	assert_eq(dispatch.debriefs[0]["xp"], 40)
+	assert_eq(dispatch.debriefs[0]["loot"], PackedStringArray([item]))
+	dispatch.read_debrief(0, gold)
+	assert_true(dispatch.debriefs.is_empty())
+	assert_eq(gold.amount, 600)
+	assert_eq(_xp(dispatch), [40, 40, 0, 0])
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray([item]))
+	assert_eq(_statuses(dispatch, 1_600), ["Resting", "Resting", "Resting", "Resting"])
+	assert_true(dispatch.can_go("bram", 1_600))
+	assert_true(dispatch.send("rats", ["bram", "ilse"], 1, 1_600))
+
+
+func test_loot_that_finds_the_stash_full_when_the_debrief_is_read_is_lost_and_the_debrief_says_so() -> void:
+	var gold := Gold.new(0)
+	var dispatch := _goblins_with_loot()
+	var item := Gear.loot(dispatch.outings[0]["seed"], "E")
+	var expected := PackedStringArray()
+	for i: int in Gear.STASH_CAP - 1:
+		assert_true(dispatch.adventurers.gear.stow("belt"))
+		expected.append("belt")
+	dispatch.checkpoint(1_600)
+	# One place left as the party comes back: reading now would stow it.
+	assert_eq(dispatch.debrief_loot(dispatch.debriefs[0]), {"loot": PackedStringArray([item]), "lost": PackedStringArray()})
+	# The stash fills before the debrief is read.
+	assert_true(dispatch.adventurers.gear.stow("sash"))
+	expected.append("sash")
+	assert_eq(dispatch.debrief_loot(dispatch.debriefs[0]), {"loot": PackedStringArray(), "lost": PackedStringArray([item])})
+	dispatch.read_debrief(0, gold)
+	assert_eq(dispatch.adventurers.gear.stash, expected)
+	assert_eq(gold.amount, 500)
+
+
+func test_a_member_with_two_unread_debriefs_is_available_only_once_both_are_read() -> void:
+	# The build before reading paid let Bram go again with his debrief unread.
+	var file := ConfigFile.new()
+	file.set_value("dispatch", "debriefs", [{"quest": "rats", "returned_at": 900, "success": true, "party": PackedStringArray(["bram"]), "damage": {"bram": 1}, "injured": {}, "gold": 50, "xp": 4, "revealed": PackedStringArray(), "loot": PackedStringArray(), "lost": PackedStringArray()}])
+	file.set_value("dispatch", "outings", [{"quest": "rats", "since": 1_000, "party": PackedStringArray(["bram"]), "seed": _seed("rats", ["bram"], true)}])
+	file.set_value("dispatch", "checked_at", 1_000)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.load_or_start(SAVE_PATH, 1_000)
+	dispatch.checkpoint(1_060)
+	assert_eq(dispatch.debriefs.size(), 2)
+	assert_false(dispatch.can_go("bram", 1_060))
+	dispatch.read_debrief(1, gold)
+	assert_false(dispatch.can_go("bram", 1_060))
+	assert_eq(dispatch.status("bram", 1_060), "Debrief waiting")
+	dispatch.read_debrief(0, gold)
+	assert_true(dispatch.can_go("bram", 1_060))
+	assert_eq(dispatch.status("bram", 1_060), "Resting")
+	# Only the debrief from this build paid.
+	assert_eq(gold.amount, 50)
+
+
+func test_a_debrief_saved_before_reading_paid_is_not_paid_again_when_read() -> void:
+	var file := ConfigFile.new()
+	file.set_value("gold", "saved", 640)
+	file.set_value("dispatch", "debriefs", [{"quest": "goblins", "returned_at": 900, "success": true, "party": PackedStringArray(["bram", "ilse"]), "damage": {"bram": 9, "ilse": 12}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(), "loot": PackedStringArray(["night_cloak"]), "lost": PackedStringArray(["sash"])}])
+	file.set_value("dispatch", "checked_at", 1_000)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var gold := Gold.load_or_start(SAVE_PATH)
+	var dispatch := Dispatch.load_or_start(SAVE_PATH, 1_000)
+	# It shows what it paid then.
+	assert_eq(dispatch.debrief_loot(dispatch.debriefs[0]), {"loot": PackedStringArray(["night_cloak"]), "lost": PackedStringArray(["sash"])})
+	dispatch.read_debrief(0, gold)
+	assert_true(dispatch.debriefs.is_empty())
+	assert_eq(gold.amount, 640)
+	assert_eq(_xp(dispatch), [0, 0, 0, 0])
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray())
+	assert_true(dispatch.can_go("bram", 1_000))
+
+
+func test_an_unpaid_debrief_survives_save_and_load_and_pays_once_when_read() -> void:
+	var gold := Gold.new(100)
+	var dispatch := _goblins_with_loot()
+	var item := Gear.loot(dispatch.outings[0]["seed"], "E")
+	dispatch.checkpoint(1_600)
+	var file := ConfigFile.new()
+	gold.write(file)
+	dispatch.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_600)
+	var loaded_gold := Gold.load_or_start(SAVE_PATH)
+	assert_eq(loaded.debriefs, dispatch.debriefs)
+	assert_eq(loaded_gold.amount, 100)
+	assert_false(loaded.can_go("bram", 1_600))
+	loaded.read_debrief(0, loaded_gold)
+	assert_eq(loaded_gold.amount, 600)
+	assert_eq(_xp(loaded), [40, 40, 0, 0])
+	assert_eq(loaded.adventurers.gear.stash, PackedStringArray([item]))
+	assert_true(loaded.can_go("bram", 1_600))
+	# Saved and loaded again, nothing is paid twice.
+	file = ConfigFile.new()
+	loaded_gold.write(file)
+	loaded.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var again := Dispatch.load_or_start(SAVE_PATH, 1_600)
+	var again_gold := Gold.load_or_start(SAVE_PATH)
+	_read_all(again, again_gold)
+	assert_eq(again_gold.amount, 600)
+	assert_eq(_xp(again), [40, 40, 0, 0])
+	assert_eq(again.adventurers.gear.stash, PackedStringArray([item]))
+
+
+func test_one_checkpoint_after_an_absence_equals_checkpointing_every_second() -> void:
+	var runs: Array[Dispatch] = []
+	var golds: Array[Gold] = []
+	for every_second: bool in [false, true]:
+		var gold := Gold.new(0)
+		var dispatch := Dispatch.new(1_000)
+		dispatch.send("goblins", ["bram", "ilse"], _seed("goblins", ["bram", "ilse"], true), 1_000)
+		dispatch.send("rats", ["tobin"], _seed("rats", ["tobin"], false), 1_100)
+		_worn_out(dispatch, "tobin")
+		if every_second:
+			for now: int in range(1_101, 2_000):
+				dispatch.checkpoint(now)
+		dispatch.checkpoint(2_000)
+		runs.append(dispatch)
+		golds.append(gold)
+	assert_eq(runs[1].debriefs, runs[0].debriefs)
+	assert_eq(runs[0].debriefs.size(), 2)
+	assert_eq(_healths(runs[1], 2_000), _healths(runs[0], 2_000))
+	assert_eq(_statuses(runs[1], 2_000), _statuses(runs[0], 2_000))
+	assert_eq(golds[1].amount, golds[0].amount)
+	for i: int in 2:
+		_read_all(runs[i], golds[i])
+	assert_eq(golds[0].amount, 512)
+	assert_eq(golds[1].amount, 512)
+	assert_eq(_xp(runs[1]), _xp(runs[0]))
+	assert_eq(runs[1].adventurers.gear.stash, runs[0].adventurers.gear.stash)
+	assert_eq(_statuses(runs[1], 2_000), _statuses(runs[0], 2_000))
+
+
+func test_a_debrief_says_how_many_whole_minutes_ago_the_party_came_back() -> void:
+	var dispatch := _two_returns()
 	assert_eq(dispatch.back_label(goblins_debrief, 2_000), "Back 6 min ago")
 	assert_eq(dispatch.back_label(rats_debrief, 2_000), "Back 14 min ago")
 	assert_eq(dispatch.back_label(goblins_debrief, 2_259), "Back 10 min ago")
@@ -789,8 +1014,8 @@ func test_a_debrief_says_how_many_whole_minutes_ago_the_party_came_back() -> voi
 	# A clock set back never makes a return more recent.
 	assert_eq(dispatch.back_label(goblins_debrief, 1_000), "Back 6 min ago")
 	var fresh := Dispatch.new(1_000)
-	_send_to_succeed(fresh, "rats", gold, 1_000)
-	fresh.checkpoint(1_060, gold)
+	_send_to_succeed(fresh, "rats", 1_000)
+	fresh.checkpoint(1_060)
 	assert_eq(fresh.back_label(fresh.debriefs[0], 1_119), "Back just now")
 	assert_eq(fresh.back_label(fresh.debriefs[0], 1_120), "Back 1 min ago")
 
@@ -813,9 +1038,10 @@ func test_a_save_from_before_debriefs_loads_with_none_and_nothing_lost() -> void
 	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_050), 10)
 	assert_eq(dispatch.injury_left("tobin", 1_050), 150)
 	assert_eq(dispatch.injury_seconds("tobin"), 150)
-	dispatch.checkpoint(1_060, gold)
+	dispatch.checkpoint(1_060)
+	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram"]), "damage": {"bram": 3}, "injured": {}, "gold": 50, "xp": 4, "revealed": PackedStringArray(), "loot": PackedStringArray(), "paid": false}])
+	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 690)
-	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_060, "success": true, "party": PackedStringArray(["bram"]), "damage": {"bram": 3}, "injured": {}, "gold": 50, "xp": 4, "revealed": PackedStringArray(), "loot": PackedStringArray(), "lost": PackedStringArray()}])
 
 
 func _xp(dispatch: Dispatch) -> Array[int]:
@@ -828,18 +1054,20 @@ func _xp(dispatch: Dispatch) -> Array[int]:
 func test_every_member_of_a_returning_party_gains_xp_and_half_as_much_on_a_failure() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("moonherbs", ["bram", "maren"], _seed("moonherbs", ["bram", "maren"], true), gold, 1_000)
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
-	dispatch.checkpoint(1_179, gold)
+	dispatch.send("moonherbs", ["bram", "maren"], _seed("moonherbs", ["bram", "maren"], true), 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
+	dispatch.checkpoint(1_179)
 	assert_eq(_xp(dispatch), [0, 0, 0, 0])
 	# 180 s of moonherbs gives 12 XP; 600 s of goblin camp 40, halved for failing.
-	dispatch.checkpoint(1_180, gold)
-	assert_eq(_xp(dispatch), [12, 0, 0, 12])
+	dispatch.checkpoint(1_180)
 	assert_eq(dispatch.debriefs[0]["xp"], 12)
-	dispatch.checkpoint(1_600, gold)
+	_read_all(dispatch, gold)
+	assert_eq(_xp(dispatch), [12, 0, 0, 12])
+	dispatch.checkpoint(1_600)
+	assert_eq(dispatch.debriefs[0]["xp"], 20)
+	_read_all(dispatch, gold)
 	assert_eq(_xp(dispatch), [12, 0, 20, 12])
-	assert_eq(dispatch.debriefs[1]["xp"], 20)
-	dispatch.checkpoint(5_000, gold)
+	dispatch.checkpoint(5_000)
 	assert_eq(_xp(dispatch), [12, 0, 20, 12])
 
 
@@ -849,10 +1077,11 @@ func test_xp_banks_past_several_level_ups_and_an_adventurer_with_one_waiting_can
 	var party: PackedStringArray = ["bram", "ilse"]
 	var now := 1_000
 	for quest: int in 3:
-		assert_true(dispatch.send("goblins", party, _seed("goblins", party, true), gold, now))
+		assert_true(dispatch.send("goblins", party, _seed("goblins", party, true), now))
 		# Back after 600 s, then healed to full before the next.
 		now += 1_000
-		dispatch.checkpoint(now, gold)
+		dispatch.checkpoint(now)
+		_read_all(dispatch, gold)
 	# 40 XP a goblin camp: enough for level 2 (40) and level 3 (80).
 	assert_eq(dispatch.adventurers.xp["bram"], 120)
 	assert_true(dispatch.adventurers.level_up_ready("bram"))
@@ -868,7 +1097,6 @@ func test_xp_banks_past_several_level_ups_and_an_adventurer_with_one_waiting_can
 
 
 func test_a_level_up_while_out_never_changes_how_the_quest_ends() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	var grown := Dispatch.new(1_000)
 	for each: Dispatch in [dispatch, grown]:
@@ -883,11 +1111,11 @@ func test_a_level_up_while_out_never_changes_how_the_quest_ends() -> void:
 		if not Outcome.roll(candidate, chance, 12, ["tobin"], Adventurers.STARTERS).success and Outcome.roll(candidate, grown_chance, 12, ["tobin"], Adventurers.STARTERS).success:
 			roll_seed = candidate
 			break
-	assert_true(dispatch.send("goblins", ["tobin"], roll_seed, gold, 1_000))
+	assert_true(dispatch.send("goblins", ["tobin"], roll_seed, 1_000))
 	for level: int in 10:
 		dispatch.adventurers.level_up("tobin")
 	assert_eq(dispatch.success_chance("goblins", ["tobin"]), grown_chance)
-	dispatch.checkpoint(1_600, gold)
+	dispatch.checkpoint(1_600)
 	assert_false(dispatch.debriefs[0]["success"])
 
 
@@ -904,8 +1132,8 @@ func test_a_level_up_while_out_never_changes_the_health_a_member_comes_back_with
 		var dispatch := _tobin_hurt(gold)
 		# Rats in the cellar succeeds with seed 7 and deals Tobin 1: back with 4 of the 16 he left
 		# with, exactly a quarter.
-		assert_true(dispatch.send("rats", ["tobin"], 7, gold, 1_600))
-		assert_true(dispatch.send("rats", ["maren"], 7, gold, 1_600))
+		assert_true(dispatch.send("rats", ["tobin"], 7, 1_600))
+		assert_true(dispatch.send("rats", ["maren"], 7, 1_600))
 		if grow:
 			_grow_grit(dispatch, "tobin")
 			_grow_grit(dispatch, "maren")
@@ -913,10 +1141,11 @@ func test_a_level_up_while_out_never_changes_the_health_a_member_comes_back_with
 			assert_gt(dispatch.adventurers.max_health("maren"), 20)
 		assert_eq(dispatch.health("tobin", 1_630), 5, "grown %s" % grow)
 		assert_eq(dispatch.health("maren", 1_630), 20, "grown %s" % grow)
-		dispatch.checkpoint(1_660, gold)
+		dispatch.checkpoint(1_660)
 		assert_eq(dispatch.health("tobin", 1_660), 4, "grown %s" % grow)
 		for debrief: Dictionary in dispatch.debriefs:
 			assert_true(debrief["injured"].is_empty(), "grown %s" % grow)
+		_read_all(dispatch, gold)
 		assert_true(dispatch.can_go("tobin", 1_660))
 
 
@@ -928,12 +1157,13 @@ func _healths(dispatch: Dispatch, now: int) -> Array[int]:
 
 
 ## Tobin, at 16 health, fails Gather moonherbs sent at 1_420 with seed 2, which deals him 11:
-## back at 1_600 with 5.
+## back at 1_600 with 5, his debrief read.
 func _tobin_hurt(gold: Gold, infirmary_from: int = -1) -> Dispatch:
 	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("moonherbs", ["tobin"], 2, gold, 1_420))
-	dispatch.checkpoint(1_600, gold, infirmary_from)
+	assert_true(dispatch.send("moonherbs", ["tobin"], 2, 1_420))
+	dispatch.checkpoint(1_600, infirmary_from)
 	assert_eq(dispatch.debriefs[0]["damage"], {"tobin": 11})
+	_read_all(dispatch, gold)
 	return dispatch
 
 
@@ -978,12 +1208,12 @@ func test_an_infirmary_doubles_healing_from_the_moment_it_is_finished_not_before
 func test_a_clock_set_back_never_lowers_health_or_undoes_healing() -> void:
 	var gold := Gold.new(0)
 	var dispatch := _tobin_hurt(gold)
-	dispatch.checkpoint(1_700, gold)
+	dispatch.checkpoint(1_700)
 	assert_eq(dispatch.health("tobin", 1_700), 10)
-	dispatch.checkpoint(1_500, gold)
+	dispatch.checkpoint(1_500)
 	assert_eq(dispatch.health("tobin", 1_500), 10)
 	assert_eq(dispatch.seconds_to_full("tobin", 1_500), 120)
-	dispatch.checkpoint(1_650, gold)
+	dispatch.checkpoint(1_650)
 	assert_eq(dispatch.health("tobin", 1_650), 10)
 	assert_eq(dispatch.health("tobin", 1_720), 11)
 
@@ -995,16 +1225,17 @@ func test_a_hurt_adventurer_can_be_sent_heals_nothing_while_out_and_takes_damage
 	assert_eq(dispatch.status("tobin", 1_600), "Resting")
 	assert_eq(dispatch.party_refusal("rats", ["tobin"], 1_600), "")
 	# Rats in the cellar succeeds with seed 7 and deals him 1.
-	assert_true(dispatch.send("rats", ["tobin"], 7, gold, 1_600))
+	assert_true(dispatch.send("rats", ["tobin"], 7, 1_600))
 	assert_eq(dispatch.health("tobin", 1_659), 5)
 	# No countdown to full while out: nobody heals there.
 	assert_eq(dispatch.seconds_to_full("tobin", 1_630), 0)
-	dispatch.checkpoint(1_660, gold)
-	assert_eq(dispatch.debriefs[1]["damage"], {"tobin": 1})
+	dispatch.checkpoint(1_660)
+	assert_eq(dispatch.debriefs[0]["damage"], {"tobin": 1})
 	assert_eq(dispatch.health("tobin", 1_660), 4)
 	assert_eq(dispatch.health("tobin", 1_680), 5)
 	# Exactly a quarter is not under it.
-	assert_true(dispatch.debriefs[1]["injured"].is_empty())
+	assert_true(dispatch.debriefs[0]["injured"].is_empty())
+	_read_all(dispatch, gold)
 	assert_true(dispatch.can_go("tobin", 1_660))
 
 
@@ -1012,14 +1243,15 @@ func test_damage_never_takes_health_below_1_and_under_a_quarter_injures_until_th
 	var gold := Gold.new(0)
 	var dispatch := _tobin_hurt(gold)
 	# 26 more damage from a failed goblin camp, with 5 health left.
-	assert_true(dispatch.send("goblins", ["tobin"], 0, gold, 1_600))
-	dispatch.checkpoint(2_200, gold)
-	assert_eq(dispatch.debriefs[1]["damage"], {"tobin": 26})
+	assert_true(dispatch.send("goblins", ["tobin"], 0, 1_600))
+	dispatch.checkpoint(2_200)
+	assert_eq(dispatch.debriefs[0]["damage"], {"tobin": 26})
 	assert_eq(dispatch.health("tobin", 2_200), 1)
-	assert_eq(dispatch.debriefs[1]["injured"], {"tobin": 300})
+	assert_eq(dispatch.debriefs[0]["injured"], {"tobin": 300})
+	_read_all(dispatch, gold)
 	assert_eq(dispatch.status("tobin", 2_200), "Injured · 5:00")
 	assert_eq(dispatch.party_refusal("rats", ["tobin"], 2_499), "Tobin can't go")
-	assert_false(dispatch.send("rats", ["tobin"], 7, gold, 2_499))
+	assert_false(dispatch.send("rats", ["tobin"], 7, 2_499))
 	assert_true(dispatch.can_go("tobin", 2_500))
 	assert_eq(dispatch.health("tobin", 2_500), 16)
 
@@ -1027,11 +1259,12 @@ func test_damage_never_takes_health_below_1_and_under_a_quarter_injures_until_th
 func test_a_success_can_still_leave_a_worn_out_member_injured_while_the_others_are_not() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("rats", ["tobin", "bram"], _seed("rats", ["tobin", "bram"], true), gold, 1_000))
+	assert_true(dispatch.send("rats", ["tobin", "bram"], _seed("rats", ["tobin", "bram"], true), 1_000))
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_060, gold)
-	assert_eq(gold.amount, 50)
+	dispatch.checkpoint(1_060)
 	assert_eq(dispatch.debriefs[0]["injured"], {"tobin": 300})
+	_read_all(dispatch, gold)
+	assert_eq(gold.amount, 50)
 	assert_false(dispatch.can_go("tobin", 1_060))
 	assert_true(dispatch.can_go("bram", 1_060))
 
@@ -1039,20 +1272,20 @@ func test_a_success_can_still_leave_a_worn_out_member_injured_while_the_others_a
 func test_health_survives_save_and_load() -> void:
 	var gold := Gold.new(0)
 	var dispatch := _tobin_hurt(gold)
-	dispatch.send("rats", ["tobin"], 7, gold, 1_610)
+	dispatch.send("rats", ["tobin"], 7, 1_610)
 	var file := ConfigFile.new()
 	dispatch.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 
 	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_620)
-	loaded.checkpoint(1_620, gold)
+	loaded.checkpoint(1_620)
 	assert_eq(loaded.health("tobin", 1_620), 5)
-	loaded.checkpoint(1_670, gold)
+	loaded.checkpoint(1_670)
 	assert_eq(loaded.health("tobin", 1_670), 4)
 	assert_eq(loaded.seconds_to_full("tobin", 1_670), 240)
 	for now: int in [1_670, 1_700, 1_900]:
-		loaded.checkpoint(now, gold)
-		dispatch.checkpoint(now, gold)
+		loaded.checkpoint(now)
+		dispatch.checkpoint(now)
 		assert_eq(_healths(loaded, now), _healths(dispatch, now))
 	assert_eq(loaded.health("tobin", 1_900), 15)
 
@@ -1060,9 +1293,10 @@ func test_health_survives_save_and_load() -> void:
 func test_a_save_from_before_health_loads_everyone_at_full_health_with_a_running_injury_kept() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	dispatch.send("goblins", ["tobin"], 0, gold, 1_000)
+	dispatch.send("goblins", ["tobin"], 0, 1_000)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_700, gold)
+	dispatch.checkpoint(1_700)
+	_read_all(dispatch, gold)
 	assert_eq(dispatch.health("tobin", 1_700), 6)
 	# The previous build wrote no health.
 	var file := ConfigFile.new()
@@ -1124,7 +1358,6 @@ func test_a_healers_own_power_does_not_count_toward_the_party_but_their_cover_do
 
 
 func test_the_range_shown_holds_the_true_chance_and_the_true_chance_is_what_a_party_leaves_with() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	# Rats has nothing unknown: Bram's 60, widened by 10 either way.
 	assert_eq(dispatch.chance_range("rats", ["bram"]), Vector2i(50, 70))
@@ -1132,17 +1365,17 @@ func test_the_range_shown_holds_the_true_chance_and_the_true_chance_is_what_a_pa
 	assert_eq(dispatch.chance_range("moonherbs", ["bram", "tobin"]), Vector2i(55, 90))
 	# Whether Maren covers the unknown challenge changes the true chance, not the range.
 	assert_eq(dispatch.chance_range("moonherbs", ["bram", "tobin", "maren"]), Vector2i(55, 90))
-	assert_true(dispatch.send("moonherbs", ["bram", "tobin"], 1, gold, 1_000))
+	assert_true(dispatch.send("moonherbs", ["bram", "tobin"], 1, 1_000))
 	assert_eq(dispatch.outings[0]["chance"], 65)
 
 
 func test_a_party_back_from_a_quest_reveals_its_unknown_challenges_for_good() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("moonherbs", ["bram", "tobin"], 1, gold, 1_000))
-	dispatch.checkpoint(1_179, gold)
+	assert_true(dispatch.send("moonherbs", ["bram", "tobin"], 1, 1_000))
+	dispatch.checkpoint(1_179)
 	assert_eq(_unknown(dispatch), STARTING_UNKNOWN, "still out, nothing revealed")
-	dispatch.checkpoint(1_180, gold)
+	dispatch.checkpoint(1_180)
 	var known := STARTING_UNKNOWN.duplicate()
 	known["moonherbs"] = []
 	assert_eq(_unknown(dispatch), known)
@@ -1150,9 +1383,10 @@ func test_a_party_back_from_a_quest_reveals_its_unknown_challenges_for_good() ->
 	# Known to be uncovered, the range narrows to the true 65, widened by 10.
 	assert_eq(dispatch.chance_range("moonherbs", ["bram", "tobin"]), Vector2i(55, 75))
 	# A second trip has nothing left to reveal.
-	assert_true(dispatch.send("moonherbs", ["bram", "tobin"], 1, gold, 1_200))
-	dispatch.checkpoint(1_380, gold)
-	assert_eq(dispatch.debriefs[1]["revealed"], PackedStringArray())
+	_read_all(dispatch, gold)
+	assert_true(dispatch.send("moonherbs", ["bram", "tobin"], 1, 1_200))
+	dispatch.checkpoint(1_380)
+	assert_eq(dispatch.debriefs[0]["revealed"], PackedStringArray())
 	var file := ConfigFile.new()
 	dispatch.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
@@ -1164,9 +1398,9 @@ func test_a_party_back_from_a_quest_reveals_its_unknown_challenges_for_good() ->
 func test_a_save_from_before_challenges_loads_with_the_starting_knowledge_and_nothing_else_lost() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("moonherbs", ["bram"], 1, gold, 1_000))
-	dispatch.checkpoint(1_180, gold)
-	assert_true(dispatch.send("goblins", ["tobin"], 1, gold, 1_200))
+	assert_true(dispatch.send("moonherbs", ["bram"], 1, 1_000))
+	dispatch.checkpoint(1_180)
+	assert_true(dispatch.send("goblins", ["tobin"], 1, 1_200))
 	# The previous build wrote nothing revealed, and debriefs without it.
 	var file := ConfigFile.new()
 	dispatch.write(file)
@@ -1191,8 +1425,8 @@ func test_the_same_seed_sends_the_same_party_to_the_same_end() -> void:
 		var ends: Array[Dictionary] = []
 		for run: int in 2:
 			var dispatch := Dispatch.new(1_000)
-			assert_true(dispatch.send("moonherbs", party, roll_seed, Gold.new(0), 1_000))
-			dispatch.checkpoint(1_180, Gold.new(0))
+			assert_true(dispatch.send("moonherbs", party, roll_seed, 1_000))
+			dispatch.checkpoint(1_180)
 			ends.append(dispatch.debriefs[0])
 		assert_eq(ends[1], ends[0])
 		if ends[0]["success"]:
@@ -1209,24 +1443,25 @@ func _loot_seed(rank: String) -> int:
 	return -1
 
 
-func test_a_returning_party_puts_its_loot_in_the_stash_and_its_debrief_lists_it() -> void:
+func test_a_returning_partys_debrief_lists_its_loot_and_reading_it_puts_it_in_the_stash() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	var roll_seed := _loot_seed("E")
 	var item := Gear.loot(roll_seed, "E")
-	assert_true(dispatch.send("goblins", ["bram", "ilse"], roll_seed, gold, 1_000))
-	dispatch.checkpoint(1_599, gold)
-	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray())
-	dispatch.checkpoint(1_600, gold)
-	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray([item]))
+	assert_true(dispatch.send("goblins", ["bram", "ilse"], roll_seed, 1_000))
+	dispatch.checkpoint(1_600)
 	assert_eq(dispatch.debriefs[0]["loot"], PackedStringArray([item]))
-	assert_eq(dispatch.debriefs[0]["lost"], PackedStringArray())
-	# A return whose seed brings nothing adds nothing.
-	assert_true(dispatch.send("goblins", ["tobin"], 0, gold, 1_600))
-	assert_eq(Gear.loot(0, "E"), "")
-	dispatch.checkpoint(2_200, gold)
+	assert_eq(dispatch.debrief_loot(dispatch.debriefs[0]), {"loot": PackedStringArray([item]), "lost": PackedStringArray()})
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray())
+	_read_all(dispatch, gold)
 	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray([item]))
-	assert_eq(dispatch.debriefs[1]["loot"], PackedStringArray())
+	# A return whose seed brings nothing adds nothing.
+	assert_true(dispatch.send("goblins", ["tobin"], 0, 1_600))
+	assert_eq(Gear.loot(0, "E"), "")
+	dispatch.checkpoint(2_200)
+	assert_eq(dispatch.debriefs[0]["loot"], PackedStringArray())
+	_read_all(dispatch, gold)
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray([item]))
 
 
 func test_loot_brought_to_a_full_stash_is_lost_and_the_debrief_says_so() -> void:
@@ -1236,20 +1471,19 @@ func test_loot_brought_to_a_full_stash_is_lost_and_the_debrief_says_so() -> void
 		assert_true(dispatch.adventurers.gear.stow("belt"))
 	var roll_seed := _loot_seed("F")
 	var item := Gear.loot(roll_seed, "F")
-	assert_true(dispatch.send("rats", ["bram"], roll_seed, gold, 1_000))
-	dispatch.checkpoint(1_060, gold)
+	assert_true(dispatch.send("rats", ["bram"], roll_seed, 1_000))
+	dispatch.checkpoint(1_060)
+	assert_eq(dispatch.debrief_loot(dispatch.debriefs[0]), {"loot": PackedStringArray(), "lost": PackedStringArray([item])})
+	_read_all(dispatch, gold)
 	assert_eq(dispatch.adventurers.gear.stash.size(), 20)
-	assert_eq(dispatch.debriefs[0]["loot"], PackedStringArray())
-	assert_eq(dispatch.debriefs[0]["lost"], PackedStringArray([item]))
 	assert_does_not_have(dispatch.adventurers.gear.stash, item if item != "belt" else "never")
 
 
 func test_gear_cannot_be_changed_while_out_and_can_once_home() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	dispatch.adventurers.gear.stow("chapel_plate")
 	var chance := dispatch.success_chance("rats", ["bram"])
-	assert_true(dispatch.send("rats", ["bram"], 1, gold, 1_000))
+	assert_true(dispatch.send("rats", ["bram"], 1, 1_000))
 	assert_false(dispatch.can_change_gear("bram"))
 	assert_false(dispatch.wear("bram", 0))
 	assert_eq(dispatch.adventurers.gear.worn["bram"]["armour"], "leather_vest")
@@ -1257,7 +1491,7 @@ func test_gear_cannot_be_changed_while_out_and_can_once_home() -> void:
 	assert_eq(dispatch.outings[0]["chance"], chance)
 	# Someone home may change theirs meanwhile.
 	assert_true(dispatch.can_change_gear("ilse"))
-	dispatch.checkpoint(1_060, gold)
+	dispatch.checkpoint(1_060)
 	assert_true(dispatch.can_change_gear("bram"))
 	assert_true(dispatch.wear("bram", 0))
 	assert_eq(dispatch.adventurers.gear.worn["bram"]["armour"], "chapel_plate")
@@ -1265,13 +1499,12 @@ func test_gear_cannot_be_changed_while_out_and_can_once_home() -> void:
 
 
 func test_gear_cannot_be_taken_off_while_out_and_can_once_home_unless_the_stash_is_full() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("rats", ["bram"], 1, gold, 1_000))
+	assert_true(dispatch.send("rats", ["bram"], 1, 1_000))
 	assert_false(dispatch.take_off("bram", "armour"))
 	assert_eq(dispatch.adventurers.gear.worn["bram"]["armour"], "leather_vest")
 	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray())
-	dispatch.checkpoint(1_060, gold)
+	dispatch.checkpoint(1_060)
 	# Home again: Gear's own refusals still hold, an empty slot and then a full stash.
 	assert_false(dispatch.take_off("bram", "back"))
 	assert_true(dispatch.take_off("bram", "armour"))
@@ -1284,15 +1517,14 @@ func test_gear_cannot_be_taken_off_while_out_and_can_once_home_unless_the_stash_
 
 
 func test_taking_off_and_wearing_say_why_they_are_refused_out_on_a_quest_nothing_worn_or_stash_full() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("rats", ["bram"], 1, gold, 1_000))
+	assert_true(dispatch.send("rats", ["bram"], 1, 1_000))
 	assert_eq(dispatch.take_off_refusal("bram", "armour"), "Out on a quest")
 	assert_eq(dispatch.wear_refusal("bram"), "Out on a quest")
 	# Someone home may.
 	assert_eq(dispatch.take_off_refusal("ilse", "weapon"), "")
 	assert_eq(dispatch.wear_refusal("ilse"), "")
-	dispatch.checkpoint(1_060, gold)
+	dispatch.checkpoint(1_060)
 	assert_eq(dispatch.take_off_refusal("bram", "armour"), "")
 	assert_eq(dispatch.wear_refusal("bram"), "")
 	assert_eq(dispatch.take_off_refusal("bram", "back"), "Nothing worn")
@@ -1307,8 +1539,8 @@ func test_gear_the_stash_and_loot_in_debriefs_survive_save_and_load() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	var roll_seed := _loot_seed("E")
-	assert_true(dispatch.send("goblins", ["tobin"], roll_seed, gold, 1_000))
-	dispatch.checkpoint(1_600, gold)
+	assert_true(dispatch.send("goblins", ["tobin"], roll_seed, 1_000))
+	dispatch.checkpoint(1_600)
 	dispatch.adventurers.gear.stow("night_cloak")
 	assert_true(dispatch.wear("ilse", dispatch.adventurers.gear.stash.size() - 1))
 	var file := ConfigFile.new()
@@ -1318,22 +1550,27 @@ func test_gear_the_stash_and_loot_in_debriefs_survive_save_and_load() -> void:
 	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_600)
 	assert_eq(loaded.adventurers.gear.worn, dispatch.adventurers.gear.worn)
 	assert_eq(loaded.adventurers.gear.worn["ilse"]["back"], "night_cloak")
-	assert_eq(loaded.adventurers.gear.stash, PackedStringArray([Gear.loot(roll_seed, "E")]))
 	assert_eq(loaded.debriefs, dispatch.debriefs)
+	assert_eq(loaded.debriefs[0]["loot"], PackedStringArray([Gear.loot(roll_seed, "E")]))
 	assert_eq(loaded.adventurers.stat_total("ilse", "agility"), 5)
+	loaded.read_debrief(0, gold)
+	assert_eq(loaded.adventurers.gear.stash, PackedStringArray([Gear.loot(roll_seed, "E")]))
 
 
-func test_training_is_refused_with_nothing_changed_when_no_place_is_free_out_on_a_quest_or_injured() -> void:
+func test_training_is_refused_with_nothing_changed_when_no_place_is_free_out_on_a_quest_debrief_waiting_or_injured() -> void:
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	assert_eq(dispatch.training_refusal("bram", 0, 1_000), "No free training place — convert a Training room")
 	assert_false(dispatch.train("bram", 0, 1_000))
-	assert_true(dispatch.send("rats", ["ilse"], 1, gold, 1_000))
+	assert_true(dispatch.send("rats", ["ilse"], 1, 1_000))
 	assert_eq(dispatch.training_refusal("ilse", 1, 1_030), "Out on a quest")
 	assert_false(dispatch.train("ilse", 1, 1_030))
-	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), gold, 1_000)
+	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_600, gold)
+	dispatch.checkpoint(1_600)
+	assert_eq(dispatch.training_refusal("tobin", 1, 1_600), "Debrief waiting")
+	assert_false(dispatch.train("tobin", 1, 1_600))
+	_read_all(dispatch, gold)
 	assert_eq(dispatch.training_refusal("tobin", 1, 1_600), "Injured")
 	assert_false(dispatch.train("tobin", 1, 1_600))
 	assert_true(dispatch.training.is_empty())
@@ -1374,7 +1611,7 @@ func test_the_training_countdown_ticks_down_to_0_exactly_when_the_stint_reaches_
 			assert_eq(dispatch.training_seconds_left("bram", at), dispatch.training_seconds_left("bram", 1_000) - (at - 1_000), str(at))
 	assert_eq(capped_at, 1_000 + 3_600)
 	# A clock set back after a later checkpoint gives no time back.
-	dispatch.checkpoint(1_000 + 600, Gold.new(0))
+	dispatch.checkpoint(1_000 + 600)
 	assert_eq(dispatch.training_seconds_left("bram", 1_000), 3_000)
 	assert_eq(dispatch.training_seconds_left("bram", 1_000 + 600), 3_000)
 
@@ -1398,17 +1635,16 @@ func test_stopping_banks_exactly_the_stints_xp_and_frees_the_adventurer() -> voi
 
 
 func test_an_adventurer_in_training_shows_as_training_and_cannot_be_sent() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	assert_true(dispatch.train("bram", 1, 1_000))
 	assert_eq(_statuses(dispatch, 1_100), ["Training", "Resting", "Resting", "Resting"])
 	assert_false(dispatch.can_go("bram", 1_100))
 	assert_true(dispatch.can_go("ilse", 1_100))
 	assert_eq(dispatch.party_refusal("rats", ["bram", "ilse"], 1_100), "Bram can't go")
-	assert_false(dispatch.send("rats", ["bram", "ilse"], 1, gold, 1_100))
+	assert_false(dispatch.send("rats", ["bram", "ilse"], 1, 1_100))
 	assert_true(dispatch.outings.is_empty())
 	dispatch.stop_training("bram", 1_200)
-	assert_true(dispatch.send("rats", ["bram", "ilse"], 1, gold, 1_200))
+	assert_true(dispatch.send("rats", ["bram", "ilse"], 1, 1_200))
 
 
 func test_two_training_rooms_hold_two_and_a_stop_frees_a_place() -> void:
@@ -1448,10 +1684,9 @@ func test_the_growth_hint_breaks_a_tie_by_the_order_stats_are_shown_in() -> void
 
 
 func test_a_clock_set_back_never_lowers_training_xp_or_the_time_trained() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	assert_true(dispatch.train("tobin", 1, 1_000))
-	dispatch.checkpoint(1_000 + 900, gold)
+	dispatch.checkpoint(1_000 + 900)
 	assert_eq(dispatch.training_xp("tobin", 1_100), 15)
 	assert_eq(dispatch.training_hint("tobin", 1_100), "Agility")
 	assert_eq(dispatch.stop_training("tobin", 1_100), 15)
@@ -1482,9 +1717,8 @@ func test_training_survives_save_and_load_mid_stint() -> void:
 
 
 func test_a_save_from_before_training_loads_with_nobody_training_and_nothing_else_lost() -> void:
-	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("goblins", ["tobin"], 1, gold, 1_000))
+	assert_true(dispatch.send("goblins", ["tobin"], 1, 1_000))
 	var file := ConfigFile.new()
 	dispatch.write(file)
 	file.erase_section_key("dispatch", "training")

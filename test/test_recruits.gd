@@ -266,7 +266,7 @@ func test_a_hired_shield_bearer_can_be_sent_on_a_quest_and_covers_protect() -> v
 	assert_eq(Challenges.covered_by("Protect", party, dispatch.adventurers.roster), party)
 	assert_eq(Challenges.covered_by("Protect", PackedStringArray(["bram", "ilse", "tobin", "maren"]), dispatch.adventurers.roster), PackedStringArray())
 	assert_eq(dispatch.party_refusal("letters", party, at), "")
-	assert_true(dispatch.send("letters", party, 7, Gold.new(0), at))
+	assert_true(dispatch.send("letters", party, 7, at))
 	assert_eq(dispatch.quest_of(id), "letters")
 
 

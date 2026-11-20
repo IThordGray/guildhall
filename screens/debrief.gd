@@ -18,9 +18,10 @@ func _ready() -> void:
 	($Scroll/Box/Done as Button).pressed.connect(done_pressed.emit)
 
 
-## Shows `debrief`, one of Dispatch.debriefs, with who of its party has a level-up waiting in
-## `adventurers`.
-func show_debrief(debrief: Dictionary, adventurers: Adventurers) -> void:
+## Shows `debrief`, one of `dispatch`'s debriefs, with who of its party has a level-up waiting and
+## which of its items reading it now would lose to a full stash.
+func show_debrief(debrief: Dictionary, dispatch: Dispatch) -> void:
+	var adventurers := dispatch.adventurers
 	_quest.text = Dispatch.QUESTS[debrief["quest"]]["name"]
 	_result.text = "Success" if debrief["success"] else "Failed"
 	_result.theme_type_variation = &"SuccessChip" if debrief["success"] else &"FailedChip"
@@ -80,10 +81,10 @@ func show_debrief(debrief: Dictionary, adventurers: Adventurers) -> void:
 	_gold.text = "+%d" % debrief["gold"]
 	for line: Node in _items.get_children():
 		line.queue_free()
-	# A debrief saved before loot brought none.
-	for item: String in debrief.get("loot", PackedStringArray()):
+	var loot := dispatch.debrief_loot(debrief)
+	for item: String in loot["loot"]:
 		_items.add_child(_item_line(item, ""))
-	for item: String in debrief.get("lost", PackedStringArray()):
+	for item: String in loot["lost"]:
 		_items.add_child(_item_line(item, "The stash was full: lost"))
 	_items.visible = _items.get_child_count() > 0
 

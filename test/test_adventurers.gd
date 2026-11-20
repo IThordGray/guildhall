@@ -177,7 +177,7 @@ func test_stats_levels_xp_and_history_survive_save_and_load() -> void:
 func test_a_save_from_the_previous_build_loads_with_starter_stats_and_nothing_else_lost() -> void:
 	var gold := Gold.new(300)
 	var dispatch := Dispatch.new(1_000)
-	assert_true(dispatch.send("goblins", ["bram", "ilse"], 1, gold, 1_000))
+	assert_true(dispatch.send("goblins", ["bram", "ilse"], 1, 1_000))
 	# The previous build kept no chance with a party out, and wrote no adventurers.
 	dispatch.outings[0].erase("chance")
 	var file := ConfigFile.new()
@@ -196,9 +196,11 @@ func test_a_save_from_the_previous_build_loads_with_starter_stats_and_nothing_el
 		assert_eq(loaded.adventurers.history[adventurer], [])
 	assert_eq(Gold.load_or_start(SAVE_PATH).amount, 300)
 	assert_eq(loaded.status("bram", 1_100), "On quest: Goblin camp")
-	loaded.checkpoint(1_600, gold)
+	loaded.checkpoint(1_600)
 	assert_eq(loaded.debriefs.size(), 1)
-	assert_eq(loaded.adventurers.xp["bram"], loaded.debriefs[0]["xp"])
+	var xp: int = loaded.debriefs[0]["xp"]
+	loaded.read_debrief(0, gold)
+	assert_eq(loaded.adventurers.xp["bram"], xp)
 
 
 func test_a_save_from_the_current_build_loads_with_starter_gear_an_empty_stash_and_nothing_else_lost() -> void:

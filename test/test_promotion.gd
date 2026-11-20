@@ -78,7 +78,7 @@ func test_a_promoted_adventurer_can_join_a_rank_d_quest_and_keeps_the_rank_throu
 	var loaded := Dispatch.load_or_start(SAVE_PATH, START)
 	assert_eq(loaded.adventurers.roster["bram"]["rank"], "E")
 	assert_eq(loaded.adventurers.roster["ilse"]["rank"], "F")
-	assert_true(loaded.send("maze", ["bram"], 1, Gold.new(0), START))
+	assert_true(loaded.send("maze", ["bram"], 1, START))
 
 
 func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_can_draw_rank_d() -> void:
@@ -90,19 +90,19 @@ func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_
 	# Cartographer (F) is sent from slot 1, which comes due 600 seconds later.
 	var sent_at := START + 20
 	assert_eq(board.slots[1], "cartographer")
-	assert_true(board.send(dispatch, "cartographer", ["bram"], 1, gold, sent_at, NO_HALLS))
+	assert_true(board.send(dispatch, "cartographer", ["bram"], 1, sent_at, NO_HALLS))
 	var promoted_at := START + 1_000
 	# Promoting first would let the slot due before it draw a rank D quest, so this case separates
 	# the two orders.
 	var wrong := Board.new()
 	wrong.refill(Dispatch.new(START), START, NO_HALLS)
 	var wrong_dispatch := Dispatch.new(START)
-	assert_true(wrong.send(wrong_dispatch, "cartographer", ["bram"], 1, Gold.new(0), sent_at, NO_HALLS))
+	assert_true(wrong.send(wrong_dispatch, "cartographer", ["bram"], 1, sent_at, NO_HALLS))
 	wrong_dispatch.adventurers.roster["maren"]["rank"] = "E"
 	wrong.refill(wrong_dispatch, promoted_at, NO_HALLS)
 	assert_eq(Dispatch.QUESTS[wrong.slots[1]]["rank"], "D")
 	# As main does it: the board is brought up to the moment, then the promotion.
-	dispatch.checkpoint(promoted_at, gold)
+	dispatch.checkpoint(promoted_at)
 	board.refill(dispatch, promoted_at, NO_HALLS)
 	assert_true(dispatch.adventurers.promote("maren", Gold.new(150), false))
 	board.refill(dispatch, promoted_at + 1, NO_HALLS)
@@ -113,9 +113,10 @@ func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_
 	var now := promoted_at
 	for i: int in 30:
 		now += 3_600
-		assert_true(board.send(dispatch, board.slots[i % 3], ["maren"], 1, gold, now, NO_HALLS), str(i))
+		assert_true(board.send(dispatch, board.slots[i % 3], ["maren"], 1, now, NO_HALLS), str(i))
 		now += 3_600
-		dispatch.checkpoint(now, gold)
+		dispatch.checkpoint(now)
+		while not dispatch.debriefs.is_empty(): dispatch.read_debrief(0, gold)
 		board.refill(dispatch, now, NO_HALLS)
 		for quest: String in board.slots:
 			ranks[Dispatch.QUESTS[quest]["rank"]] = true

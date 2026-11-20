@@ -288,6 +288,68 @@ func test_a_room_being_converted_or_converted_cannot_be_converted_again() -> voi
 	assert_eq(gold.amount, 880)
 
 
+## A hall with back_left converted into a Tavern from 1_200 to 1_260 and back_right restored and
+## empty from 1_380, the builder free, paid from `gold`.
+func _hall_with_tavern_and_empty_room(gold: Gold) -> Hall:
+	var hall := _hall_with_empty_room("back_left", gold)
+	assert_true(hall.convert_room("back_left", "tavern", gold, 1_200))
+	hall.checkpoint(1_260)
+	assert_true(hall.restore("back_right", gold, 1_260))
+	hall.checkpoint(1_380)
+	return hall
+
+
+func test_converting_to_a_type_already_built_is_refused_with_nothing_changed() -> void:
+	var gold := Gold.new(1_000)
+	var hall := _hall_with_tavern_and_empty_room(gold)
+	assert_eq(gold.amount, 760)
+	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_400), "Already built")
+	assert_false(hall.convert_room("back_right", "tavern", gold, 1_400))
+	assert_eq(gold.amount, 760)
+	assert_eq(hall.state("back_right", 1_400), Hall.State.RESTORED)
+	assert_eq(hall.rooms_done("tavern", 1_400), 1)
+	# Any other type can still go in the empty room.
+	assert_eq(hall.convert_refusal("back_right", "infirmary", gold, 1_400), "")
+	assert_true(hall.convert_room("back_right", "infirmary", gold, 1_400))
+
+
+func test_converting_to_a_type_being_built_is_refused_with_nothing_changed_and_already_built_once_done() -> void:
+	var gold := Gold.new(1_000)
+	var hall := _hall_with_empty_room("back_left", gold)
+	assert_true(hall.restore("back_right", gold, 1_120))
+	hall.checkpoint(1_240)
+	assert_true(hall.convert_room("back_left", "tavern", gold, 1_240))
+	assert_eq(gold.amount, 760)
+	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_299), "Being built")
+	assert_false(hall.convert_room("back_right", "tavern", gold, 1_299))
+	assert_eq(hall.convert_refusal("back_right", "infirmary", gold, 1_299), "Builder busy")
+	assert_eq(gold.amount, 760)
+	assert_eq(hall.state("back_right", 1_299), Hall.State.RESTORED)
+	# Finished but not yet checkpointed, and after.
+	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_300), "Already built")
+	assert_false(hall.convert_room("back_right", "tavern", gold, 1_300))
+	hall.checkpoint(1_300)
+	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_300), "Already built")
+	assert_eq(gold.amount, 760)
+	assert_eq(hall.state("back_right", 1_300), Hall.State.RESTORED)
+
+
+func test_an_old_save_with_two_bunk_rooms_keeps_both_and_8_beds() -> void:
+	# What a build before rooms were unique could save: two finished Bunk rooms.
+	var file := ConfigFile.new()
+	file.set_value("hall", "restored", PackedStringArray(["back_left", "back_right", "side_left"]))
+	file.set_value("hall", "converted", {"back_left": {"type": "bunk_room", "done_at": 1_100}, "back_right": {"type": "bunk_room", "done_at": 1_200}})
+	file.set_value("hall", "checked_at", 1_300)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var hall := Hall.load_or_start(SAVE_PATH, 1_400)
+	assert_eq(hall.rooms_done("bunk_room", 1_400), 2)
+	assert_eq(hall.beds(1_400), 8)
+	assert_eq(hall.room_type("back_left"), "bunk_room")
+	assert_eq(hall.room_type("back_right"), "bunk_room")
+	assert_eq(hall.convert_refusal("side_left", "bunk_room", Gold.new(1_000), 1_400), "Already built")
+
+
 func test_the_first_infirmary_is_dated_from_when_its_conversion_finishes() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_empty_room("back_left", gold)
@@ -298,7 +360,8 @@ func test_the_first_infirmary_is_dated_from_when_its_conversion_finishes() -> vo
 	hall.checkpoint(1_400)
 	hall.restore("back_right", gold, 1_400)
 	hall.checkpoint(1_520)
-	hall.convert_room("back_right", "infirmary", gold, 1_520)
+	# A second Infirmary, as a save from before rooms were unique can hold.
+	hall.converted["back_right"] = {"type": "infirmary", "done_at": 1_580}
 	assert_eq(hall.first_done_at("infirmary"), 1_260)
 	hall.checkpoint(1_600)
 	assert_eq(hall.first_done_at("infirmary"), 1_260)
@@ -473,7 +536,8 @@ func test_two_taverns_fill_and_are_collected_each_on_their_own() -> void:
 	hall.checkpoint(1_260)
 	assert_true(hall.restore("back_right", gold, 1_260))
 	hall.checkpoint(1_380)
-	assert_true(hall.convert_room("back_right", "tavern", gold, 1_380))
+	# A second Tavern, as a save from before rooms were unique can hold.
+	hall.converted["back_right"] = {"type": "tavern", "done_at": 1_440}
 	# The second finishes at 1_440, three minutes after the first.
 	var at := 1_440 + 10 * 60
 	assert_eq(hall.tavern_gold("back_left", at), 26)
@@ -677,7 +741,8 @@ func test_the_first_infirmary_done_is_the_one_injured_adventurers_use_on_either_
 	var hall := _hall_with_first_floor(gold)
 	assert_true(hall.convert_room("upper_se", "infirmary", gold, 2_100))
 	hall.checkpoint(2_160)
-	assert_true(hall.convert_room("back_left", "infirmary", gold, 2_160))
+	# A second Infirmary, as a save from before rooms were unique can hold.
+	hall.converted["back_left"] = {"type": "infirmary", "done_at": 2_220}
 	hall.checkpoint(2_220)
 	assert_eq(hall.first_room("infirmary"), "upper_se")
 	assert_eq(hall.first_done_at("infirmary"), 2_160)

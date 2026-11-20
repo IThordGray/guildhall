@@ -23,8 +23,9 @@ const EXTEND_AFTER_RESTORES: int = 3
 const FIRST_FLOOR: Array[String] = ["upper_nw", "upper_ne", "upper_sw", "upper_se"]
 ## What `building` holds while the builder extends the hall; not a slot.
 const EXTENSION: String = "first_floor"
-## What an empty restored room can be converted into, in panel order. The save and the art refer
-## to a type by its id. What a type does is applied where its effect is: see Dispatch.
+## What an empty restored room can be converted into, in panel order; the hall has at most one room
+## of each type, so growth comes from upgrading a room, not building another. The save and the art
+## refer to a type by its id. What a type does is applied where its effect is: see Dispatch.
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
 	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "gold": 60, "seconds": 60},
 	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 60},
@@ -215,9 +216,15 @@ static func _restore_after(before: int) -> Dictionary:
 
 
 ## Why `slot` can't be converted into `type` at `now`, in words for the player; "" when it can.
+## A type already built, or being built, can't be built again; rooms of a type a save already holds
+## twice stay as they are.
 func convert_refusal(slot: String, type: String, gold: Gold, now: int) -> String:
 	if state(slot, now) != State.RESTORED:
 		return "Not an empty room"
+	if building_into == type and seconds_left(now) > 0:
+		return "Being built"
+	if rooms_done(type, now) > 0:
+		return "Already built"
 	return _builder_refusal(ROOM_TYPES[type]["gold"], gold, now)
 
 
