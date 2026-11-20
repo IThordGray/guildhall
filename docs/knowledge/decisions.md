@@ -18,7 +18,7 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** the human plays M14–M20 locally, then push. Death stays deferred: its own decision.
+- **Next:** the human picks what follows M20. Death stays deferred: its own decision.
 - **Later, not planned yet:** sprites that change with gear (needs per-item layer art); the spec's
   starting state and extending the hall, guild level, Quest hall extras, the labyrinth.
 - Screens follow the v2 designs (linked from the spec).
@@ -47,6 +47,9 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   Training room (one trainee per room, 1 XP a minute up to 60 a stint, banked on Stop; after 10
   minutes' training a hint names the fastest-growing stat). · M20 Common room (+1 candidate slot each, at most 4;
   after the first, a quarter of candidates are rank E at 180g).
+  · Play-note fixes (health +3 a level past 1, so a failed quest of a member's promotion rank
+  injures about 55–65%; rank-E recruits arrive at level 3; a builder job keeps the length it
+  started with; training shows in In progress; picker forecast updates on a reveal).
 
 ## Stack
 
