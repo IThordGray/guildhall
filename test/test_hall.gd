@@ -143,15 +143,33 @@ func _hall_with_empty_room(slot: String, gold: Gold) -> Hall:
 	return hall
 
 
-func test_the_convert_choices_are_a_quest_hall_and_an_infirmary_each_60_gold_and_a_minute() -> void:
-	assert_eq(Hall.ROOM_TYPES.keys(), ["quest_hall", "infirmary"])
+func test_the_convert_choices_are_a_quest_hall_an_infirmary_and_a_bunk_room_each_60_gold_and_a_minute() -> void:
+	assert_eq(Hall.ROOM_TYPES.keys(), ["quest_hall", "infirmary", "bunk_room"])
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["name"], "Quest hall")
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["blurb"], "adds a slot to the quest board")
 	assert_eq(Hall.ROOM_TYPES["infirmary"]["name"], "Infirmary")
 	assert_eq(Hall.ROOM_TYPES["infirmary"]["blurb"], "injuries heal twice as fast")
+	assert_eq(Hall.ROOM_TYPES["bunk_room"]["name"], "Bunk room")
+	assert_eq(Hall.ROOM_TYPES["bunk_room"]["blurb"], "2 more beds")
 	for type: String in Hall.ROOM_TYPES:
 		assert_eq(Hall.ROOM_TYPES[type]["gold"], 60, type)
 		assert_eq(Hall.ROOM_TYPES[type]["seconds"], 60, type)
+
+
+func test_the_guild_has_4_beds_and_each_finished_bunk_room_adds_2_up_to_8() -> void:
+	var gold := Gold.new(1_000)
+	var hall := _hall_with_empty_room("back_left", gold)
+	assert_eq(hall.beds(1_120), 4)
+	assert_true(hall.convert_room("back_left", "bunk_room", gold, 1_120))
+	assert_eq(hall.beds(1_179), 4)
+	assert_eq(hall.beds(1_180), 6)
+	# Other rooms add no beds.
+	hall.converted["side_left"] = {"type": "infirmary", "done_at": 1_000}
+	assert_eq(hall.beds(1_180), 6)
+	hall.converted["back_right"] = {"type": "bunk_room", "done_at": 1_000}
+	assert_eq(hall.beds(1_180), 8)
+	hall.converted["side_right"] = {"type": "bunk_room", "done_at": 1_000}
+	assert_eq(hall.beds(1_180), 8)
 
 
 func test_converting_an_empty_room_takes_60_gold_at_once_and_finishes_exactly_60_seconds_later() -> void:

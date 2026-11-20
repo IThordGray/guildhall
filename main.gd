@@ -20,6 +20,7 @@ var _gold: Gold
 var _hall: Hall
 var _dispatch: Dispatch
 var _quest_board: Board
+var _recruits: Recruits
 ## The slot the convert panel is open for.
 var _chosen_slot: String = ""
 ## Where the debrief the Debrief screen shows is in Dispatch.debriefs.
@@ -68,6 +69,7 @@ func _ready() -> void:
 	_debrief.done_pressed.connect(_on_debrief_done)
 	_picker.send_pressed.connect(_on_party_sent)
 	_roster.adventurer_pressed.connect(_on_adventurer_pressed)
+	_roster.hire_pressed.connect(_on_hire_pressed)
 	_adventurer.back_pressed.connect(_on_adventurer_back)
 	_adventurer.level_up_pressed.connect(_on_level_up_pressed)
 	_adventurer.wear_pressed.connect(_on_wear_pressed)
@@ -101,6 +103,7 @@ func _open_game() -> void:
 	_hall = Hall.load_or_start(SAVE_PATH, now)
 	_dispatch = Dispatch.load_or_start(SAVE_PATH, now)
 	_quest_board = Board.load_or_start(SAVE_PATH)
+	_recruits = Recruits.load_or_start(SAVE_PATH)
 	_arrive()
 
 
@@ -149,12 +152,14 @@ func _checkpoint(now: int) -> void:
 	_dispatch.checkpoint(now, _gold, _hall.first_done_at("infirmary"))
 	_hall.checkpoint(now)
 	_quest_board.refill(_dispatch, now, _quest_halls_done())
+	_recruits.refill(_dispatch.adventurers, now)
 	var file := ConfigFile.new()
 	_clock.write(file, Time.get_unix_time_from_system())
 	_gold.write(file)
 	_hall.write(file)
 	_dispatch.write(file)
 	_quest_board.write(file)
+	_recruits.write(file)
 	if file.save(SAVE_PATH) != OK:
 		push_error("Could not save to " + SAVE_PATH)
 	_gold_label.text = str(_gold.amount)
@@ -165,6 +170,7 @@ func _checkpoint(now: int) -> void:
 	_hall_view.show_state(_hall, _dispatch, _gold, _quest_board.filled(), now)
 	_board.show_board(_quest_board, _dispatch, now)
 	_roster.show_dispatch(_dispatch, now)
+	_roster.show_recruits(_recruits, _dispatch.adventurers, _gold, _hall.beds(now), now)
 	if _adventurer.visible:
 		_adventurer.show_adventurer(_shown_adventurer, _dispatch, now)
 	if _picker.visible and _picker.has_quest():
@@ -228,6 +234,12 @@ func _on_adventurer_pressed(adventurer: String) -> void:
 	_adventurer.show_adventurer(adventurer, _dispatch, _now())
 	_roster.hide()
 	_adventurer.show()
+
+
+func _on_hire_pressed(slot: int) -> void:
+	var now := _now()
+	_recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now)
+	_checkpoint(now)
 
 
 func _on_adventurer_swiped(step: int) -> void:

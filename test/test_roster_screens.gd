@@ -67,6 +67,21 @@ func test_after_an_adventurer_joins_the_party_picker_shows_five_the_newcomer_las
 	assert_eq(sent, [PackedStringArray(["ilse", "wren"])])
 
 
+func test_the_party_picker_keeps_its_toggles_while_nobody_joins_or_leaves() -> void:
+	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
+	var list := picker.get_node("Root/Scroll/Box/List")
+	picker.open("letters", _dispatch, 1_000)
+	var first := list.get_child(0)
+	picker.show_dispatch(_dispatch, 1_001)
+	picker.show_dispatch(_dispatch, 1_002)
+	assert_same(list.get_child(0), first)
+	assert_eq(list.get_child_count(), 4)
+	_add_wren()
+	picker.show_dispatch(_dispatch, 1_003)
+	assert_eq(list.get_child_count(), 5)
+	await wait_process_frames(1)
+
+
 func test_a_face_less_adventurer_shows_their_initial_in_a_token_and_on_the_landscape_picker_card() -> void:
 	_add_wren()
 	var roster := _dispatch.adventurers.roster

@@ -3,6 +3,8 @@ extends Control
 
 ## The player tapped `adventurer`, a key of Adventurers.roster, to see them.
 signal adventurer_pressed(adventurer: String)
+## The player asked to hire the candidate in `slot` of Recruits.candidates.
+signal hire_pressed(slot: int)
 
 ## The adventurers the rows were built for, in roster order, so they are rebuilt only when someone
 ## joins or leaves.
@@ -10,8 +12,17 @@ var _built: Array = []
 var _statuses: Dictionary[String, Label] = {}
 var _details: Dictionary[String, Label] = {}
 var _healths: Dictionary[String, HBoxContainer] = {}
+## The candidates the candidate rows were built for, so they are rebuilt only when one is hired or
+## arrives; the parts that change without that, by slot: each candidate's hire button and why it
+## can't be pressed, and each empty slot's countdown.
+var _candidates_shown: Array[Dictionary] = []
+var _hires: Dictionary[int, Button] = {}
+var _hire_reasons: Dictionary[int, Label] = {}
+var _countdowns: Dictionary[int, Label] = {}
 
 @onready var _list: VBoxContainer = $Scroll/Box/List
+@onready var _beds: Label = $Scroll/Box/Header/Beds
+@onready var _candidates: VBoxContainer = $Scroll/Box/Candidates
 
 
 func show_dispatch(dispatch: Dispatch, now: int) -> void:
@@ -25,6 +36,21 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 		status.text = dispatch.status(adventurer, now)
 		status.theme_type_variation = status_look(dispatch, adventurer, now)
 		Adventurer.show_health(_healths[adventurer], adventurer, dispatch, now)
+
+
+## Shows how many beds `adventurers` fill of `beds`, and `recruits`' candidates at `now`: each with
+## a hire button, disabled with the reason when `gold` or a bed is short, or their slot's countdown.
+func show_recruits(recruits: Recruits, adventurers: Adventurers, gold: Gold, beds: int, now: int) -> void:
+	_beds.text = "%d adventurers · %d beds" % [adventurers.roster.size(), beds]
+	if recruits.candidates != _candidates_shown:
+		_build_candidates(recruits.candidates)
+	var reason := Recruits.refusal(adventurers, gold, beds)
+	for slot: int in _hires:
+		_hires[slot].disabled = not reason.is_empty()
+		_hire_reasons[slot].text = reason
+		_hire_reasons[slot].visible = not reason.is_empty()
+	for slot: int in _countdowns:
+		_countdowns[slot].text = "New candidate in " + Duration.label(recruits.seconds_to_refill(slot, now))
 
 
 ## The adventurer `step` places after `adventurer` in `roster` order (Adventurers.roster), wrapping
@@ -85,6 +111,52 @@ func _build(roster: Dictionary[String, Dictionary]) -> void:
 		line.offset_right = -36
 		row.pressed.connect(adventurer_pressed.emit.bind(adventurer))
 		_list.add_child(row)
+
+
+# One row per slot of `candidates`: the candidate, what they show of themselves and a hire button,
+# or a countdown while the slot refills.
+func _build_candidates(candidates: Array[Dictionary]) -> void:
+	_candidates_shown = candidates.duplicate()
+	for row: Node in _candidates.get_children():
+		_candidates.remove_child(row)
+		row.queue_free()
+	_hires.clear()
+	_hire_reasons.clear()
+	_countdowns.clear()
+	for slot: int in candidates.size():
+		var row := PanelContainer.new()
+		_candidates.add_child(row)
+		var candidate := candidates[slot]
+		if candidate.is_empty():
+			_countdowns[slot] = _label("", &"Secondary")
+			row.add_child(_countdowns[slot])
+			continue
+		var who: Dictionary = candidate["who"]
+		var words := VBoxContainer.new()
+		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		words.alignment = BoxContainer.ALIGNMENT_CENTER
+		words.add_child(_label(who["name"], &"RowTitle"))
+		words.add_child(_label("%s · rank %s" % [who["class"], who["rank"]], &"Secondary"))
+		var hire := Button.new()
+		hire.text = "Hire · %dg" % Recruits.HIRE_GOLD
+		hire.theme_type_variation = &"GoldButton"
+		hire.custom_minimum_size = Vector2(0, 122)
+		hire.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		hire.pressed.connect(hire_pressed.emit.bind(slot))
+		_hires[slot] = hire
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 32)
+		line.add_child(QuestBoard.token(String(who["name"]).left(1), {}))
+		line.add_child(words)
+		line.add_child(hire)
+		# The stats and the reason a hire is refused take the row's full width, beside nothing.
+		var box := VBoxContainer.new()
+		box.add_theme_constant_override("separation", 16)
+		box.add_child(line)
+		box.add_child(_label(Recruits.stats_line(candidate), &"Secondary"))
+		_hire_reasons[slot] = _label("", &"Alert")
+		box.add_child(_hire_reasons[slot])
+		row.add_child(box)
 
 
 func _label(text: String, variation: StringName) -> Label:

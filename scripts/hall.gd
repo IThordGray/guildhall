@@ -12,7 +12,13 @@ const STARTING_USABLE: Array[String] = ["entrance", "reception"]
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
 	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "gold": 60, "seconds": 60},
 	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 60},
+	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "gold": 60, "seconds": 60},
 }
+## Beds the guild has with no Bunk room; each finished one adds BEDS_PER_BUNK_ROOM.
+const STARTING_BEDS: int = 4
+const BEDS_PER_BUNK_ROOM: int = 2
+## The most adventurers the guild can have, however many Bunk rooms it has.
+const MAX_ROSTER: int = 8
 
 ## Slots the builder has finished restoring, converted or not.
 var restored: PackedStringArray = PackedStringArray()
@@ -66,6 +72,11 @@ func rooms_done(type: String, now: int) -> int:
 	if building_into == type and seconds_left(now) == 0:
 		count += 1
 	return count
+
+
+## How many adventurers the guild has beds for at `now`.
+func beds(now: int) -> int:
+	return mini(MAX_ROSTER, STARTING_BEDS + BEDS_PER_BUNK_ROOM * rooms_done("bunk_room", now))
 
 
 ## Unix seconds the first room of `type` is converted at, counting one under way, whose end is

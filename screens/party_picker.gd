@@ -11,6 +11,10 @@ const TICK_MARK: Color = Color("#16131b")
 ## How many times larger than its pixels a face shows on a landscape card, a whole number so the
 ## pixels stay crisp.
 const FACE_SCALE: int = 3
+## A face's art in pixels, so a card without one makes the same room for its stand-in.
+const FACE_SIZE_PX: Vector2i = Vector2i(20, 18)
+## The most landscape cards in a row; more wrap to the next.
+const CARDS_ACROSS: int = 4
 ## A portrait adventurer line's height.
 const LINE_HEIGHT_PX: float = 150.0
 ## In landscape the gaps between the picker's parts shrink to this, so the docked panel fits
@@ -77,7 +81,7 @@ func set_landscape(landscape: bool) -> void:
 
 # Each adventurer as a landscape card or a portrait line, as `_docked` says.
 func _lay_out_toggles() -> void:
-	_list.columns = maxi(1, _toggles.size()) if _docked else 1
+	_list.columns = clampi(_toggles.size(), 1, CARDS_ACROSS) if _docked else 1
 	for adventurer: String in _toggles:
 		var toggle := _toggles[adventurer]
 		toggle.theme_type_variation = &"PickCard" if _docked else &""
@@ -120,13 +124,15 @@ func _build(roster: Dictionary[String, Dictionary]) -> void:
 			face.resize(face.get_width() * FACE_SCALE, face.get_height() * FACE_SCALE, Image.INTERPOLATE_NEAREST)
 			_faces[adventurer] = ImageTexture.create_from_image(face)
 		else:
-			# No art: their token, with their initial, over a blank icon that makes room for it.
+			# No art: their token, with their initial, over a blank icon as large as a face, so the
+			# card's text lines up with the others'; the token shrinks to the face's height to fit.
+			var room := Vector2(FACE_SIZE_PX * FACE_SCALE)
 			var stand_in := QuestBoard.token(adventurer, roster)
-			var room := stand_in.custom_minimum_size
+			stand_in.custom_minimum_size = Vector2.ONE * room.y
 			stand_in.anchor_left = 0.5
 			stand_in.anchor_right = 0.5
-			stand_in.offset_left = -room.x / 2.0
-			stand_in.offset_right = room.x / 2.0
+			stand_in.offset_left = -room.y / 2.0
+			stand_in.offset_right = room.y / 2.0
 			toggle.add_child(stand_in)
 			_stand_ins[adventurer] = stand_in
 			_faces[adventurer] = ImageTexture.create_from_image(Image.create_empty(int(room.x), int(room.y), false, Image.FORMAT_RGBA8))
