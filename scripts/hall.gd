@@ -30,6 +30,7 @@ const ROOM_TYPES: Dictionary[String, Dictionary] = {
 	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 60},
 	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "gold": 60, "seconds": 60},
 	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "gold": 60, "seconds": 60},
+	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "gold": 60, "seconds": 60},
 }
 ## A finished Tavern fills with gold at this rate from when it finished or was last collected, up
 ## to TAVERN_CAP; the cap is the reason to come back before it is full (stand-ins).

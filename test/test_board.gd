@@ -14,6 +14,8 @@ const F_AND_E_QUESTS: Array[String] = [
 
 ## The ranks of the quests _play has sent, as keys.
 var _sent_ranks: Dictionary = {}
+## The quests whose challenges were known at the end of the last _play, sorted.
+var _revealed: Array[String] = []
 
 
 func after_each() -> void:
@@ -56,30 +58,32 @@ func _seed(quest: String, party: PackedStringArray, success: bool) -> int:
 ## Plays a game from START to `end` for a guild whose starters are all of `rank`: each send in
 ## `sends`, as [unix seconds, slot, party], sends that slot's quest; Quest halls finish at `halls`.
 ## With `step` above 0 the board is refilled every `step` seconds as well, as while the app is
-## open; with 0, only at the sends and at `end`, as when the player is away in between. The board
-## at `end`.
-func _play(sends: Array, halls: PackedInt64Array, end: int, step: int, rank: String = "F") -> Board:
+## open; with 0, only at the sends and at `end`, as when the player is away in between. The first
+## Map room finishes at `map_room`, -1 for none. The board at `end`.
+func _play(sends: Array, halls: PackedInt64Array, end: int, step: int, rank: String = "F", map_room: int = -1) -> Board:
 	var gold := Gold.new(0)
 	var dispatch := _guild(rank)
 	var board := Board.new()
-	board.refill(dispatch, START, _done_by(halls, START))
+	board.refill(dispatch, START, _done_by(halls, START), map_room)
 	var now := START
 	for send: Array in sends + [[end, -1, []]]:
 		while step > 0 and now + step < send[0]:
 			now += step
 			dispatch.checkpoint(now, gold)
-			board.refill(dispatch, now, _done_by(halls, now))
+			board.refill(dispatch, now, _done_by(halls, now), map_room)
 		now = send[0]
 		if send[1] >= 0:
 			# The board the player picks from.
 			dispatch.checkpoint(now, gold)
-			board.refill(dispatch, now, _done_by(halls, now))
+			board.refill(dispatch, now, _done_by(halls, now), map_room)
 			var party: PackedStringArray = send[2]
 			var quest := board.slots[send[1]]
-			assert_true(board.send(dispatch, quest, party, 1, gold, now, _done_by(halls, now)), str(send))
+			assert_true(board.send(dispatch, quest, party, 1, gold, now, _done_by(halls, now), -1, map_room), str(send))
 			_sent_ranks[Dispatch.QUESTS[quest]["rank"]] = true
 	dispatch.checkpoint(end, gold)
-	board.refill(dispatch, end, _done_by(halls, end))
+	board.refill(dispatch, end, _done_by(halls, end), map_room)
+	_revealed.assign(dispatch.revealed)
+	_revealed.sort()
 	return board
 
 
@@ -382,3 +386,181 @@ func test_a_save_from_before_ranked_countdowns_with_old_quests_on_the_board_and_
 	assert_ne(board.slots[1], "")
 	assert_true(board.send(loaded, "letters", ["tobin"], 1, loaded_gold, START + 3_600, NO_HALLS))
 	assert_eq(board.seconds_to_refill(0, loaded, START + 3_600), 600)
+
+
+## When the first Map room finished in most tests below: before the board was first filled.
+const MAP_ROOM_EARLY: int = START - 1_000
+
+
+func test_without_a_finished_map_room_no_challenge_is_revealed_however_long_a_quest_waits() -> void:
+	var dispatch := Dispatch.new(START)
+	var board := _board(dispatch, 0)
+	board.refill(dispatch, START + 100_000, NO_HALLS)
+	# A Map room under way, finishing at START + 150_000.
+	board.refill(dispatch, START + 149_999, NO_HALLS, START + 150_000)
+	for quest: String in START_SLOTS:
+		assert_eq(dispatch.unknown_challenges(quest).size(), 1, quest)
+		assert_eq(board.seconds_to_reveal(quest, dispatch, START + 149_999), -1, quest)
+	# Once it is finished, they are revealed in time.
+	board.refill(dispatch, START + 150_300, NO_HALLS, START + 150_000)
+	for quest: String in START_SLOTS:
+		assert_true(dispatch.unknown_challenges(quest).is_empty(), quest)
+
+
+func test_with_a_map_room_finished_a_quest_is_revealed_exactly_300_seconds_after_it_was_put_on_the_board() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(START)
+	var board := Board.new()
+	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
+	assert_eq(board.seconds_to_reveal("crypt", dispatch, START), 300)
+	board.refill(dispatch, START + 299, NO_HALLS, MAP_ROOM_EARLY)
+	assert_eq(board.seconds_to_reveal("crypt", dispatch, START + 299), 1)
+	for quest: String in START_SLOTS:
+		assert_eq(dispatch.unknown_challenges(quest).size(), 1, quest)
+	board.refill(dispatch, START + 300, NO_HALLS, MAP_ROOM_EARLY)
+	for quest: String in START_SLOTS:
+		assert_true(dispatch.unknown_challenges(quest).is_empty(), quest)
+		assert_eq(board.seconds_to_reveal(quest, dispatch, START + 300), -1, quest)
+	# A quest put on the board later counts from when it was put there: crypt's slot refills at
+	# START + 2_200.
+	assert_true(board.send(dispatch, "crypt", ["bram"], 1, gold, START + 400, NO_HALLS, -1, MAP_ROOM_EARLY))
+	dispatch.checkpoint(START + 2_499, gold)
+	board.refill(dispatch, START + 2_499, NO_HALLS, MAP_ROOM_EARLY)
+	assert_eq(board.slots[2], "moonherbs")
+	assert_eq(dispatch.unknown_challenges("moonherbs"), PackedStringArray(["Attrition"]))
+	assert_eq(board.seconds_to_reveal("moonherbs", dispatch, START + 2_499), 1)
+	board.refill(dispatch, START + 2_500, NO_HALLS, MAP_ROOM_EARLY)
+	assert_true(dispatch.unknown_challenges("moonherbs").is_empty())
+
+
+func test_a_quest_on_the_board_before_the_map_room_finished_is_revealed_300_seconds_after_the_room_finishes() -> void:
+	var dispatch := Dispatch.new(START)
+	var board := _board(dispatch, 0)
+	var map_room := START + 1_000
+	board.refill(dispatch, START + 1_299, NO_HALLS, map_room)
+	assert_eq(board.seconds_to_reveal("sealed_door", dispatch, START + 1_299), 1)
+	assert_eq(dispatch.unknown_challenges("sealed_door"), PackedStringArray(["Navigation"]))
+	board.refill(dispatch, START + 1_300, NO_HALLS, map_room)
+	assert_true(dispatch.unknown_challenges("sealed_door").is_empty())
+
+
+func test_a_quest_the_map_room_revealed_stays_revealed_while_out_and_back_on_the_board() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(START)
+	# Fourteen slots, thirteen quests: every quest on the board, the last slot empty.
+	var board := Board.new()
+	board.refill(dispatch, START, _halls(11), MAP_ROOM_EARLY)
+	assert_eq(board.slots[13], "")
+	board.refill(dispatch, START + 300, _halls(11), MAP_ROOM_EARLY)
+	assert_true(dispatch.unknown_challenges("sealed_door").is_empty())
+	# The sealed door takes six minutes: out from START + 400 to START + 760.
+	assert_true(board.send(dispatch, "sealed_door", ["bram"], 1, gold, START + 400, _halls(11), -1, MAP_ROOM_EARLY))
+	dispatch.checkpoint(START + 759, gold)
+	board.refill(dispatch, START + 759, _halls(11), MAP_ROOM_EARLY)
+	assert_false(board.slots.has("sealed_door"))
+	assert_true(dispatch.unknown_challenges("sealed_door").is_empty())
+	# Back, it takes the empty slot, its challenges known from the moment it is put there.
+	dispatch.checkpoint(START + 760, gold)
+	board.refill(dispatch, START + 760, _halls(11), MAP_ROOM_EARLY)
+	assert_eq(board.slots[13], "sealed_door")
+	assert_true(dispatch.unknown_challenges("sealed_door").is_empty())
+	assert_eq(board.seconds_to_reveal("sealed_door", dispatch, START + 760), -1)
+	# Its return had nothing left to reveal.
+	assert_eq(dispatch.debriefs.size(), 1)
+	assert_eq(dispatch.debriefs[0]["revealed"], PackedStringArray())
+
+
+func test_a_quest_sent_before_its_reveal_is_not_revealed_by_the_map_room_but_by_its_return() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(START)
+	var board := Board.new()
+	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
+	# The cartographer takes two and a half minutes: out from START + 299 to START + 449.
+	assert_true(board.send(dispatch, "cartographer", ["bram"], 1, gold, START + 299, NO_HALLS, -1, MAP_ROOM_EARLY))
+	dispatch.checkpoint(START + 448, gold)
+	board.refill(dispatch, START + 448, NO_HALLS, MAP_ROOM_EARLY)
+	assert_true(dispatch.unknown_challenges("sealed_door").is_empty())
+	assert_eq(dispatch.unknown_challenges("cartographer"), PackedStringArray(["Traps"]))
+	assert_eq(board.seconds_to_reveal("cartographer", dispatch, START + 448), -1)
+	dispatch.checkpoint(START + 449, gold)
+	assert_eq(dispatch.debriefs[0]["revealed"], PackedStringArray(["Traps"]))
+	assert_true(dispatch.unknown_challenges("cartographer").is_empty())
+
+
+func test_one_refill_after_an_absence_reveals_what_refilling_every_second_reveals() -> void:
+	# The Map room finishes at START + 500, revealing the first slots at START + 800. The
+	# cartographer is sent before then, and its return reveals it; the sealed door is sent after.
+	# Their slots refill at START + 700 with lurker, revealed at START + 1_000, and at START + 2_700
+	# with spiders, revealed at START + 3_000.
+	var map_room := START + 500
+	var sends: Array = [[START + 100, 1, ["bram"]], [START + 900, 0, ["ilse"]]]
+	var expected := {
+		START + 2_999: ["cartographer", "crypt", "lurker", "sealed_door"],
+		START + 3_000: ["cartographer", "crypt", "lurker", "sealed_door", "spiders"],
+	}
+	for end: int in expected:
+		var away := _play(sends, NO_HALLS, end, 0, "F", map_room)
+		assert_eq(away.slots, PackedStringArray(["spiders", "lurker", "crypt"]), str(end))
+		assert_eq(_revealed, expected[end], str(end))
+		var watched := _play(sends, NO_HALLS, end, 1, "F", map_room)
+		assert_eq(watched.slots, away.slots, str(end))
+		assert_eq(_revealed, expected[end], str(end))
+
+
+func test_a_clock_set_back_neither_restarts_a_reveal_countdown_nor_undoes_a_reveal() -> void:
+	var dispatch := Dispatch.new(START)
+	var board := Board.new()
+	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
+	board.refill(dispatch, START + 200, NO_HALLS, MAP_ROOM_EARLY)
+	# Set back to START + 50: the countdown runs on from the time already seen.
+	board.refill(dispatch, START + 50, NO_HALLS, MAP_ROOM_EARLY)
+	assert_eq(board.seconds_to_reveal("crypt", dispatch, START + 50), 100)
+	assert_eq(dispatch.unknown_challenges("crypt").size(), 1)
+	board.refill(dispatch, START + 300, NO_HALLS, MAP_ROOM_EARLY)
+	assert_true(dispatch.unknown_challenges("crypt").is_empty())
+	board.refill(dispatch, START + 10, NO_HALLS, MAP_ROOM_EARLY)
+	assert_true(dispatch.unknown_challenges("crypt").is_empty())
+
+
+func test_fill_times_and_reveals_survive_save_and_load() -> void:
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.new(START)
+	var board := Board.new()
+	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
+	# The sealed door is revealed at START + 300; crypt's slot takes moonherbs at START + 2_200, to
+	# be revealed at START + 2_500.
+	assert_true(board.send(dispatch, "crypt", ["bram"], 1, gold, START + 400, NO_HALLS, -1, MAP_ROOM_EARLY))
+	dispatch.checkpoint(START + 2_300, gold)
+	board.refill(dispatch, START + 2_300, NO_HALLS, MAP_ROOM_EARLY)
+	assert_eq(board.slots[2], "moonherbs")
+	var file := ConfigFile.new()
+	gold.write(file)
+	dispatch.write(file)
+	board.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Board.load_or_start(SAVE_PATH)
+	var loaded_dispatch := Dispatch.load_or_start(SAVE_PATH, START + 2_300)
+	assert_true(loaded_dispatch.unknown_challenges("sealed_door").is_empty())
+	loaded.refill(loaded_dispatch, START + 2_499, NO_HALLS, MAP_ROOM_EARLY)
+	assert_eq(loaded.seconds_to_reveal("moonherbs", loaded_dispatch, START + 2_499), 1)
+	assert_eq(loaded_dispatch.unknown_challenges("moonherbs"), PackedStringArray(["Attrition"]))
+	loaded.refill(loaded_dispatch, START + 2_500, NO_HALLS, MAP_ROOM_EARLY)
+	assert_true(loaded_dispatch.unknown_challenges("moonherbs").is_empty())
+
+
+func test_a_save_from_before_fill_times_reveals_its_board_counting_from_when_it_was_last_refilled() -> void:
+	var file := ConfigFile.new()
+	file.set_value("board", "slots", PackedStringArray(["letters", "", "rats"]))
+	file.set_value("board", "refill_at", PackedInt64Array([START, START + 3_600, START]))
+	var back_at: Dictionary[String, int] = {}
+	file.set_value("board", "back_at", back_at)
+	file.set_value("board", "checked_at", START + 100)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var dispatch := Dispatch.new(START + 100)
+	var board := Board.load_or_start(SAVE_PATH)
+	board.refill(dispatch, START + 399, NO_HALLS, MAP_ROOM_EARLY)
+	assert_eq(board.seconds_to_reveal("letters", dispatch, START + 399), 1)
+	assert_eq(dispatch.unknown_challenges("letters"), PackedStringArray(["Protect"]))
+	board.refill(dispatch, START + 400, NO_HALLS, MAP_ROOM_EARLY)
+	assert_true(dispatch.unknown_challenges("letters").is_empty())

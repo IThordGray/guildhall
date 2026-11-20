@@ -6,16 +6,24 @@ const QUESTS_A_REFRESH: int = 3
 ## How long a slot takes to refill after its quest is sent, by the rank of the quest sent from it:
 ## short for easy quests, longer for hard ones (stand-ins).
 const REFILL_SECONDS: Dictionary[String, int] = {"F": 600, "E": 1_800, "D": 3_600}
+## Once the first Map room is finished, each quest on the board has its unknown challenges revealed
+## this long after the later of when it was put on the board and when that room finished; more Map
+## rooms don't speed it (stand-in).
+const MAP_REVEAL_SECONDS: int = 300
 
 ## Each slot's quest, a key of Dispatch.QUESTS, or "" while the slot refills.
 var slots: PackedStringArray = PackedStringArray()
 ## Unix seconds each empty slot refills at; unused while the slot is filled.
 var refill_at: PackedInt64Array = PackedInt64Array()
+## Unix seconds each filled slot was filled at; unused while the slot is empty.
+var filled_at: PackedInt64Array = PackedInt64Array()
 ## Each quest seen out with a party, and the unix seconds that party is back, so a refill worked
 ## out after the party is home still knows the quest was out until then.
 var back_at: Dictionary[String, int] = {}
 ## Latest unix seconds the board has been refilled up to.
 var checked_at: int = 0
+## The unix seconds the first Map room is finished at, as the last refill was told; -1 for none.
+var _map_room_from: int = -1
 
 
 ## How many slots hold a quest.
@@ -30,8 +38,10 @@ func filled() -> int:
 ## board nor out with a party at that moment, or, with none free, the first freed after it; and
 ## only a quest at most one rank above the guild's highest-ranked adventurer. Time is read from no
 ## earlier than `dispatch` or the board last saw, so a clock set back never undoes a refill or
-## restarts a countdown. A new board starts with every slot filled.
-func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array) -> void:
+## restarts a countdown. A new board starts with every slot filled. Then, with the first Map room
+## finished at `map_room_from` (-1 for none), reveals for good the unknown challenges of each quest
+## on the board MAP_REVEAL_SECONDS after the later of its fill time and that, all by `now`.
+func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, map_room_from: int = -1) -> void:
 	var at := maxi(maxi(now, dispatch.checked_at), checked_at)
 	if slots.is_empty():
 		checked_at = at
@@ -58,15 +68,23 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array) ->
 		if next == -1:
 			break
 		slots[next] = _pick(next, next_time, top)
+		filled_at[next] = next_time
 	checked_at = at
+	# A quest leaves the board only when sent, and every send refills first, so the quests on the
+	# board now have been there since their fill time: revealing them here is the same as revealing
+	# each the moment its time came.
+	_map_room_from = map_room_from
+	for i: int in slots.size():
+		if seconds_to_reveal(slots[i], dispatch, at) == 0:
+			dispatch.revealed.append(slots[i])
 
 
 ## Sends `party` on `quest` through `dispatch`, empties its slot and starts that slot's countdown;
 ## false, with nothing sent, when the board at `now` doesn't show `quest` or `dispatch` refuses the
 ## party. The other arguments are as for `refill` and `Dispatch.send`.
-func send(dispatch: Dispatch, quest: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int, quest_halls_done: PackedInt64Array, infirmary_from: int = -1) -> bool:
+func send(dispatch: Dispatch, quest: String, party: PackedStringArray, roll_seed: int, gold: Gold, now: int, quest_halls_done: PackedInt64Array, infirmary_from: int = -1, map_room_from: int = -1) -> bool:
 	dispatch.checkpoint(now, gold, infirmary_from)
-	refill(dispatch, now, quest_halls_done)
+	refill(dispatch, now, quest_halls_done, map_room_from)
 	var slot := slots.find(quest)
 	if quest == "" or slot == -1:
 		return false
@@ -83,10 +101,22 @@ func seconds_to_refill(slot: int, dispatch: Dispatch, now: int) -> int:
 	return maxi(0, refill_at[slot] - maxi(maxi(now, dispatch.checked_at), checked_at))
 
 
+## Seconds from `now` until the Map room reveals `quest`'s unknown challenges; 0 once due, -1 when
+## no reveal is coming: no Map room finished by then as the last refill was told, `quest` not on the
+## board, or nothing about it unknown.
+func seconds_to_reveal(quest: String, dispatch: Dispatch, now: int) -> int:
+	var slot := slots.find(quest)
+	var at := maxi(maxi(now, dispatch.checked_at), checked_at)
+	if quest == "" or slot == -1 or _map_room_from < 0 or _map_room_from > at or dispatch.unknown_challenges(quest).is_empty():
+		return -1
+	return maxi(0, maxi(filled_at[slot], _map_room_from) + MAP_REVEAL_SECONDS - at)
+
+
 ## Puts the board into `file`, which other state shares, so one save holds the whole game.
 func write(file: ConfigFile) -> void:
 	file.set_value("board", "slots", slots)
 	file.set_value("board", "refill_at", refill_at)
+	file.set_value("board", "filled_at", filled_at)
 	file.set_value("board", "back_at", back_at)
 	file.set_value("board", "checked_at", checked_at)
 
@@ -102,12 +132,18 @@ static func load_or_start(path: String) -> Board:
 	board.refill_at = file.get_value("board", "refill_at")
 	board.back_at = file.get_value("board", "back_at")
 	board.checked_at = file.get_value("board", "checked_at")
+	# A save from before fill times were kept takes its slots as filled when it was last refilled.
+	var unknown_fill := PackedInt64Array()
+	unknown_fill.resize(board.slots.size())
+	unknown_fill.fill(board.checked_at)
+	board.filled_at = file.get_value("board", "filled_at", unknown_fill)
 	return board
 
 
 func _add_slot(due: int) -> void:
 	slots.append("")
 	refill_at.append(due)
+	filled_at.append(0)
 
 
 func _note_outings(dispatch: Dispatch) -> void:

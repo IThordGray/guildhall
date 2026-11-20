@@ -11,7 +11,7 @@ const DASH_LENGTH: float = 12.0
 
 var _rows: Dictionary[String, Control] = {}
 ## Each quest's challenge chips, and how many of them were unknown when last shown, so they change
-## only when a return reveals one.
+## only when a return or the Map room reveals one.
 var _chips: Dictionary[String, HFlowContainer] = {}
 var _unknown_shown: Dictionary[String, int] = {}
 ## The board's slots shown, so the rows change only when the board does.
@@ -77,7 +77,8 @@ func set_landscape(landscape: bool) -> void:
 
 
 ## Shows the debriefs waiting and the parties out in `dispatch` at `now`, then `board`'s slots in
-## order: each its quest, or the countdown to its refill.
+## order: each its quest, or the countdown to its refill. An unknown challenge shows the time to its
+## reveal while the Map room is revealing it.
 func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 	_parties_count.text = str(dispatch.outings.size())
 	_show_debriefs(dispatch, now)
@@ -101,6 +102,11 @@ func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 		if _shown[i] == "":
 			var left := board.seconds_to_refill(i, dispatch, now)
 			_refill_labels[i].text = "New quest in " + Duration.label(left) if left > 0 else "New quest when one is free"
+			continue
+		var reveal := board.seconds_to_reveal(_shown[i], dispatch, now)
+		for chip_shown: Label in _chips[_shown[i]].get_children():
+			if chip_shown.theme_type_variation == &"ChipUnknown":
+				chip_shown.text = "? · " + Duration.label(reveal) if reveal > 0 else "?"
 
 
 ## A round token: the face of `who` when they are in `roster` (Adventurers.roster), else `who` as
