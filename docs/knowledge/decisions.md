@@ -18,7 +18,7 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** the human picks what follows M20. Death stays deferred: its own decision.
+- **Next:** the human plays the phone play-note changes locally, then push; then picks what follows. Death stays deferred: its own decision.
 - **Later, not planned yet:** sprites that change with gear (needs per-item layer art); the spec's
   starting state and extending the hall, guild level, Quest hall extras, the labyrinth.
 - Screens follow the v2 designs (linked from the spec).
@@ -50,6 +50,10 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   · Play-note fixes (health +3 a level past 1, so a failed quest of a member's promotion rank
   injures about 55–65%; rank-E recruits arrive at level 3; a builder job keeps the length it
   started with; training shows in In progress; picker forecast updates on a reveal).
+  · Phone play notes (drag-scroll anywhere, taps need clear intent, full screens instead of
+  dialogs; gear chosen from its slot, an Armory screen, debrief opens adventurers, no captions or
+  blurbs on the plan; each room type once; XP at the return, gold and loot when the debrief is
+  read; every adventurer gets a face generated from their own seed).
 
 ## Stack
 
