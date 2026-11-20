@@ -18,6 +18,9 @@ it merges. Screens and wording live in the code.
 
 - Portrait 9:16 and landscape, picked by the window's shape. Gold and how many parties are out are
   always on screen: in portrait in the top bar, in landscape in the left rail and screen headers.
+- No dialogs or overlay panels: everything opens as a full screen with Back (the landscape party
+  picker docks beside the board). Any scroll scrolls by dragging anywhere on it, and a control fires
+  only on a tap that stayed within a few pixels; a press that turns into a drag never fires.
 
 ## Roster
 
