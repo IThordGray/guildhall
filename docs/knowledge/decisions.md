@@ -35,7 +35,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   damage (heals over time, heavy damage injures; no death until recruitment exists) · M10 challenges
   and ranks (hidden difficulty, class coverage, forecast as a range, reveal on return) · M11 gear
   and loot (eight slots, shared stash, loot by rank and quality; design icons and faces) · M12
-  landscape (left rail, side-by-side screens).
+  landscape (left rail, side-by-side screens) · board slots each refill on their own countdown ·
+  swipe between adventurers.
 
 ## Stack
 
