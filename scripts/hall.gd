@@ -19,7 +19,12 @@ const ROOM_TYPES: Dictionary[String, Dictionary] = {
 	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "gold": 60, "seconds": 60},
 	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 60},
 	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "gold": 60, "seconds": 60},
+	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "gold": 60, "seconds": 60},
 }
+## A finished Tavern fills with gold at this rate from when it finished or was last collected, up
+## to TAVERN_CAP; the cap is the reason to come back before it is full (stand-ins).
+const TAVERN_GOLD_PER_MINUTE: int = 2
+const TAVERN_CAP: int = 120
 ## Beds the guild has with no Bunk room; each finished one adds BEDS_PER_BUNK_ROOM.
 const STARTING_BEDS: int = 4
 const BEDS_PER_BUNK_ROOM: int = 2
@@ -29,7 +34,8 @@ const MAX_ROSTER: int = 8
 ## Slots the builder has finished restoring, converted or not.
 var restored: PackedStringArray = PackedStringArray()
 ## Rooms the builder has finished converting: slot -> {"type": a ROOM_TYPES id, "done_at": unix
-## seconds the conversion finished}.
+## seconds the conversion finished, and for a Tavern collected at least once "collected_at": unix
+## seconds it was last collected}.
 var converted: Dictionary[String, Dictionary] = {}
 ## The slot the builder is working on, or "" when the builder is free. One builder, so one
 ## restoration or conversion at a time.
@@ -96,6 +102,29 @@ func first_done_at(type: String) -> int:
 	if building_into == type and first < 0:
 		first = _done_at()
 	return first
+
+
+## The gold the Tavern in `slot` holds at `now`: TAVERN_GOLD_PER_MINUTE for each minute since it
+## finished or was last collected, up to TAVERN_CAP; 0 for any other room. Computed from saved
+## times alone, so being away gives the same as watching.
+func tavern_gold(slot: String, now: int) -> int:
+	if room_type(slot) != "tavern" or state(slot, now) != State.CONVERTED:
+		return 0
+	var since: int = _done_at() if slot == building else int(converted[slot].get("collected_at", converted[slot]["done_at"]))
+	return mini(TAVERN_CAP, (maxi(now, checked_at) - since) * TAVERN_GOLD_PER_MINUTE / 60)
+
+
+## Moves all the gold the Tavern in `slot` holds at `now` into `gold` and starts it filling again
+## from then; the amount moved. An empty room gives 0 and is left as it was.
+func collect(slot: String, gold: Gold, now: int) -> int:
+	var amount := tavern_gold(slot, now)
+	if amount == 0:
+		return 0
+	# A Tavern finished since the last checkpoint is among the converted rooms after it.
+	checkpoint(now)
+	converted[slot]["collected_at"] = checked_at
+	gold.amount += amount
+	return amount
 
 
 ## Seconds until the builder's current job finishes; 0 when it has finished or none is running.

@@ -12,6 +12,10 @@ const END_MARGIN_PX: float = 32.0
 const COLUMN_WIDTH_PX: float = 1100.0
 ## In landscape, the share of the body's width the quest board takes; the party picker has the rest.
 const BOARD_SHARE: float = 0.42
+## How long the "+N" from a collected Tavern takes to rise to the gold counter and fade.
+const COLLECT_SECONDS: float = 0.6
+## How much the gold counter grows when collected gold reaches it.
+const COLLECT_PULSE_SCALE: float = 1.3
 ## Play-testing only: the speeds the Test speed control cycles through.
 const TEST_SPEEDS: Array[int] = [1, 10, 60]
 
@@ -62,6 +66,7 @@ func _ready() -> void:
 	_hall_view.restore_pressed.connect(_on_restore_pressed)
 	_hall_view.job_pressed.connect(_on_job_pressed)
 	_hall_view.send_pressed.connect(_on_go_send)
+	_hall_view.collect_pressed.connect(_on_collect_pressed)
 	_convert_panel.convert_pressed.connect(_on_convert_pressed)
 	($TabBar/Tabs/Hall as Button).button_group.pressed.connect(_on_tab_pressed)
 	_board.send_pressed.connect(_on_send_pressed)
@@ -184,6 +189,37 @@ func _on_restore_pressed(slot: String) -> void:
 	var now := _now()
 	_hall.restore(slot, _gold, now)
 	_checkpoint(now)
+
+
+func _on_collect_pressed(slot: String) -> void:
+	var now := _now()
+	var amount := _hall.collect(slot, _gold, now)
+	_checkpoint(now)
+	if amount > 0:
+		_show_collected(amount, _hall_view.room_center(slot))
+
+
+# Purely a show of gold already added: a "+N" rises from `from` to the gold counter and fades,
+# and the counter swells briefly. Each part frees or settles itself when its tween ends.
+func _show_collected(amount: int, from: Vector2) -> void:
+	var counter := _rail_gold_label if _landscape else _gold_label
+	var rise := Label.new()
+	rise.text = "+%d" % amount
+	rise.theme_type_variation = &"GoldAmount"
+	rise.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(rise)
+	var half := rise.get_combined_minimum_size() / 2
+	rise.global_position = from - half
+	var fly := rise.create_tween().set_parallel()
+	fly.tween_property(rise, "global_position", counter.get_global_rect().get_center() - half, COLLECT_SECONDS).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	fly.tween_property(rise, "modulate:a", 0.0, COLLECT_SECONDS).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	fly.chain().tween_callback(rise.queue_free)
+	# The counter swells as the "+N" reaches it.
+	counter.pivot_offset = counter.size / 2
+	var pulse := counter.create_tween()
+	pulse.tween_interval(COLLECT_SECONDS / 2)
+	pulse.tween_property(counter, "scale", Vector2.ONE * COLLECT_PULSE_SCALE, COLLECT_SECONDS / 4)
+	pulse.tween_property(counter, "scale", Vector2.ONE, COLLECT_SECONDS / 4)
 
 
 func _on_job_pressed(slot: String) -> void:

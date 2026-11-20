@@ -7,6 +7,8 @@ signal restore_pressed(slot: String)
 signal job_pressed(slot: String)
 ## The player asked to send someone ready on a quest.
 signal send_pressed
+## The player asked to collect the gold in the Tavern `slot`.
+signal collect_pressed(slot: String)
 
 ## How a room is drawn on the plan.
 enum Look { IN_USE, CONVERTED, INFIRMARY, EMPTY, DAMAGED, RESTORING, CONVERTING }
@@ -80,6 +82,7 @@ class Room extends Control:
 	var job: Button
 	var countdown: Label
 	var bar: ProgressBar
+	var collect: Button
 
 
 ## An In progress row's parts that change each second.
@@ -135,6 +138,7 @@ func show_state(hall: Hall, dispatch: Dispatch, gold: Gold, quests_on_board: int
 
 func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: Gold, now: int) -> void:
 	var type := hall.room_type(slot)
+	var held := hall.tavern_gold(slot, now)
 	var look := Look.IN_USE
 	room.title.text = SLOT_NAMES[slot]
 	room.line.theme_type_variation = &"Secondary"
@@ -146,6 +150,8 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 			var blurb: String = info["blurb"]
 			room.title.text = info["name"]
 			room.line.text = blurb.left(1).to_upper() + blurb.substr(1)
+			if type == "tavern":
+				_show_tavern(room, held)
 			look = Look.INFIRMARY if type == "infirmary" else Look.CONVERTED
 		Hall.State.RESTORED:
 			room.line.text = "Empty"
@@ -176,13 +182,30 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 		var left := hall.seconds_left(now)
 		room.countdown.text = Duration.label(left)
 		room.bar.value = room.bar.max_value - left
+	var tavern := state == Hall.State.CONVERTED and type == "tavern"
 	room.countdown.visible = building
-	room.bar.visible = building
+	room.bar.visible = building or tavern
+	room.collect.visible = held > 0
 	room.restore_row.visible = state == Hall.State.DAMAGED
 	room.job.visible = state == Hall.State.RESTORED
 	if look != room.look:
 		room.look = look
 		room.queue_redraw()
+
+
+# A Tavern's fill, which stands out in gold once full.
+func _show_tavern(room: Room, held: int) -> void:
+	var full := held == Hall.TAVERN_CAP
+	room.line.text = "Full — collect" if full else "%d / %dg" % [held, Hall.TAVERN_CAP]
+	room.line.theme_type_variation = &"GoldText" if full else &"Secondary"
+	room.bar.theme_type_variation = &"GoldBar"
+	room.bar.max_value = Hall.TAVERN_CAP
+	room.bar.value = held
+
+
+## Where the room `slot` is on screen, at its centre, for effects drawn over the hall.
+func room_center(slot: String) -> Vector2:
+	return _rooms[slot].get_global_rect().get_center()
 
 
 # Adventurers at home: an injured one rests in the first finished Infirmary, or in Reception when
@@ -341,7 +364,12 @@ func _add_room(slot: String) -> void:
 	room.job.pressed.connect(job_pressed.emit.bind(slot))
 	room.countdown = _label("", &"Countdown")
 	room.bar = _bar(&"BuildBar")
-	for part: Control in [room.title, room.line, spacer, room.tokens, room.restore_row, room.job, room.countdown, room.bar]:
+	room.collect = Button.new()
+	room.collect.text = "Collect"
+	room.collect.theme_type_variation = &"GoldButton"
+	room.collect.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	room.collect.pressed.connect(collect_pressed.emit.bind(slot))
+	for part: Control in [room.title, room.line, spacer, room.tokens, room.restore_row, room.job, room.countdown, room.bar, room.collect]:
 		box.add_child(part)
 	_plan.add_child(room)
 	_rooms[slot] = room
