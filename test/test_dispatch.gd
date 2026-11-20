@@ -1319,6 +1319,27 @@ func test_training_gives_1_xp_per_whole_minute_up_to_60_a_stint() -> void:
 	assert_eq(dispatch.adventurers.xp["bram"], 0)
 
 
+func test_the_training_countdown_ticks_down_to_0_exactly_when_the_stint_reaches_its_cap() -> void:
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.train("bram", 1, 1_000))
+	assert_eq(dispatch.training_seconds_left("bram", 1_000), 3_600)
+	assert_eq(dispatch.training_seconds_left("ilse", 1_000), 0)
+	# Checked against the XP itself each second, so it holds whatever the rate and cap.
+	var capped_at := -1
+	for at: int in range(1_000, 1_000 + 2 * 3_600):
+		var capped := dispatch.training_xp("bram", at) == Dispatch.TRAINING_MAX_XP
+		if capped and capped_at == -1:
+			capped_at = at
+		assert_eq(dispatch.training_seconds_left("bram", at) == 0, capped, str(at))
+		if not capped:
+			assert_eq(dispatch.training_seconds_left("bram", at), dispatch.training_seconds_left("bram", 1_000) - (at - 1_000), str(at))
+	assert_eq(capped_at, 1_000 + 3_600)
+	# A clock set back after a later checkpoint gives no time back.
+	dispatch.checkpoint(1_000 + 600, Gold.new(0))
+	assert_eq(dispatch.training_seconds_left("bram", 1_000), 3_000)
+	assert_eq(dispatch.training_seconds_left("bram", 1_000 + 600), 3_000)
+
+
 func test_stopping_banks_exactly_the_stints_xp_and_frees_the_adventurer() -> void:
 	var dispatch := Dispatch.new(1_000)
 	dispatch.adventurers.gain_xp("bram", 5)

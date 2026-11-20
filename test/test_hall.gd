@@ -762,3 +762,60 @@ func test_an_old_save_loads_with_no_first_floor_and_can_extend() -> void:
 	assert_true(hall.extend(gold, 2_000))
 	assert_eq(gold.amount, 100)
 	assert_true(hall.has_first_floor(2_600))
+
+
+func test_a_restoration_keeps_the_length_it_started_with_when_the_rule_tables_read_differently_later() -> void:
+	var gold := Gold.new(500)
+	var hall := Hall.new(1_000)
+	hall.restore("back_left", gold, 1_000)
+	# Another room counted as restored would make today's table give the second room's 2 minutes.
+	hall.restored.append("side_left")
+	assert_eq(hall.job_seconds(), 30)
+	assert_eq(hall.seconds_left(1_000), 30)
+	assert_eq(hall.state("back_left", 1_030), Hall.State.RESTORED)
+
+
+func test_a_job_under_way_loads_with_the_length_saved_when_it_started_and_one_saved_without_it_uses_todays_rule() -> void:
+	var gold := Gold.new(1_000)
+	var restoring := Hall.new(1_000)
+	restoring.restore("back_left", gold, 1_000)
+	var converting := _hall_with_empty_room("back_left", gold)
+	converting.convert_room("back_left", "infirmary", gold, 1_200)
+	var extending := _hall_with_empty_room("back_left", gold)
+	for slot: String in ["side_left", "side_right"]:
+		extending.restore(slot, gold, extending.checked_at)
+		extending.checkpoint(extending.checked_at + 600)
+	assert_true(extending.extend(Gold.new(400), extending.checked_at))
+	var jobs: Array[Array] = [[restoring, 30], [converting, 60], [extending, 600]]
+	for job: Array in jobs:
+		var hall: Hall = job[0]
+		var file := ConfigFile.new()
+		hall.write(file)
+		assert_eq(file.get_value("hall", "building_seconds"), job[1])
+		assert_eq(file.save(SAVE_PATH), OK)
+		assert_eq(Hall.load_or_start(SAVE_PATH, 0).job_seconds(), job[1])
+		# Started when the tables gave it 1_000 seconds.
+		file.set_value("hall", "building_seconds", 1_000)
+		assert_eq(file.save(SAVE_PATH), OK)
+		var stretched := Hall.load_or_start(SAVE_PATH, 0)
+		assert_eq(stretched.job_seconds(), 1_000)
+		assert_eq(stretched.seconds_left(hall.building_since), 1_000)
+		assert_true(stretched.finished_since_checkpoint(hall.building_since + 1_000))
+		assert_false(stretched.finished_since_checkpoint(hall.building_since + 999))
+		# A save from before lengths were kept.
+		file.erase_section_key("hall", "building_seconds")
+		assert_eq(file.save(SAVE_PATH), OK)
+		var old := Hall.load_or_start(SAVE_PATH, 0)
+		assert_eq(old.job_seconds(), job[1])
+		assert_eq(old.seconds_left(hall.building_since), job[1])
+
+
+func test_a_finished_job_leaves_the_next_one_its_own_length() -> void:
+	var gold := Gold.new(500)
+	var hall := Hall.new(1_000)
+	hall.restore("back_left", gold, 1_000)
+	hall.checkpoint(1_030)
+	hall.restore("side_left", gold, 1_030)
+	assert_eq(hall.seconds_left(1_030), 120)
+	assert_eq(hall.state("side_left", 1_149), Hall.State.RESTORING)
+	assert_eq(hall.state("side_left", 1_150), Hall.State.RESTORED)

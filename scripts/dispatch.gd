@@ -277,6 +277,16 @@ func training_xp(adventurer: String, now: int) -> int:
 	return mini(TRAINING_MAX_XP, minutes * TRAINING_XP_PER_MINUTE)
 
 
+## Seconds from `now` until `adventurer`'s stint reaches TRAINING_MAX_XP: XP comes a whole minute
+## at a time, so the cap lands at the first whole minute whose XP reaches it. 0 once capped or
+## when not training.
+func training_seconds_left(adventurer: String, now: int) -> int:
+	if not training.has(adventurer):
+		return 0
+	var full_at := training[adventurer] + ceili(TRAINING_MAX_XP / float(TRAINING_XP_PER_MINUTE)) * 60
+	return maxi(0, full_at - maxi(now, checked_at))
+
+
 ## Ends `adventurer`'s stint at `now` and banks its XP into theirs; the XP banked. Not training
 ## gives 0, with nothing changed.
 func stop_training(adventurer: String, now: int) -> int:

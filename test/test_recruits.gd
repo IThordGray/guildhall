@@ -332,7 +332,11 @@ func test_about_a_quarter_of_candidates_arriving_once_a_common_room_finished_are
 			assert_eq(candidate["who"]["rank"], "F")
 		elif candidate["who"]["rank"] == "E":
 			rank_e += 1
-		# Only the rank can differ from the same candidate without a Common room.
+		# Only the rank, and a rank-E one's level and stats, can differ from the same candidate
+		# without a Common room.
+		if candidate["who"]["rank"] == "E":
+			candidate.erase("level")
+			candidate["stats"] = plain["stats"]
 		candidate["who"]["rank"] = "F"
 		assert_eq(candidate, plain)
 	assert_between(rank_e, 200, 300)
@@ -459,3 +463,83 @@ func test_a_save_with_two_slots_and_no_common_room_loads_with_two_slots_and_a_la
 		assert_eq(candidate["who"]["rank"], "F")
 	loaded.refill(adventurers, START + 5_000, PackedInt64Array([START + 5_000]))
 	assert_eq(loaded.candidates.size(), 3)
+
+
+func test_a_rank_e_candidate_arrives_at_level_3_with_each_stat_at_least_the_same_candidate_as_rank_f() -> void:
+	var rank_e := 0
+	var stronger := 0
+	for at: int in 2_000:
+		var candidate := Recruits.candidate_for(at % 4, START + at, PackedStringArray(), START)
+		if candidate["who"]["rank"] != "E":
+			assert_false(candidate.has("level"))
+			continue
+		rank_e += 1
+		var plain := Recruits.candidate_for(at % 4, START + at, PackedStringArray())
+		assert_eq(candidate["level"], 3)
+		var gained := 0
+		for stat: String in Adventurers.STATS:
+			assert_gte(candidate["stats"][stat], plain["stats"][stat], stat)
+			gained += candidate["stats"][stat] - plain["stats"][stat]
+		if gained > 0:
+			stronger += 1
+	assert_gt(rank_e, 400)
+	# Two level-ups of up to 8 points each leave almost nobody as they were.
+	assert_gt(stronger * 20, rank_e * 19)
+	# The gains come from the candidate's own seed, whatever the global generator.
+	seed(1)
+	var first := Recruits.candidate_for(1, START + 5, PackedStringArray(), START)
+	seed(2)
+	randi()
+	assert_eq(Recruits.candidate_for(1, START + 5, PackedStringArray(), START), first)
+
+
+func test_a_rank_f_candidate_is_drawn_exactly_as_before_with_or_without_a_common_room() -> void:
+	assert_eq(Recruits.candidate_for(0, 1_000_000, PackedStringArray()), {
+		"who": {"name": "Corwin", "class": "Healer", "rank": "F", "face": ""},
+		"stats": {"might": 2, "agility": 3, "mind": 6, "grit": 5},
+		"growth": {"might": 0.2, "agility": 0.3, "mind": 0.55, "grit": 0.5},
+		"shown": PackedStringArray(["grit", "mind"]),
+	})
+	assert_eq(Recruits.candidate_for(3, 1_000_500, PackedStringArray(), 1_000_000), {
+		"who": {"name": "Linnea", "class": "Shield bearer", "rank": "F", "face": ""},
+		"stats": {"might": 3, "agility": 2, "mind": 1, "grit": 8},
+		"growth": {"might": 0.45, "agility": 0.2, "mind": 0.15, "grit": 0.6},
+		"shown": PackedStringArray(["mind", "might"]),
+	})
+
+
+func test_hiring_a_rank_e_candidate_brings_them_in_at_level_3_with_0_xp_and_their_stats() -> void:
+	var adventurers := Adventurers.new()
+	var recruits := _rank_e_guild(adventurers)
+	if recruits == null:
+		return
+	var hired := recruits.candidates[0].duplicate(true)
+	assert_true(recruits.hire(0, adventurers, Gold.new(180), 6, recruits.checked_at, PackedInt64Array([recruits.checked_at])))
+	var id: String = adventurers.roster.keys()[4]
+	assert_eq(adventurers.roster[id]["rank"], "E")
+	assert_eq(adventurers.levels[id], 3)
+	assert_eq(adventurers.xp[id], 0)
+	assert_eq(adventurers.stats[id], hired["stats"])
+	assert_eq(adventurers.xp_needed(id), 120)
+
+
+func test_a_rank_e_candidate_saved_before_they_arrived_levelled_loads_and_is_hired_as_saved_at_level_1() -> void:
+	var adventurers := Adventurers.new()
+	var recruits := _rank_e_guild(adventurers)
+	if recruits == null:
+		return
+	var at := recruits.checked_at
+	recruits.candidates[0].erase("level")
+	var saved := recruits.candidates[0].duplicate(true)
+	var file := ConfigFile.new()
+	recruits.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Recruits.load_or_start(SAVE_PATH)
+	loaded.refill(adventurers, at, PackedInt64Array([at]))
+	assert_eq(loaded.candidates[0], saved)
+	assert_true(loaded.hire(0, adventurers, Gold.new(180), 6, at, PackedInt64Array([at])))
+	var id: String = adventurers.roster.keys()[4]
+	assert_eq(adventurers.roster[id]["rank"], "E")
+	assert_eq(adventurers.levels[id], 1)
+	assert_eq(adventurers.stats[id], saved["stats"])

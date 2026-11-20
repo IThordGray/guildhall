@@ -43,7 +43,8 @@ const LATE_BLOOMER_STAT_LOSS: int = 2
 const LATE_BLOOMER_GROWTH: float = 0.95
 
 ## Each slot's candidate, {} while it refills: {"who": as Adventurers.roster keeps it, "stats" and
-## "growth": as Adventurers.add takes them, "shown": the stats shown before hiring}.
+## "growth": as Adventurers.add takes them, "shown": the stats shown before hiring}, and for a
+## rank-E one "level": the level they arrive and are hired at.
 var candidates: Array[Dictionary] = []
 ## Unix seconds each slot's candidate arrived, or, while it refills, arrives.
 var refill_at: PackedInt64Array = PackedInt64Array()
@@ -111,7 +112,8 @@ func hire(slot: int, adventurers: Adventurers, gold: Gold, beds: int, now: int, 
 	var hired := candidates[slot]
 	gold.spend(hire_gold(hired))
 	# A slot and an arrival time belong to one candidate only.
-	adventurers.add("recruit_%d_%d" % [slot, refill_at[slot]], hired["who"], hired["stats"], hired["growth"])
+	# A candidate saved before rank-E ones arrived levelled is hired at level 1, as they were drawn.
+	adventurers.add("recruit_%d_%d" % [slot, refill_at[slot]], hired["who"], hired["stats"], hired["growth"], hired.get("level", 1))
 	candidates[slot] = {}
 	refill_at[slot] = checked_at + CANDIDATE_REFILL_SECONDS
 	return true
@@ -119,7 +121,8 @@ func hire(slot: int, adventurers: Adventurers, gold: Gold, beds: int, now: int, 
 
 ## The candidate who arrives in `slot` at `arrived_at`, named from NAMES other than `taken`; rank E
 ## by RANK_E_CHANCE when they arrive at or after `better_from`, the first Common room's finish time
-## (-1 for none).
+## (-1 for none). A rank-E one arrives at the level rank E needs, their stats grown by a level-up's
+## gains for each level past the first.
 static func candidate_for(slot: int, arrived_at: int, taken: PackedStringArray, better_from: int = -1) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([slot, arrived_at])
@@ -149,12 +152,21 @@ static func candidate_for(slot: int, arrived_at: int, taken: PackedStringArray, 
 	var rank := RANK
 	if better_from >= 0 and arrived_at >= better_from and rng.randf() < RANK_E_CHANCE:
 		rank = "E"
-	return {
+	var candidate := {
 		"who": {"name": name, "class": type, "rank": rank, "face": ""},
 		"stats": stats,
 		"growth": growth,
 		"shown": order.slice(0, STATS_SHOWN),
 	}
+	if rank == "E":
+		# Drawn after the rank, so a rank-F candidate is as they were before rank-E ones levelled.
+		var level: int = Adventurers.PROMOTIONS["E"]["level"]
+		for level_up: int in level - 1:
+			var gains := Adventurers.gains_from(rng, growth)
+			for stat: String in gains:
+				stats[stat] += gains[stat]
+		candidate["level"] = level
+	return candidate
 
 
 ## `candidate`'s stats for the player, those not shown as "?", such as "Might 5 · Agility ? · Mind 3

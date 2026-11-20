@@ -57,6 +57,9 @@ var converted: Dictionary[String, Dictionary] = {}
 var building: String = ""
 ## Unix seconds the builder started on `building`.
 var building_since: int = 0
+## How many seconds `building` takes in all, fixed when it started, so a later change to the rule
+## tables never stretches a job under way; 0 for a job saved before lengths were kept.
+var building_seconds: int = 0
 ## The room type `building` is being converted into; "" when it is being restored.
 var building_into: String = ""
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back
@@ -188,8 +191,11 @@ func next_restore() -> Dictionary:
 	return _restore_after(before)
 
 
-## How many seconds the builder's current job takes in all.
+## How many seconds the builder's current job takes in all: as fixed when it started, or for a job
+## saved before that, by the rule tables now.
 func job_seconds() -> int:
+	if building_seconds > 0:
+		return building_seconds
 	if building == EXTENSION:
 		return EXTEND_SECONDS
 	if building_into.is_empty():
@@ -262,6 +268,7 @@ func checkpoint(now: int) -> void:
 			converted[building] = {"type": building_into, "done_at": _done_at()}
 		building = ""
 		building_into = ""
+		building_seconds = 0
 
 
 func _builder_refusal(cost: int, gold: Gold, now: int) -> String:
@@ -279,6 +286,8 @@ func _start(slot: String, into: String, cost: int, gold: Gold, now: int) -> void
 	building = slot
 	building_into = into
 	building_since = checked_at
+	# The builder was free, so nothing is fixed yet and this reads the rule tables.
+	building_seconds = job_seconds()
 
 
 func _done_at() -> int:
@@ -293,6 +302,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("hall", "restoring", building)
 	file.set_value("hall", "restoring_since", building_since)
 	file.set_value("hall", "converting_into", building_into)
+	file.set_value("hall", "building_seconds", building_seconds)
 	file.set_value("hall", "first_floor", first_floor)
 	file.set_value("hall", "checked_at", checked_at)
 
@@ -308,6 +318,7 @@ static func load_or_start(path: String, now: int) -> Hall:
 	hall.building = file.get_value("hall", "restoring", "")
 	hall.building_since = int(file.get_value("hall", "restoring_since", 0))
 	hall.building_into = file.get_value("hall", "converting_into", "")
+	hall.building_seconds = int(file.get_value("hall", "building_seconds", 0))
 	hall.first_floor = file.get_value("hall", "first_floor", false)
 	hall.checked_at = int(file.get_value("hall", "checked_at", now))
 	return hall

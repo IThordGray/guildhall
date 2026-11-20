@@ -35,6 +35,9 @@ var _stand_ins: Dictionary[String, Label] = {}
 ## The dispatch and time last shown, so picking someone can update the odds at once.
 var _dispatch: Dispatch
 var _now: int = 0
+## The quest's unknown challenges the forecast was last shown with, so a reveal while the picker
+## is open shows at once and nothing else rebuilds it.
+var _forecast_unknown: PackedStringArray = PackedStringArray()
 ## Whether the picker sits beside the board rather than popping up over it.
 var _docked: bool = false
 ## The picker's stacks and their gaps as the scene has them, for portrait.
@@ -191,8 +194,9 @@ func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	_title.text = info["name"]
 	_meta.text = "Rank %s · %s · %d gold" % [info["rank"], Duration.label(info["seconds"]), info["gold"]]
 	show()
-	show_dispatch(dispatch, now)
+	_dispatch = dispatch
 	_show_forecast()
+	show_dispatch(dispatch, now)
 
 
 ## Shows `dispatch` at `now`.
@@ -221,14 +225,17 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 	_reason.text = reason
 	_reason.visible = not reason.is_empty()
 	_send.disabled = not reason.is_empty()
+	if dispatch.unknown_challenges(_quest) != _forecast_unknown:
+		_show_forecast()
 
 
 # Which challenges the picked party covers and the chance range it is shown; only picking
-# someone changes them while the picker is open.
+# someone or a challenge revealed changes them while the picker is open.
 func _show_forecast() -> void:
 	for old: Node in _coverage.get_children():
 		old.queue_free()
 	var unknown := _dispatch.unknown_challenges(_quest)
+	_forecast_unknown = unknown
 	for challenge: String in Dispatch.QUESTS[_quest]["challenges"]:
 		if challenge in unknown:
 			_coverage.add_child(QuestBoard.chip("? unknown", &"ChipUnknown"))

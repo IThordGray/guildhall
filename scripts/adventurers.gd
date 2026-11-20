@@ -31,9 +31,12 @@ const GROWTH: Dictionary[String, Dictionary] = {
 const XP_PER_LEVEL: int = 40
 ## A successful quest gives each member one XP per this many quest seconds; a failed one half that.
 const QUEST_SECONDS_PER_XP: int = 15
-## Maximum health is this plus HEALTH_PER_GRIT per point of Grit (stand-ins).
+## Maximum health is this plus HEALTH_PER_GRIT per point of Grit and HEALTH_PER_LEVEL per level
+## past the first (stand-ins), so a member failing a quest of the rank their level reaches is
+## injured about half to three quarters of the time, not almost always.
 const BASE_HEALTH: int = 10
 const HEALTH_PER_GRIT: int = 2
+const HEALTH_PER_LEVEL: int = 3
 ## Each rank an adventurer can be promoted to, one rank at a time, with the level it needs and the
 ## gold it costs (stand-ins). No promotion reaches a rank missing here.
 const PROMOTIONS: Dictionary[String, Dictionary] = {"E": {"level": 3, "gold": 150}, "D": {"level": 6, "gold": 400}}
@@ -65,12 +68,12 @@ func _init() -> void:
 
 
 ## Brings `adventurer` into the guild as `who` ({"name", "class", "rank", "face"}), with
-## `starting_stats` and `grows` as their growth per stat, at level 1 with no XP and nothing worn.
-func add(adventurer: String, who: Dictionary, starting_stats: Dictionary, grows: Dictionary) -> void:
+## `starting_stats` and `grows` as their growth per stat, at `level` with no XP and nothing worn.
+func add(adventurer: String, who: Dictionary, starting_stats: Dictionary, grows: Dictionary, level: int = 1) -> void:
 	roster[adventurer] = who.duplicate()
 	growth[adventurer] = grows.duplicate()
 	stats[adventurer] = starting_stats.duplicate()
-	levels[adventurer] = 1
+	levels[adventurer] = level
 	xp[adventurer] = 0
 	history[adventurer] = []
 	gear.worn[adventurer] = {}
@@ -89,9 +92,9 @@ func power(adventurer: String) -> int:
 	return roundi(total / 5.0)
 
 
-## Health `adventurer` heals up to, so a level-up or gear that raises Grit raises it.
+## Health `adventurer` heals up to, so every level-up, and gear that raises Grit, raises it.
 func max_health(adventurer: String) -> int:
-	return BASE_HEALTH + HEALTH_PER_GRIT * stat_total(adventurer, "grit")
+	return BASE_HEALTH + HEALTH_PER_GRIT * stat_total(adventurer, "grit") + HEALTH_PER_LEVEL * (levels[adventurer] - 1)
 
 
 ## The XP each member of a party gains from a quest of `quest_seconds` that ended in `success`.
@@ -167,11 +170,17 @@ func promote(adventurer: String, gold: Gold, out_on_quest: bool) -> bool:
 func _gains(adventurer: String, level: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("%s:%d" % [adventurer, level])
+	return gains_from(rng, growth[adventurer])
+
+
+## One level-up's gains drawn from `rng` by `grows`, growth per stat: {stat: 0–2 points}, each
+## point with that stat's growth as its chance.
+static func gains_from(rng: RandomNumberGenerator, grows: Dictionary) -> Dictionary:
 	var gains := {}
 	for stat: String in STATS:
 		var gain := 0
 		for point: int in 2:
-			if rng.randf() < float(growth[adventurer][stat]):
+			if rng.randf() < float(grows[stat]):
 				gain += 1
 		gains[stat] = gain
 	return gains

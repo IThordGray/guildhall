@@ -77,7 +77,7 @@ func test_maximum_health_is_ten_plus_two_per_grit_and_a_level_up_that_raises_gri
 	var grit_gain := 0
 	while grit_gain == 0:
 		grit_gain = adventurers.level_up("bram")["grit"]
-	assert_eq(adventurers.max_health("bram"), 10 + 2 * int(adventurers.stats["bram"]["grit"]))
+	assert_eq(adventurers.max_health("bram"), 10 + 2 * int(adventurers.stats["bram"]["grit"]) + 3 * (adventurers.levels["bram"] - 1))
 	assert_gt(adventurers.max_health("bram"), 24)
 
 
@@ -275,6 +275,93 @@ func test_a_save_from_before_the_roster_was_saved_loads_the_four_starters_as_the
 	loaded.gain_xp("tobin", 80)
 	adventurers.gain_xp("tobin", 80)
 	assert_eq(loaded.level_up("tobin"), adventurers.level_up("tobin"))
+
+
+func test_maximum_health_at_level_1_is_as_before_and_each_level_past_it_adds_some_even_without_grit() -> void:
+	var adventurers := Adventurers.new()
+	_add_wren(adventurers)
+	# Level 1 is unchanged: 10 plus 2 per Grit, gear included.
+	assert_eq(adventurers.max_health("bram"), 24)
+	assert_eq(adventurers.max_health("tobin"), 16)
+	assert_eq(adventurers.max_health("wren"), 26)
+	adventurers.growth["wren"]["grit"] = 0.0
+	adventurers.gain_xp("wren", 1_000)
+	var before := adventurers.max_health("wren")
+	adventurers.level_up("wren")
+	assert_eq(adventurers.stats["wren"]["grit"], 8)
+	assert_gt(adventurers.max_health("wren"), before)
+	var one_level := adventurers.max_health("wren") - before
+	adventurers.level_up("wren")
+	assert_eq(adventurers.max_health("wren") - before, 2 * one_level)
+
+
+func test_a_failed_quest_of_a_members_promotion_rank_injures_half_to_three_quarters_without_a_healer() -> void:
+	for rank: String in ["E", "D"]:
+		var rates := _injury_rates(rank)
+		assert_between(rates["failed"], 0.5, 0.75, rank)
+		# A Healer halves the damage, so far fewer come home injured.
+		assert_lt(rates["failed_with_healer"], rates["failed"] / 2.0, rank)
+		assert_lt(rates["succeeded"], 0.1, rank)
+
+
+func test_a_wound_saved_under_the_old_maximum_loads_as_it_was_and_heals_up_to_the_new_one() -> void:
+	var dispatch := Dispatch.new(5_000)
+	dispatch.adventurers.gain_xp("bram", 1_000)
+	dispatch.adventurers.level_up("bram")
+	dispatch.adventurers.level_up("bram")
+	var most := dispatch.adventurers.max_health("bram")
+	# Saved when level 3 gave no extra health: a point short of that maximum.
+	var old_most := most - 2 * Adventurers.HEALTH_PER_LEVEL
+	dispatch.wounds["bram"] = {"health": old_most - 1, "at": 5_000}
+	var file := ConfigFile.new()
+	dispatch.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 5_000)
+	assert_eq(loaded.health("bram", 5_000), old_most - 1)
+	var short := most - (old_most - 1)
+	assert_eq(loaded.seconds_to_full("bram", 5_000), short * Dispatch.HEAL_SECONDS)
+	assert_eq(loaded.health("bram", 5_000 + short * Dispatch.HEAL_SECONDS - 1), most - 1)
+	assert_eq(loaded.health("bram", 5_000 + short * Dispatch.HEAL_SECONDS), most)
+	assert_eq(loaded.health("bram", 50_000), most)
+
+
+# The share of members at `rank`'s promotion level, levelled by their own growth, who come home
+# from a quest of that rank injured from full health: failed without a Healer, failed with one,
+# and succeeded. Members are the starters and 100 candidates, each sent with 40 fixed seeds.
+func _injury_rates(rank: String) -> Dictionary:
+	var level: int = Adventurers.PROMOTIONS[rank]["level"]
+	var adventurers := Adventurers.new()
+	for i: int in 100:
+		var candidate := Recruits.candidate_for(i % 4, 1_000_000 + i * 37, PackedStringArray())
+		adventurers.add("c%d" % i, candidate["who"], candidate["stats"], candidate["growth"])
+	var members: Array = adventurers.roster.keys()
+	for member: String in members:
+		adventurers.gain_xp(member, 1_000_000)
+		while adventurers.levels[member] < level:
+			adventurers.level_up(member)
+	adventurers.roster["healer"] = {"name": "Hal", "class": "Healer", "rank": rank, "face": ""}
+	var injured := {"failed": 0, "failed_with_healer": 0, "succeeded": 0}
+	var sent := {"failed": 0, "failed_with_healer": 0, "succeeded": 0}
+	for member: String in members:
+		var most := adventurers.max_health(member)
+		var healer := Dispatch.is_healer(adventurers.roster[member])
+		for roll: int in 40:
+			for kind: String in injured:
+				# A Healer is never without one.
+				if kind == "failed" and healer:
+					continue
+				var party := PackedStringArray([member])
+				if kind == "failed_with_healer" and not healer:
+					party.append("healer")
+				var outcome := Outcome.roll(roll * 7_919 + member.hash(), 100 if kind == "succeeded" else 0, Outcome.MOST_DAMAGE[rank], party, adventurers.roster)
+				sent[kind] += 1
+				if Dispatch.under_a_quarter(maxi(1, most - int(outcome.damage[member])), most):
+					injured[kind] += 1
+	var rates := {}
+	for kind: String in injured:
+		rates[kind] = float(injured[kind]) / sent[kind]
+	return rates
 
 
 # A Shield bearer with no art for their face, whose Might and Grit always grow and nothing else.

@@ -54,6 +54,8 @@ const USABLE_LINES: Dictionary[String, String] = {"entrance": "Staircase closed"
 
 const ROOM_GAP_PX: float = 4.0
 const ROOM_PADDING_PX: int = 22
+## Landscape rooms are narrower, so their padding shrinks to this to keep the longest name on one line.
+const LANDSCAPE_ROOM_PADDING_PX: int = 12
 const BORDER_PX: float = 3.0
 const DASH_PX: float = 12.0
 const HATCH_STRIPE_PX: float = 17.0
@@ -77,6 +79,8 @@ var _ground: Control
 var _upstairs: Control
 var _ground_in_use: int = 0
 var _upstairs_in_use: int = 0
+## Each room's and the landing's contents, padded in from its edges.
+var _boxes: Array[Control] = []
 
 @onready var _summary: Label = $Scroll/Box/Top/Header/Summary
 @onready var _parties: Control = $Scroll/Box/Top/Header/Parties
@@ -112,6 +116,8 @@ class Room extends Control:
 class Row extends RefCounted:
 	var bar: ProgressBar
 	var time: Label
+	## The line under the title, for a row that has one.
+	var line: Label
 
 
 func _ready() -> void:
@@ -141,12 +147,18 @@ func _ready() -> void:
 
 
 ## Landscape puts the floor bar beside the header and In progress beside the plan, shows how many
-## parties are out in the header, and leaves out the legend; portrait stacks them all.
+## parties are out in the header, and leaves out the legend; portrait stacks them all. In
+## landscape the floor summary and room names keep to one line: the title is smaller, the header
+## takes the width the summary needs from the floor bar, and rooms have less padding.
 func set_landscape(landscape: bool) -> void:
 	($Scroll/Box/Top as BoxContainer).vertical = not landscape
 	($Scroll/Box/Columns as BoxContainer).vertical = not landscape
 	_parties.visible = landscape
 	_legend.visible = not landscape
+	($Scroll/Box/Top/Header/Title as Label).theme_type_variation = &"Heading" if landscape else &"Title"
+	_summary.autowrap_mode = TextServer.AUTOWRAP_OFF if landscape else TextServer.AUTOWRAP_WORD_SMART
+	for box: Control in _boxes:
+		box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, LANDSCAPE_ROOM_PADDING_PX if landscape else ROOM_PADDING_PX)
 
 
 ## Shows the hall, who is home, and what is under way at `now`; `quests_on_board` is how many
@@ -203,7 +215,7 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 				room.line.text = "Building the first floor"
 				room.line.theme_type_variation = &"BuildText"
 				room.bar.theme_type_variation = &"BuildBar"
-				room.bar.max_value = Hall.EXTEND_SECONDS
+				room.bar.max_value = hall.job_seconds()
 				building = true
 			elif slot == STAIRS:
 				_offer(room, "%dg · %s" % [Hall.EXTEND_GOLD, Duration.label(Hall.EXTEND_SECONDS)], hall.extend_refusal(gold, now))
@@ -234,7 +246,7 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 			room.line.text = "Converting to %s" % Hall.ROOM_TYPES[type]["name"]
 			room.line.theme_type_variation = &"GoldText"
 			room.bar.theme_type_variation = &"GoldBar"
-			room.bar.max_value = Hall.ROOM_TYPES[type]["seconds"]
+			room.bar.max_value = hall.job_seconds()
 			look = Look.CONVERTING
 	if building:
 		var left := hall.seconds_left(now)
@@ -309,15 +321,17 @@ func _show_tokens(hall: Hall, dispatch: Dispatch, infirmary: String, now: int) -
 		room.tokens.visible = not shown.is_empty()
 
 
-# Timed rows first, each with its total and seconds left; progress is how much of the total has
-# passed. The Send row comes last.
+# Timed rows first, each with its bar's full and current value and its seconds left: for most, the
+# bar is how much of the total time has passed; for training, how much of the stint's XP is in. The
+# Send row comes last.
 func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: int) -> void:
 	var entries: Array[Dictionary] = []
-	var waits: Array[Vector2i] = []
+	var waits: Array[Vector3i] = []
 	for outing: Dictionary in dispatch.outings:
 		var quest: Dictionary = Dispatch.QUESTS[outing["quest"]]
 		entries.append({"tokens": outing["party"], "title": quest["name"], "bar": &"GoldBar"})
-		waits.append(Vector2i(quest["seconds"], dispatch.seconds_left(outing, now)))
+		var back_in := dispatch.seconds_left(outing, now)
+		waits.append(Vector3i(quest["seconds"], quest["seconds"] - back_in, back_in))
 	var build_left := hall.seconds_left(now)
 	if build_left > 0:
 		if hall.building == Hall.EXTENSION:
@@ -326,7 +340,10 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 			entries.append({"swatch": Look.RESTORING, "title": "Restoring the " + SLOT_NAMES[hall.building].to_lower(), "bar": &"BuildBar"})
 		else:
 			entries.append({"swatch": Look.CONVERTING, "title": "Converting the " + SLOT_NAMES[hall.building].to_lower(), "bar": &"GoldBar"})
-		waits.append(Vector2i(hall.job_seconds(), build_left))
+		waits.append(Vector3i(hall.job_seconds(), hall.job_seconds() - build_left, build_left))
+	# The line under a timed row's title that changes as it runs, "" for none, by timed row.
+	var lines := PackedStringArray()
+	lines.resize(waits.size())
 	var at_hand := PackedStringArray()
 	var roster := dispatch.adventurers.roster
 	for adventurer: String in roster:
@@ -334,7 +351,16 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 		if injury_left > 0:
 			var healing: String = roster[adventurer]["name"]
 			entries.append({"tokens": [adventurer], "injured": true, "title": healing + " is healing", "bar": &"InjuryBar"})
-			waits.append(Vector2i(dispatch.injury_seconds(adventurer), injury_left))
+			waits.append(Vector3i(dispatch.injury_seconds(adventurer), dispatch.injury_seconds(adventurer) - injury_left, injury_left))
+			lines.append("")
+		elif dispatch.training.has(adventurer):
+			var gained := dispatch.training_xp(adventurer, now)
+			if gained < Dispatch.TRAINING_MAX_XP:
+				entries.append({"tokens": [adventurer], "title": roster[adventurer]["name"], "bar": &"OwnBar", "line": true})
+				waits.append(Vector3i(Dispatch.TRAINING_MAX_XP, gained, dispatch.training_seconds_left(adventurer, now)))
+				lines.append("Training · +%d / %d XP" % [gained, Dispatch.TRAINING_MAX_XP])
+			else:
+				entries.append({"tokens": [adventurer], "title": roster[adventurer]["name"], "sub": "Full — stop to bank", "sub_style": &"GoldText"})
 		elif dispatch.can_go(adventurer, now):
 			at_hand.append(adventurer)
 	if not at_hand.is_empty() and quests_on_board > 0:
@@ -344,14 +370,17 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 			"tokens": [at_hand[0] if one else str(at_hand.size())],
 			"title": "%s ready" % (roster[at_hand[0]]["name"] + " is" if one else str(at_hand.size())),
 			"sub": "%d quest%s on the board" % [quests_on_board, "" if quests_on_board == 1 else "s"],
+			"send": true,
 		})
 	if entries != _entries:
 		_entries = entries
 		_rebuild_rows(roster)
 	for i: int in waits.size():
 		_rows[i].bar.max_value = waits[i].x
-		_rows[i].bar.value = waits[i].x - waits[i].y
-		_rows[i].time.text = Duration.label(waits[i].y)
+		_rows[i].bar.value = waits[i].y
+		_rows[i].time.text = Duration.label(waits[i].z)
+		if _rows[i].line:
+			_rows[i].line.text = lines[i]
 	_section.visible = not entries.is_empty()
 	_list.visible = not entries.is_empty()
 
@@ -378,6 +407,9 @@ func _rebuild_rows(roster: Dictionary) -> void:
 		line.add_child(words)
 		if entry.has("bar"):
 			var row := Row.new()
+			if entry.has("line"):
+				row.line = _label("", &"Secondary")
+				words.add_child(row.line)
 			row.bar = _bar(entry["bar"])
 			words.add_child(row.bar)
 			row.time = _label("", &"Numbers")
@@ -385,7 +417,8 @@ func _rebuild_rows(roster: Dictionary) -> void:
 			line.add_child(row.time)
 			_rows.append(row)
 		else:
-			words.add_child(_label(entry["sub"], &"Secondary"))
+			words.add_child(_label(entry["sub"], entry.get("sub_style", &"Secondary")))
+		if entry.has("send"):
 			var go := Button.new()
 			go.text = "Send →"
 			go.theme_type_variation = &"GoldLink"
@@ -426,6 +459,7 @@ func _add_landing() -> void:
 	landing.draw.connect(_paint.bind(landing, Look.IN_USE))
 	var box := VBoxContainer.new()
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, ROOM_PADDING_PX)
+	_boxes.append(box)
 	box.add_child(_label("Landing", &"RoomName"))
 	box.add_child(_label("Stairs down to the Entrance hall", &"Secondary"))
 	landing.add_child(box)
@@ -437,6 +471,7 @@ func _add_room(slot: String, area: Rect2, layer: Control) -> void:
 	room.draw.connect(func() -> void: _paint(room, room.look))
 	var box := VBoxContainer.new()
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, ROOM_PADDING_PX)
+	_boxes.append(box)
 	room.add_child(box)
 	room.title = _label("", &"RoomName")
 	room.line = _label("", &"Secondary")
