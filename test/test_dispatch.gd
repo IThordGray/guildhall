@@ -470,9 +470,9 @@ func test_save_from_previous_build_loads() -> void:
 	assert_eq(loaded_hall.rooms_done("quest_hall", start + 500), 1)
 	assert_eq(_statuses(loaded, start + 500), ["On quest: Goblin camp", "On quest: Goblin camp", "Injured · 1:00", "Resting"])
 	assert_eq(loaded.seconds_left(loaded.outings[0], start + 500), 400)
-	# Four slots for the Quest hall, filled with any quest but goblins, still out.
-	board.refill(loaded, start + 500, loaded_hall.rooms_done("quest_hall", start + 500))
-	assert_eq(board.slots, PackedStringArray(["crypt", "wolves", "moonherbs", "letters"]))
+	# Four slots with the Quest hall, filled with any quest but goblins, still out.
+	board.refill(loaded, start + 500, PackedInt64Array([start + 180]))
+	assert_eq(board.slots, PackedStringArray(["wolves", "letters", "crypt", "rats"]))
 
 
 func test_an_injury_lasts_150_seconds_with_an_infirmary_finished_before_the_return() -> void:

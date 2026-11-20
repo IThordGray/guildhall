@@ -147,7 +147,7 @@ func _on_tick() -> void:
 func _checkpoint(now: int) -> void:
 	_dispatch.checkpoint(now, _gold, _hall.first_done_at("infirmary"))
 	_hall.checkpoint(now)
-	_quest_board.refill(_dispatch, now, _quest_halls(now))
+	_quest_board.refill(_dispatch, now, _quest_halls_done())
 	var file := ConfigFile.new()
 	_clock.write(file, Time.get_unix_time_from_system())
 	_gold.write(file)
@@ -161,8 +161,7 @@ func _checkpoint(now: int) -> void:
 	_parties_label.text = str(_dispatch.outings.size())
 	_debrief_badge.text = str(_dispatch.debriefs.size())
 	_debrief_badge.visible = not _dispatch.debriefs.is_empty()
-	var slots := _quest_board.slots
-	_hall_view.show_state(_hall, _dispatch, _gold, slots.size() - slots.count(""), now)
+	_hall_view.show_state(_hall, _dispatch, _gold, _quest_board.filled(), now)
 	_board.show_board(_quest_board, _dispatch, now)
 	_roster.show_dispatch(_dispatch, now)
 	if _adventurer.visible:
@@ -200,7 +199,9 @@ func _on_send_pressed(quest: String) -> void:
 # The seed comes from the global generator; the outcome it fixes is rolled from the seed alone.
 func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
-	if _quest_board.send(_dispatch, quest, party, randi(), _gold, now, _quest_halls(now), _hall.first_done_at("infirmary")):
+	# A Quest hall finished since the last tick adds its slot before the send.
+	_hall.checkpoint(now)
+	if _quest_board.send(_dispatch, quest, party, randi(), _gold, now, _quest_halls_done(), _hall.first_done_at("infirmary")):
 		_picker.close()
 	_checkpoint(now)
 
@@ -328,8 +329,13 @@ func _show_picker() -> void:
 	_picker.visible = _board.visible and (_landscape or _picker.has_quest())
 
 
-func _quest_halls(now: int) -> int:
-	return _hall.rooms_done("quest_hall", now)
+# When each Quest hall the hall's last checkpoint saw finished, in unix seconds.
+func _quest_halls_done() -> PackedInt64Array:
+	var done := PackedInt64Array()
+	for room: Dictionary in _hall.converted.values():
+		if room["type"] == "quest_hall":
+			done.append(room["done_at"])
+	return done
 
 
 func _now() -> int:

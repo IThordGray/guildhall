@@ -115,7 +115,7 @@ static func failure_gold(quest_id: String) -> int:
 
 ## Seconds until `outing` returns; 0 when it has returned.
 func seconds_left(outing: Dictionary, now: int) -> int:
-	return maxi(0, _returns_at(outing) - maxi(now, checked_at))
+	return maxi(0, back_at(outing) - maxi(now, checked_at))
 
 
 ## Seconds until `adventurer` recovers from an injury; 0 when not injured.
@@ -277,7 +277,7 @@ func checkpoint(now: int, gold: Gold, infirmary_from: int = -1) -> void:
 	for outing: Dictionary in outings:
 		if seconds_left(outing, checked_at) == 0:
 			returned.append(outing)
-	returned.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return _returns_at(a) < _returns_at(b))
+	returned.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return back_at(a) < back_at(b))
 	for outing: Dictionary in returned:
 		outings.erase(outing)
 		_bring_home(outing, gold)
@@ -286,7 +286,7 @@ func checkpoint(now: int, gold: Gold, infirmary_from: int = -1) -> void:
 func _bring_home(outing: Dictionary, gold: Gold) -> void:
 	var quest: Dictionary = QUESTS[outing["quest"]]
 	var party: PackedStringArray = outing["party"]
-	var returns_at := _returns_at(outing)
+	var returns_at := back_at(outing)
 	var reward: int = quest["gold"]
 	var success := true
 	var damage: Dictionary = {}
@@ -349,7 +349,8 @@ func back_label(debrief: Dictionary, now: int) -> String:
 	return "Back just now" if minutes == 0 else "Back %d min ago" % minutes
 
 
-func _returns_at(outing: Dictionary) -> int:
+## Unix seconds `outing`'s party is back, fixed when it leaves.
+func back_at(outing: Dictionary) -> int:
 	return int(outing["since"]) + int(QUESTS[outing["quest"]]["seconds"])
 
 
