@@ -18,10 +18,15 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** play-test M6–M12 (pushed); the open spec questions (guild level, Quest hall extras)
-  and the "Later" list decide what follows.
+- **Next — M13 recruitment:** M13a the roster is saved data (the four starters as now, nothing the
+  player sees changes) · M13b candidates visit and can be hired: two candidate slots that refill on
+  their own countdown, rank F, some stats hidden until hired, growth always hidden; a hire costs
+  gold; beds cap the roster (4 at start, +2 per Bunk room, at most 8); recruits get a placeholder
+  face until there is recruit art. Death stays deferred: its own decision.
+- **Then:** M14 more quests (15–20 over ranks F–D) and the first session (starting gold, short early
+  timers, the odds and injury findings) · M15 rooms that fill up, with collect effects.
 - **Later, not planned yet:** sprites that change with gear (needs per-item layer art); the spec's
-  starting state and extending the hall, recruitment, guild level, Quest hall extras, the labyrinth.
+  starting state and extending the hall, guild level, Quest hall extras, the labyrinth.
 - Screens follow the v2 designs (linked from the spec).
 - Interim, for play-testing: a start screen (Continue / New game), to be revised; a Test speed
   control (×1/×10/×60 while open), to be removed before release.
