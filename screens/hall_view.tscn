@@ -107,6 +107,8 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"Floor"
 disabled = true
+toggle_mode = true
+button_group = SubResource("ButtonGroup_floors")
 text = "1F"
 
 [node name="Second" type="Button" parent="Scroll/Box/Top/Floors/Row"]

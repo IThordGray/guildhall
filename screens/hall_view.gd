@@ -9,6 +9,8 @@ signal job_pressed(slot: String)
 signal send_pressed
 ## The player asked to collect the gold in the Tavern `slot`.
 signal collect_pressed(slot: String)
+## The player asked to extend the hall with the First floor.
+signal extend_pressed
 
 ## How a room is drawn on the plan.
 enum Look { IN_USE, CONVERTED, INFIRMARY, EMPTY, DAMAGED, RESTORING, CONVERTING }
@@ -23,12 +25,27 @@ const GROUND_FLOOR: Dictionary[String, Rect2] = {
 	"side_right": Rect2(0.7, 0.3, 0.3, 0.4),
 	"entrance": Rect2(0.0, 0.7, 1.0, 0.3),
 }
+# The First floor the same way: four rooms, and at the front the landing the stairs come up to,
+# which is not a room.
+const FIRST_FLOOR: Dictionary[String, Rect2] = {
+	"upper_nw": Rect2(0.0, 0.0, 0.5, 0.4),
+	"upper_ne": Rect2(0.5, 0.0, 0.5, 0.4),
+	"upper_sw": Rect2(0.0, 0.4, 0.5, 0.4),
+	"upper_se": Rect2(0.5, 0.4, 0.5, 0.4),
+}
+const LANDING: Rect2 = Rect2(0.0, 0.8, 1.0, 0.2)
+## The room the stairs to the First floor go up from, where the hall is extended.
+const STAIRS: String = "entrance"
 ## A slot's name until it is given a job: where it is, or what it was built as.
 const SLOT_NAMES: Dictionary[String, String] = {
 	"back_left": "North-west room",
 	"back_right": "North-east room",
 	"side_left": "West room",
 	"side_right": "East room",
+	"upper_nw": "Upper north-west room",
+	"upper_ne": "Upper north-east room",
+	"upper_sw": "Upper south-west room",
+	"upper_se": "Upper south-east room",
 	"entrance": "Entrance hall",
 	"reception": "Reception",
 }
@@ -55,10 +72,16 @@ var _rooms: Dictionary[String, Room] = {}
 ## changes; `_rows` are its timed rows, in the same order.
 var _entries: Array[Dictionary] = []
 var _rows: Array[Row] = []
+## Each floor's rooms, shown one floor at a time, and how many of them are in use.
+var _ground: Control
+var _upstairs: Control
+var _ground_in_use: int = 0
+var _upstairs_in_use: int = 0
 
 @onready var _summary: Label = $Scroll/Box/Top/Header/Summary
 @onready var _parties: Control = $Scroll/Box/Top/Header/Parties
 @onready var _parties_count: Label = $Scroll/Box/Top/Header/Parties/Count
+@onready var _first_button: Button = $Scroll/Box/Top/Floors/Row/First
 @onready var _plan: Control = $Scroll/Box/Columns/Left/Plan
 @onready var _legend: HBoxContainer = $Scroll/Box/Columns/Left/Legend
 @onready var _section: Control = $Scroll/Box/Columns/Right/Section
@@ -92,8 +115,16 @@ class Row extends RefCounted:
 
 
 func _ready() -> void:
+	_ground = _add_floor()
+	_upstairs = _add_floor()
+	_upstairs.visible = false
 	for slot: String in GROUND_FLOOR:
-		_add_room(slot)
+		_add_room(slot, GROUND_FLOOR[slot], _ground)
+	for slot: String in FIRST_FLOOR:
+		_add_room(slot, FIRST_FLOOR[slot], _upstairs)
+	_add_landing()
+	# The floor buttons are a group, so pressing Ground untoggles 1F.
+	_first_button.toggled.connect(_on_first_toggled)
 	var dot := Panel.new()
 	dot.theme_type_variation = &"InjuredDot"
 	dot.custom_minimum_size = Vector2(24, 24)
@@ -121,30 +152,62 @@ func set_landscape(landscape: bool) -> void:
 ## Shows the hall, who is home, and what is under way at `now`; `quests_on_board` is how many
 ## quests the board offers.
 func show_state(hall: Hall, dispatch: Dispatch, gold: Gold, quests_on_board: int, now: int) -> void:
-	var in_use := 0
-	var infirmary := ""
+	_ground_in_use = 0
+	_upstairs_in_use = 0
 	for slot: String in _rooms:
 		var state := hall.state(slot, now)
 		if state == Hall.State.USABLE or state == Hall.State.CONVERTED:
-			in_use += 1
-		if infirmary.is_empty() and state == Hall.State.CONVERTED and hall.room_type(slot) == "infirmary":
-			infirmary = slot
+			if slot in FIRST_FLOOR:
+				_upstairs_in_use += 1
+			else:
+				_ground_in_use += 1
 		_show_room(_rooms[slot], slot, state, hall, gold, now)
-	_summary.text = "Ground floor · %d of %d rooms in use" % [in_use, _rooms.size()]
+	# Injured adventurers rest in the Infirmary that heals them: the first one finished.
+	var infirmary := hall.first_room("infirmary")
+	if not infirmary.is_empty() and hall.state(infirmary, now) != Hall.State.CONVERTED:
+		infirmary = ""
+	_first_button.disabled = not hall.has_first_floor(now)
+	_show_summary()
 	_parties_count.text = str(dispatch.outings.size())
 	_show_tokens(dispatch, infirmary, now)
 	_show_progress(hall, dispatch, quests_on_board, now)
+
+
+func _on_first_toggled(upstairs: bool) -> void:
+	_ground.visible = not upstairs
+	_upstairs.visible = upstairs
+	_show_summary()
+
+
+func _show_summary() -> void:
+	if _upstairs.visible:
+		_summary.text = "First floor · %d of %d rooms in use" % [_upstairs_in_use, FIRST_FLOOR.size()]
+	else:
+		_summary.text = "Ground floor · %d of %d rooms in use" % [_ground_in_use, GROUND_FLOOR.size()]
 
 
 func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: Gold, now: int) -> void:
 	var type := hall.room_type(slot)
 	var held := hall.tavern_gold(slot, now)
 	var look := Look.IN_USE
+	var building := state == Hall.State.RESTORING or state == Hall.State.CONVERTING
+	var offered := state == Hall.State.DAMAGED
 	room.title.text = SLOT_NAMES[slot]
 	room.line.theme_type_variation = &"Secondary"
 	match state:
 		Hall.State.USABLE:
 			room.line.text = USABLE_LINES[slot]
+			if slot == STAIRS and hall.has_first_floor(now):
+				room.line.text = "Stairs to 1F"
+			elif slot == STAIRS and hall.building == Hall.EXTENSION:
+				room.line.text = "Building the first floor"
+				room.line.theme_type_variation = &"BuildText"
+				room.bar.theme_type_variation = &"BuildBar"
+				room.bar.max_value = Hall.EXTEND_SECONDS
+				building = true
+			elif slot == STAIRS:
+				_offer(room, "%dg · %s" % [Hall.EXTEND_GOLD, Duration.label(Hall.EXTEND_SECONDS)], hall.extend_refusal(gold, now))
+				offered = true
 		Hall.State.CONVERTED:
 			var info: Dictionary = Hall.ROOM_TYPES[type]
 			var blurb: String = info["blurb"]
@@ -159,11 +222,7 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 		Hall.State.DAMAGED:
 			room.line.text = "Damaged"
 			var next := hall.next_restore()
-			room.restore_cost.text = "%dg · %s" % [next["gold"], Duration.label(next["seconds"])]
-			var reason := hall.refusal(slot, gold, now)
-			room.restore.disabled = not reason.is_empty()
-			room.reason.text = reason
-			room.reason.visible = not reason.is_empty()
+			_offer(room, "%dg · %s" % [next["gold"], Duration.label(next["seconds"])], hall.refusal(slot, gold, now))
 			look = Look.DAMAGED
 		Hall.State.RESTORING:
 			room.line.text = "Restoring"
@@ -177,7 +236,6 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 			room.bar.theme_type_variation = &"GoldBar"
 			room.bar.max_value = Hall.ROOM_TYPES[type]["seconds"]
 			look = Look.CONVERTING
-	var building := state == Hall.State.RESTORING or state == Hall.State.CONVERTING
 	if building:
 		var left := hall.seconds_left(now)
 		room.countdown.text = Duration.label(left)
@@ -186,11 +244,19 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 	room.countdown.visible = building
 	room.bar.visible = building or tavern
 	room.collect.visible = held > 0
-	room.restore_row.visible = state == Hall.State.DAMAGED
+	room.restore_row.visible = offered
 	room.job.visible = state == Hall.State.RESTORED
 	if look != room.look:
 		room.look = look
 		room.queue_redraw()
+
+
+# A room's action row: what it costs and takes, and why it can't be done when it can't.
+func _offer(room: Room, cost: String, reason: String) -> void:
+	room.restore_cost.text = cost
+	room.restore.disabled = not reason.is_empty()
+	room.reason.text = reason
+	room.reason.visible = not reason.is_empty()
 
 
 # A Tavern's fill, which stands out in gold once full.
@@ -245,14 +311,13 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 		waits.append(Vector2i(quest["seconds"], dispatch.seconds_left(outing, now)))
 	var build_left := hall.seconds_left(now)
 	if build_left > 0:
-		var restoring := hall.building_into.is_empty()
-		var place: String = SLOT_NAMES[hall.building].to_lower()
-		if restoring:
-			entries.append({"swatch": Look.RESTORING, "title": "Restoring the " + place, "bar": &"BuildBar"})
-			waits.append(Vector2i(hall.job_seconds(), build_left))
+		if hall.building == Hall.EXTENSION:
+			entries.append({"swatch": Look.RESTORING, "title": "Building the first floor", "bar": &"BuildBar"})
+		elif hall.building_into.is_empty():
+			entries.append({"swatch": Look.RESTORING, "title": "Restoring the " + SLOT_NAMES[hall.building].to_lower(), "bar": &"BuildBar"})
 		else:
-			entries.append({"swatch": Look.CONVERTING, "title": "Converting the " + place, "bar": &"GoldBar"})
-			waits.append(Vector2i(Hall.ROOM_TYPES[hall.building_into]["seconds"], build_left))
+			entries.append({"swatch": Look.CONVERTING, "title": "Converting the " + SLOT_NAMES[hall.building].to_lower(), "bar": &"GoldBar"})
+		waits.append(Vector2i(hall.job_seconds(), build_left))
 	var at_hand := PackedStringArray()
 	var roster := dispatch.adventurers.roster
 	for adventurer: String in roster:
@@ -323,18 +388,43 @@ func _rebuild_rows(roster: Dictionary) -> void:
 		_list_rows.add_child(panel)
 
 
-func _add_room(slot: String) -> void:
-	var area: Rect2 = GROUND_FLOOR[slot]
+# A floor's layer over the whole plan, for its rooms.
+func _add_floor() -> Control:
+	var layer := Control.new()
+	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_PASS
+	_plan.add_child(layer)
+	return layer
+
+
+# Puts `item` on `layer` over `area`, a fraction of the plan, a gap in from its edges.
+func _lay(item: Control, area: Rect2, layer: Control) -> void:
+	item.clip_contents = true
+	item.anchor_left = area.position.x
+	item.anchor_top = area.position.y
+	item.anchor_right = area.end.x
+	item.anchor_bottom = area.end.y
+	item.offset_left = ROOM_GAP_PX
+	item.offset_top = ROOM_GAP_PX
+	item.offset_right = -ROOM_GAP_PX
+	item.offset_bottom = -ROOM_GAP_PX
+	layer.add_child(item)
+
+
+# The First floor's landing: drawn as a room in use, with nothing to do there.
+func _add_landing() -> void:
+	var landing := Control.new()
+	landing.draw.connect(_paint.bind(landing, Look.IN_USE))
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, ROOM_PADDING_PX)
+	box.add_child(_label("Landing", &"RoomName"))
+	box.add_child(_label("Stairs down to the Entrance hall", &"Secondary"))
+	landing.add_child(box)
+	_lay(landing, LANDING, _upstairs)
+
+
+func _add_room(slot: String, area: Rect2, layer: Control) -> void:
 	var room := Room.new()
-	room.clip_contents = true
-	room.anchor_left = area.position.x
-	room.anchor_top = area.position.y
-	room.anchor_right = area.end.x
-	room.anchor_bottom = area.end.y
-	room.offset_left = ROOM_GAP_PX
-	room.offset_top = ROOM_GAP_PX
-	room.offset_right = -ROOM_GAP_PX
-	room.offset_bottom = -ROOM_GAP_PX
 	room.draw.connect(func() -> void: _paint(room, room.look))
 	var box := VBoxContainer.new()
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, ROOM_PADDING_PX)
@@ -346,13 +436,18 @@ func _add_room(slot: String) -> void:
 	room.tokens = HFlowContainer.new()
 	room.tokens.visible = false
 	room.restore_row = HFlowContainer.new()
+	room.restore_row.add_theme_constant_override("h_separation", 16)
 	room.restore_cost = _label("", &"Meta")
 	room.restore_cost.autowrap_mode = TextServer.AUTOWRAP_OFF
 	room.restore_row.add_child(room.restore_cost)
 	room.restore = Button.new()
-	room.restore.text = "Restore"
 	room.restore.theme_type_variation = &"RestoreButton"
-	room.restore.pressed.connect(restore_pressed.emit.bind(slot))
+	if slot == STAIRS:
+		room.restore.text = "Extend · 1F"
+		room.restore.pressed.connect(extend_pressed.emit)
+	else:
+		room.restore.text = "Restore"
+		room.restore.pressed.connect(restore_pressed.emit.bind(slot))
 	room.restore_row.add_child(room.restore)
 	room.reason = _label("", &"RoomAlert")
 	room.reason.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -371,7 +466,7 @@ func _add_room(slot: String) -> void:
 	room.collect.pressed.connect(collect_pressed.emit.bind(slot))
 	for part: Control in [room.title, room.line, spacer, room.tokens, room.restore_row, room.job, room.countdown, room.bar, room.collect]:
 		box.add_child(part)
-	_plan.add_child(room)
+	_lay(room, area, layer)
 	_rooms[slot] = room
 
 

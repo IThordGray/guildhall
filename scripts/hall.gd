@@ -1,7 +1,8 @@
 class_name Hall
 extends RefCounted
 
-enum State { USABLE, DAMAGED, RESTORING, RESTORED, CONVERTING, CONVERTED }
+## UNBUILT is a First floor room before the First floor is built.
+enum State { USABLE, DAMAGED, RESTORING, RESTORED, CONVERTING, CONVERTED, UNBUILT }
 
 ## What restoring a room costs and takes, by the order rooms are restored in: the first room the
 ## first entry, and so on; any after the last, the last (stand-ins). Cheap and quick first.
@@ -13,6 +14,15 @@ const RESTORES: Array[Dictionary] = [
 ]
 ## Rooms usable from the start; every other slot starts damaged.
 const STARTING_USABLE: Array[String] = ["entrance", "reception"]
+## Extending the hall builds the First floor: what it costs and takes, done by the builder like a
+## restoration, and how many rooms must be restored first (stand-ins).
+const EXTEND_GOLD: int = 400
+const EXTEND_SECONDS: int = 600
+const EXTEND_AFTER_RESTORES: int = 3
+## The First floor's rooms. They are new, so they start restored and empty once it is built.
+const FIRST_FLOOR: Array[String] = ["upper_nw", "upper_ne", "upper_sw", "upper_se"]
+## What `building` holds while the builder extends the hall; not a slot.
+const EXTENSION: String = "first_floor"
 ## What an empty restored room can be converted into, in panel order. The save and the art refer
 ## to a type by its id. What a type does is applied where its effect is: see Dispatch.
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
@@ -33,12 +43,14 @@ const MAX_ROSTER: int = 8
 
 ## Slots the builder has finished restoring, converted or not.
 var restored: PackedStringArray = PackedStringArray()
+## Whether the builder has finished extending the hall.
+var first_floor: bool = false
 ## Rooms the builder has finished converting: slot -> {"type": a ROOM_TYPES id, "done_at": unix
 ## seconds the conversion finished, and for a Tavern collected at least once "collected_at": unix
 ## seconds it was last collected}.
 var converted: Dictionary[String, Dictionary] = {}
 ## The slot the builder is working on, or "" when the builder is free. One builder, so one
-## restoration or conversion at a time.
+## restoration, conversion or extension at a time.
 var building: String = ""
 ## Unix seconds the builder started on `building`.
 var building_since: int = 0
@@ -65,7 +77,14 @@ func state(slot: String, now: int) -> State:
 		return State.CONVERTED
 	if slot in restored:
 		return State.RESTORED
+	if slot in FIRST_FLOOR:
+		return State.RESTORED if has_first_floor(now) else State.UNBUILT
 	return State.DAMAGED
+
+
+## Whether the First floor is built by `now`; an extension under way counts once finished.
+func has_first_floor(now: int) -> bool:
+	return first_floor or (building == EXTENSION and seconds_left(now) == 0)
 
 
 ## The type `slot` is converted, or being converted, into; "" for none.
@@ -91,17 +110,25 @@ func beds(now: int) -> int:
 	return mini(MAX_ROSTER, STARTING_BEDS + BEDS_PER_BUNK_ROOM * rooms_done("bunk_room", now))
 
 
-## Unix seconds the first room of `type` is converted at, counting one under way, whose end is
-## fixed when it starts; -1 when there is none.
-func first_done_at(type: String) -> int:
-	var first := -1
-	for room: Dictionary in converted.values():
-		if room["type"] == type and (first < 0 or int(room["done_at"]) < first):
-			first = int(room["done_at"])
+## The slot of the first room of `type` to be converted, on any floor, counting one under way,
+## whose end is fixed when it starts; "" when there is none.
+func first_room(type: String) -> String:
+	var first := ""
+	for slot: String in converted:
+		if converted[slot]["type"] == type and (first.is_empty() or int(converted[slot]["done_at"]) < int(converted[first]["done_at"])):
+			first = slot
 	# A room under way finishes after every converted one, so it is first only when alone.
-	if building_into == type and first < 0:
-		first = _done_at()
+	if building_into == type and first.is_empty():
+		first = building
 	return first
+
+
+## Unix seconds the first room of `type` is converted at, as `first_room`; -1 when there is none.
+func first_done_at(type: String) -> int:
+	var first := first_room(type)
+	if first.is_empty():
+		return -1
+	return _done_at() if first == building else int(converted[first]["done_at"])
 
 
 ## The gold the Tavern in `slot` holds at `now`: TAVERN_GOLD_PER_MINUTE for each minute since it
@@ -153,17 +180,24 @@ func restore(slot: String, gold: Gold, now: int) -> bool:
 ## restored and one under way come before it.
 func next_restore() -> Dictionary:
 	var before := restored.size()
-	if not building.is_empty() and building_into.is_empty():
+	if _restoring():
 		before += 1
 	return _restore_after(before)
 
 
 ## How many seconds the builder's current job takes in all.
 func job_seconds() -> int:
+	if building == EXTENSION:
+		return EXTEND_SECONDS
 	if building_into.is_empty():
 		# The room under way is not yet among those restored.
 		return _restore_after(restored.size())["seconds"]
 	return ROOM_TYPES[building_into]["seconds"]
+
+
+# Whether the builder's current job is a restoration.
+func _restoring() -> bool:
+	return not building.is_empty() and building != EXTENSION and building_into.is_empty()
 
 
 # What restoring a room costs and takes once `before` rooms are restored.
@@ -187,17 +221,39 @@ func convert_room(slot: String, type: String, gold: Gold, now: int) -> bool:
 	return true
 
 
+## Why the hall can't be extended at `now`, in words for the player; "" when it can.
+func extend_refusal(gold: Gold, now: int) -> String:
+	if first_floor or building == EXTENSION:
+		return "Already extended"
+	# A restoration finished since the last checkpoint is not yet among those restored.
+	var restores := restored.size() + (1 if _restoring() and seconds_left(now) == 0 else 0)
+	if restores < EXTEND_AFTER_RESTORES:
+		return "Restore the ground floor first"
+	return _builder_refusal(EXTEND_GOLD, gold, now)
+
+
+## Pays and starts extending the hall at `now`; false, with nothing paid, when `extend_refusal`
+## gives a reason.
+func extend(gold: Gold, now: int) -> bool:
+	if not extend_refusal(gold, now).is_empty():
+		return false
+	_start(EXTENSION, "", EXTEND_GOLD, gold, now)
+	return true
+
+
 ## True when the builder finished a job after the last checkpoint: the "while you were away" news
 ## when the checkpoint was taken on leaving.
 func finished_since_checkpoint(now: int) -> bool:
 	return not building.is_empty() and seconds_left(now) == 0
 
 
-## Records a finished job as restored or converted for good, and the time seen.
+## Records a finished job as restored, converted or extended for good, and the time seen.
 func checkpoint(now: int) -> void:
 	checked_at = maxi(checked_at, now)
 	if finished_since_checkpoint(checked_at):
-		if building_into.is_empty():
+		if building == EXTENSION:
+			first_floor = true
+		elif building_into.is_empty():
 			restored.append(building)
 		else:
 			converted[building] = {"type": building_into, "done_at": _done_at()}
@@ -234,6 +290,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("hall", "restoring", building)
 	file.set_value("hall", "restoring_since", building_since)
 	file.set_value("hall", "converting_into", building_into)
+	file.set_value("hall", "first_floor", first_floor)
 	file.set_value("hall", "checked_at", checked_at)
 
 
@@ -248,5 +305,6 @@ static func load_or_start(path: String, now: int) -> Hall:
 	hall.building = file.get_value("hall", "restoring", "")
 	hall.building_since = int(file.get_value("hall", "restoring_since", 0))
 	hall.building_into = file.get_value("hall", "converting_into", "")
+	hall.first_floor = file.get_value("hall", "first_floor", false)
 	hall.checked_at = int(file.get_value("hall", "checked_at", now))
 	return hall

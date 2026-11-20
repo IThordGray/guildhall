@@ -67,6 +67,7 @@ func _ready() -> void:
 	_hall_view.job_pressed.connect(_on_job_pressed)
 	_hall_view.send_pressed.connect(_on_go_send)
 	_hall_view.collect_pressed.connect(_on_collect_pressed)
+	_hall_view.extend_pressed.connect(_on_extend_pressed)
 	_convert_panel.convert_pressed.connect(_on_convert_pressed)
 	($TabBar/Tabs/Hall as Button).button_group.pressed.connect(_on_tab_pressed)
 	_board.send_pressed.connect(_on_send_pressed)
@@ -188,6 +189,12 @@ func _checkpoint(now: int) -> void:
 func _on_restore_pressed(slot: String) -> void:
 	var now := _now()
 	_hall.restore(slot, _gold, now)
+	_checkpoint(now)
+
+
+func _on_extend_pressed() -> void:
+	var now := _now()
+	_hall.extend(_gold, now)
 	_checkpoint(now)
 
 

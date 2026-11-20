@@ -4,8 +4,12 @@ extends PanelContainer
 ## The player chose to convert the room the panel is open for into `type`, a key of Hall.ROOM_TYPES.
 signal convert_pressed(type: String)
 
+## The panel keeps at least this far from the window's top and bottom; choices that don't fit scroll.
+const WINDOW_MARGIN_PX: float = 48.0
+
 var _choices: Dictionary[String, Button] = {}
 var _reasons: Dictionary[String, Label] = {}
+var _scroll: ScrollContainer
 
 @onready var _list: VBoxContainer = $Box/List
 
@@ -25,6 +29,13 @@ func _ready() -> void:
 		_reasons[type] = reason
 		_list.add_child(choice)
 		_list.add_child(reason)
+	# The choices sit in a scroll between the title and Cancel, which stay in view.
+	_scroll = ScrollContainer.new()
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	$Box.add_child(_scroll)
+	$Box.move_child(_scroll, _list.get_index())
+	_list.reparent(_scroll, false)
+	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	$Box/Cancel.pressed.connect(hide)
 
 
@@ -35,3 +46,12 @@ func show_hall(hall: Hall, slot: String, gold: Gold, now: int) -> void:
 		_choices[type].disabled = not reason.is_empty()
 		_reasons[type].text = reason
 		_reasons[type].visible = not reason.is_empty()
+	_fit()
+
+
+# Gives the choices the height they need, or what the window leaves them once the rest of the
+# panel is in, so the panel never runs off screen.
+func _fit() -> void:
+	var rest := get_combined_minimum_size().y - _scroll.custom_minimum_size.y
+	var room := get_viewport_rect().size.y - 2 * WINDOW_MARGIN_PX - rest
+	_scroll.custom_minimum_size.y = minf(_list.get_combined_minimum_size().y, room)

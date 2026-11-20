@@ -559,3 +559,204 @@ func test_an_old_save_loads_with_no_tavern_and_its_rooms_hold_no_gold() -> void:
 	assert_eq(gold.amount, 300)
 	assert_true(hall.convert_room("side_left", "tavern", gold, 2_000))
 	assert_eq(hall.tavern_gold("side_left", 2_060 + 60), 2)
+
+
+## A hall at 1_000 with `restores` ground-floor rooms restored one after another, paid from `gold`
+## (60, then 120, then 200), and the builder free at 1_450.
+func _hall_with_restores(restores: int, gold: Gold) -> Hall:
+	var hall := Hall.new(1_000)
+	var slots: Array[String] = ["back_left", "back_right", "side_left"]
+	var starts: Array[int] = [1_000, 1_030, 1_150]
+	for i: int in restores:
+		assert_true(hall.restore(slots[i], gold, starts[i]))
+	hall.checkpoint(1_450)
+	return hall
+
+
+## A hall with the First floor built from 1_500 to 2_100 and checkpointed then, paid from `gold`.
+func _hall_with_first_floor(gold: Gold) -> Hall:
+	var hall := _hall_with_restores(3, gold)
+	assert_true(hall.extend(gold, 1_500))
+	hall.checkpoint(2_100)
+	return hall
+
+
+func test_extending_is_refused_until_3_ground_floor_rooms_are_restored_with_nothing_changed() -> void:
+	var gold := Gold.new(1_000)
+	var hall := _hall_with_restores(2, gold)
+	assert_eq(hall.extend_refusal(gold, 1_450), "Restore the ground floor first")
+	assert_false(hall.extend(gold, 1_450))
+	assert_eq(gold.amount, 820)
+	assert_false(hall.has_first_floor(99_999))
+	assert_eq(hall.state("upper_nw", 99_999), Hall.State.UNBUILT)
+	assert_eq(hall.seconds_left(1_450), 0)
+	# The third restoration counts the moment it finishes, before any checkpoint.
+	assert_true(hall.restore("side_left", gold, 1_450))
+	assert_eq(hall.extend_refusal(gold, 1_749), "Restore the ground floor first")
+	assert_eq(hall.extend_refusal(gold, 1_750), "")
+
+
+func test_extending_is_refused_while_the_builder_is_busy_with_nothing_changed() -> void:
+	var gold := Gold.new(1_000)
+	var hall := _hall_with_restores(3, gold)
+	assert_true(hall.restore("side_right", gold, 1_500))
+	assert_eq(hall.extend_refusal(gold, 1_600), "Builder busy")
+	assert_false(hall.extend(gold, 1_600))
+	assert_eq(gold.amount, 320)
+	assert_eq(hall.building, "side_right")
+	assert_false(hall.has_first_floor(99_999))
+	# Free again, and the restoration it waited on has spent the gold.
+	assert_eq(hall.extend_refusal(gold, 2_100), "Need 80 more gold")
+
+
+func test_extending_is_refused_with_the_shortfall_when_gold_is_short_with_nothing_changed() -> void:
+	var gold := Gold.new(730)
+	var hall := _hall_with_restores(3, gold)
+	assert_eq(hall.extend_refusal(gold, 1_500), "Need 50 more gold")
+	assert_false(hall.extend(gold, 1_500))
+	assert_eq(gold.amount, 350)
+	assert_eq(hall.seconds_left(1_500), 0)
+	assert_false(hall.has_first_floor(99_999))
+	gold.amount += 50
+	assert_eq(hall.extend_refusal(gold, 1_500), "")
+
+
+func test_extending_costs_400_gold_and_builds_the_first_floor_exactly_600_seconds_later() -> void:
+	var gold := Gold.new(780)
+	var hall := _hall_with_restores(3, gold)
+	assert_true(hall.extend(gold, 1_500))
+	assert_eq(gold.amount, 0)
+	assert_eq(hall.job_seconds(), 600)
+	assert_eq(hall.seconds_left(1_500), 600)
+	assert_false(hall.has_first_floor(2_099))
+	assert_eq(hall.state("upper_nw", 2_099), Hall.State.UNBUILT)
+	assert_true(hall.has_first_floor(2_100))
+	for slot: String in ["upper_nw", "upper_ne", "upper_sw", "upper_se"]:
+		assert_eq(hall.state(slot, 2_100), Hall.State.RESTORED, slot)
+	# Restore pricing counts restorations only, under way or after.
+	assert_eq(hall.next_restore(), {"gold": 300, "seconds": 600})
+	hall.checkpoint(2_100)
+	assert_true(hall.has_first_floor(2_100))
+	assert_eq(hall.next_restore(), {"gold": 300, "seconds": 600})
+	assert_eq(hall.state("side_right", 2_100), Hall.State.DAMAGED)
+
+
+func test_the_first_floor_rooms_start_empty_and_cannot_be_restored_or_converted_before_it_is_built() -> void:
+	var gold := Gold.new(2_000)
+	var hall := _hall_with_restores(3, gold)
+	assert_eq(hall.refusal("upper_nw", gold, 1_500), "Not damaged")
+	assert_eq(hall.convert_refusal("upper_nw", "tavern", gold, 1_500), "Not an empty room")
+	assert_true(hall.extend(gold, 1_500))
+	hall.checkpoint(2_100)
+	assert_eq(hall.room_type("upper_nw"), "")
+	assert_eq(hall.refusal("upper_nw", gold, 2_100), "Not damaged")
+	assert_eq(hall.convert_refusal("upper_nw", "tavern", gold, 2_100), "")
+
+
+func test_a_bunk_room_quest_hall_and_tavern_on_the_first_floor_count_as_on_the_ground_floor() -> void:
+	var gold := Gold.new(2_000)
+	var hall := _hall_with_first_floor(gold)
+	assert_true(hall.convert_room("upper_nw", "bunk_room", gold, 2_100))
+	hall.checkpoint(2_160)
+	assert_true(hall.convert_room("upper_sw", "quest_hall", gold, 2_160))
+	hall.checkpoint(2_220)
+	assert_true(hall.convert_room("upper_se", "tavern", gold, 2_220))
+	assert_eq(hall.beds(2_160), 6)
+	assert_eq(hall.rooms_done("quest_hall", 2_220), 1)
+	assert_eq(hall.converted["upper_sw"], {"type": "quest_hall", "done_at": 2_220})
+	assert_eq(hall.state("upper_se", 2_280), Hall.State.CONVERTED)
+	assert_eq(hall.tavern_gold("upper_se", 2_280 + 10 * 60), 20)
+	assert_eq(hall.collect("upper_se", gold, 2_280 + 10 * 60), 20)
+	assert_eq(gold.amount, 2_000 - 380 - 400 - 3 * 60 + 20)
+
+
+func test_the_first_infirmary_done_is_the_one_injured_adventurers_use_on_either_floor() -> void:
+	var gold := Gold.new(2_000)
+	var hall := _hall_with_first_floor(gold)
+	assert_true(hall.convert_room("upper_se", "infirmary", gold, 2_100))
+	hall.checkpoint(2_160)
+	assert_true(hall.convert_room("back_left", "infirmary", gold, 2_160))
+	hall.checkpoint(2_220)
+	assert_eq(hall.first_room("infirmary"), "upper_se")
+	assert_eq(hall.first_done_at("infirmary"), 2_160)
+	assert_eq(hall.first_room("tavern"), "")
+
+
+func test_the_hall_can_be_extended_only_once() -> void:
+	var gold := Gold.new(2_000)
+	var hall := _hall_with_restores(3, gold)
+	assert_true(hall.extend(gold, 1_500))
+	assert_eq(hall.extend_refusal(gold, 1_600), "Already extended")
+	assert_eq(hall.extend_refusal(gold, 2_100), "Already extended")
+	hall.checkpoint(2_100)
+	assert_eq(hall.extend_refusal(gold, 2_100), "Already extended")
+	assert_false(hall.extend(gold, 2_100))
+	assert_eq(gold.amount, 2_000 - 380 - 400)
+	assert_eq(hall.seconds_left(2_100), 0)
+
+
+func test_a_clock_set_back_neither_adds_time_to_the_extension_nor_undoes_it() -> void:
+	var gold := Gold.new(2_000)
+	var hall := _hall_with_restores(3, gold)
+	assert_true(hall.extend(gold, 1_500))
+	hall.checkpoint(1_800)
+	hall.checkpoint(900)
+	assert_eq(hall.seconds_left(900), 300)
+	assert_false(hall.has_first_floor(900))
+	hall.checkpoint(2_100)
+	hall.checkpoint(900)
+	assert_true(hall.has_first_floor(900))
+	assert_eq(hall.state("upper_nw", 900), Hall.State.RESTORED)
+	assert_eq(hall.extend_refusal(gold, 900), "Already extended")
+	assert_eq(gold.amount, 2_000 - 380 - 400)
+
+
+func test_an_extension_under_way_and_a_built_first_floor_survive_save_and_load() -> void:
+	var gold := Gold.new(2_000)
+	var hall := _hall_with_restores(3, gold)
+	assert_true(hall.extend(gold, 1_500))
+	hall.checkpoint(1_700)
+	var file := ConfigFile.new()
+	hall.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Hall.load_or_start(SAVE_PATH, 99_999)
+	assert_eq(loaded.seconds_left(1_700), 400)
+	assert_false(loaded.has_first_floor(2_099))
+	assert_eq(loaded.extend_refusal(gold, 1_700), "Already extended")
+	assert_eq(loaded.next_restore(), {"gold": 300, "seconds": 600})
+	assert_true(loaded.has_first_floor(2_100))
+
+	loaded.checkpoint(2_100)
+	assert_true(loaded.convert_room("upper_nw", "bunk_room", gold, 2_100))
+	loaded.checkpoint(2_160)
+	file = ConfigFile.new()
+	loaded.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var reloaded := Hall.load_or_start(SAVE_PATH, 99_999)
+	assert_true(reloaded.has_first_floor(2_160))
+	assert_eq(reloaded.state("upper_nw", 2_160), Hall.State.CONVERTED)
+	assert_eq(reloaded.state("upper_ne", 2_160), Hall.State.RESTORED)
+	assert_eq(reloaded.beds(2_160), 6)
+	assert_eq(reloaded.extend_refusal(gold, 2_160), "Already extended")
+
+
+func test_an_old_save_loads_with_no_first_floor_and_can_extend() -> void:
+	var file := ConfigFile.new()
+	file.set_value("gold", "saved", 500)
+	file.set_value("hall", "restored", PackedStringArray(["back_left", "back_right", "side_left"]))
+	file.set_value("hall", "converted", {"back_left": {"type": "tavern", "done_at": 1_100}})
+	file.set_value("hall", "restoring", "")
+	file.set_value("hall", "restoring_since", 0)
+	file.set_value("hall", "converting_into", "")
+	file.set_value("hall", "checked_at", 1_200)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var gold := Gold.load_or_start(SAVE_PATH)
+	var hall := Hall.load_or_start(SAVE_PATH, 2_000)
+	assert_false(hall.has_first_floor(99_999))
+	assert_eq(hall.state("upper_nw", 99_999), Hall.State.UNBUILT)
+	assert_eq(hall.room_type("back_left"), "tavern")
+	assert_true(hall.extend(gold, 2_000))
+	assert_eq(gold.amount, 100)
+	assert_true(hall.has_first_floor(2_600))
