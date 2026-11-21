@@ -212,7 +212,8 @@ func _show_forecast() -> void:
 	var picked := not _picked.is_empty()
 	_chance.visible = picked
 	_band.visible = picked
-	var note := "If it fails: %d gold." % Dispatch.failure_gold(_quest)
+	var fail_gold := Dispatch.failure_gold(_quest)
+	var note := "If it fails: no gold." if fail_gold == 0 else "If it fails: %d gold." % fail_gold
 	if picked:
 		var shown := _dispatch.chance_range(_quest, _picked)
 		_odds.text = "%d–%d%%" % [shown.x, shown.y]

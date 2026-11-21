@@ -20,7 +20,10 @@ it merges. Screens and wording live in the code.
   always on screen: in portrait in the top bar, in landscape in the left rail and screen headers.
 - No dialogs or overlay panels: everything opens as a full screen with Back (the landscape party
   picker docks beside the board). Any scroll scrolls by dragging anywhere on it, and a control fires
-  only on a tap that stayed within a few pixels; a press that turns into a drag never fires.
+  only on a tap that stayed within about 10 dp; a press that turns into a drag never fires. A card
+  with only one action does it from a tap anywhere on it.
+- A list of slots shows what can be acted on first, then at most one line for the soonest refill.
+- A button shows only when its action applies (Train, Promote from the level the rank needs).
 
 ## Roster
 
@@ -49,3 +52,5 @@ it merges. Screens and wording live in the code.
 - A returning party's damage, injuries, healing and XP count from its return, so members can level
   up from the debrief; its gold and loot are paid, and its members free for new quests, only when
   its debrief is read. A debrief pays once.
+- A quest's XP is the party's total: each member gains the total ÷ party size, rounded down. A
+  failed quest pays no gold and a quarter of the XP.

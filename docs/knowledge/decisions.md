@@ -18,9 +18,13 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** the human plays the phone play-note changes locally, then push; then picks what follows. Death stays deferred: its own decision.
-- **Later, not planned yet:** sprites that change with gear (needs per-item layer art); the spec's
-  starting state and extending the hall, guild level, Quest hall extras, the labyrinth.
+- **Next:** adventurers as full layered figures wearing their gear (the v2 designs; drawn at
+  runtime from the design generator's shapes). Then guild rank (spec: Guild rank), in slices:
+  G1 a rank-F start (2 adventurers, 2 beds, only Bunk room and Quest hall buildable); G2 reputation
+  and ranking up at Reception to E (E quests, Extend, three more room types); G3 room tiers. Death
+  stays deferred: its own decision.
+- **Later, not planned yet:** battery use (a phone emptied in a day of play: frames drawn while
+  nothing moves, low-processor mode, pausing when hidden); Quest hall extras, the labyrinth.
 - Screens follow the v2 designs (linked from the spec).
 - Interim, for play-testing: a start screen (Continue / New game), to be revised; a Test speed
   control (×1/×10/×60 while open), to be removed before release.
@@ -54,6 +58,9 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   dialogs; gear chosen from its slot, an Armory screen, debrief opens adventurers, no captions or
   blurbs on the plan; each room type once; XP at the return, gold and loot when the debrief is
   read; every adventurer gets a face generated from their own seed).
+  · Phone play notes 2 (one countdown per list, actions first; whole-card taps; slop about 10 dp
+  with fling; Train and Promote only when they apply; Armory is storage only; XP shared by the
+  party; failure pays no gold and a quarter of the XP; quest gold cut to a fifth (F) or a quarter).
 
 ## Stack
 
