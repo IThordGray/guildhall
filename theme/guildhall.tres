@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=55 format=3]
+[gd_resource type="Theme" load_steps=56 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -15,6 +15,10 @@ base_font = ExtResource("3_pixel")
 variation_opentype = {
 2003265652: 600
 }
+
+[sub_resource type="FontVariation" id="FontVariation_mono_spaced"]
+base_font = ExtResource("2_mono")
+spacing_glyph = 2
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_screen"]
 bg_color = Color(0.08627, 0.07451, 0.1059, 1)
@@ -236,31 +240,60 @@ corner_radius_bottom_left = 22
 bg_color = Color(0.1647, 0.1451, 0.2, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_plan"]
-bg_color = Color(0.0588, 0.2118, 0.3922, 1)
-corner_radius_top_left = 11
-corner_radius_top_right = 11
-corner_radius_bottom_right = 11
-corner_radius_bottom_left = 11
+bg_color = Color(0.1098, 0.09412, 0.1333, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.1647, 0.1451, 0.2, 1)
+corner_radius_top_left = 17
+corner_radius_top_right = 17
+corner_radius_bottom_right = 17
+corner_radius_bottom_left = 17
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_plan_track"]
-bg_color = Color(0.8471, 0.9373, 1, 0.2)
+bg_color = Color(0.1843, 0.1647, 0.2196, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_plan_fill"]
-bg_color = Color(1, 0.6353, 0.3412, 1)
+bg_color = Color(0.949, 0.7569, 0.3059, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dim"]
-bg_color = Color(0, 0, 0, 0.6)
+bg_color = Color(0.03137, 0.02353, 0.04314, 0.72)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_sheet"]
-content_margin_left = 44.0
-content_margin_top = 44.0
-content_margin_right = 44.0
-content_margin_bottom = 44.0
-bg_color = Color(0.1098, 0.09412, 0.1333, 1)
+content_margin_left = 56.0
+content_margin_top = 56.0
+content_margin_right = 56.0
+content_margin_bottom = 56.0
+bg_color = Color(0.1294, 0.1137, 0.1569, 1)
+border_width_left = 3
 border_width_top = 3
-border_color = Color(0.1647, 0.1451, 0.2, 1)
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.2275, 0.2039, 0.2745, 1)
+corner_radius_top_left = 39
+corner_radius_top_right = 39
+corner_radius_bottom_right = 39
+corner_radius_bottom_left = 39
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 56
+shadow_offset = Vector2(0, 44)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_outline_button"]
+content_margin_left = 36.0
+content_margin_top = 24.0
+content_margin_right = 36.0
+content_margin_bottom = 24.0
+draw_center = false
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.3529, 0.3137, 0.4078, 1)
 corner_radius_top_left = 28
 corner_radius_top_right = 28
+corner_radius_bottom_right = 28
+corner_radius_bottom_left = 28
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_link"]
 content_margin_left = 0.0
@@ -270,13 +303,6 @@ content_margin_bottom = 8.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar_track"]
 bg_color = Color(0.1843, 0.1647, 0.2196, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar_build"]
-bg_color = Color(0.498, 0.7216, 0.902, 1)
 corner_radius_top_left = 6
 corner_radius_top_right = 6
 corner_radius_bottom_right = 6
@@ -550,9 +576,6 @@ Coin/base_type = &"Panel"
 Coin/styles/panel = SubResource("StyleBoxFlat_coin")
 DebriefRow/base_type = &"PanelContainer"
 DebriefRow/styles/panel = SubResource("StyleBoxFlat_debrief_row")
-BuildBar/base_type = &"ProgressBar"
-BuildBar/styles/background = SubResource("StyleBoxFlat_bar_track")
-BuildBar/styles/fill = SubResource("StyleBoxFlat_bar_build")
 Dim/base_type = &"Button"
 Dim/styles/hover = SubResource("StyleBoxFlat_dim")
 Dim/styles/hover_pressed = SubResource("StyleBoxFlat_dim")
@@ -646,6 +669,9 @@ Ok/base_type = &"Label"
 Ok/colors/font_color = Color(0.4353, 0.8118, 0.5569, 1)
 Panel/styles/panel = SubResource("StyleBoxFlat_screen")
 PanelContainer/styles/panel = SubResource("StyleBoxFlat_row")
+OutlineButton/base_type = &"Button"
+OutlineButton/styles/hover = SubResource("StyleBoxFlat_outline_button")
+OutlineButton/styles/normal = SubResource("StyleBoxFlat_outline_button")
 PickCard/base_type = &"Button"
 PickCard/font_sizes/font_size = 30
 PickCard/styles/disabled = SubResource("StyleBoxFlat_pick_card_disabled")
@@ -668,10 +694,10 @@ RangeBand/base_type = &"Panel"
 RangeBand/styles/panel = SubResource("StyleBoxFlat_bar_gold")
 RangeTrack/base_type = &"Panel"
 RangeTrack/styles/panel = SubResource("StyleBoxFlat_bar_track")
-RoomName/base_type = &"Heading"
-RoomName/colors/font_color = Color(0.8471, 0.9373, 1, 1)
-RoomName/font_sizes/font_size = 28
-RoomName/fonts/font = ExtResource("2_mono")
+RoomName/base_type = &"Label"
+RoomName/colors/font_color = Color(0.6627, 0.6314, 0.7137, 0.55)
+RoomName/font_sizes/font_size = 26
+RoomName/fonts/font = SubResource("FontVariation_mono_spaced")
 RowTitle/base_type = &"Heading"
 RowTitle/font_sizes/font_size = 39
 Secondary/base_type = &"Label"

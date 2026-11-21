@@ -1,6 +1,6 @@
 class_name ConfirmSheet
 extends Control
-## A small sheet at the bottom of the screen, over the dimmed screen, that asks to confirm an action
+## A small card in the middle of the dimmed screen that asks to confirm an action
 ## that costs gold and time: the one exception to opening everything as a full screen. A tap
 ## outside it, Cancel or Android's Back closes it.
 

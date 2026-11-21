@@ -12,7 +12,7 @@ signal collect_pressed(slot: String)
 ## The player tapped the stairs, to extend the hall with the First floor.
 signal extend_pressed
 
-## How a room is drawn on the plan. UNBUILT is a room the hall doesn't have yet: a faint outline.
+## How a room is drawn on the plan. UNBUILT is a room the hall doesn't have yet: not drawn at all.
 enum Look { IN_USE, EMPTY, DAMAGED, RESTORING, CONVERTING, UNBUILT }
 
 # The Ground floor seen from above, as fractions of the floor: y = 0 is the back wall, y = 1 the
@@ -60,7 +60,7 @@ const OLD_SLOT_NAMES: Dictionary[String, String] = {
 ## Reception's front door, the entrance hall's, and a door from each room into the Reception; on
 ## the First floor a door from each room towards the landing.
 const GROUND_DOORS: Dictionary[Vector2, String] = {
-	Vector2(0.5, 0.7): "reception",
+	Vector2(0.6, 0.7): "reception",
 	Vector2(0.5, 1.0): "entrance",
 	Vector2(0.3, 0.5): "side_left",
 	Vector2(0.7, 0.5): "side_right",
@@ -73,38 +73,139 @@ const FIRST_DOORS: Dictionary[Vector2, String] = {
 	Vector2(0.25, 0.4): "upper_nw",
 	Vector2(0.75, 0.4): "upper_ne",
 }
-## Windows on the floor's outer walls, the same on both floors.
-const WINDOWS: PackedVector2Array = [Vector2(0.25, 0.0), Vector2(0.75, 0.0), Vector2(0.0, 0.15), Vector2(0.0, 0.5), Vector2(0.0, 0.85), Vector2(1.0, 0.15), Vector2(1.0, 0.5), Vector2(1.0, 0.85), Vector2(0.2, 1.0), Vector2(0.8, 1.0)]
-## Where the rooms along the back wall meet, on both floors: the stops of its dimension line.
-const BACK_WALL_STOPS: PackedFloat32Array = [0.0, 0.5, 1.0]
-## The floor's size in metres, the same on both floors. The plan draws it at one fixed scale, the
-## one that fits the whole floor, so a hall with fewer rooms leaves the rest of the floor empty and
-## rooms built later appear there without anything rescaling.
+## The floor's size in metres, the same on both floors. Rooms and furniture are laid out in metres;
+## the plan draws what is built of the floor shown, centred, at the scale that makes it fill
+## PLAN_FILL of the plan, so the plan keeps its size whatever is built.
 const FLOOR_M: Vector2 = Vector2(20.0, 16.0)
-const DOOR_M: float = 1.2
-const WINDOW_M: float = 2.0
-const GRID_M: float = 1.0
-## Every this many grid lines is a major one.
-const MAJOR_GRID_EVERY: int = 5
-## The plan's room for drafting around the floor: at each side, above it for the dimension line,
-## below it for the north arrow and title block; the sheet's frame sits this far in from its edges.
-const SIDE_MARGIN_PX: float = 40.0
-const DIMENSION_BAND_PX: float = 72.0
-const TITLE_BAND_PX: float = 88.0
-const FRAME_INSET_PX: float = 12.0
-const SHEET_TEXT_PX: int = 24
-const ROOM_PADDING_PX: int = 22
-## Landscape rooms are narrower, so their padding shrinks to this to keep the longest name on one line.
-const LANDSCAPE_ROOM_PADDING_PX: int = 12
-const WALL_PX: float = 6.0
-## Walls on the floor's outline are thicker, as outer walls are.
-const OUTER_WALL_PX: float = 10.0
-const GHOST_WALL_PX: float = 2.0
-const DASH_PX: float = 14.0
-const HATCH_STEP_PX: float = 24.0
-const WALL: Color = Color("#d8efff")
-## The drafting colour of work under way.
-const DRAFT: Color = Color("#ffa257")
+const PLAN_FILL: float = 0.68
+const DOOR_M: float = 1.0
+const WALL_PX: float = 8.0
+## A damaged room's walls are thinner and dashed, as are the legend's.
+const THIN_WALL_PX: float = 6.0
+const DASH_PX: float = 8.0
+## A damaged room's hatching: thin lines this far apart, rising to the right.
+const HATCH_STEP_PX: float = 30.0
+const HATCH_PX: float = 3.0
+## Where a room's name sits inside its walls, from the top-left corner; and its progress bar, from
+## the bottom and sides.
+const NAME_INSET_PX: Vector2 = Vector2(14.0, 18.0)
+const BAR_INSET_PX: Vector2 = Vector2(22.0, 25.0)
+const BAR_PX: float = 12.0
+const WALL: Color = Color("#f1ebf4")
+## The walls of work under way.
+const WORK: Color = Color("#f2c14e")
+const HATCH: Color = Color("#cfc6d6", 0.13)
+## Furniture is faint, in the background: outlines in INK over FILL.
+const FURNITURE_INK: Color = Color("#3a3446")
+const FURNITURE_FILL: Color = Color("#221d29")
+const FURNITURE_PX: float = 3.0
+const FURNITURE_DASH_PX: float = 5.0
+## Where furniture is measured from, as fractions of its room.
+const TOP_LEFT: Vector2 = Vector2(0.0, 0.0)
+const TOP_RIGHT: Vector2 = Vector2(1.0, 0.0)
+const CENTRE: Vector2 = Vector2(0.5, 0.5)
+const FRONT_MIDDLE: Vector2 = Vector2(0.5, 1.0)
+## What stands in a room in use, by its type, or by its slot for the Reception and the entrance
+## hall. Each piece is its shape, the point of the room it is measured from, then in metres from
+## there: "box" a filled outline, "frame" an outline, "slab" a solid block, each a Rect2; "line" and
+## "dash" from one point to another; "seat" an outlined and "disc" a filled circle, at a centre with
+## a radius; "arc" a centre, a radius and the angles it runs between.
+const FURNITURE: Dictionary[String, Array] = {
+	"reception": [
+		# A notice board on the back wall, the counter with a stool behind it, a bench by the front
+		# wall, and a round table with four stools.
+		["slab", TOP_LEFT, Rect2(5.2, 0.09, 1.52, 0.15)],
+		["box", TOP_LEFT, Rect2(5.99, 1.78, 0.66, 2.64)],
+		["line", TOP_LEFT, Vector2(5.99, 2.18), Vector2(6.65, 2.18)],
+		["line", TOP_LEFT, Vector2(5.99, 4.02), Vector2(6.65, 4.02)],
+		["seat", TOP_LEFT, Vector2(7.2, 3.1), 0.2],
+		["box", TOP_LEFT, Rect2(0.77, 6.06, 3.56, 0.25)],
+		["disc", TOP_LEFT, Vector2(2.73, 3.47), 0.51],
+		["seat", TOP_LEFT, Vector2(2.155, 2.895), 0.18],
+		["seat", TOP_LEFT, Vector2(3.305, 2.895), 0.18],
+		["seat", TOP_LEFT, Vector2(2.155, 4.045), 0.18],
+		["seat", TOP_LEFT, Vector2(3.305, 4.045), 0.18],
+		# Its doors' swings, at its doorways in GROUND_DOORS: into the Backroom, into the Side room,
+		# and the front door opening in.
+		["line", TOP_LEFT, Vector2(1.5, 0.0), Vector2(1.5, -1.0)],
+		["arc", TOP_LEFT, Vector2(1.5, 0.0), 1.0, 0.0, -PI / 2.0],
+		["line", TOP_LEFT, Vector2(0.0, 3.7), Vector2(-1.0, 3.7)],
+		["arc", TOP_LEFT, Vector2(0.0, 3.7), 1.0, -PI / 2.0, -PI],
+		["line", TOP_LEFT, Vector2(6.5, 6.4), Vector2(6.5, 5.4)],
+		["arc", TOP_LEFT, Vector2(6.5, 6.4), 1.0, PI, PI * 1.5],
+	],
+	"entrance": [
+		# A doormat at the front door, and the staircase.
+		["box", FRONT_MIDDLE, Rect2(-0.7, -0.75, 1.4, 0.6)],
+		["box", TOP_RIGHT, Rect2(-4.0, 0.9, 3.2, 1.2)],
+		["line", TOP_RIGHT, Vector2(-3.6, 0.9), Vector2(-3.6, 2.1)],
+		["line", TOP_RIGHT, Vector2(-3.2, 0.9), Vector2(-3.2, 2.1)],
+		["line", TOP_RIGHT, Vector2(-2.8, 0.9), Vector2(-2.8, 2.1)],
+		["line", TOP_RIGHT, Vector2(-2.4, 0.9), Vector2(-2.4, 2.1)],
+		["line", TOP_RIGHT, Vector2(-2.0, 0.9), Vector2(-2.0, 2.1)],
+		["line", TOP_RIGHT, Vector2(-1.6, 0.9), Vector2(-1.6, 2.1)],
+		["line", TOP_RIGHT, Vector2(-1.2, 0.9), Vector2(-1.2, 2.1)],
+	],
+	"bunk_room": [
+		# Two bunks, each with a pillow and a folded blanket, and a chest.
+		["box", TOP_RIGHT, Rect2(-3.43, 0.55, 2.0, 0.8)],
+		["frame", TOP_RIGHT, Rect2(-3.28, 0.7, 0.36, 0.51)],
+		["dash", TOP_RIGHT, Vector2(-2.72, 0.95), Vector2(-1.55, 0.95)],
+		["box", TOP_RIGHT, Rect2(-3.43, 1.9, 2.0, 0.8)],
+		["frame", TOP_RIGHT, Rect2(-3.28, 2.05, 0.36, 0.51)],
+		["dash", TOP_RIGHT, Vector2(-2.72, 2.3), Vector2(-1.55, 2.3)],
+		["box", TOP_RIGHT, Rect2(-0.79, 0.52, 0.46, 0.61)],
+	],
+	"common_room": [
+		# A hearth on the left wall, and a table with six chairs.
+		["box", TOP_LEFT, Rect2(0.15, 1.75, 0.3, 1.22)],
+		["arc", TOP_LEFT, Vector2(0.45, 2.36), 0.41, -PI / 2.0, PI / 2.0],
+		["box", TOP_LEFT, Rect2(1.795, 2.21, 1.63, 0.92)],
+		["frame", TOP_LEFT, Rect2(2.1, 1.86, 0.31, 0.25)],
+		["frame", TOP_LEFT, Rect2(2.81, 1.86, 0.31, 0.25)],
+		["frame", TOP_LEFT, Rect2(2.1, 3.23, 0.31, 0.25)],
+		["frame", TOP_LEFT, Rect2(2.81, 3.23, 0.31, 0.25)],
+		["frame", TOP_LEFT, Rect2(1.39, 2.52, 0.25, 0.31)],
+		["frame", TOP_LEFT, Rect2(3.58, 2.52, 0.25, 0.31)],
+	],
+	"infirmary": [
+		# Three cots, each with a pillow.
+		["box", TOP_RIGHT, Rect2(-1.2, 0.55, 0.8, 1.9)],
+		["frame", TOP_RIGHT, Rect2(-1.05, 0.7, 0.5, 0.3)],
+		["box", TOP_RIGHT, Rect2(-2.4, 0.55, 0.8, 1.9)],
+		["frame", TOP_RIGHT, Rect2(-2.25, 0.7, 0.5, 0.3)],
+		["box", TOP_RIGHT, Rect2(-3.6, 0.55, 0.8, 1.9)],
+		["frame", TOP_RIGHT, Rect2(-3.45, 0.7, 0.5, 0.3)],
+	],
+	"tavern": [
+		# A bar along the right wall and three stools in front of it.
+		["box", TOP_RIGHT, Rect2(-1.1, 0.55, 0.66, 3.0)],
+		["seat", TOP_RIGHT, Vector2(-1.6, 1.05), 0.2],
+		["seat", TOP_RIGHT, Vector2(-1.6, 2.05), 0.2],
+		["seat", TOP_RIGHT, Vector2(-1.6, 3.05), 0.2],
+	],
+	"training_room": [
+		# A dummy with its arms out, and a weapon rack on the right wall.
+		["line", CENTRE, Vector2(-0.6, 0.0), Vector2(0.6, 0.0)],
+		["disc", CENTRE, Vector2.ZERO, 0.3],
+		["box", TOP_RIGHT, Rect2(-0.55, 1.4, 0.3, 2.4)],
+		["line", TOP_RIGHT, Vector2(-0.55, 2.0), Vector2(-0.25, 2.0)],
+		["line", TOP_RIGHT, Vector2(-0.55, 2.6), Vector2(-0.25, 2.6)],
+		["line", TOP_RIGHT, Vector2(-0.55, 3.2), Vector2(-0.25, 3.2)],
+	],
+	"map_room": [
+		# A map table with a map on it and a route drawn across.
+		["box", CENTRE, Rect2(-1.2, -0.75, 2.4, 1.5)],
+		["frame", CENTRE, Rect2(-1.0, -0.55, 2.0, 1.1)],
+		["dash", CENTRE, Vector2(-0.8, 0.35), Vector2(0.8, -0.35)],
+	],
+	"quest_hall": [
+		# A quest board on the back wall, and a desk with a chair.
+		["slab", TOP_RIGHT, Rect2(-3.2, 0.09, 2.4, 0.15)],
+		["box", CENTRE, Rect2(-0.8, -0.3, 1.6, 0.7)],
+		["frame", CENTRE, Rect2(-0.15, 0.55, 0.3, 0.25)],
+	],
+}
 ## What a room's icon offers: a damaged room or the stairs to build, an empty room to give a job, a
 ## Tavern's gold to collect. Each a pixel image, a row of characters per line, coloured by
 ## ICON_COLORS; "." is see-through.
@@ -180,7 +281,7 @@ var _rooms: Dictionary[String, Room] = {}
 ## changes; `_rows` are its timed rows, in the same order.
 var _entries: Array[Dictionary] = []
 var _rows: Array[Row] = []
-## Where the whole floor is drawn on the plan, at its fixed scale; each floor's layer covers it.
+## Where the whole floor is drawn on the plan; each floor's layer covers it.
 var _building: Control
 ## Each floor's rooms, shown one floor at a time, and how many of them are in use.
 var _ground: Control
@@ -188,10 +289,10 @@ var _upstairs: Control
 var _ground_in_use: int = 0
 var _upstairs_in_use: int = 0
 var _ground_rooms: int = 0
+## The part of the Ground floor that is built, as fractions of the floor; the plan centres it.
+var _ground_built: Rect2 = Rect2(0.0, 0.0, 1.0, 1.0)
 ## The guild's rank, shown in place of the floor's name when the hall has only one floor.
 var _rank: String = ""
-## Each room's and the landing's contents, padded in from its edges.
-var _boxes: Array[Control] = []
 ## ICONS drawn once, by kind.
 var _icons: Dictionary[String, Texture2D] = {}
 
@@ -210,10 +311,9 @@ var _icons: Dictionary[String, Texture2D] = {}
 ## A room on the plan and the parts that change with its state.
 class Room extends Control:
 	var look: int = -1
+	## The key of FURNITURE drawn in the room; "" for none.
+	var furniture: String = ""
 	var title: Label
-	var tokens: HFlowContainer
-	## The [adventurer, injured] pairs shown in `tokens`, so they are rebuilt only when they change.
-	var shown: Array = []
 	var bar: ProgressBar
 	## What can be done here, centred on the room, as a key of ICONS; "" for nothing.
 	var icon: TextureRect
@@ -237,7 +337,6 @@ func _ready() -> void:
 	_building.mouse_filter = Control.MOUSE_FILTER_PASS
 	_plan.add_child(_building)
 	_plan.resized.connect(_place_building)
-	_plan.draw.connect(_draw_sheet)
 	_ground = _add_floor()
 	_upstairs = _add_floor()
 	_upstairs.visible = false
@@ -265,8 +364,8 @@ func _ready() -> void:
 
 ## Landscape puts the floor bar beside the header and In progress beside the plan, shows how many
 ## parties are out in the header, and leaves out the legend; portrait stacks them all. In
-## landscape the floor summary and room names keep to one line: the title is smaller, the header
-## takes the width the summary needs from the floor bar, and rooms have less padding.
+## landscape the floor summary keeps to one line: the title is smaller and the header takes the
+## width the summary needs from the floor bar.
 func set_landscape(landscape: bool) -> void:
 	($Scroll/Box/Top as BoxContainer).vertical = not landscape
 	($Scroll/Box/Columns as BoxContainer).vertical = not landscape
@@ -274,8 +373,6 @@ func set_landscape(landscape: bool) -> void:
 	_legend.visible = not landscape
 	($Scroll/Box/Top/Header/Title as Label).theme_type_variation = &"Heading" if landscape else &"Title"
 	_summary.autowrap_mode = TextServer.AUTOWRAP_OFF if landscape else TextServer.AUTOWRAP_WORD_SMART
-	for box: Control in _boxes:
-		box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, LANDSCAPE_ROOM_PADDING_PX if landscape else ROOM_PADDING_PX)
 
 
 ## Shows the hall, who is home, and what is under way at `now`; `quests_on_board` is how many
@@ -284,29 +381,27 @@ func show_state(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: int) 
 	_ground_in_use = 0
 	_upstairs_in_use = 0
 	_ground_rooms = 0
+	var built := Rect2()
 	for slot: String in _rooms:
 		var state := hall.state(slot, now)
 		if slot not in FIRST_FLOOR and state != Hall.State.UNBUILT:
 			_ground_rooms += 1
+			built = GROUND_FLOOR[slot] if not built.has_area() else built.merge(GROUND_FLOOR[slot])
 		if state == Hall.State.USABLE or state == Hall.State.CONVERTED:
 			if slot in FIRST_FLOOR:
 				_upstairs_in_use += 1
 			else:
 				_ground_in_use += 1
 		_show_room(_rooms[slot], slot, state, hall, now)
-	# Injured adventurers rest in the Infirmary that heals them: the first one finished.
-	var infirmary := hall.first_room("infirmary")
-	if not infirmary.is_empty() and hall.state(infirmary, now) != Hall.State.CONVERTED:
-		infirmary = ""
+	if built != _ground_built:
+		_ground_built = built
+		_place_building()
 	_first_button.disabled = not hall.has_first_floor(now)
 	# Only a hall with stairs has floors to choose from.
 	_floors.visible = hall.state(STAIRS, now) != Hall.State.UNBUILT
-	if hall.rank != _rank:
-		_rank = hall.rank
-		_plan.queue_redraw()
+	_rank = hall.rank
 	_show_summary()
 	_parties_count.text = str(dispatch.outings.size())
-	_show_tokens(hall, dispatch, infirmary, now)
 	_show_progress(hall, dispatch, quests_on_board, now)
 
 
@@ -314,7 +409,7 @@ func _on_first_toggled(upstairs: bool) -> void:
 	_ground.visible = not upstairs
 	_upstairs.visible = upstairs
 	_show_summary()
-	_plan.queue_redraw()
+	_place_building()
 
 
 func _show_summary() -> void:
@@ -326,12 +421,14 @@ func _show_summary() -> void:
 		_summary.text = "Rank %s guild · %d of %d rooms in use" % [_rank, _ground_in_use, _ground_rooms]
 
 
-# A room shows its name, its state by its fill, and an icon for what can be done there.
+# A room shows its name, its state by its walls and fill, its furniture once it is in use, and an
+# icon for what can be done there.
 func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: int) -> void:
 	var type := hall.room_type(slot)
 	var look := Look.IN_USE
 	var building := state == Hall.State.RESTORING or state == Hall.State.CONVERTING
 	var kind := ""
+	var furniture := slot
 	room.title.text = slot_name(hall, slot)
 	match state:
 		Hall.State.USABLE:
@@ -343,6 +440,7 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: in
 					kind = "build"
 		Hall.State.CONVERTED:
 			room.title.text = Hall.ROOM_TYPES[type]["name"]
+			furniture = type
 			if type == "tavern":
 				var held := hall.tavern_gold(slot, now)
 				room.bar.theme_type_variation = &"GoldBar"
@@ -364,7 +462,9 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: in
 			look = Look.CONVERTING
 		Hall.State.UNBUILT:
 			look = Look.UNBUILT
-	room.title.visible = look != Look.UNBUILT
+	if look != Look.IN_USE or furniture not in FURNITURE:
+		furniture = ""
+	room.visible = look != Look.UNBUILT
 	if building:
 		room.bar.max_value = hall.job_seconds()
 		room.bar.value = room.bar.max_value - hall.seconds_left(now)
@@ -382,6 +482,9 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: in
 				room.action = collect_pressed.emit.bind(slot)
 			_:
 				room.action = Callable()
+	if furniture != room.furniture:
+		room.furniture = furniture
+		room.queue_redraw()
 	if look != room.look:
 		room.look = look
 		# Its neighbours too: whether their doorways into it are open depends on its look.
@@ -401,41 +504,6 @@ func room_center(slot: String) -> Vector2:
 	return _rooms[slot].get_global_rect().get_center()
 
 
-# Adventurers at home: an injured one rests in the first finished Infirmary, or in Reception when
-# there is none; one in training is in a finished Training room, one to a room in plan order; a
-# ready one waits in Reception.
-func _show_tokens(hall: Hall, dispatch: Dispatch, infirmary: String, now: int) -> void:
-	var training_rooms := PackedStringArray()
-	for slot: String in _rooms:
-		if hall.room_type(slot) == "training_room" and hall.state(slot, now) == Hall.State.CONVERTED:
-			training_rooms.append(slot)
-	var trainees := 0
-	var people: Dictionary[String, Array] = {}
-	var roster := dispatch.adventurers.roster
-	for adventurer: String in roster:
-		if not dispatch.quest_of(adventurer).is_empty():
-			continue
-		var injured := dispatch.injury_left(adventurer, now) > 0
-		var slot := infirmary if injured and not infirmary.is_empty() else "reception"
-		if dispatch.training.has(adventurer) and not training_rooms.is_empty():
-			slot = training_rooms[mini(trainees, training_rooms.size() - 1)]
-			trainees += 1
-		if not people.has(slot):
-			people[slot] = []
-		people[slot].append([adventurer, injured])
-	for slot: String in _rooms:
-		var room := _rooms[slot]
-		var shown: Array = people.get(slot, [])
-		if shown == room.shown:
-			continue
-		room.shown = shown
-		for token: Node in room.tokens.get_children():
-			token.queue_free()
-		for person: Array in shown:
-			room.tokens.add_child(_token(person[0], person[1], roster))
-		room.tokens.visible = not shown.is_empty()
-
-
 # Timed rows first, each with its bar's full and current value and its seconds left: for most, the
 # bar is how much of the total time has passed; for training, how much of the stint's XP is in. The
 # Send row comes last.
@@ -450,9 +518,9 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 	var build_left := hall.seconds_left(now)
 	if build_left > 0:
 		if hall.building == Hall.EXTENSION:
-			entries.append({"swatch": Look.RESTORING, "title": "Building the first floor", "bar": &"BuildBar"})
+			entries.append({"swatch": Look.RESTORING, "title": "Building the first floor", "bar": &"GoldBar"})
 		elif hall.building_into.is_empty():
-			entries.append({"swatch": Look.RESTORING, "title": "Restoring the " + slot_name(hall, hall.building).to_lower(), "bar": &"BuildBar"})
+			entries.append({"swatch": Look.RESTORING, "title": "Restoring the " + slot_name(hall, hall.building).to_lower(), "bar": &"GoldBar"})
 		else:
 			entries.append({"swatch": Look.CONVERTING, "title": "Converting the " + slot_name(hall, hall.building).to_lower(), "bar": &"GoldBar"})
 		waits.append(Vector3i(hall.job_seconds(), hall.job_seconds() - build_left, build_left))
@@ -508,7 +576,7 @@ func _rebuild_rows(roster: Dictionary) -> void:
 		var line := HBoxContainer.new()
 		line.add_theme_constant_override("separation", 32)
 		if entry.has("swatch"):
-			line.add_child(_swatch(entry["swatch"], Vector2(80, 80)))
+			line.add_child(_swatch(entry["swatch"], Vector2(88, 88)))
 		else:
 			var stack := HBoxContainer.new()
 			stack.theme_type_variation = &"TokenStack"
@@ -568,39 +636,31 @@ func _lay(item: Control, area: Rect2, layer: Control) -> void:
 # The First floor's landing: drawn as a room in use, with nothing to do there.
 func _add_landing() -> void:
 	var landing := Control.new()
-	landing.draw.connect(_paint.bind(landing, Look.IN_USE, LANDING, FIRST_DOORS))
-	var box := VBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, ROOM_PADDING_PX)
-	_boxes.append(box)
-	var title := _label("Landing", &"RoomName")
-	title.uppercase = true
-	box.add_child(title)
-	landing.add_child(box)
+	landing.draw.connect(_paint.bind(landing, Look.IN_USE, LANDING, FIRST_DOORS, ""))
+	_room_name(landing).text = "Landing"
 	_lay(landing, LANDING, _upstairs)
 
 
 func _add_room(slot: String, area: Rect2, layer: Control, doors: Dictionary[Vector2, String]) -> void:
 	var room := Room.new()
-	room.draw.connect(func() -> void: _paint(room, room.look, area, doors))
+	room.draw.connect(func() -> void: _paint(room, room.look, area, doors, room.furniture))
 	# What is in the room stays inside it; its walls do not, so neighbours share them.
 	var inside := Control.new()
 	inside.clip_contents = true
 	inside.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	inside.set_anchors_preset(Control.PRESET_FULL_RECT)
 	room.add_child(inside)
-	var box := VBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, ROOM_PADDING_PX)
-	_boxes.append(box)
-	inside.add_child(box)
-	room.title = _label("", &"RoomName")
-	room.title.uppercase = true
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	room.tokens = HFlowContainer.new()
-	room.tokens.visible = false
+	room.title = _room_name(inside)
+	# The bar runs along the bottom of the room, inside its walls.
 	room.bar = _bar(&"PlanBar")
-	for part: Control in [room.title, spacer, room.tokens, room.bar]:
-		box.add_child(part)
+	inside.add_child(room.bar)
+	room.bar.anchor_top = 1.0
+	room.bar.anchor_right = 1.0
+	room.bar.anchor_bottom = 1.0
+	room.bar.offset_left = WALL_PX / 2.0 + BAR_INSET_PX.x
+	room.bar.offset_right = -room.bar.offset_left
+	room.bar.offset_bottom = -(WALL_PX / 2.0 + BAR_INSET_PX.y)
+	room.bar.offset_top = room.bar.offset_bottom - BAR_PX
 	room.icon = TextureRect.new()
 	room.icon.visible = false
 	room.icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -623,6 +683,18 @@ func _add_room(slot: String, area: Rect2, layer: Control, doors: Dictionary[Vect
 	_rooms[slot] = room
 
 
+# A room's name on `parent`, tucked into its top-left corner inside the walls.
+func _room_name(parent: Control) -> Label:
+	var title := _label("", &"RoomName")
+	title.uppercase = true
+	parent.add_child(title)
+	title.anchor_right = 1.0
+	title.offset_left = WALL_PX / 2.0 + NAME_INSET_PX.x
+	title.offset_top = WALL_PX / 2.0 + NAME_INSET_PX.y
+	title.offset_right = -title.offset_left
+	return title
+
+
 # `rows` of ICONS as an image, a pixel per character.
 static func _pixel_image(rows: PackedStringArray) -> Texture2D:
 	var image := Image.create_empty(rows[0].length(), rows.size(), false, Image.FORMAT_RGBA8)
@@ -632,129 +704,70 @@ static func _pixel_image(rows: PackedStringArray) -> Texture2D:
 	return ImageTexture.create_from_image(image)
 
 
-# Fits the whole floor into the plan at a whole number of pixels per metre, between the dimension
-# line and the title block. The scale depends only on the plan's size, never on the rooms built.
+# Centres what is built of the floor shown in the plan, scaled so it fills PLAN_FILL of the plan
+# both ways at most. The First floor is built whole.
 func _place_building() -> void:
-	var space := _plan.size - Vector2(SIDE_MARGIN_PX * 2.0, DIMENSION_BAND_PX + TITLE_BAND_PX)
-	var px_per_m := maxf(0.0, floorf(minf(space.x / FLOOR_M.x, space.y / FLOOR_M.y)))
+	var built := Rect2(0.0, 0.0, 1.0, 1.0) if _upstairs.visible else _ground_built
+	var built_m := built.size * FLOOR_M
+	var px_per_m := minf(_plan.size.x * PLAN_FILL / built_m.x, _plan.size.y * PLAN_FILL / built_m.y)
 	_building.size = FLOOR_M * px_per_m
-	_building.position = Vector2(floorf((_plan.size.x - _building.size.x) / 2.0), floorf(DIMENSION_BAND_PX + (space.y - _building.size.y) / 2.0))
+	_building.position = (_plan.size / 2.0 - built.get_center() * _building.size).floor()
 
 
-# The blueprint around the rooms: a frame, a grid of metres lined up with the floor, the back
-# wall's dimension line, a north arrow and the title block.
-func _draw_sheet() -> void:
-	var floor_rect := Rect2(_building.position, _building.size)
-	var step := floor_rect.size.x / FLOOR_M.x * GRID_M
-	if step <= 0.0:
-		return
-	var frame := Rect2(Vector2.ZERO, _plan.size).grow(-FRAME_INSET_PX)
-	var fine := PackedVector2Array()
-	var major := PackedVector2Array()
-	# Grid lines count from the floor's corner, so major ones run along its outline.
-	for axis: int in 2:
-		var first := ceili((frame.position[axis] - floor_rect.position[axis]) / step)
-		var last := floori((frame.end[axis] - floor_rect.position[axis]) / step)
-		for i: int in range(first, last + 1):
-			var from := frame.position
-			var to := frame.end
-			from[axis] = floor_rect.position[axis] + i * step
-			to[axis] = from[axis]
-			if posmod(i, MAJOR_GRID_EVERY) == 0:
-				major.append_array([from, to])
-			else:
-				fine.append_array([from, to])
-	_plan.draw_multiline(fine, Color(WALL, 0.07), 1.0)
-	_plan.draw_multiline(major, Color(WALL, 0.14), 2.0)
-	var ink := Color(WALL, 0.8)
-	_plan.draw_rect(frame, Color(WALL, 0.5), false, 2.0)
-	var font := _plan.get_theme_font(&"font", &"Numbers")
-	# The dimension line: extension lines up from the back wall, a slash at each stop, and each
-	# length written over its span.
-	var line_y := floor_rect.position.y - 28.0
-	_plan.draw_line(Vector2(floor_rect.position.x, line_y), Vector2(floor_rect.end.x, line_y), ink, 1.5)
-	for i: int in BACK_WALL_STOPS.size():
-		var x := floor_rect.position.x + BACK_WALL_STOPS[i] * floor_rect.size.x
-		_plan.draw_line(Vector2(x, floor_rect.position.y - 10.0), Vector2(x, line_y - 10.0), ink, 1.5)
-		_plan.draw_line(Vector2(x - 7.0, line_y + 7.0), Vector2(x + 7.0, line_y - 7.0), ink, 3.0)
-		if i > 0:
-			var span_x := floor_rect.position.x + BACK_WALL_STOPS[i - 1] * floor_rect.size.x
-			var metres := roundi((BACK_WALL_STOPS[i] - BACK_WALL_STOPS[i - 1]) * FLOOR_M.x)
-			_plan.draw_string(font, Vector2(span_x, line_y - 8.0), "%d m" % metres, HORIZONTAL_ALIGNMENT_CENTER, x - span_x, SHEET_TEXT_PX, ink)
-	# The title block, at the bottom right, centred in the space under the floor.
-	var title := "GUILDHALL · %s · RANK %s" % ["FIRST FLOOR" if _upstairs.visible else "GROUND FLOOR", _rank]
-	var block := Rect2(Vector2.ZERO, font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, SHEET_TEXT_PX) + Vector2(32.0, 20.0))
-	block.position = Vector2(floor_rect.end.x - block.size.x, floorf(floor_rect.end.y + (frame.end.y - floor_rect.end.y - block.size.y) / 2.0))
-	_plan.draw_rect(block, ink, false, 2.0)
-	_plan.draw_string(font, block.position + Vector2(16.0, 10.0 + font.get_ascent(SHEET_TEXT_PX)), title, HORIZONTAL_ALIGNMENT_LEFT, -1, SHEET_TEXT_PX, ink)
-	# The north arrow, level with it at the bottom left, half its point filled.
-	var centre := Vector2(floor_rect.position.x + 22.0, block.get_center().y)
-	_plan.draw_arc(centre, 20.0, 0.0, TAU, 32, ink, 2.0)
-	_plan.draw_colored_polygon(PackedVector2Array([centre + Vector2(0.0, -18.0), centre + Vector2(-8.0, 12.0), centre + Vector2(0.0, 6.0)]), ink)
-	_plan.draw_polyline(PackedVector2Array([centre + Vector2(0.0, -18.0), centre + Vector2(8.0, 12.0), centre + Vector2(0.0, 6.0)]), ink, 2.0)
-	_plan.draw_string(font, centre + Vector2(32.0, font.get_ascent(SHEET_TEXT_PX) * 0.4), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, SHEET_TEXT_PX, ink)
-
-
-# Draws a room by `look`: its fill, then its walls centred on its edges, so neighbours share them,
-# with gaps for `doors` and windows where it meets the floor's outline. `area` is where the room is
-# on its floor, as fractions; a swatch has none, so it draws plain walls.
-func _paint(item: Control, look: int, area: Rect2, doors: Dictionary[Vector2, String]) -> void:
+# Draws a room by `look`: its fill, its `furniture`, then its walls centred on its edges, so
+# neighbours share them, with gaps for `doors`. `area` is where the room is on its floor, as
+# fractions; a swatch has none, so it draws thin plain walls inside its edges.
+func _paint(item: Control, look: int, area: Rect2, doors: Dictionary[Vector2, String], furniture: String) -> void:
 	var rect := Rect2(Vector2.ZERO, item.size)
 	if not rect.has_area():
 		return
+	var swatch := not area.has_area()
 	var ink := WALL
-	var wall_px := WALL_PX
+	var wall_px := THIN_WALL_PX if swatch else WALL_PX
 	var dashed := false
 	match look:
 		Look.IN_USE:
-			item.draw_rect(rect, Color(WALL, 0.12))
+			# A swatch is small, so its fill is stronger to read as one.
+			item.draw_rect(rect, Color(WALL, 0.16 if swatch else 0.08))
 		Look.DAMAGED:
+			item.draw_rect(rect, Color(WALL, 0.05))
 			_hatch(item, rect)
+			ink = Color(WALL, 0.45)
+			wall_px = THIN_WALL_PX
 			dashed = true
-		Look.RESTORING:
-			_hatch(item, rect)
-			ink = DRAFT
-		Look.CONVERTING:
-			ink = DRAFT
-		Look.UNBUILT:
-			ink = Color(WALL, 0.3)
-			wall_px = GHOST_WALL_PX
-			dashed = true
-	var px_per_m := item.get_parent_control().size.x / FLOOR_M.x if area.has_area() else 0.0
-	var corners: Array[Vector2] = [rect.position, Vector2(rect.end.x, 0.0), rect.end, Vector2(0.0, rect.end.y)]
+		Look.RESTORING, Look.CONVERTING:
+			ink = WORK
+	var px_per_m := 0.0 if swatch else item.get_parent_control().size.x / FLOOR_M.x
+	if not furniture.is_empty():
+		_furnish(item, FURNITURE[furniture], rect, px_per_m)
+	if swatch:
+		rect = rect.grow(-wall_px / 2.0)
+	var ground := (_plan.get_theme_stylebox(&"panel") as StyleBoxFlat).bg_color
+	var corners: Array[Vector2] = [rect.position, Vector2(rect.end.x, rect.position.y), rect.end, Vector2(rect.position.x, rect.end.y)]
 	var spots: Array[Vector2] = [area.position, Vector2(area.end.x, area.position.y), area.end, Vector2(area.position.x, area.end.y)]
 	for i: int in corners.size():
 		var a := corners[i]
 		var b := corners[(i + 1) % corners.size()]
-		var from := spots[i]
-		var to := spots[(i + 1) % spots.size()]
-		var outer := area.has_area() and look != Look.UNBUILT and _on_outline(from, to)
-		var width := OUTER_WALL_PX if outer else wall_px
 		var length := a.distance_to(b)
-		# Each gap as its start and end in pixels along the edge, and 1 for a window.
-		var gaps: Array[Vector3] = []
+		# Each doorway as its start and end in pixels along the edge.
+		var gaps: Array[Vector2] = []
 		for door: Vector2 in doors:
-			var t := _along(door, from, to)
+			var t := _along(door, spots[i], spots[(i + 1) % spots.size()])
 			if t > 0.0 and _rooms[doors[door]].look != Look.UNBUILT:
-				gaps.append(Vector3(t * length - DOOR_M * px_per_m / 2.0, t * length + DOOR_M * px_per_m / 2.0, 0.0))
-		if outer:
-			for window: Vector2 in WINDOWS:
-				var t := _along(window, from, to)
-				if t > 0.0:
-					gaps.append(Vector3(t * length - WINDOW_M * px_per_m / 2.0, t * length + WINDOW_M * px_per_m / 2.0, 1.0))
+				gaps.append(Vector2(t * length - DOOR_M * px_per_m / 2.0, t * length + DOOR_M * px_per_m / 2.0))
 		gaps.sort()
 		var along := (b - a) / length
-		var across := Vector2(-along.y, along.x) * width / 2.0
+		var across := Vector2(-along.y, along.x) * WALL_PX / 2.0
 		# A wall runs on past the room's corners by half its width, to close the corner.
-		var at := -width / 2.0
-		for gap: Vector3 in gaps:
-			_wall(item, a + along * at, a + along * gap.x, ink, width, dashed)
-			if gap.z > 0.0:
-				# A window: the wall's two faces and the glass between them, in thin lines.
-				for side: float in [-1.0, 0.0, 1.0]:
-					item.draw_line(a + along * gap.x + across * side, a + along * gap.y + across * side, ink, 2.0)
+		var at := -wall_px / 2.0
+		for gap: Vector2 in gaps:
+			_wall(item, a + along * at, a + along * gap.x, ink, wall_px, dashed)
+			# The doorway's threshold shows the plan's ground.
+			var start := a + along * gap.x
+			var end := a + along * gap.y
+			item.draw_colored_polygon(PackedVector2Array([start - across, end - across, end + across, start + across]), ground)
 			at = gap.y
-		_wall(item, a + along * at, b + along * width / 2.0, ink, width, dashed)
+		_wall(item, a + along * at, b + along * wall_px / 2.0, ink, wall_px, dashed)
 
 
 func _wall(item: Control, from: Vector2, to: Vector2, ink: Color, width: float, dashed: bool) -> void:
@@ -764,12 +777,30 @@ func _wall(item: Control, from: Vector2, to: Vector2, ink: Color, width: float, 
 		item.draw_line(from, to, ink, width)
 
 
-# Whether the edge `from`–`to`, in fractions of the floor, runs along the floor's outline.
-static func _on_outline(from: Vector2, to: Vector2) -> bool:
-	for axis: int in 2:
-		if is_equal_approx(from[axis], to[axis]) and (is_zero_approx(from[axis]) or is_equal_approx(from[axis], 1.0)):
-			return true
-	return false
+# Draws `pieces` of FURNITURE in `rect`, at `px_per_m`.
+func _furnish(item: Control, pieces: Array, rect: Rect2, px_per_m: float) -> void:
+	for piece: Array in pieces:
+		var origin: Vector2 = rect.position + rect.size * (piece[1] as Vector2)
+		match piece[0]:
+			"box", "frame", "slab":
+				var shape: Rect2 = piece[2]
+				var box := Rect2(origin + shape.position * px_per_m, shape.size * px_per_m)
+				if piece[0] != "frame":
+					item.draw_rect(box, FURNITURE_INK if piece[0] == "slab" else FURNITURE_FILL)
+				if piece[0] != "slab":
+					item.draw_rect(box, FURNITURE_INK, false, FURNITURE_PX)
+			"line":
+				item.draw_line(origin + piece[2] * px_per_m, origin + piece[3] * px_per_m, FURNITURE_INK, FURNITURE_PX)
+			"dash":
+				item.draw_dashed_line(origin + piece[2] * px_per_m, origin + piece[3] * px_per_m, FURNITURE_INK, FURNITURE_PX, FURNITURE_DASH_PX)
+			"seat", "disc":
+				var centre: Vector2 = origin + piece[2] * px_per_m
+				var radius: float = piece[3] * px_per_m
+				if piece[0] == "disc":
+					item.draw_circle(centre, radius, FURNITURE_FILL, true, -1.0, true)
+				item.draw_arc(centre, radius, 0.0, TAU, 32, FURNITURE_INK, FURNITURE_PX, true)
+			"arc":
+				item.draw_arc(origin + piece[2] * px_per_m, piece[3] * px_per_m, piece[4], piece[5], 16, FURNITURE_INK, FURNITURE_PX, true)
 
 
 # How far along the edge `from`–`to` the point `spot` is, from 0 to 1; -1 when it is not on it.
@@ -781,27 +812,27 @@ static func _along(spot: Vector2, from: Vector2, to: Vector2) -> float:
 	return t if t > 0.0 and t < 1.0 else -1.0
 
 
-# Thin diagonal lines rising to the right, kept inside `rect`.
+# Thin pale diagonal lines rising to the right, HATCH_STEP_PX apart, kept inside `rect`.
 func _hatch(item: Control, rect: Rect2) -> void:
 	var lines := PackedVector2Array()
-	var reach := HATCH_STEP_PX
+	# Lines x + y = reach are HATCH_STEP_PX apart when `reach` steps by √2 times that.
+	var step := HATCH_STEP_PX * sqrt(2.0)
+	var reach := step
 	while reach < rect.size.x + rect.size.y:
 		# The line x + y = reach, from where it enters `rect` to where it leaves.
 		lines.append(Vector2(maxf(0.0, reach - rect.size.y), minf(rect.size.y, reach)))
 		lines.append(Vector2(minf(rect.size.x, reach), maxf(0.0, reach - rect.size.x)))
-		reach += HATCH_STEP_PX
-	item.draw_multiline(lines, Color(WALL, 0.3), 2.0)
+		reach += step
+	item.draw_multiline(lines, HATCH, HATCH_PX)
 
 
-# A room's look on a patch of the plan's blueprint ground.
+# A room's look as a small square, for the legend and the In progress rows.
 func _swatch(look: Look, size_px: Vector2) -> Control:
 	var swatch := Control.new()
 	swatch.custom_minimum_size = size_px
 	swatch.clip_contents = true
 	swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	swatch.draw.connect(func() -> void:
-		swatch.draw_rect(Rect2(Vector2.ZERO, swatch.size), (get_theme_stylebox(&"panel", &"Plan") as StyleBoxFlat).bg_color)
-		_paint(swatch, look, Rect2(), {}))
+	swatch.draw.connect(func() -> void: _paint(swatch, look, Rect2(), {}, ""))
 	return swatch
 
 
@@ -822,7 +853,7 @@ func _bar(variation: StringName) -> ProgressBar:
 	bar.theme_type_variation = variation
 	bar.show_percentage = false
 	bar.step = 1.0
-	bar.custom_minimum_size = Vector2(0, 12)
+	bar.custom_minimum_size = Vector2(0, BAR_PX)
 	return bar
 
 
