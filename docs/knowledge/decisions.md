@@ -18,9 +18,9 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** the human plays the full figures locally, then push. Then guild rank (spec: Guild rank), in slices:
-  G1 a rank-F start (2 adventurers, 2 beds, only Bunk room and Quest hall buildable); G2 reputation
-  and ranking up at Reception to E (E quests, Extend, three more room types); G3 room tiers. Death
+- **Next:** the Hall plan drawn as a blueprint at a fixed scale (revertable on its own), then guild
+  rank (spec: Guild rank) G2: reputation and ranking up at Reception to E (the ground-floor wing,
+  E quests, Storeroom, Infirmary, Quest hall); G3 room tiers. Death
   stays deferred: its own decision.
 - **Later, not planned yet:** battery use (a phone emptied in a day of play: frames drawn while
   nothing moves, low-processor mode, pausing when hidden); Quest hall extras, the labyrinth.
@@ -62,7 +62,9 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   party; failure pays no gold and a quarter of the XP; quest gold cut to a fifth (F) or a quarter).
   · Full figures (32×44 layered figures wearing their gear on the Adventurer screen, Roster rows
   and picker cards, drawn at runtime from the design generator's shapes; face tokens are a crop of
-  the figure's head).
+  the figure's head). · G1 rank-F start (one floor: Reception, side room, backroom; Bram and Tobin;
+  Reception gives 2 beds, 1 candidate slot, 2 board slots, stash of 6; Bunk room and Common room
+  only) · Hall icons (rooms show name and one icon; restore and extend confirm in a small sheet).
 
 ## Stack
 
