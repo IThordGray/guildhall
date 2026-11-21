@@ -18,7 +18,7 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** the human plays the blueprint Hall locally (its own commit, revertable), then push; then guild
+- **Next:** guild
   rank (spec: Guild rank) G2: reputation and ranking up at Reception to E (the ground-floor wing,
   E quests, Storeroom, Infirmary, Quest hall); G3 room tiers. Death
   stays deferred: its own decision.
@@ -64,7 +64,9 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   and picker cards, drawn at runtime from the design generator's shapes; face tokens are a crop of
   the figure's head). · G1 rank-F start (one floor: Reception, side room, backroom; Bram and Tobin;
   Reception gives 2 beds, 1 candidate slot, 2 board slots, stash of 6; Bunk room and Common room
-  only) · Hall icons (rooms show name and one icon; restore and extend confirm in a small sheet).
+  only) · Hall icons (rooms show name and one icon; restore and extend confirm in a small sheet). · Quiet floor plan (designed on the canvas: game
+  colours, faint furniture per room type, building centred, no faces or unbuilt outlines; the
+  confirmation is a centred card).
 
 ## Stack
 
