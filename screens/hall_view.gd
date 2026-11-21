@@ -1,7 +1,7 @@
 class_name HallView
 extends Control
 
-## The player asked to restore the damaged room `slot`.
+## The player tapped the damaged room `slot`, to restore it.
 signal restore_pressed(slot: String)
 ## The player asked to give the empty room `slot` a job.
 signal job_pressed(slot: String)
@@ -9,7 +9,7 @@ signal job_pressed(slot: String)
 signal send_pressed
 ## The player asked to collect the gold in the Tavern `slot`.
 signal collect_pressed(slot: String)
-## The player asked to extend the hall with the First floor.
+## The player tapped the stairs, to extend the hall with the First floor.
 signal extend_pressed
 
 ## How a room is drawn on the plan.
@@ -71,6 +71,75 @@ const GREEN: Color = Color("#6fcf8e")
 const EMPTY_BORDER: Color = Color("#8a7a4a")
 const DAMAGED_BORDER: Color = Color("#5a5068")
 const RESTORING_BORDER: Color = Color("#4a6a88")
+## What a room's icon offers: a damaged room or the stairs to build, an empty room to give a job, a
+## Tavern's gold to collect. Each a pixel image, a row of characters per line, coloured by
+## ICON_COLORS; "." is see-through.
+const ICONS: Dictionary[String, PackedStringArray] = {
+	"build": [
+		"......oo........",
+		".....ohho.......",
+		"....ohhhho......",
+		"...ohhhhho......",
+		"..ohhhhho.......",
+		".ohhhhho........",
+		"ohhhhhwwo.......",
+		"ohhhhowwwo......",
+		".ohho.owwwo.....",
+		"..oo...owwwo....",
+		"........owwwo...",
+		".........owwwo..",
+		"..........owwwo.",
+		"...........owo..",
+		"............o...",
+		"................",
+	],
+	"job": [
+		"................",
+		"......oooo......",
+		".....oggggo.....",
+		".....oggggo.....",
+		".....oggggo.....",
+		"..ooooggggoooo..",
+		".oggggggggggggo.",
+		".oggggggggggggo.",
+		".oggggggggggggo.",
+		".oggggggggggggo.",
+		"..ooooggggoooo..",
+		".....oggggo.....",
+		".....oggggo.....",
+		".....oggggo.....",
+		"......oooo......",
+		"................",
+	],
+	"collect": [
+		".......oo.......",
+		"....oooddooo....",
+		"...oddddddddo...",
+		"..oddggggggddo..",
+		".oddgglgggggddo.",
+		".odgglgggggggdo.",
+		".odgglgggggggdo.",
+		"oddgglgggggggddo",
+		"oddgglgggggggddo",
+		".odggggggggggdo.",
+		".odggggggggggdo.",
+		".oddggggggggddo.",
+		"..oddggggggddo..",
+		"...oddddddddo...",
+		"....oooddooo....",
+		".......oo.......",
+	],
+}
+const ICON_COLORS: Dictionary[String, Color] = {
+	"o": Color("#16131b"),
+	"h": Color("#cfc8dc"),
+	"w": Color("#b07a42"),
+	"g": Color("#f2c14e"),
+	"d": Color("#c48a1e"),
+	"l": Color("#fbe3a0"),
+}
+## How many screen pixels an icon's pixel takes; a whole number keeps its pixels square and sharp.
+const ICON_SCALE: int = 6
 
 var _rooms: Dictionary[String, Room] = {}
 ## What the In progress rows show apart from their times, so the list is rebuilt only when that
@@ -87,6 +156,8 @@ var _ground_rooms: int = 0
 var _rank: String = ""
 ## Each room's and the landing's contents, padded in from its edges.
 var _boxes: Array[Control] = []
+## ICONS drawn once, by kind.
+var _icons: Dictionary[String, Texture2D] = {}
 
 @onready var _summary: Label = $Scroll/Box/Top/Header/Summary
 @onready var _parties: Control = $Scroll/Box/Top/Header/Parties
@@ -104,19 +175,15 @@ var _boxes: Array[Control] = []
 class Room extends Control:
 	var look: int = -1
 	var title: Label
-	var line: Label
 	var tokens: HFlowContainer
 	## The [adventurer, injured] pairs shown in `tokens`, so they are rebuilt only when they change.
 	var shown: Array = []
-	var restore_row: HFlowContainer
-	## What the next restoration costs and takes.
-	var restore_cost: Label
-	var restore: Button
-	var reason: Label
-	var job: Button
-	var countdown: Label
 	var bar: ProgressBar
-	var collect: Button
+	## What can be done here, centred on the room, as a key of ICONS; "" for nothing.
+	var icon: TextureRect
+	var kind: String = ""
+	## What a tap anywhere on the room does: emits the signal for `kind`, or nothing.
+	var action: Callable
 
 
 ## An In progress row's parts that change each second.
@@ -128,6 +195,8 @@ class Row extends RefCounted:
 
 
 func _ready() -> void:
+	for kind: String in ICONS:
+		_icons[kind] = _pixel_image(ICONS[kind])
 	_ground = _add_floor()
 	_upstairs = _add_floor()
 	_upstairs.visible = false
@@ -170,7 +239,7 @@ func set_landscape(landscape: bool) -> void:
 
 ## Shows the hall, who is home, and what is under way at `now`; `quests_on_board` is how many
 ## quests the board offers.
-func show_state(hall: Hall, dispatch: Dispatch, gold: Gold, quests_on_board: int, now: int) -> void:
+func show_state(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: int) -> void:
 	_ground_in_use = 0
 	_upstairs_in_use = 0
 	_ground_rooms = 0
@@ -185,7 +254,7 @@ func show_state(hall: Hall, dispatch: Dispatch, gold: Gold, quests_on_board: int
 				_upstairs_in_use += 1
 			else:
 				_ground_in_use += 1
-		_show_room(_rooms[slot], slot, state, hall, gold, now)
+		_show_room(_rooms[slot], slot, state, hall, now)
 	# Injured adventurers rest in the Infirmary that heals them: the first one finished.
 	var infirmary := hall.first_room("infirmary")
 	if not infirmary.is_empty() and hall.state(infirmary, now) != Hall.State.CONVERTED:
@@ -215,92 +284,70 @@ func _show_summary() -> void:
 		_summary.text = "Rank %s guild · %d of %d rooms in use" % [_rank, _ground_in_use, _ground_rooms]
 
 
-func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: Gold, now: int) -> void:
+# A room shows its name, its state by its fill, and an icon for what can be done there.
+func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: int) -> void:
 	var type := hall.room_type(slot)
-	var held := hall.tavern_gold(slot, now)
 	var look := Look.IN_USE
 	var building := state == Hall.State.RESTORING or state == Hall.State.CONVERTING
-	var offered := state == Hall.State.DAMAGED
-	room.title.text = _slot_name(hall, slot)
-	room.line.theme_type_variation = &"Secondary"
+	var kind := ""
+	room.title.text = slot_name(hall, slot)
 	match state:
 		Hall.State.USABLE:
-			room.line.text = "Staircase closed" if slot == STAIRS else "In use"
-			if slot == STAIRS and hall.has_first_floor(now):
-				room.line.text = "Stairs to 1F"
-			elif slot == STAIRS and hall.building == Hall.EXTENSION:
-				room.line.text = "Building the first floor"
-				room.line.theme_type_variation = &"BuildText"
-				room.bar.theme_type_variation = &"BuildBar"
-				room.bar.max_value = hall.job_seconds()
-				building = true
-			elif slot == STAIRS and hall.has_rank(Hall.EXTEND_RANK):
-				_offer(room, "%dg · %s" % [Hall.EXTEND_GOLD, Duration.label(Hall.EXTEND_SECONDS)], hall.extend_refusal(gold, now))
-				offered = true
+			if slot == STAIRS and not hall.has_first_floor(now):
+				if hall.building == Hall.EXTENSION:
+					room.bar.theme_type_variation = &"BuildBar"
+					building = true
+				elif hall.has_rank(Hall.EXTEND_RANK):
+					kind = "build"
 		Hall.State.CONVERTED:
 			room.title.text = Hall.ROOM_TYPES[type]["name"]
-			room.line.text = "In use"
 			if type == "tavern":
-				_show_tavern(room, held)
+				var held := hall.tavern_gold(slot, now)
+				room.bar.theme_type_variation = &"GoldBar"
+				room.bar.max_value = Hall.TAVERN_CAP
+				room.bar.value = held
+				if held > 0:
+					kind = "collect"
 			look = Look.INFIRMARY if type == "infirmary" else Look.CONVERTED
 		Hall.State.RESTORED:
-			room.line.text = "Empty"
+			kind = "job"
 			look = Look.EMPTY
 		Hall.State.DAMAGED:
-			room.line.text = "Damaged"
-			var next := hall.next_restore()
-			_offer(room, "%dg · %s" % [next["gold"], Duration.label(next["seconds"])], hall.refusal(slot, gold, now))
+			kind = "build"
 			look = Look.DAMAGED
 		Hall.State.RESTORING:
-			room.line.text = "Restoring"
-			room.line.theme_type_variation = &"BuildText"
 			room.bar.theme_type_variation = &"BuildBar"
-			room.bar.max_value = hall.job_seconds()
 			look = Look.RESTORING
 		Hall.State.CONVERTING:
-			room.line.text = "Converting to %s" % Hall.ROOM_TYPES[type]["name"]
-			room.line.theme_type_variation = &"GoldText"
 			room.bar.theme_type_variation = &"GoldBar"
-			room.bar.max_value = hall.job_seconds()
 			look = Look.CONVERTING
 	if building:
-		var left := hall.seconds_left(now)
-		room.countdown.text = Duration.label(left)
-		room.bar.value = room.bar.max_value - left
-	var tavern := state == Hall.State.CONVERTED and type == "tavern"
-	room.countdown.visible = building
-	room.bar.visible = building or tavern
-	room.collect.visible = held > 0
-	room.restore_row.visible = offered
-	room.job.visible = state == Hall.State.RESTORED
+		room.bar.max_value = hall.job_seconds()
+		room.bar.value = room.bar.max_value - hall.seconds_left(now)
+	room.bar.visible = building or (state == Hall.State.CONVERTED and type == "tavern")
+	if kind != room.kind:
+		room.kind = kind
+		room.icon.texture = _icons.get(kind)
+		room.icon.visible = not kind.is_empty()
+		match kind:
+			"build":
+				room.action = extend_pressed.emit if slot == STAIRS else restore_pressed.emit.bind(slot)
+			"job":
+				room.action = job_pressed.emit.bind(slot)
+			"collect":
+				room.action = collect_pressed.emit.bind(slot)
+			_:
+				room.action = Callable()
 	if look != room.look:
 		room.look = look
 		room.queue_redraw()
 
 
-# `slot`'s name in `hall` until it is given a job.
-static func _slot_name(hall: Hall, slot: String) -> String:
+## `slot`'s name in `hall` until it is given a job.
+static func slot_name(hall: Hall, slot: String) -> String:
 	if hall.layout == Hall.OLD_LAYOUT:
 		return OLD_SLOT_NAMES.get(slot, SLOT_NAMES[slot])
 	return SLOT_NAMES[slot]
-
-
-# A room's action row: what it costs and takes, and why it can't be done when it can't.
-func _offer(room: Room, cost: String, reason: String) -> void:
-	room.restore_cost.text = cost
-	room.restore.disabled = not reason.is_empty()
-	room.reason.text = reason
-	room.reason.visible = not reason.is_empty()
-
-
-# A Tavern's fill, which stands out in gold once full.
-func _show_tavern(room: Room, held: int) -> void:
-	var full := held == Hall.TAVERN_CAP
-	room.line.text = "Full — collect" if full else "%d / %dg" % [held, Hall.TAVERN_CAP]
-	room.line.theme_type_variation = &"GoldText" if full else &"Secondary"
-	room.bar.theme_type_variation = &"GoldBar"
-	room.bar.max_value = Hall.TAVERN_CAP
-	room.bar.value = held
 
 
 ## Where the room `slot` is on screen, at its centre, for effects drawn over the hall.
@@ -359,9 +406,9 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 		if hall.building == Hall.EXTENSION:
 			entries.append({"swatch": Look.RESTORING, "title": "Building the first floor", "bar": &"BuildBar"})
 		elif hall.building_into.is_empty():
-			entries.append({"swatch": Look.RESTORING, "title": "Restoring the " + _slot_name(hall, hall.building).to_lower(), "bar": &"BuildBar"})
+			entries.append({"swatch": Look.RESTORING, "title": "Restoring the " + slot_name(hall, hall.building).to_lower(), "bar": &"BuildBar"})
 		else:
-			entries.append({"swatch": Look.CONVERTING, "title": "Converting the " + _slot_name(hall, hall.building).to_lower(), "bar": &"GoldBar"})
+			entries.append({"swatch": Look.CONVERTING, "title": "Converting the " + slot_name(hall, hall.building).to_lower(), "bar": &"GoldBar"})
 		waits.append(Vector3i(hall.job_seconds(), hall.job_seconds() - build_left, build_left))
 	# The line under a timed row's title that changes as it runs, "" for none, by timed row.
 	var lines := PackedStringArray()
@@ -497,48 +544,42 @@ func _add_room(slot: String, area: Rect2, layer: Control) -> void:
 	_boxes.append(box)
 	room.add_child(box)
 	room.title = _label("", &"RoomName")
-	room.line = _label("", &"Secondary")
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	room.tokens = HFlowContainer.new()
 	room.tokens.visible = false
-	room.restore_row = HFlowContainer.new()
-	room.restore_row.add_theme_constant_override("h_separation", 16)
-	room.restore_cost = _label("", &"Meta")
-	room.restore_cost.autowrap_mode = TextServer.AUTOWRAP_OFF
-	room.restore_row.add_child(room.restore_cost)
-	room.restore = Button.new()
-	room.restore.theme_type_variation = &"RestoreButton"
-	if slot == STAIRS:
-		room.restore.text = "Extend · 1F"
-		room.restore.pressed.connect(extend_pressed.emit)
-	else:
-		room.restore.text = "Restore"
-		room.restore.pressed.connect(restore_pressed.emit.bind(slot))
-	room.restore_row.add_child(room.restore)
-	room.reason = _label("", &"RoomAlert")
-	room.reason.autowrap_mode = TextServer.AUTOWRAP_OFF
-	room.restore_row.add_child(room.reason)
-	room.job = Button.new()
-	room.job.text = "+ Give it a job"
-	room.job.theme_type_variation = &"GoldLink"
-	room.job.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	room.job.pressed.connect(job_pressed.emit.bind(slot))
-	room.countdown = _label("", &"Countdown")
 	room.bar = _bar(&"BuildBar")
-	room.collect = Button.new()
-	room.collect.text = "Collect"
-	room.collect.theme_type_variation = &"GoldButton"
-	room.collect.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	room.collect.pressed.connect(collect_pressed.emit.bind(slot))
-	for part: Control in [room.title, room.line, spacer, room.tokens, room.restore_row, room.job, room.countdown, room.bar, room.collect]:
+	for part: Control in [room.title, spacer, room.tokens, room.bar]:
 		box.add_child(part)
-	# A room offers one action at a time, so a tap anywhere on it presses the one it shows.
-	var cover := Touch.cover([room.restore, room.job, room.collect])
+	room.icon = TextureRect.new()
+	room.icon.visible = false
+	room.icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	room.icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	room.icon.custom_minimum_size = Vector2(ICONS["build"].size(), ICONS["build"].size()) * ICON_SCALE
+	room.add_child(room.icon)
+	# Its minimum size grows out from the room's centre both ways, so the icon stays centred.
+	room.icon.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	room.icon.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	room.icon.grow_vertical = Control.GROW_DIRECTION_BOTH
+	# The whole room is one target: a tap anywhere on it does what its icon offers.
+	var cover := Button.new()
+	cover.flat = true
+	cover.pressed.connect(func() -> void:
+		if room.action.is_valid():
+			room.action.call())
 	room.add_child(cover)
 	cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_lay(room, area, layer)
 	_rooms[slot] = room
+
+
+# `rows` of ICONS as an image, a pixel per character.
+static func _pixel_image(rows: PackedStringArray) -> Texture2D:
+	var image := Image.create_empty(rows[0].length(), rows.size(), false, Image.FORMAT_RGBA8)
+	for y: int in rows.size():
+		for x: int in rows[y].length():
+			image.set_pixel(x, y, ICON_COLORS.get(rows[y][x], Color.TRANSPARENT))
+	return ImageTexture.create_from_image(image)
 
 
 func _paint(item: Control, look: int) -> void:

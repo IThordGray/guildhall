@@ -28,6 +28,8 @@ var _quest_board: Board
 var _recruits: Recruits
 ## The slot the Give it a job screen is open for.
 var _chosen_slot: String = ""
+## What the confirmation sheet asks about: the damaged slot to restore, or Hall.EXTENSION.
+var _confirming: String = ""
 ## Where the debrief the Debrief screen shows is in Dispatch.debriefs.
 var _open_debrief: int = -1
 ## The adventurer the Adventurer screen shows.
@@ -62,6 +64,7 @@ var _portrait_places: Dictionary[Control, Array] = {}
 @onready var _armory: Armory = $Body/Armory
 @onready var _picker: PartyPicker = $Body/PartyPicker
 @onready var _convert_panel: ConvertPanel = $Body/ConvertPanel
+@onready var _confirm_sheet: ConfirmSheet = $ConfirmSheet
 @onready var _tick: Timer = $Tick
 @onready var _start: StartScreen = $Start
 @onready var _test_speed: Button = $TopBar/Row/TestSpeed
@@ -70,11 +73,12 @@ var _portrait_places: Dictionary[Control, Array] = {}
 func _ready() -> void:
 	var version: String = ProjectSettings.get_setting("application/config/version", "")
 	_build_label.text = BuildInfo.label(version)
-	_hall_view.restore_pressed.connect(_on_restore_pressed)
+	_hall_view.restore_pressed.connect(_confirm)
 	_hall_view.job_pressed.connect(_on_job_pressed)
 	_hall_view.send_pressed.connect(_on_go_send)
 	_hall_view.collect_pressed.connect(_on_collect_pressed)
-	_hall_view.extend_pressed.connect(_on_extend_pressed)
+	_hall_view.extend_pressed.connect(_confirm.bind(Hall.EXTENSION))
+	_confirm_sheet.confirmed.connect(_on_confirmed)
 	_convert_panel.convert_pressed.connect(_on_convert_pressed)
 	_convert_panel.back_pressed.connect(_close_convert)
 	($TabBar/Tabs/Hall as Button).button_group.pressed.connect(_on_tab_pressed)
@@ -196,10 +200,10 @@ func _checkpoint(now: int) -> void:
 	_parties_label.text = str(_dispatch.outings.size())
 	_debrief_badge.text = str(_dispatch.debriefs.size())
 	_debrief_badge.visible = not _dispatch.debriefs.is_empty()
-	_hall_view.show_state(_hall, _dispatch, _gold, _quest_board.filled(), now)
+	_hall_view.show_state(_hall, _dispatch, _quest_board.filled(), now)
 	_board.show_board(_quest_board, _dispatch, now)
 	_roster.show_dispatch(_dispatch, now)
-	_roster.show_recruits(_recruits, _dispatch.adventurers, _gold, _hall.beds(now), now)
+	_roster.show_recruits(_recruits, _dispatch.adventurers, _gold, _hall.beds(now), _hall, now)
 	if _adventurer.visible:
 		_show_adventurer(now)
 	if _gear_slot.visible:
@@ -210,17 +214,32 @@ func _checkpoint(now: int) -> void:
 		_picker.show_dispatch(_dispatch, now)
 	if _convert_panel.visible:
 		_convert_panel.show_hall(_hall, _chosen_slot, _gold, now)
+	if _confirm_sheet.visible:
+		_offer(now)
 
 
-func _on_restore_pressed(slot: String) -> void:
+# Asks to confirm `what`, a damaged slot to restore or Hall.EXTENSION, before paying for it.
+func _confirm(what: String) -> void:
+	_confirming = what
+	_offer(_now())
+
+
+# What `_confirming` costs and takes, and why it can't be done at `now`.
+func _offer(now: int) -> void:
+	if _confirming == Hall.EXTENSION:
+		_confirm_sheet.offer("Build the first floor", Hall.EXTEND_GOLD, Hall.EXTEND_SECONDS, "Extend", _hall.extend_refusal(_gold, now))
+	else:
+		var next := _hall.next_restore()
+		_confirm_sheet.offer("Restore " + HallView.slot_name(_hall, _confirming), next["gold"], next["seconds"], "Restore", _hall.refusal(_confirming, _gold, now))
+
+
+func _on_confirmed() -> void:
 	var now := _now()
-	_hall.restore(slot, _gold, now)
-	_checkpoint(now)
-
-
-func _on_extend_pressed() -> void:
-	var now := _now()
-	_hall.extend(_gold, now)
+	if _confirming == Hall.EXTENSION:
+		_hall.extend(_gold, now)
+	else:
+		_hall.restore(_confirming, _gold, now)
+	_confirm_sheet.close()
 	_checkpoint(now)
 
 

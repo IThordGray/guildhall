@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
@@ -17,6 +17,7 @@
 [ext_resource type="Script" path="res://screens/touch.gd" id="15_touch"]
 [ext_resource type="PackedScene" path="res://screens/gear_slot.tscn" id="16_gear_slot"]
 [ext_resource type="PackedScene" path="res://screens/armory.tscn" id="17_armory"]
+[ext_resource type="PackedScene" path="res://screens/confirm_sheet.tscn" id="18_confirm_sheet"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -231,6 +232,9 @@ text = "Labyrinth"
 icon = ExtResource("9_labyrinth")
 icon_alignment = 1
 vertical_icon_alignment = 0
+
+[node name="ConfirmSheet" parent="." instance=ExtResource("18_confirm_sheet")]
+layout_mode = 1
 
 [node name="Start" parent="." instance=ExtResource("14_start")]
 layout_mode = 1

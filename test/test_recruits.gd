@@ -265,7 +265,7 @@ func test_a_hire_is_refused_with_nothing_changed_when_gold_is_short_or_every_bed
 	assert_eq(Recruits.refusal(adventurers, short, 6), "Not enough gold")
 	assert_false(recruits.hire(0, adventurers, short, 6, START))
 	var full := Gold.new(500)
-	assert_eq(Recruits.refusal(adventurers, full, 4), "No free bed — convert a Bunk room")
+	assert_eq(Recruits.refusal(adventurers, full, 4, Recruits.HIRE_GOLD, Hall.new(START)), "No free bed — convert a Bunk room")
 	assert_false(recruits.hire(0, adventurers, full, 4, START))
 	assert_eq(short.amount, 99)
 	assert_eq(full.amount, 500)
@@ -277,7 +277,7 @@ func test_a_hire_is_refused_with_nothing_changed_when_gold_is_short_or_every_bed
 	assert_eq(adventurers.roster.size(), 5)
 
 
-func test_with_every_bed_taken_a_bunk_room_is_suggested_only_below_the_most_beds_there_can_be() -> void:
+func test_with_every_bed_taken_a_bunk_room_is_suggested_only_while_one_can_still_be_built() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	var gold := Gold.new(1_000)
@@ -289,8 +289,17 @@ func test_with_every_bed_taken_a_bunk_room_is_suggested_only_below_the_most_beds
 	assert_false(recruits.hire(0, adventurers, gold, 8, START + 4 * Recruits.CANDIDATE_REFILL_SECONDS))
 	assert_eq(adventurers.roster.size(), 8)
 	assert_eq(gold.amount, 1_000)
-	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 4), "No free bed — convert a Bunk room")
-	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 6), "")
+	# A new rank-F guild with no Bunk room can build one.
+	var hall := Hall.new(START)
+	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 4, Recruits.HIRE_GOLD, hall), "No free bed — convert a Bunk room")
+	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 6, Recruits.HIRE_GOLD, hall), "")
+	# Once one is being built, and once it is built, it can't be built again.
+	hall.restored.append("side_left")
+	assert_true(hall.convert_room("side_left", "bunk_room", Gold.new(1_000), START))
+	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 4, Recruits.HIRE_GOLD, hall), "No free bed")
+	hall.checkpoint(START + 3_600)
+	assert_eq(hall.rooms_done("bunk_room", START + 3_600), 1)
+	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 4, Recruits.HIRE_GOLD, hall), "No free bed")
 
 
 func test_a_hired_shield_bearer_can_be_sent_on_a_quest_and_covers_protect() -> void:

@@ -105,10 +105,12 @@ static func hire_gold(candidate: Dictionary) -> int:
 
 
 ## Why nobody costing `cost` can be hired into `adventurers` with `gold` and `beds`, in words for
-## the player; "" when they can. A Bunk room is suggested only while another would add beds.
-static func refusal(adventurers: Adventurers, gold: Gold, beds: int, cost: int = HIRE_GOLD) -> String:
+## the player; "" when they can. A Bunk room is suggested only while `hall` can still build one:
+## none built or being built, and the guild's rank opens it.
+static func refusal(adventurers: Adventurers, gold: Gold, beds: int, cost: int = HIRE_GOLD, hall: Hall = null) -> String:
 	if adventurers.roster.size() >= beds:
-		return "No free bed" if beds >= Hall.MAX_ROSTER else "No free bed — convert a Bunk room"
+		var bunk_room_open := hall != null and hall.has_rank(Hall.ROOM_TYPES["bunk_room"]["rank"]) and hall.first_room("bunk_room").is_empty()
+		return "No free bed — convert a Bunk room" if bunk_room_open else "No free bed"
 	if gold.amount < cost:
 		return "Not enough gold"
 	return ""

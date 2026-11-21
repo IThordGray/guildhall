@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=54 format=3]
+[gd_resource type="Theme" load_steps=53 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -242,53 +242,19 @@ corner_radius_top_right = 11
 corner_radius_bottom_right = 11
 corner_radius_bottom_left = 11
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_restore"]
-content_margin_left = 26.0
-content_margin_top = 4.0
-content_margin_right = 26.0
-content_margin_bottom = 4.0
-draw_center = false
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0.949, 0.7569, 0.3059, 1)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dim"]
+bg_color = Color(0, 0, 0, 0.6)
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_restore_pressed"]
-content_margin_left = 26.0
-content_margin_top = 4.0
-content_margin_right = 26.0
-content_margin_bottom = 4.0
-bg_color = Color(0.949, 0.7569, 0.3059, 0.2)
-border_width_left = 3
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_sheet"]
+content_margin_left = 44.0
+content_margin_top = 44.0
+content_margin_right = 44.0
+content_margin_bottom = 44.0
+bg_color = Color(0.1098, 0.09412, 0.1333, 1)
 border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0.949, 0.7569, 0.3059, 1)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_restore_disabled"]
-content_margin_left = 26.0
-content_margin_top = 4.0
-content_margin_right = 26.0
-content_margin_bottom = 4.0
-draw_center = false
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0.4196, 0.3922, 0.4706, 1)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
+border_color = Color(0.1647, 0.1451, 0.2, 1)
+corner_radius_top_left = 28
+corner_radius_top_right = 28
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_link"]
 content_margin_left = 0.0
@@ -581,10 +547,11 @@ DebriefRow/styles/panel = SubResource("StyleBoxFlat_debrief_row")
 BuildBar/base_type = &"ProgressBar"
 BuildBar/styles/background = SubResource("StyleBoxFlat_bar_track")
 BuildBar/styles/fill = SubResource("StyleBoxFlat_bar_build")
-BuildText/base_type = &"Secondary"
-BuildText/colors/font_color = Color(0.498, 0.7216, 0.902, 1)
-Countdown/base_type = &"Numbers"
-Countdown/font_sizes/font_size = 54
+Dim/base_type = &"Button"
+Dim/styles/hover = SubResource("StyleBoxFlat_dim")
+Dim/styles/hover_pressed = SubResource("StyleBoxFlat_dim")
+Dim/styles/normal = SubResource("StyleBoxFlat_dim")
+Dim/styles/pressed = SubResource("StyleBoxFlat_dim")
 FailedChip/base_type = &"Label"
 FailedChip/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
 FailedChip/font_sizes/font_size = 36
@@ -692,21 +659,6 @@ RangeBand/base_type = &"Panel"
 RangeBand/styles/panel = SubResource("StyleBoxFlat_bar_gold")
 RangeTrack/base_type = &"Panel"
 RangeTrack/styles/panel = SubResource("StyleBoxFlat_bar_track")
-RestoreButton/base_type = &"Button"
-RestoreButton/colors/font_color = Color(0.949, 0.7569, 0.3059, 1)
-RestoreButton/colors/font_focus_color = Color(0.949, 0.7569, 0.3059, 1)
-RestoreButton/colors/font_hover_color = Color(0.949, 0.7569, 0.3059, 1)
-RestoreButton/colors/font_hover_pressed_color = Color(0.949, 0.7569, 0.3059, 1)
-RestoreButton/colors/font_pressed_color = Color(0.949, 0.7569, 0.3059, 1)
-RestoreButton/colors/font_disabled_color = Color(0.4196, 0.3922, 0.4706, 1)
-RestoreButton/font_sizes/font_size = 33
-RestoreButton/styles/disabled = SubResource("StyleBoxFlat_restore_disabled")
-RestoreButton/styles/hover = SubResource("StyleBoxFlat_restore")
-RestoreButton/styles/hover_pressed = SubResource("StyleBoxFlat_restore_pressed")
-RestoreButton/styles/normal = SubResource("StyleBoxFlat_restore")
-RestoreButton/styles/pressed = SubResource("StyleBoxFlat_restore_pressed")
-RoomAlert/base_type = &"Alert"
-RoomAlert/font_sizes/font_size = 30
 RoomName/base_type = &"Heading"
 RoomName/font_sizes/font_size = 40
 RowTitle/base_type = &"Heading"
@@ -714,6 +666,8 @@ RowTitle/font_sizes/font_size = 39
 Secondary/base_type = &"Label"
 Secondary/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 Secondary/font_sizes/font_size = 36
+Sheet/base_type = &"PanelContainer"
+Sheet/styles/panel = SubResource("StyleBoxFlat_sheet")
 Section/base_type = &"Secondary"
 Section/font_sizes/font_size = 33
 Section/fonts/font = SubResource("FontVariation_sans_semibold")

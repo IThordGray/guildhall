@@ -49,13 +49,13 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 
 ## Shows how many beds `adventurers` fill of `beds`, and `recruits`' candidates at `now`: each with
 ## a hire button, disabled with the reason when `gold` or a bed is short; then, while a slot is
-## empty, the soonest refill.
-func show_recruits(recruits: Recruits, adventurers: Adventurers, gold: Gold, beds: int, now: int) -> void:
+## empty, the soonest refill. `hall` is what a reason may suggest building.
+func show_recruits(recruits: Recruits, adventurers: Adventurers, gold: Gold, beds: int, hall: Hall, now: int) -> void:
 	_beds.text = "%d adventurers · %d beds" % [adventurers.roster.size(), beds]
 	if recruits.candidates != _candidates_shown:
 		_build_candidates(recruits.candidates)
 	for slot: int in _hires:
-		var reason := Recruits.refusal(adventurers, gold, beds, Recruits.hire_gold(recruits.candidates[slot]))
+		var reason := Recruits.refusal(adventurers, gold, beds, Recruits.hire_gold(recruits.candidates[slot]), hall)
 		_hires[slot].disabled = not reason.is_empty()
 		_hire_reasons[slot].text = reason
 		_hire_reasons[slot].visible = not reason.is_empty()

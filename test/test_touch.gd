@@ -107,17 +107,72 @@ func test_a_drag_starting_on_an_adventurer_in_the_roster_scrolls_it_and_does_not
 	await _assert_drag_scrolls_and_does_not_fire(roster.get_node("Scroll"), _roster_row(roster, 0))
 
 
-func test_a_drag_starting_on_a_hall_room_scrolls_the_hall_and_does_not_restore_it() -> void:
+func test_a_drag_starting_on_a_damaged_hall_room_scrolls_the_hall_and_does_not_ask_to_restore_it() -> void:
 	var hall_view := _screen("res://screens/hall_view.tscn") as HallView
 	var hall := Hall.new(1_000)
-	hall_view.show_state(hall, Dispatch.new(1_000), Gold.new(10_000), 3, 1_000)
-	hall_view.restore_pressed.connect(func(_slot: String) -> void: _fire())
+	assert_eq(hall.state("back_left", 1_000), Hall.State.DAMAGED)
+	hall_view.show_state(hall, Dispatch.new(1_000), 3, 1_000)
+	hall_view.restore_pressed.connect(func(slot: String) -> void:
+		assert_eq(slot, "back_left")
+		_fire())
 	await wait_process_frames(1)
-	var restore := hall_view.get_node("Scroll/Box/Columns/Left/Plan").find_children("*", "Button", true, false).filter(
-			func(button: Button) -> bool: return button.text == "Restore" and button.is_visible_in_tree())[0] as Button
-	# The whole room is its Restore: the button over it, its last child.
-	var room := restore.get_parent().get_parent().get_parent() as Control
-	await _assert_drag_scrolls_and_does_not_fire(hall_view.get_node("Scroll"), room.get_child(-1) as Button)
+	# The whole room is one target: the button over all of it.
+	var room := hall_view.room_center("back_left")
+	var cover := hall_view.get_node("Scroll/Box/Columns/Left/Plan").find_children("*", "Button", true, false).filter(
+			func(button: Button) -> bool: return button.is_visible_in_tree() and button.get_global_rect().has_point(room))[0] as Button
+	await _assert_drag_scrolls_and_does_not_fire(hall_view.get_node("Scroll"), cover)
+
+
+# The sheet on the layer at SCREEN_SIZE, offering an action that is refused while `refusal` says why.
+func _sheet(refusal: String) -> ConfirmSheet:
+	var sheet := _screen("res://screens/confirm_sheet.tscn") as ConfirmSheet
+	sheet.confirmed.connect(_fire)
+	sheet.offer("Restore Backroom", 60, 30, "Restore", refusal)
+	return sheet
+
+
+func _action(sheet: ConfirmSheet) -> Button:
+	return sheet.get_node("Sheet/Box/Buttons/Action") as Button
+
+
+func test_the_sheet_closes_on_a_tap_outside_it_on_cancel_or_on_back_and_not_on_a_drag() -> void:
+	var sheet := _sheet("")
+	await wait_process_frames(1)
+	var outside := Vector2(SCREEN_SIZE.x / 2, 40)
+	assert_false(sheet.get_node("Sheet").get_global_rect().has_point(outside))
+	await _touch_drag(outside, outside + Vector2(0, _slop() + 20))
+	assert_true(sheet.visible)
+	await _touch_drag(outside, outside)
+	assert_false(sheet.visible)
+	sheet.offer("Restore Backroom", 60, 30, "Restore", "")
+	await wait_process_frames(1)
+	var cancel := _middle(sheet.get_node("Sheet/Box/Buttons/Cancel"))
+	await _touch_drag(cancel, cancel)
+	assert_false(sheet.visible)
+	sheet.offer("Restore Backroom", 60, 30, "Restore", "")
+	assert_false(get_tree().quit_on_go_back)
+	sheet.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	assert_false(sheet.visible)
+	# Back closes only the sheet; once it is closed, Back leaves the app again.
+	assert_false(get_tree().quit_on_go_back)
+	await wait_process_frames(1)
+	assert_true(get_tree().quit_on_go_back)
+	assert_eq(_fired, 0)
+
+
+func test_a_refused_action_reads_its_reason_and_cannot_be_confirmed() -> void:
+	var sheet := _sheet("Need 20 more gold")
+	await wait_process_frames(1)
+	assert_eq(_action(sheet).text, "Need 20 more gold")
+	await _touch_drag(_middle(_action(sheet)), _middle(_action(sheet)))
+	assert_eq(_fired, 0)
+	assert_true(sheet.visible)
+	# With the gold, the same tap confirms it.
+	sheet.offer("Restore Backroom", 60, 30, "Restore", "")
+	assert_eq(_action(sheet).text, "Restore")
+	await wait_process_frames(1)
+	await _touch_drag(_middle(_action(sheet)), _middle(_action(sheet)))
+	assert_eq(_fired, 1)
 
 
 func test_a_drag_starting_on_a_board_quest_scrolls_the_board_and_does_not_send_it() -> void:
@@ -291,7 +346,7 @@ func test_a_tap_anywhere_on_a_candidate_hires_them_and_does_nothing_while_the_hi
 	var adventurers := Adventurers.new()
 	var recruits := Recruits.new()
 	recruits.refill(adventurers, 1_000)
-	roster.show_recruits(recruits, adventurers, Gold.new(0), Hall.MAX_ROSTER, 1_000)
+	roster.show_recruits(recruits, adventurers, Gold.new(0), Hall.MAX_ROSTER, Hall.new(1_000), 1_000)
 	roster.hire_pressed.connect(func(_slot: int) -> void: _fire())
 	var scroll := roster.get_node("Scroll") as ScrollContainer
 	await wait_process_frames(1)
@@ -306,7 +361,7 @@ func test_a_tap_anywhere_on_a_candidate_hires_them_and_does_nothing_while_the_hi
 	assert_true(hire.disabled)
 	await _touch_drag(_middle(name_label), _middle(name_label))
 	assert_eq(_fired, 0)
-	roster.show_recruits(recruits, adventurers, Gold.new(1_000), Hall.MAX_ROSTER, 1_000)
+	roster.show_recruits(recruits, adventurers, Gold.new(1_000), Hall.MAX_ROSTER, Hall.new(1_000), 1_000)
 	# Without the refusal's line, the card is laid out shorter on the next frame.
 	await wait_process_frames(1)
 	await _touch_drag(_middle(name_label), _middle(name_label))
