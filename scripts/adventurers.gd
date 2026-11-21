@@ -30,7 +30,8 @@ const GROWTH: Dictionary[String, Dictionary] = {
 }
 ## XP to go from level L to L + 1 is this times L.
 const XP_PER_LEVEL: int = 40
-## A successful quest gives each member one XP per this many quest seconds; a failed one half that.
+## A successful quest gives its party one XP per this many quest seconds, shared by its members; a
+## failed one a quarter of that.
 const QUEST_SECONDS_PER_XP: int = 15
 ## Maximum health is this plus HEALTH_PER_GRIT per point of Grit and HEALTH_PER_LEVEL per level
 ## past the first (stand-ins), so a member failing a quest of the rank their level reaches is
@@ -98,10 +99,11 @@ func max_health(adventurer: String) -> int:
 	return BASE_HEALTH + HEALTH_PER_GRIT * stat_total(adventurer, "grit") + HEALTH_PER_LEVEL * (levels[adventurer] - 1)
 
 
-## The XP each member of a party gains from a quest of `quest_seconds` that ended in `success`.
+## The XP a party gains in all from a quest of `quest_seconds` that ended in `success`: on a failure
+## a quarter of a success's, rounded down. Each member gains an equal part (see Dispatch).
 static func quest_xp(quest_seconds: int, success: bool) -> int:
 	var full := floori(quest_seconds / float(QUEST_SECONDS_PER_XP))
-	return full if success else floori(full / 2.0)
+	return full if success else floori(full / 4.0)
 
 
 func gain_xp(adventurer: String, amount: int) -> void:
@@ -137,6 +139,12 @@ func next_rank(adventurer: String) -> String:
 	if next < Challenges.RANKS.size() and PROMOTIONS.has(Challenges.RANKS[next]):
 		return Challenges.RANKS[next]
 	return ""
+
+
+## True when `adventurer`'s level is at least what their next rank needs; false at the highest rank.
+func reached_promotion_level(adventurer: String) -> bool:
+	var next := next_rank(adventurer)
+	return not next.is_empty() and levels[adventurer] >= PROMOTIONS[next]["level"]
 
 
 ## Why `adventurer` can't be promoted with `gold`, `out_on_quest` or not, in words for the player;

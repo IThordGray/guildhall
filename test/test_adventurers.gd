@@ -81,13 +81,15 @@ func test_maximum_health_is_ten_plus_two_per_grit_and_a_level_up_that_raises_gri
 	assert_gt(adventurers.max_health("bram"), 24)
 
 
-func test_a_quest_gives_one_xp_per_fifteen_seconds_on_success_and_half_that_on_failure() -> void:
+func test_a_quest_gives_its_party_one_xp_per_fifteen_seconds_on_success_and_a_quarter_rounded_down_on_failure() -> void:
 	assert_eq(Adventurers.quest_xp(600, true), 40)
-	assert_eq(Adventurers.quest_xp(600, false), 20)
+	assert_eq(Adventurers.quest_xp(600, false), 10)
 	assert_eq(Adventurers.quest_xp(180, true), 12)
-	assert_eq(Adventurers.quest_xp(180, false), 6)
+	assert_eq(Adventurers.quest_xp(180, false), 3)
+	assert_eq(Adventurers.quest_xp(90, true), 6)
+	assert_eq(Adventurers.quest_xp(90, false), 1)
 	assert_eq(Adventurers.quest_xp(60, true), 4)
-	assert_eq(Adventurers.quest_xp(60, false), 2)
+	assert_eq(Adventurers.quest_xp(60, false), 1)
 
 
 func test_a_level_up_needs_forty_xp_times_the_level_and_spends_it_keeping_the_rest() -> void:

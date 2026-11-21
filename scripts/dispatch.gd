@@ -2,28 +2,29 @@ class_name Dispatch
 extends RefCounted
 
 ## Every quest the board can offer: see Board. The save refers to a quest by its id. A
-## quest's challenges say why it is hard (see Challenges); its difficulty is never shown. Durations,
-## gold and difficulties are stand-ins, tuned so the four starters have good odds on every rank F
-## quest, fair odds together on rank E and little hope on rank D.
+## quest's challenges say why it is hard (see Challenges); its difficulty is never shown. Durations
+## and difficulties are stand-ins, tuned so the four starters have good odds on every rank F quest,
+## fair odds together on rank E and little hope on rank D. Gold is a stand-in too, 10 to 13 a minute
+## of quest time, kept small next to what the guild can spend so a quest's reward matters.
 const QUESTS: Dictionary[String, Dictionary] = {
-	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 60, "gold": 50, "difficulty": 3, "challenges": ["Brute force"]},
-	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 90, "gold": 70, "difficulty": 4, "challenges": ["Curse"]},
-	"letters": {"name": "Carry letters to the abbey", "rank": "F", "seconds": 120, "gold": 100, "difficulty": 4, "challenges": ["Navigation", "Protect"]},
-	"spiders": {"name": "Spiders in the gatehouse", "rank": "F", "seconds": 120, "gold": 100, "difficulty": 5, "challenges": ["Brute force", "Attrition"]},
-	"cartographer": {"name": "Escort the cartographer to the first gate", "rank": "F", "seconds": 150, "gold": 120, "difficulty": 4, "challenges": ["Protect", "Traps"]},
-	"mouth": {"name": "Chart the labyrinth's mouth", "rank": "F", "seconds": 150, "gold": 120, "difficulty": 5, "challenges": ["Traps", "Navigation"]},
-	"moonherbs": {"name": "Gather moonherbs", "rank": "F", "seconds": 180, "gold": 150, "difficulty": 4, "challenges": ["Navigation", "Attrition"]},
-	"wolves": {"name": "Wolves at the mill", "rank": "E", "seconds": 300, "gold": 250, "difficulty": 9, "challenges": ["Brute force", "Attrition"]},
-	"sealed_door": {"name": "Break the curse on the sealed door", "rank": "E", "seconds": 360, "gold": 300, "difficulty": 10, "challenges": ["Curse", "Navigation"]},
-	"lurker": {"name": "Hunt the cave lurker", "rank": "E", "seconds": 420, "gold": 350, "difficulty": 9, "challenges": ["Brute force", "Curse"]},
-	"crypt": {"name": "Clear the old crypt", "rank": "E", "seconds": 480, "gold": 400, "difficulty": 11, "challenges": ["Curse", "Traps", "Attrition"]},
-	"pilgrims": {"name": "Guard pilgrims through the low halls", "rank": "E", "seconds": 540, "gold": 450, "difficulty": 10, "challenges": ["Protect", "Attrition"]},
-	"goblins": {"name": "Goblin camp", "rank": "E", "seconds": 600, "gold": 500, "difficulty": 11, "challenges": ["Brute force", "Traps", "Navigation"]},
-	"maze": {"name": "Map the shifting maze", "rank": "D", "seconds": 900, "gold": 700, "difficulty": 14, "challenges": ["Navigation", "Traps"]},
-	"chapel": {"name": "Unbind the drowned chapel", "rank": "D", "seconds": 1_080, "gold": 800, "difficulty": 15, "challenges": ["Curse", "Attrition"]},
-	"minotaur": {"name": "Slay the minotaur of the third ring", "rank": "D", "seconds": 1_200, "gold": 900, "difficulty": 15, "challenges": ["Brute force", "Attrition"]},
-	"envoy": {"name": "Escort the envoy to the deep market", "rank": "D", "seconds": 1_500, "gold": 1_000, "difficulty": 14, "challenges": ["Protect", "Traps", "Navigation"]},
-	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 1_800, "gold": 1_200, "difficulty": 16, "challenges": ["Curse", "Traps", "Protect"]},
+	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 60, "gold": 10, "difficulty": 3, "challenges": ["Brute force"]},
+	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 90, "gold": 15, "difficulty": 4, "challenges": ["Curse"]},
+	"letters": {"name": "Carry letters to the abbey", "rank": "F", "seconds": 120, "gold": 20, "difficulty": 4, "challenges": ["Navigation", "Protect"]},
+	"spiders": {"name": "Spiders in the gatehouse", "rank": "F", "seconds": 120, "gold": 20, "difficulty": 5, "challenges": ["Brute force", "Attrition"]},
+	"cartographer": {"name": "Escort the cartographer to the first gate", "rank": "F", "seconds": 150, "gold": 25, "difficulty": 4, "challenges": ["Protect", "Traps"]},
+	"mouth": {"name": "Chart the labyrinth's mouth", "rank": "F", "seconds": 150, "gold": 25, "difficulty": 5, "challenges": ["Traps", "Navigation"]},
+	"moonherbs": {"name": "Gather moonherbs", "rank": "F", "seconds": 180, "gold": 30, "difficulty": 4, "challenges": ["Navigation", "Attrition"]},
+	"wolves": {"name": "Wolves at the mill", "rank": "E", "seconds": 300, "gold": 65, "difficulty": 9, "challenges": ["Brute force", "Attrition"]},
+	"sealed_door": {"name": "Break the curse on the sealed door", "rank": "E", "seconds": 360, "gold": 75, "difficulty": 10, "challenges": ["Curse", "Navigation"]},
+	"lurker": {"name": "Hunt the cave lurker", "rank": "E", "seconds": 420, "gold": 90, "difficulty": 9, "challenges": ["Brute force", "Curse"]},
+	"crypt": {"name": "Clear the old crypt", "rank": "E", "seconds": 480, "gold": 100, "difficulty": 11, "challenges": ["Curse", "Traps", "Attrition"]},
+	"pilgrims": {"name": "Guard pilgrims through the low halls", "rank": "E", "seconds": 540, "gold": 115, "difficulty": 10, "challenges": ["Protect", "Attrition"]},
+	"goblins": {"name": "Goblin camp", "rank": "E", "seconds": 600, "gold": 125, "difficulty": 11, "challenges": ["Brute force", "Traps", "Navigation"]},
+	"maze": {"name": "Map the shifting maze", "rank": "D", "seconds": 900, "gold": 175, "difficulty": 14, "challenges": ["Navigation", "Traps"]},
+	"chapel": {"name": "Unbind the drowned chapel", "rank": "D", "seconds": 1_080, "gold": 200, "difficulty": 15, "challenges": ["Curse", "Attrition"]},
+	"minotaur": {"name": "Slay the minotaur of the third ring", "rank": "D", "seconds": 1_200, "gold": 225, "difficulty": 15, "challenges": ["Brute force", "Attrition"]},
+	"envoy": {"name": "Escort the envoy to the deep market", "rank": "D", "seconds": 1_500, "gold": 250, "difficulty": 14, "challenges": ["Protect", "Traps", "Navigation"]},
+	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 1_800, "gold": 300, "difficulty": 16, "challenges": ["Curse", "Traps", "Protect"]},
 }
 const MAX_PARTY_SIZE: int = 4
 ## How long an injury lasts, counted from the moment the party returns.
@@ -131,9 +132,9 @@ static func is_healer(who: Dictionary) -> bool:
 	return who["class"] == "Healer"
 
 
-## The gold `quest_id` brings when it fails: a quarter of its reward, rounded down.
-static func failure_gold(quest_id: String) -> int:
-	return floori(int(QUESTS[quest_id]["gold"]) / 4.0)
+## The gold `_quest_id` brings when it fails: none, so failing costs something.
+static func failure_gold(_quest_id: String) -> int:
+	return 0
 
 
 ## Seconds until `outing` returns; 0 when it has returned.
@@ -460,7 +461,9 @@ func _bring_home(outing: Dictionary) -> void:
 	var revealing := unknown_challenges(outing["quest"])
 	if not revealing.is_empty():
 		revealed.append(outing["quest"])
-	var xp := Adventurers.quest_xp(quest["seconds"], success)
+	# The party shares the quest's XP, each member gaining an equal part, rounded down. A party with
+	# no members gains nothing, and its debrief keeps the whole.
+	var xp := floori(Adventurers.quest_xp(quest["seconds"], success) / float(maxi(1, party.size())))
 	for adventurer: String in party:
 		adventurers.gain_xp(adventurer, xp)
 	# Loot comes whatever the outcome, from the seed the party left with.

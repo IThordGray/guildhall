@@ -161,7 +161,7 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	var next_rank := adventurers.next_rank(adventurer)
 	var reason := adventurers.promotion_refusal(adventurer, gold, not dispatch.quest_of(adventurer).is_empty())
 	# Promote shows from the level the next rank needs; short of gold or out on a quest, it says why.
-	_promote.visible = not next_rank.is_empty() and level >= Adventurers.PROMOTIONS[next_rank]["level"]
+	_promote.visible = adventurers.reached_promotion_level(adventurer)
 	_promote.text = "" if next_rank.is_empty() else "Promote to %s · %dg" % [next_rank, Adventurers.PROMOTIONS[next_rank]["gold"]]
 	_promote.disabled = not reason.is_empty()
 	_promote_reason.text = reason

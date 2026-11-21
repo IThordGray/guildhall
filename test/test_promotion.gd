@@ -65,6 +65,22 @@ func test_no_promotion_goes_past_d() -> void:
 	assert_eq(gold.amount, 99_999)
 
 
+func test_the_promotion_level_is_reached_at_the_level_the_next_rank_needs_and_never_at_the_highest_rank() -> void:
+	var adventurers := Adventurers.new()
+	adventurers.levels["bram"] = 2
+	assert_false(adventurers.reached_promotion_level("bram"))
+	adventurers.levels["bram"] = 3
+	assert_true(adventurers.reached_promotion_level("bram"))
+	adventurers.roster["bram"]["rank"] = "E"
+	adventurers.levels["bram"] = 5
+	assert_false(adventurers.reached_promotion_level("bram"))
+	adventurers.levels["bram"] = 6
+	assert_true(adventurers.reached_promotion_level("bram"))
+	adventurers.roster["bram"]["rank"] = "D"
+	adventurers.levels["bram"] = 99
+	assert_false(adventurers.reached_promotion_level("bram"))
+
+
 func test_a_promoted_adventurer_can_join_a_rank_d_quest_and_keeps_the_rank_through_save_and_load() -> void:
 	var dispatch := Dispatch.new(START)
 	var gold := Gold.new(150)
