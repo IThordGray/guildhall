@@ -4,6 +4,13 @@ const EVERYONE: PackedStringArray = ["bram", "ilse", "tobin", "maren"]
 const ALL_CHALLENGES: Array[String] = ["Brute force", "Curse", "Traps", "Navigation", "Attrition", "Protect"]
 
 
+## A guild of all four starters, as one saved before guild ranks has, at `at`.
+func _guild(at: int) -> Dispatch:
+	var dispatch := Dispatch.new(at)
+	dispatch.adventurers = Adventurers.new(EVERYONE)
+	return dispatch
+
+
 func test_the_quests_old_saves_name_keep_their_rank_and_challenges() -> void:
 	var expected := {
 		"rats": ["F", ["Brute force"]],
@@ -44,7 +51,7 @@ func test_ranks_run_from_f_to_s_and_an_adventurer_can_join_a_quest_at_most_one_r
 	assert_false(Challenges.can_join("D", "B"))
 	assert_true(Challenges.can_join("A", "F"))
 	# The rank F starters can all go on a rank E quest.
-	assert_eq(Dispatch.new(1_000).party_refusal("goblins", EVERYONE, 1_000), "")
+	assert_eq(_guild(1_000).party_refusal("goblins", EVERYONE, 1_000), "")
 
 
 func test_each_class_covers_its_own_challenges_and_no_others() -> void:

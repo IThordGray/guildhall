@@ -4,6 +4,13 @@ const SAVE_PATH: String = "user://test_adventurers_save.cfg"
 const EVERYONE: Array[String] = ["bram", "ilse", "tobin", "maren"]
 
 
+## A guild of all four starters, as one saved before guild ranks has, at `at`.
+func _guild(at: int) -> Dispatch:
+	var dispatch := Dispatch.new(at)
+	dispatch.adventurers = Adventurers.new(EVERYONE)
+	return dispatch
+
+
 func after_each() -> void:
 	DirAccess.remove_absolute(SAVE_PATH)
 
@@ -16,7 +23,7 @@ func _powers(adventurers: Adventurers) -> Array[int]:
 
 
 func test_power_is_the_sum_of_the_stats_over_five_rounded_so_the_starters_keep_their_power() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	# Bram 18 → 3.6, Ilse 18, Tobin 16 → 3.2, Maren 16.
 	assert_eq(_powers(adventurers), [4, 4, 3, 3])
 	adventurers.stats["tobin"]["agility"] = 9
@@ -24,7 +31,7 @@ func test_power_is_the_sum_of_the_stats_over_five_rounded_so_the_starters_keep_t
 
 
 func test_everyone_starts_in_their_design_gear_which_leaves_their_power_and_health_as_before() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	assert_eq(adventurers.gear.worn["bram"], {"head": "iron_cap", "clothes": "red_tunic", "armour": "leather_vest", "weapon": "short_sword", "off_hand": "round_shield"})
 	assert_eq(adventurers.gear.worn["ilse"], {"head": "pointed_hat", "clothes": "apprentice_robe", "neck": "moonstone_amulet", "weapon": "oak_staff"})
 	assert_eq(adventurers.gear.worn["tobin"], {"head": "scouts_hood", "clothes": "leather_jerkin", "weapon": "hunting_bow", "back": "quiver"})
@@ -36,7 +43,7 @@ func test_everyone_starts_in_their_design_gear_which_leaves_their_power_and_heal
 
 
 func test_a_stat_is_own_plus_gear_and_power_and_health_count_the_total() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	adventurers.gear.stow("chapel_plate")
 	adventurers.gear.wear("tobin", 0)
 	# Tobin's own 3 / 7 / 3 / 3 with Chapel plate's Might +3, Grit +4: 6 / 7 / 3 / 7 = 23 → 4.6.
@@ -56,7 +63,7 @@ func test_a_stat_is_own_plus_gear_and_power_and_health_count_the_total() -> void
 
 
 func test_everyone_starts_at_level_one_with_no_xp_and_their_starting_stats() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	assert_eq(adventurers.stats["bram"], {"might": 6, "agility": 3, "mind": 2, "grit": 7})
 	assert_eq(adventurers.stats["ilse"], {"might": 2, "agility": 3, "mind": 8, "grit": 5})
 	assert_eq(adventurers.stats["tobin"], {"might": 3, "agility": 7, "mind": 3, "grit": 3})
@@ -68,7 +75,7 @@ func test_everyone_starts_at_level_one_with_no_xp_and_their_starting_stats() -> 
 
 
 func test_maximum_health_is_ten_plus_two_per_grit_and_a_level_up_that_raises_grit_raises_it() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	assert_eq(adventurers.max_health("bram"), 24)
 	assert_eq(adventurers.max_health("ilse"), 20)
 	assert_eq(adventurers.max_health("tobin"), 16)
@@ -93,7 +100,7 @@ func test_a_quest_gives_its_party_one_xp_per_fifteen_seconds_on_success_and_a_qu
 
 
 func test_a_level_up_needs_forty_xp_times_the_level_and_spends_it_keeping_the_rest() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	adventurers.gain_xp("ilse", 39)
 	assert_false(adventurers.level_up_ready("ilse"))
 	assert_eq(adventurers.level_up("ilse"), {})
@@ -115,8 +122,8 @@ func test_a_level_up_needs_forty_xp_times_the_level_and_spends_it_keeping_the_re
 
 
 func test_a_level_up_raises_each_stat_by_zero_to_two_the_same_for_the_same_adventurer_and_level() -> void:
-	var first := Adventurers.new()
-	var second := Adventurers.new()
+	var first := Adventurers.new(EVERYONE)
+	var second := Adventurers.new(EVERYONE)
 	for adventurer: String in EVERYONE:
 		first.gain_xp(adventurer, 1_000_000)
 		second.gain_xp(adventurer, 1_000_000)
@@ -132,7 +139,7 @@ func test_a_level_up_raises_each_stat_by_zero_to_two_the_same_for_the_same_adven
 
 
 func test_tobins_agility_grows_faster_than_any_of_his_other_stats() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	adventurers.gain_xp("tobin", 1_000_000)
 	var start: Dictionary = adventurers.stats["tobin"].duplicate()
 	for level: int in 20:
@@ -143,7 +150,7 @@ func test_tobins_agility_grows_faster_than_any_of_his_other_stats() -> void:
 
 
 func test_the_history_records_each_level_up_with_what_it_gave() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	assert_eq(adventurers.history["maren"], [])
 	adventurers.gain_xp("maren", 120)
 	var to_two := adventurers.level_up("maren")
@@ -153,7 +160,7 @@ func test_the_history_records_each_level_up_with_what_it_gave() -> void:
 
 
 func test_stats_levels_xp_and_history_survive_save_and_load() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	adventurers.gain_xp("tobin", 130)
 	adventurers.level_up("tobin")
 	adventurers.level_up("tobin")
@@ -178,7 +185,7 @@ func test_stats_levels_xp_and_history_survive_save_and_load() -> void:
 
 func test_a_save_from_the_previous_build_loads_with_starter_stats_and_nothing_else_lost() -> void:
 	var gold := Gold.new(300)
-	var dispatch := Dispatch.new(1_000)
+	var dispatch := _guild(1_000)
 	assert_true(dispatch.send("goblins", ["bram", "ilse"], 1, 1_000))
 	# The previous build kept no chance with a party out, and wrote no adventurers.
 	dispatch.outings[0].erase("chance")
@@ -206,7 +213,7 @@ func test_a_save_from_the_previous_build_loads_with_starter_stats_and_nothing_el
 
 
 func test_a_save_from_the_current_build_loads_with_starter_gear_an_empty_stash_and_nothing_else_lost() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	adventurers.gain_xp("ilse", 50)
 	adventurers.level_up("ilse")
 	var file := ConfigFile.new()
@@ -225,7 +232,7 @@ func test_a_save_from_the_current_build_loads_with_starter_gear_an_empty_stash_a
 
 
 func test_an_added_adventurer_joins_last_at_level_1_with_no_xp_and_nothing_worn() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	_add_wren(adventurers)
 	assert_eq(adventurers.roster.keys(), ["bram", "ilse", "tobin", "maren", "wren"])
 	assert_eq(adventurers.roster["wren"]["name"], "Wren")
@@ -239,7 +246,7 @@ func test_an_added_adventurer_joins_last_at_level_1_with_no_xp_and_nothing_worn(
 
 
 func test_an_added_adventurer_survives_save_and_load_and_levels_up_by_their_own_growth() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	_add_wren(adventurers)
 	var file := ConfigFile.new()
 	adventurers.write(file)
@@ -258,7 +265,7 @@ func test_an_added_adventurer_survives_save_and_load_and_levels_up_by_their_own_
 
 
 func test_a_save_from_before_the_roster_was_saved_loads_the_four_starters_as_they_were() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	adventurers.gain_xp("tobin", 40)
 	adventurers.level_up("tobin")
 	var file := ConfigFile.new()
@@ -282,7 +289,7 @@ func test_a_save_from_before_the_roster_was_saved_loads_the_four_starters_as_the
 
 
 func test_maximum_health_at_level_1_is_as_before_and_each_level_past_it_adds_some_even_without_grit() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	_add_wren(adventurers)
 	# Level 1 is unchanged: 10 plus 2 per Grit, gear included.
 	assert_eq(adventurers.max_health("bram"), 24)
@@ -309,7 +316,7 @@ func test_a_failed_quest_of_a_members_promotion_rank_injures_half_to_three_quart
 
 
 func test_a_wound_saved_under_the_old_maximum_loads_as_it_was_and_heals_up_to_the_new_one() -> void:
-	var dispatch := Dispatch.new(5_000)
+	var dispatch := _guild(5_000)
 	dispatch.adventurers.gain_xp("bram", 1_000)
 	dispatch.adventurers.level_up("bram")
 	dispatch.adventurers.level_up("bram")
@@ -335,7 +342,7 @@ func test_a_wound_saved_under_the_old_maximum_loads_as_it_was_and_heals_up_to_th
 # and succeeded. Members are the starters and 100 candidates, each sent with 40 fixed seeds.
 func _injury_rates(rank: String) -> Dictionary:
 	var level: int = Adventurers.PROMOTIONS[rank]["level"]
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	for i: int in 100:
 		var candidate := Recruits.candidate_for(i % 4, 1_000_000 + i * 37, PackedStringArray())
 		adventurers.add("c%d" % i, candidate["who"], candidate["stats"], candidate["growth"])

@@ -124,6 +124,8 @@ func test_a_drag_starting_on_a_board_quest_scrolls_the_board_and_does_not_send_i
 	var board_view := _screen("res://screens/quest_board.tscn") as QuestBoard
 	var dispatch := Dispatch.new(1_000)
 	var board := Board.new()
+	# Three quests are more than the board shows without scrolling.
+	board.reception_slots = 3
 	board.refill(dispatch, 1_000, PackedInt64Array())
 	board_view.show_board(board, dispatch, 1_000)
 	board_view.send_pressed.connect(func(_quest: String) -> void: _fire())

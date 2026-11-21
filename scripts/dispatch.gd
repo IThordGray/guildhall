@@ -243,7 +243,7 @@ func take_off_refusal(adventurer: String, slot: String) -> String:
 		return "Out on a quest"
 	if not adventurers.gear.worn[adventurer].has(slot):
 		return "Nothing worn"
-	if adventurers.gear.stash.size() >= Gear.STASH_CAP:
+	if adventurers.gear.stash.size() >= adventurers.gear.stash_cap:
 		return "Stash full"
 	return ""
 
@@ -498,7 +498,7 @@ func debrief_loot(debrief: Dictionary) -> Dictionary:
 	if debrief.get("paid", true):
 		return {"loot": debrief.get("loot", PackedStringArray()), "lost": debrief.get("lost", PackedStringArray())}
 	var items: PackedStringArray = debrief["loot"]
-	var room := maxi(0, Gear.STASH_CAP - adventurers.gear.stash.size())
+	var room := maxi(0, adventurers.gear.stash_cap - adventurers.gear.stash.size())
 	return {"loot": items.slice(0, room), "lost": items.slice(room)}
 
 

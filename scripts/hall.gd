@@ -1,7 +1,8 @@
 class_name Hall
 extends RefCounted
 
-## UNBUILT is a First floor room before the First floor is built.
+## UNBUILT is a room the hall doesn't have yet: a First floor room before the First floor is built,
+## or a ground-floor slot its layout lacks.
 enum State { USABLE, DAMAGED, RESTORING, RESTORED, CONVERTING, CONVERTED, UNBUILT }
 
 ## What restoring a room costs and takes, by the order rooms are restored in: the first room the
@@ -12,39 +13,59 @@ const RESTORES: Array[Dictionary] = [
 	{"gold": 200, "seconds": 300},
 	{"gold": 300, "seconds": 600},
 ]
-## Rooms usable from the start; every other slot starts damaged.
+## Rooms usable from the start, where the hall has them; every other ground-floor room starts damaged.
 const STARTING_USABLE: Array[String] = ["entrance", "reception"]
+## What a hall is, by its layout: the ground floor's rooms, and what its Reception gives the guild
+## before any room adds to it: beds, candidate slots, quest board slots and the stash's size. A new
+## game is a run-down rank-F hall: the Reception and two damaged rooms. A hall saved before guild
+## ranks keeps its six rooms and the capacity it had then, so nobody is evicted and no item lost.
+## A save refers to a layout by its place here.
+const LAYOUTS: Array[Dictionary] = [
+	{"ground_floor": ["back_left", "back_right", "side_left", "reception", "side_right", "entrance"], "beds": 4, "candidate_slots": 2, "board_slots": 3, "stash": 20},
+	{"ground_floor": ["reception", "side_left", "back_left"], "beds": 2, "candidate_slots": 1, "board_slots": 2, "stash": 6},
+]
+## The layout of a hall saved before guild ranks, and a new game's.
+const OLD_LAYOUT: int = 0
+const NEW_LAYOUT: int = 1
+## The rank a new guild starts at.
+const STARTING_RANK: String = "F"
 ## Extending the hall builds the First floor: what it costs and takes, done by the builder like a
 ## restoration, and how many rooms must be restored first (stand-ins).
 const EXTEND_GOLD: int = 400
 const EXTEND_SECONDS: int = 600
 const EXTEND_AFTER_RESTORES: int = 3
+## The guild rank extending needs.
+const EXTEND_RANK: String = "E"
 ## The First floor's rooms. They are new, so they start restored and empty once it is built.
 const FIRST_FLOOR: Array[String] = ["upper_nw", "upper_ne", "upper_sw", "upper_se"]
 ## What `building` holds while the builder extends the hall; not a slot.
 const EXTENSION: String = "first_floor"
-## What an empty restored room can be converted into, in panel order; the hall has at most one room
-## of each type, so growth comes from upgrading a room, not building another. The save and the art
-## refer to a type by its id. What a type does is applied where its effect is: see Dispatch.
+## What an empty restored room can be converted into, in panel order, and the guild rank that opens
+## each; the hall has at most one room of each type, so growth comes from upgrading a room, not
+## building another. The save and the art refer to a type by its id. What a type does is applied
+## where its effect is: see Dispatch.
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
-	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "gold": 60, "seconds": 60},
-	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 60},
-	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "gold": 60, "seconds": 60},
-	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "gold": 60, "seconds": 60},
-	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "gold": 60, "seconds": 60},
-	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "gold": 60, "seconds": 60},
-	"common_room": {"name": "Common room", "blurb": "more candidates visit", "gold": 60, "seconds": 60},
+	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "rank": "E", "gold": 60, "seconds": 60},
+	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "rank": "E", "gold": 60, "seconds": 60},
+	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "rank": "F", "gold": 60, "seconds": 60},
+	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "rank": "D", "gold": 60, "seconds": 60},
+	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "rank": "D", "gold": 60, "seconds": 60},
+	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "rank": "D", "gold": 60, "seconds": 60},
+	"common_room": {"name": "Common room", "blurb": "more candidates visit", "rank": "F", "gold": 60, "seconds": 60},
 }
 ## A finished Tavern fills with gold at this rate from when it finished or was last collected, up
 ## to TAVERN_CAP; the cap is the reason to come back before it is full (stand-ins).
 const TAVERN_GOLD_PER_MINUTE: int = 2
 const TAVERN_CAP: int = 120
-## Beds the guild has with no Bunk room; each finished one adds BEDS_PER_BUNK_ROOM.
-const STARTING_BEDS: int = 4
+## Beds each finished Bunk room adds to the Reception's.
 const BEDS_PER_BUNK_ROOM: int = 2
 ## The most adventurers the guild can have, however many Bunk rooms it has.
 const MAX_ROSTER: int = 8
 
+## Which of LAYOUTS the hall is.
+var layout: int = NEW_LAYOUT
+## The guild's rank. It limits what can be built from now on; rooms already built keep working.
+var rank: String = STARTING_RANK
 ## Slots the builder has finished restoring, converted or not.
 var restored: PackedStringArray = PackedStringArray()
 ## Whether the builder has finished extending the hall.
@@ -73,6 +94,8 @@ func _init(at: int) -> void:
 
 
 func state(slot: String, now: int) -> State:
+	if slot not in LAYOUTS[layout]["ground_floor"] and slot not in FIRST_FLOOR:
+		return State.UNBUILT
 	if slot in STARTING_USABLE:
 		return State.USABLE
 	if slot == building:
@@ -112,9 +135,29 @@ func rooms_done(type: String, now: int) -> int:
 	return count
 
 
+## What the Reception gives the guild of `what`, a capacity in LAYOUTS: "beds", "candidate_slots",
+## "board_slots" or "stash".
+func reception(what: String) -> int:
+	return LAYOUTS[layout][what]
+
+
+## Whether the guild's rank is at least `needed`.
+func has_rank(needed: String) -> bool:
+	return Challenges.RANKS.find(rank) >= Challenges.RANKS.find(needed)
+
+
+## The room types the guild's rank opens, in ROOM_TYPES order.
+func open_types() -> PackedStringArray:
+	var open := PackedStringArray()
+	for type: String in ROOM_TYPES:
+		if has_rank(ROOM_TYPES[type]["rank"]):
+			open.append(type)
+	return open
+
+
 ## How many adventurers the guild has beds for at `now`.
 func beds(now: int) -> int:
-	return mini(MAX_ROSTER, STARTING_BEDS + BEDS_PER_BUNK_ROOM * rooms_done("bunk_room", now))
+	return mini(MAX_ROSTER, reception("beds") + BEDS_PER_BUNK_ROOM * rooms_done("bunk_room", now))
 
 
 ## The slot of the first room of `type` to be converted, on any floor, counting one under way,
@@ -221,6 +264,8 @@ static func _restore_after(before: int) -> Dictionary:
 func convert_refusal(slot: String, type: String, gold: Gold, now: int) -> String:
 	if state(slot, now) != State.RESTORED:
 		return "Not an empty room"
+	if not has_rank(ROOM_TYPES[type]["rank"]):
+		return "Guild rank %s" % ROOM_TYPES[type]["rank"]
 	if building_into == type and seconds_left(now) > 0:
 		return "Being built"
 	if rooms_done(type, now) > 0:
@@ -241,6 +286,8 @@ func convert_room(slot: String, type: String, gold: Gold, now: int) -> bool:
 func extend_refusal(gold: Gold, now: int) -> String:
 	if first_floor or building == EXTENSION:
 		return "Already extended"
+	if not has_rank(EXTEND_RANK):
+		return "Guild rank %s" % EXTEND_RANK
 	# A restoration finished since the last checkpoint is not yet among those restored.
 	var restores := restored.size() + (1 if _restoring() and seconds_left(now) == 0 else 0)
 	if restores < EXTEND_AFTER_RESTORES:
@@ -304,6 +351,8 @@ func _done_at() -> int:
 ## Puts the hall into `file`, which other state shares, so one save holds the whole game.
 ## The builder's job keeps the keys it had when it could only restore, so older saves still load.
 func write(file: ConfigFile) -> void:
+	file.set_value("hall", "layout", layout)
+	file.set_value("hall", "rank", rank)
 	file.set_value("hall", "restored", restored)
 	file.set_value("hall", "converted", converted)
 	file.set_value("hall", "restoring", building)
@@ -314,11 +363,16 @@ func write(file: ConfigFile) -> void:
 	file.set_value("hall", "checked_at", checked_at)
 
 
-## The hall saved at `path`, or a fresh one at `now` when the save has none.
+## The hall saved at `path`, or a new game's at `now` when there is no save. A save without a
+## layout is from before guild ranks, and keeps the hall it had then.
 static func load_or_start(path: String, now: int) -> Hall:
 	var hall := Hall.new(now)
 	var file := ConfigFile.new()
-	if file.load(path) != OK or not file.has_section("hall"):
+	if file.load(path) != OK:
+		return hall
+	hall.layout = int(file.get_value("hall", "layout", OLD_LAYOUT))
+	hall.rank = file.get_value("hall", "rank", STARTING_RANK)
+	if not file.has_section("hall"):
 		return hall
 	hall.restored = file.get_value("hall", "restored", PackedStringArray())
 	hall.converted.assign(file.get_value("hall", "converted", {}))

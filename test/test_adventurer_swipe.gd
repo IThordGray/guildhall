@@ -1,5 +1,7 @@
 extends GutTest
 
+const EVERYONE: PackedStringArray = ["bram", "ilse", "tobin", "maren"]
+
 var _screen: Adventurer
 var _dispatch: Dispatch
 var _shown: String = "bram"
@@ -8,8 +10,15 @@ var _backs: int = 0
 var _slots_opened: Array[String] = []
 
 
+## A guild of all four starters, as one saved before guild ranks has, at `at`.
+func _guild(at: int) -> Dispatch:
+	var dispatch := Dispatch.new(at)
+	dispatch.adventurers = Adventurers.new(EVERYONE)
+	return dispatch
+
+
 func before_each() -> void:
-	_dispatch = Dispatch.new(1_000)
+	_dispatch = _guild(1_000)
 	_shown = "bram"
 	_backs = 0
 	_slots_opened = []

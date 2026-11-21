@@ -14,8 +14,6 @@ const SLOTS: Dictionary[String, String] = {
 const QUALITY_PERCENT: Dictionary[String, int] = {"Standard": 80, "Fine": 18, "Legendary": 2}
 ## The whole-percent chance that a party back from a quest of each rank brings an item (stand-ins).
 const LOOT_PERCENT: Dictionary[String, int] = {"F": 25, "E": 50, "D": 75}
-## Items the stash holds at most; loot that finds it full is lost (stand-in).
-const STASH_CAP: int = 20
 ## Every item, by the id the save and its icon use. Bonuses are stand-ins: Standard +1 to one stat
 ## or none, Fine +1 or +2 to one or two, Legendary +3 or +4 to two.
 const ITEMS: Dictionary[String, Dictionary] = {
@@ -66,11 +64,9 @@ const STARTER_GEAR: Dictionary[String, Dictionary] = {
 var worn: Dictionary[String, Dictionary] = {}
 ## Item ids in the shared stash, in the order they came in.
 var stash: PackedStringArray = PackedStringArray()
-
-
-func _init() -> void:
-	for adventurer: String in STARTER_GEAR:
-		worn[adventurer] = STARTER_GEAR[adventurer].duplicate()
+## Items the stash holds at most, as the Reception gives it (Hall.reception); loot that finds it
+## full is lost. Not saved: whoever loads the game sets it from the hall.
+var stash_cap: int = Hall.LAYOUTS[Hall.NEW_LAYOUT]["stash"]
 
 
 ## The points `adventurer`'s items add to `stat`.
@@ -105,7 +101,7 @@ static func loot(roll_seed: int, rank: String) -> String:
 
 ## Puts `item` in the stash; false, with the item lost, when the stash is full.
 func stow(item: String) -> bool:
-	if stash.size() >= STASH_CAP:
+	if stash.size() >= stash_cap:
 		return false
 	stash.append(item)
 	return true
@@ -150,8 +146,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("gear", "stash", stash)
 
 
-## The gear saved at `path`, or everyone in their starter gear with an empty stash when the save
-## has none.
+## The gear saved at `path`, or nothing worn and an empty stash when the save has none.
 static func load_or_start(path: String) -> Gear:
 	var gear := Gear.new()
 	var file := ConfigFile.new()

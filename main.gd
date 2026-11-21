@@ -129,6 +129,10 @@ func _open_game() -> void:
 	QuestBoard.worn = _dispatch.adventurers.gear.worn
 	_quest_board = Board.load_or_start(SAVE_PATH)
 	_recruits = Recruits.load_or_start(SAVE_PATH)
+	# What the Reception gives the guild depends on the hall the save holds.
+	_dispatch.adventurers.gear.stash_cap = _hall.reception("stash")
+	_quest_board.reception_slots = _hall.reception("board_slots")
+	_recruits.reception_slots = _hall.reception("candidate_slots")
 	_arrive()
 
 

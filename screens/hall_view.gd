@@ -38,9 +38,9 @@ const LANDING: Rect2 = Rect2(0.0, 0.8, 1.0, 0.2)
 const STAIRS: String = "entrance"
 ## A slot's name until it is given a job: where it is, or what it was built as.
 const SLOT_NAMES: Dictionary[String, String] = {
-	"back_left": "North-west room",
+	"back_left": "Backroom",
 	"back_right": "North-east room",
-	"side_left": "West room",
+	"side_left": "Side room",
 	"side_right": "East room",
 	"upper_nw": "Upper north-west room",
 	"upper_ne": "Upper north-east room",
@@ -48,6 +48,11 @@ const SLOT_NAMES: Dictionary[String, String] = {
 	"upper_se": "Upper south-east room",
 	"entrance": "Entrance hall",
 	"reception": "Reception",
+}
+## The names a hall saved before guild ranks keeps for its rooms where SLOT_NAMES differs.
+const OLD_SLOT_NAMES: Dictionary[String, String] = {
+	"back_left": "North-west room",
+	"side_left": "West room",
 }
 
 const ROOM_GAP_PX: float = 4.0
@@ -77,12 +82,16 @@ var _ground: Control
 var _upstairs: Control
 var _ground_in_use: int = 0
 var _upstairs_in_use: int = 0
+var _ground_rooms: int = 0
+## The guild's rank, shown in place of the floor's name when the hall has only one floor.
+var _rank: String = ""
 ## Each room's and the landing's contents, padded in from its edges.
 var _boxes: Array[Control] = []
 
 @onready var _summary: Label = $Scroll/Box/Top/Header/Summary
 @onready var _parties: Control = $Scroll/Box/Top/Header/Parties
 @onready var _parties_count: Label = $Scroll/Box/Top/Header/Parties/Count
+@onready var _floors: Control = $Scroll/Box/Top/Floors
 @onready var _first_button: Button = $Scroll/Box/Top/Floors/Row/First
 @onready var _plan: Control = $Scroll/Box/Columns/Left/Plan
 @onready var _legend: HBoxContainer = $Scroll/Box/Columns/Left/Legend
@@ -164,8 +173,13 @@ func set_landscape(landscape: bool) -> void:
 func show_state(hall: Hall, dispatch: Dispatch, gold: Gold, quests_on_board: int, now: int) -> void:
 	_ground_in_use = 0
 	_upstairs_in_use = 0
+	_ground_rooms = 0
 	for slot: String in _rooms:
 		var state := hall.state(slot, now)
+		# A ground-floor slot the hall doesn't have is left off the plan.
+		_rooms[slot].visible = state != Hall.State.UNBUILT or slot in FIRST_FLOOR
+		if slot not in FIRST_FLOOR and _rooms[slot].visible:
+			_ground_rooms += 1
 		if state == Hall.State.USABLE or state == Hall.State.CONVERTED:
 			if slot in FIRST_FLOOR:
 				_upstairs_in_use += 1
@@ -177,6 +191,9 @@ func show_state(hall: Hall, dispatch: Dispatch, gold: Gold, quests_on_board: int
 	if not infirmary.is_empty() and hall.state(infirmary, now) != Hall.State.CONVERTED:
 		infirmary = ""
 	_first_button.disabled = not hall.has_first_floor(now)
+	# Only a hall with stairs has floors to choose from.
+	_floors.visible = hall.state(STAIRS, now) != Hall.State.UNBUILT
+	_rank = hall.rank
 	_show_summary()
 	_parties_count.text = str(dispatch.outings.size())
 	_show_tokens(hall, dispatch, infirmary, now)
@@ -192,8 +209,10 @@ func _on_first_toggled(upstairs: bool) -> void:
 func _show_summary() -> void:
 	if _upstairs.visible:
 		_summary.text = "First floor · %d of %d rooms in use" % [_upstairs_in_use, FIRST_FLOOR.size()]
+	elif _floors.visible:
+		_summary.text = "Ground floor · %d of %d rooms in use" % [_ground_in_use, _ground_rooms]
 	else:
-		_summary.text = "Ground floor · %d of %d rooms in use" % [_ground_in_use, GROUND_FLOOR.size()]
+		_summary.text = "Rank %s guild · %d of %d rooms in use" % [_rank, _ground_in_use, _ground_rooms]
 
 
 func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: Gold, now: int) -> void:
@@ -202,7 +221,7 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 	var look := Look.IN_USE
 	var building := state == Hall.State.RESTORING or state == Hall.State.CONVERTING
 	var offered := state == Hall.State.DAMAGED
-	room.title.text = SLOT_NAMES[slot]
+	room.title.text = _slot_name(hall, slot)
 	room.line.theme_type_variation = &"Secondary"
 	match state:
 		Hall.State.USABLE:
@@ -215,7 +234,7 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 				room.bar.theme_type_variation = &"BuildBar"
 				room.bar.max_value = hall.job_seconds()
 				building = true
-			elif slot == STAIRS:
+			elif slot == STAIRS and hall.has_rank(Hall.EXTEND_RANK):
 				_offer(room, "%dg · %s" % [Hall.EXTEND_GOLD, Duration.label(Hall.EXTEND_SECONDS)], hall.extend_refusal(gold, now))
 				offered = true
 		Hall.State.CONVERTED:
@@ -257,6 +276,13 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, gold: G
 	if look != room.look:
 		room.look = look
 		room.queue_redraw()
+
+
+# `slot`'s name in `hall` until it is given a job.
+static func _slot_name(hall: Hall, slot: String) -> String:
+	if hall.layout == Hall.OLD_LAYOUT:
+		return OLD_SLOT_NAMES.get(slot, SLOT_NAMES[slot])
+	return SLOT_NAMES[slot]
 
 
 # A room's action row: what it costs and takes, and why it can't be done when it can't.
@@ -333,9 +359,9 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 		if hall.building == Hall.EXTENSION:
 			entries.append({"swatch": Look.RESTORING, "title": "Building the first floor", "bar": &"BuildBar"})
 		elif hall.building_into.is_empty():
-			entries.append({"swatch": Look.RESTORING, "title": "Restoring the " + SLOT_NAMES[hall.building].to_lower(), "bar": &"BuildBar"})
+			entries.append({"swatch": Look.RESTORING, "title": "Restoring the " + _slot_name(hall, hall.building).to_lower(), "bar": &"BuildBar"})
 		else:
-			entries.append({"swatch": Look.CONVERTING, "title": "Converting the " + SLOT_NAMES[hall.building].to_lower(), "bar": &"GoldBar"})
+			entries.append({"swatch": Look.CONVERTING, "title": "Converting the " + _slot_name(hall, hall.building).to_lower(), "bar": &"GoldBar"})
 		waits.append(Vector3i(hall.job_seconds(), hall.job_seconds() - build_left, build_left))
 	# The line under a timed row's title that changes as it runs, "" for none, by timed row.
 	var lines := PackedStringArray()

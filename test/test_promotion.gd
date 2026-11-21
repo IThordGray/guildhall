@@ -3,6 +3,14 @@ extends GutTest
 const SAVE_PATH: String = "user://test_promotion_save.cfg"
 const START: int = 1_000_000
 const NO_HALLS: PackedInt64Array = []
+const EVERYONE: PackedStringArray = ["bram", "ilse", "tobin", "maren"]
+
+
+## A guild of all four starters, as one saved before guild ranks has, at `at`.
+func _guild(at: int) -> Dispatch:
+	var dispatch := Dispatch.new(at)
+	dispatch.adventurers = Adventurers.new(EVERYONE)
+	return dispatch
 
 
 func after_each() -> void:
@@ -10,7 +18,7 @@ func after_each() -> void:
 
 
 func test_promotion_to_e_takes_level_3_and_150_gold_and_to_d_level_6_and_400_gold() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var gold := Gold.new(150)
 	adventurers.levels["bram"] = 2
 	assert_eq(adventurers.promotion_refusal("bram", gold, false), "Needs level 3")
@@ -34,7 +42,7 @@ func test_promotion_to_e_takes_level_3_and_150_gold_and_to_d_level_6_and_400_gol
 
 
 func test_a_refused_promotion_says_why_and_changes_neither_gold_nor_rank() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	adventurers.levels["bram"] = 3
 	var cases := [
 		[2, 500, false, "Needs level 3"],
@@ -53,7 +61,7 @@ func test_a_refused_promotion_says_why_and_changes_neither_gold_nor_rank() -> vo
 
 
 func test_no_promotion_goes_past_d() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	assert_eq(adventurers.next_rank("bram"), "E")
 	adventurers.roster["bram"]["rank"] = "D"
 	adventurers.levels["bram"] = 99
@@ -66,7 +74,7 @@ func test_no_promotion_goes_past_d() -> void:
 
 
 func test_the_promotion_level_is_reached_at_the_level_the_next_rank_needs_and_never_at_the_highest_rank() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	adventurers.levels["bram"] = 2
 	assert_false(adventurers.reached_promotion_level("bram"))
 	adventurers.levels["bram"] = 3
@@ -82,7 +90,7 @@ func test_the_promotion_level_is_reached_at_the_level_the_next_rank_needs_and_ne
 
 
 func test_a_promoted_adventurer_can_join_a_rank_d_quest_and_keeps_the_rank_through_save_and_load() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _guild(START)
 	var gold := Gold.new(150)
 	dispatch.adventurers.levels["bram"] = 3
 	assert_eq(dispatch.party_refusal("maze", ["bram"], START), "Bram's rank is too low")
@@ -99,9 +107,10 @@ func test_a_promoted_adventurer_can_join_a_rank_d_quest_and_keeps_the_rank_throu
 
 func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_can_draw_rank_d() -> void:
 	var gold := Gold.new(0)
-	var dispatch := Dispatch.new(START)
+	var dispatch := _guild(START)
 	dispatch.adventurers.levels["maren"] = 3
 	var board := Board.new()
+	board.reception_slots = 3
 	board.refill(dispatch, START, NO_HALLS)
 	# Cartographer (F) is sent from slot 1, which comes due 600 seconds later.
 	var sent_at := START + 20
@@ -111,8 +120,9 @@ func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_
 	# Promoting first would let the slot due before it draw a rank D quest, so this case separates
 	# the two orders.
 	var wrong := Board.new()
-	wrong.refill(Dispatch.new(START), START, NO_HALLS)
-	var wrong_dispatch := Dispatch.new(START)
+	wrong.reception_slots = 3
+	wrong.refill(_guild(START), START, NO_HALLS)
+	var wrong_dispatch := _guild(START)
 	assert_true(wrong.send(wrong_dispatch, "cartographer", ["bram"], 1, sent_at, NO_HALLS))
 	wrong_dispatch.adventurers.roster["maren"]["rank"] = "E"
 	wrong.refill(wrong_dispatch, promoted_at, NO_HALLS)

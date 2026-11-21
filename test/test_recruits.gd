@@ -5,15 +5,37 @@ const SAVE_PATH: String = "user://test_recruits_save.cfg"
 const START: int = 1_000_000
 ## The stat each class grows in most.
 const MAIN_STAT: Dictionary[String, String] = {"Swordsman": "might", "Mage": "mind", "Scout": "agility", "Healer": "mind", "Shield bearer": "grit"}
+const EVERYONE: PackedStringArray = ["bram", "ilse", "tobin", "maren"]
+
+
+## A guild of all four starters, as one saved before guild ranks has, at `at`.
+func _guild(at: int) -> Dispatch:
+	var dispatch := Dispatch.new(at)
+	dispatch.adventurers = Adventurers.new(EVERYONE)
+	return dispatch
 
 
 func after_each() -> void:
 	DirAccess.remove_absolute(SAVE_PATH)
 
 
+## No candidates yet, with the two slots a guild saved before guild ranks has with no Common room.
+func _old_recruits() -> Recruits:
+	var recruits := Recruits.new()
+	recruits.reception_slots = 2
+	return recruits
+
+
+## The candidates saved at SAVE_PATH, loaded for a guild saved before guild ranks.
+func _load_old_recruits() -> Recruits:
+	var recruits := Recruits.load_or_start(SAVE_PATH)
+	recruits.reception_slots = 2
+	return recruits
+
+
 ## Candidates first filled at START for `adventurers`.
 func _recruits(adventurers: Adventurers) -> Recruits:
-	var recruits := Recruits.new()
+	var recruits := _old_recruits()
 	recruits.refill(adventurers, START)
 	return recruits
 
@@ -30,10 +52,13 @@ func _hire(recruits: Recruits, slot: int, adventurers: Adventurers, at: int) -> 
 	assert_true(recruits.hire(slot, adventurers, Gold.new(1_000), Hall.MAX_ROSTER, at))
 
 
-func test_a_new_guild_and_a_save_from_before_candidates_both_start_with_two_candidates() -> void:
-	var recruits := _recruits(Adventurers.new())
-	assert_eq(recruits.candidates.size(), 2)
-	for candidate: Dictionary in recruits.candidates:
+func test_a_new_guild_starts_with_one_candidate_and_a_save_from_before_candidates_with_two() -> void:
+	var recruits := Recruits.new()
+	recruits.refill(Adventurers.new(), START)
+	assert_eq(recruits.candidates.size(), 1)
+	var old := _recruits(Adventurers.new(EVERYONE))
+	assert_eq(old.candidates.size(), 2)
+	for candidate: Dictionary in recruits.candidates + old.candidates:
 		assert_false(candidate.is_empty())
 		assert_eq(candidate["who"]["rank"], "F")
 		assert_has(Challenges.COVERS.keys(), candidate["who"]["class"])
@@ -41,13 +66,15 @@ func test_a_new_guild_and_a_save_from_before_candidates_both_start_with_two_cand
 	var file := ConfigFile.new()
 	Gold.new(50).write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
+	# The save has no hall layout, so its Reception gives what a guild had before guild ranks.
 	var loaded := Recruits.load_or_start(SAVE_PATH)
-	loaded.refill(Adventurers.new(), START)
-	assert_eq(loaded.candidates, recruits.candidates)
+	loaded.reception_slots = Hall.load_or_start(SAVE_PATH, START).reception("candidate_slots")
+	loaded.refill(Adventurers.load_or_start(SAVE_PATH), START)
+	assert_eq(loaded.candidates, old.candidates)
 
 
 func test_a_hire_costs_100_gold_adds_the_candidate_last_at_level_1_and_empties_the_slot() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	var hired := recruits.candidates[1]
 	var gold := Gold.new(130)
@@ -63,7 +90,7 @@ func test_a_hire_costs_100_gold_adds_the_candidate_last_at_level_1_and_empties_t
 
 
 func test_an_emptied_slot_refills_exactly_1800_seconds_after_the_hire_and_not_before() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	_hire(recruits, 0, adventurers, START + 100)
 	assert_eq(recruits.seconds_to_refill(0, START + 100), 1_800)
@@ -75,7 +102,7 @@ func test_an_emptied_slot_refills_exactly_1800_seconds_after_the_hire_and_not_be
 
 
 func test_each_slot_counts_down_on_its_own() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	_hire(recruits, 0, adventurers, START)
 	_hire(recruits, 1, adventurers, START + 600)
@@ -88,7 +115,7 @@ func test_each_slot_counts_down_on_its_own() -> void:
 
 
 func test_the_next_refill_is_the_soonest_empty_slots_countdown_and_none_while_no_slot_is_empty() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	assert_eq(recruits.seconds_to_next_refill(START), -1)
 	# Slot 1 empties first, so it refills before slot 0.
@@ -103,9 +130,9 @@ func test_the_next_refill_is_the_soonest_empty_slots_countdown_and_none_while_no
 
 
 func test_one_refill_after_an_absence_gives_the_same_candidates_as_refilling_every_second() -> void:
-	var watched_guild := Adventurers.new()
+	var watched_guild := Adventurers.new(EVERYONE)
 	var watched := _recruits(watched_guild)
-	var away_guild := Adventurers.new()
+	var away_guild := Adventurers.new(EVERYONE)
 	var away := _recruits(away_guild)
 	# Hires at the same moments; the watched slots are refilled every second between them.
 	for hire: Vector2i in [Vector2i(START + 5, 0), Vector2i(START + 700, 1), Vector2i(START + 2_000, 0)]:
@@ -125,7 +152,7 @@ func test_one_refill_after_an_absence_gives_the_same_candidates_as_refilling_eve
 
 
 func test_a_clock_set_back_neither_undoes_a_refill_nor_restarts_a_countdown() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	_hire(recruits, 0, adventurers, START)
 	_hire(recruits, 1, adventurers, START + 1_000)
@@ -142,7 +169,7 @@ func test_a_clock_set_back_neither_undoes_a_refill_nor_restarts_a_countdown() ->
 
 
 func test_candidates_and_countdowns_survive_save_and_load() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	_hire(recruits, 1, adventurers, START + 50)
 	var file := ConfigFile.new()
@@ -150,7 +177,7 @@ func test_candidates_and_countdowns_survive_save_and_load() -> void:
 	adventurers.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 
-	var loaded := Recruits.load_or_start(SAVE_PATH)
+	var loaded := _load_old_recruits()
 	var loaded_guild := Adventurers.load_or_start(SAVE_PATH)
 	assert_eq(loaded.candidates, recruits.candidates)
 	assert_eq(loaded.refill_at, recruits.refill_at)
@@ -164,13 +191,13 @@ func test_candidates_and_countdowns_survive_save_and_load() -> void:
 
 func test_the_same_slot_and_time_always_bring_the_same_candidate_whatever_the_global_generator() -> void:
 	seed(1)
-	var first := _recruits(Adventurers.new())
+	var first := _recruits(Adventurers.new(EVERYONE))
 	seed(2)
 	randi()
-	var second := _recruits(Adventurers.new())
+	var second := _recruits(Adventurers.new(EVERYONE))
 	assert_eq(second.candidates, first.candidates)
-	var later := Recruits.new()
-	later.refill(Adventurers.new(), START + 1)
+	var later := _old_recruits()
+	later.refill(Adventurers.new(EVERYONE), START + 1)
 	assert_ne(later.candidates, first.candidates)
 
 
@@ -181,7 +208,7 @@ func test_a_candidate_is_never_named_after_anyone_in_the_guild_or_the_other_cand
 	for at: int in 20:
 		assert_eq(Recruits.candidate_for(0, START + at, taken)["who"]["name"], only_free)
 
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	# Hires fill the guild with recruits, each named apart from everyone already in it.
 	for at: int in range(START, START + 4 * Recruits.CANDIDATE_REFILL_SECONDS, Recruits.CANDIDATE_REFILL_SECONDS):
@@ -194,7 +221,7 @@ func test_a_candidate_is_never_named_after_anyone_in_the_guild_or_the_other_cand
 
 
 func test_two_stats_show_before_a_hire_and_all_four_are_known_after() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	var candidate := recruits.candidates[0]
 	var line := Recruits.stats_line(candidate)
@@ -231,7 +258,7 @@ func test_about_one_in_ten_candidates_is_a_late_bloomer_weaker_but_growing_far_f
 
 
 func test_a_hire_is_refused_with_nothing_changed_when_gold_is_short_or_every_bed_is_taken() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	var before := recruits.candidates.duplicate(true)
 	var short := Gold.new(99)
@@ -251,7 +278,7 @@ func test_a_hire_is_refused_with_nothing_changed_when_gold_is_short_or_every_bed
 
 
 func test_with_every_bed_taken_a_bunk_room_is_suggested_only_below_the_most_beds_there_can_be() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	var gold := Gold.new(1_000)
 	for at: int in range(START, START + 4 * Recruits.CANDIDATE_REFILL_SECONDS, Recruits.CANDIDATE_REFILL_SECONDS):
@@ -262,18 +289,18 @@ func test_with_every_bed_taken_a_bunk_room_is_suggested_only_below_the_most_beds
 	assert_false(recruits.hire(0, adventurers, gold, 8, START + 4 * Recruits.CANDIDATE_REFILL_SECONDS))
 	assert_eq(adventurers.roster.size(), 8)
 	assert_eq(gold.amount, 1_000)
-	assert_eq(Recruits.refusal(Adventurers.new(), gold, 4), "No free bed — convert a Bunk room")
-	assert_eq(Recruits.refusal(Adventurers.new(), gold, 6), "")
+	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 4), "No free bed — convert a Bunk room")
+	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 6), "")
 
 
 func test_a_hired_shield_bearer_can_be_sent_on_a_quest_and_covers_protect() -> void:
-	var dispatch := Dispatch.new(START)
-	var recruits := Recruits.new()
+	var dispatch := _guild(START)
+	var recruits := _old_recruits()
 	var at := START
 	recruits.refill(dispatch.adventurers, at)
 	while recruits.candidates[0]["who"]["class"] != "Shield bearer":
 		at += 1
-		recruits = Recruits.new()
+		recruits = _old_recruits()
 		recruits.refill(dispatch.adventurers, at)
 	assert_true(recruits.hire(0, dispatch.adventurers, Gold.new(100), 5, at))
 	var id: String = dispatch.adventurers.roster.keys()[4]
@@ -300,7 +327,7 @@ func _rank_e_guild(adventurers: Adventurers, room_offsets: Array[int] = [0]) -> 
 		var rooms := PackedInt64Array()
 		for offset: int in room_offsets:
 			rooms.append(at + offset)
-		var recruits := Recruits.new()
+		var recruits := _old_recruits()
 		recruits.refill(adventurers, at, rooms)
 		if recruits.candidates[0]["who"]["rank"] == "E":
 			return recruits
@@ -318,7 +345,7 @@ func _done_by(rooms: Array[int], at: int) -> PackedInt64Array:
 
 
 func test_a_common_room_adds_a_slot_whose_first_candidate_arrives_when_the_room_finished() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _with_rooms(adventurers, START + 1_000, [START + 500])
 	assert_eq(recruits.candidates.size(), 3)
 	assert_false(recruits.candidates[2].is_empty())
@@ -328,8 +355,8 @@ func test_a_common_room_adds_a_slot_whose_first_candidate_arrives_when_the_room_
 
 
 func test_common_rooms_add_slots_up_to_four_in_all() -> void:
-	assert_eq(_with_rooms(Adventurers.new(), START + 1_000, [START + 100, START + 200]).candidates.size(), 4)
-	var many := _with_rooms(Adventurers.new(), START + 1_000, [START + 300, START + 100, START + 200, START + 400])
+	assert_eq(_with_rooms(Adventurers.new(EVERYONE), START + 1_000, [START + 100, START + 200]).candidates.size(), 4)
+	var many := _with_rooms(Adventurers.new(EVERYONE), START + 1_000, [START + 300, START + 100, START + 200, START + 400])
 	assert_eq(many.candidates.size(), 4)
 	for candidate: Dictionary in many.candidates:
 		assert_false(candidate.is_empty())
@@ -359,7 +386,7 @@ func test_about_a_quarter_of_candidates_arriving_once_a_common_room_finished_are
 
 func test_rank_e_starts_from_the_first_common_room_not_a_later_one() -> void:
 	# Rooms finished 10 seconds before and 1_000 seconds after slot 0's candidate arrives.
-	var recruits := _rank_e_guild(Adventurers.new(), [-10, 1_000])
+	var recruits := _rank_e_guild(Adventurers.new(EVERYONE), [-10, 1_000])
 	if recruits == null:
 		return
 	assert_eq(recruits.candidates[0]["who"]["rank"], "E")
@@ -368,8 +395,8 @@ func test_rank_e_starts_from_the_first_common_room_not_a_later_one() -> void:
 
 func test_no_two_candidates_share_a_name_with_four_slots_filled() -> void:
 	for at: int in range(START, START + 300):
-		var adventurers := Adventurers.new()
-		var recruits := Recruits.new()
+		var adventurers := Adventurers.new(EVERYONE)
+		var recruits := _old_recruits()
 		recruits.refill(adventurers, at, PackedInt64Array([at, at]))
 		var names: Array[String] = []
 		for candidate: Dictionary in recruits.candidates:
@@ -380,7 +407,7 @@ func test_no_two_candidates_share_a_name_with_four_slots_filled() -> void:
 
 
 func test_a_rank_e_candidate_costs_180_gold_and_is_refused_with_nothing_changed_when_short() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _rank_e_guild(adventurers)
 	if recruits == null:
 		return
@@ -406,9 +433,9 @@ func test_a_rank_e_candidate_costs_180_gold_and_is_refused_with_nothing_changed_
 
 func test_one_refill_after_an_absence_equals_refilling_every_second_with_common_rooms_finishing_during_it() -> void:
 	var rooms: Array[int] = [START + 300, START + 2_500]
-	var watched_guild := Adventurers.new()
+	var watched_guild := Adventurers.new(EVERYONE)
 	var watched := _recruits(watched_guild)
-	var away_guild := Adventurers.new()
+	var away_guild := Adventurers.new(EVERYONE)
 	var away := _recruits(away_guild)
 	var hires: Array[Vector2i] = [Vector2i(START + 5, 0), Vector2i(START + 700, 1), Vector2i(START + 2_600, 2), Vector2i(START + 2_700, 3)]
 	for hire: Vector2i in hires:
@@ -434,7 +461,7 @@ func test_one_refill_after_an_absence_equals_refilling_every_second_with_common_
 
 
 func test_a_clock_set_back_neither_removes_a_common_room_slot_nor_restarts_its_countdown() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var rooms := PackedInt64Array([START + 500])
 	var recruits := _with_rooms(adventurers, START + 1_000, [START + 500])
 	_hire(recruits, 2, adventurers, START + 1_000)
@@ -447,7 +474,7 @@ func test_a_clock_set_back_neither_removes_a_common_room_slot_nor_restarts_its_c
 
 
 func test_common_room_slots_and_rank_e_candidates_survive_save_and_load() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _rank_e_guild(adventurers)
 	if recruits == null:
 		return
@@ -457,7 +484,7 @@ func test_common_room_slots_and_rank_e_candidates_survive_save_and_load() -> voi
 	recruits.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 
-	var loaded := Recruits.load_or_start(SAVE_PATH)
+	var loaded := _load_old_recruits()
 	assert_eq(loaded.candidates.size(), 4)
 	assert_eq(loaded.candidates, recruits.candidates)
 	assert_eq(loaded.candidates[0]["who"]["rank"], "E")
@@ -467,11 +494,11 @@ func test_common_room_slots_and_rank_e_candidates_survive_save_and_load() -> voi
 
 
 func test_a_save_with_two_slots_and_no_common_room_loads_with_two_slots_and_a_later_room_adds_one() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var file := ConfigFile.new()
 	_recruits(adventurers).write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
-	var loaded := Recruits.load_or_start(SAVE_PATH)
+	var loaded := _load_old_recruits()
 	loaded.refill(adventurers, START + 5_000)
 	assert_eq(loaded.candidates.size(), 2)
 	for candidate: Dictionary in loaded.candidates:
@@ -529,7 +556,7 @@ func test_a_rank_f_candidate_is_drawn_exactly_as_before_with_or_without_a_common
 
 
 func test_a_candidates_face_seed_is_the_face_they_have_once_hired_and_after_save_and_load() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	var face_seed: int = recruits.candidates[1]["who"]["face_seed"]
 	assert_ne(face_seed, recruits.candidates[0]["who"]["face_seed"])
@@ -544,7 +571,7 @@ func test_a_candidates_face_seed_is_the_face_they_have_once_hired_and_after_save
 	assert_eq(file.save(SAVE_PATH), OK)
 
 	var loaded_guild := Adventurers.load_or_start(SAVE_PATH)
-	var loaded := Recruits.load_or_start(SAVE_PATH)
+	var loaded := _load_old_recruits()
 	assert_eq(Faces.seed_of(id, loaded_guild.roster[id]), face_seed)
 	assert_eq(loaded.candidates[0]["who"]["face_seed"], waiting)
 	_hire(loaded, 0, loaded_guild, START + 20)
@@ -553,7 +580,7 @@ func test_a_candidates_face_seed_is_the_face_they_have_once_hired_and_after_save
 
 
 func test_a_save_from_before_faces_loads_with_faces_from_each_adventurers_id_and_keeps_a_candidates_face_on_hire() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	_hire(recruits, 1, adventurers, START + 10)
 	var id: String = adventurers.roster.keys()[4]
@@ -569,21 +596,21 @@ func test_a_save_from_before_faces_loads_with_faces_from_each_adventurers_id_and
 	assert_eq(file.save(SAVE_PATH), OK)
 
 	var loaded_guild := Adventurers.load_or_start(SAVE_PATH)
-	var loaded := Recruits.load_or_start(SAVE_PATH)
+	var loaded := _load_old_recruits()
 	assert_eq(loaded_guild.roster.keys(), adventurers.roster.keys())
 	for adventurer: String in ["bram", "maren", id]:
 		assert_eq(Faces.seed_of(adventurer, loaded_guild.roster[adventurer]), hash(adventurer))
 	var waiting: int = loaded.candidates[0]["who"]["face_seed"]
 	# The waiting candidate has the face they would arrive with now, however often the save loads.
 	assert_eq(waiting, Recruits.candidate_for(0, START, PackedStringArray())["who"]["face_seed"])
-	assert_eq(Recruits.load_or_start(SAVE_PATH).candidates[0]["who"]["face_seed"], waiting)
+	assert_eq(_load_old_recruits().candidates[0]["who"]["face_seed"], waiting)
 	_hire(loaded, 0, loaded_guild, START + 20)
 	var later: String = loaded_guild.roster.keys()[5]
 	assert_eq(Faces.seed_of(later, loaded_guild.roster[later]), waiting)
 
 
 func test_hiring_a_rank_e_candidate_brings_them_in_at_level_3_with_0_xp_and_their_stats() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _rank_e_guild(adventurers)
 	if recruits == null:
 		return
@@ -598,7 +625,7 @@ func test_hiring_a_rank_e_candidate_brings_them_in_at_level_3_with_0_xp_and_thei
 
 
 func test_a_rank_e_candidate_saved_before_they_arrived_levelled_loads_and_is_hired_as_saved_at_level_1() -> void:
-	var adventurers := Adventurers.new()
+	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _rank_e_guild(adventurers)
 	if recruits == null:
 		return
@@ -609,7 +636,7 @@ func test_a_rank_e_candidate_saved_before_they_arrived_levelled_loads_and_is_hir
 	recruits.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 
-	var loaded := Recruits.load_or_start(SAVE_PATH)
+	var loaded := _load_old_recruits()
 	loaded.refill(adventurers, at, PackedInt64Array([at]))
 	assert_eq(loaded.candidates[0], saved)
 	assert_true(loaded.hire(0, adventurers, Gold.new(180), 6, at, PackedInt64Array([at])))

@@ -1,10 +1,19 @@
 extends GutTest
 
+const EVERYONE: PackedStringArray = ["bram", "ilse", "tobin", "maren"]
+
 var _dispatch: Dispatch
 
 
+## A guild of all four starters, as one saved before guild ranks has, at `at`.
+func _guild(at: int) -> Dispatch:
+	var dispatch := Dispatch.new(at)
+	dispatch.adventurers = Adventurers.new(EVERYONE)
+	return dispatch
+
+
 func before_each() -> void:
-	_dispatch = Dispatch.new(1_000)
+	_dispatch = _guild(1_000)
 
 
 # Wren joins after the starters.

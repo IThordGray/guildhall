@@ -4,9 +4,7 @@ extends RefCounted
 ## The candidates visiting the guild, each in a slot of their own until hired. Hiring one empties
 ## their slot, which refills on its own countdown.
 
-## How many candidates visit at once with no Common room; each finished one adds a slot, up to
-## MAX_CANDIDATE_SLOTS in all.
-const SLOTS: int = 2
+## The most candidates who visit at once, however many Common rooms the guild has.
 const MAX_CANDIDATE_SLOTS: int = 4
 ## How long a slot takes to refill after its candidate is hired.
 const CANDIDATE_REFILL_SECONDS: int = 1_800
@@ -51,6 +49,10 @@ var candidates: Array[Dictionary] = []
 var refill_at: PackedInt64Array = PackedInt64Array()
 ## Latest unix seconds the slots have been refilled up to.
 var checked_at: int = 0
+## How many candidates visit at once with no Common room, as the Reception gives it
+## (Hall.reception); each finished one adds a slot, up to MAX_CANDIDATE_SLOTS in all. Not saved:
+## whoever loads the game sets it from the hall.
+var reception_slots: int = Hall.LAYOUTS[Hall.NEW_LAYOUT]["candidate_slots"]
 
 
 ## Brings the slots up to `now`: adds a slot for each Common room finished, its first candidate due
@@ -63,12 +65,12 @@ var checked_at: int = 0
 func refill(adventurers: Adventurers, now: int, common_rooms_done: PackedInt64Array = PackedInt64Array()) -> void:
 	var at := maxi(now, checked_at)
 	if candidates.is_empty():
-		for slot: int in SLOTS:
+		for slot: int in reception_slots:
 			candidates.append({})
 			refill_at.append(at)
 	var rooms := common_rooms_done.duplicate()
 	rooms.sort()
-	for i: int in range(candidates.size() - SLOTS, mini(rooms.size(), MAX_CANDIDATE_SLOTS - SLOTS)):
+	for i: int in range(candidates.size() - reception_slots, mini(rooms.size(), MAX_CANDIDATE_SLOTS - reception_slots)):
 		candidates.append({})
 		refill_at.append(rooms[i])
 	var better_from := -1 if rooms.is_empty() else rooms[0]

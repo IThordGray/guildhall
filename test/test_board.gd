@@ -6,6 +6,7 @@ const SAVE_PATH: String = "user://test_board_save.cfg"
 const START: int = 1_000_000
 const START_SLOTS: Array[String] = ["sealed_door", "cartographer", "crypt"]
 const NO_HALLS: PackedInt64Array = []
+const EVERYONE: PackedStringArray = ["bram", "ilse", "tobin", "maren"]
 ## Every quest a guild whose best adventurer is rank F can take: ranks F and E.
 const F_AND_E_QUESTS: Array[String] = [
 	"cartographer", "crypt", "goblins", "letters", "lurker", "moonherbs", "mouth", "pilgrims", "rats",
@@ -22,9 +23,30 @@ func after_each() -> void:
 	DirAccess.remove_absolute(SAVE_PATH)
 
 
+## A guild of all four starters, as one saved before guild ranks has, at `at`.
+func _four(at: int) -> Dispatch:
+	var dispatch := Dispatch.new(at)
+	dispatch.adventurers = Adventurers.new(EVERYONE)
+	return dispatch
+
+
+## An empty board with the three slots a guild saved before guild ranks has with no Quest hall.
+func _old_board() -> Board:
+	var board := Board.new()
+	board.reception_slots = 3
+	return board
+
+
+## The board saved at SAVE_PATH, loaded for a guild saved before guild ranks.
+func _load_old_board() -> Board:
+	var board := Board.load_or_start(SAVE_PATH)
+	board.reception_slots = 3
+	return board
+
+
 ## A board filled at START against `dispatch`, with `quest_halls` Quest halls finished by then.
 func _board(dispatch: Dispatch, quest_halls: int) -> Board:
-	var board := Board.new()
+	var board := _old_board()
 	board.refill(dispatch, START, _halls(quest_halls))
 	return board
 
@@ -37,9 +59,9 @@ func _halls(count: int) -> PackedInt64Array:
 	return done
 
 
-## A new guild whose four starters are all of `rank`.
+## A guild whose four starters are all of `rank`.
 func _guild(rank: String) -> Dispatch:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	for adventurer: String in dispatch.adventurers.roster:
 		dispatch.adventurers.roster[adventurer]["rank"] = rank
 	return dispatch
@@ -47,7 +69,7 @@ func _guild(rank: String) -> Dispatch:
 
 ## A seed with which `party` on `quest` succeeds, or fails when `success` is false.
 func _seed(quest: String, party: PackedStringArray, success: bool) -> int:
-	var chance := Dispatch.new(0).success_chance(quest, party)
+	var chance := _four(0).success_chance(quest, party)
 	for roll_seed: int in 10_000:
 		if Outcome.roll(roll_seed, chance, 0, party, Adventurers.STARTERS).success == success:
 			return roll_seed
@@ -63,7 +85,7 @@ func _seed(quest: String, party: PackedStringArray, success: bool) -> int:
 func _play(sends: Array, halls: PackedInt64Array, end: int, step: int, rank: String = "F", map_room: int = -1) -> Board:
 	var gold := Gold.new(0)
 	var dispatch := _guild(rank)
-	var board := Board.new()
+	var board := _old_board()
 	board.refill(dispatch, START, _done_by(halls, START), map_room)
 	var now := START
 	for send: Array in sends + [[end, -1, []]]:
@@ -97,8 +119,19 @@ func _done_by(halls: PackedInt64Array, now: int) -> PackedInt64Array:
 	return done
 
 
-func test_a_new_board_fills_three_slots_plus_one_per_quest_hall_without_changing_the_others() -> void:
+func test_a_new_games_board_fills_two_slots_and_a_quest_hall_adds_a_third() -> void:
 	var dispatch := Dispatch.new(START)
+	var board := Board.new()
+	board.refill(dispatch, START, NO_HALLS)
+	assert_eq(board.slots, PackedStringArray(START_SLOTS.slice(0, 2)))
+	board.refill(dispatch, START + 1_380, PackedInt64Array([START + 1_380]))
+	assert_eq(board.slots.size(), 3)
+	assert_eq(board.filled(), 3)
+	assert_eq(board.slots.slice(0, 2), PackedStringArray(START_SLOTS.slice(0, 2)))
+
+
+func test_a_board_saved_before_guild_ranks_fills_three_slots_plus_one_per_quest_hall_without_changing_the_others() -> void:
+	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	assert_eq(board.slots, PackedStringArray(START_SLOTS))
 	assert_eq(board.filled(), 3)
@@ -111,7 +144,7 @@ func test_a_new_board_fills_three_slots_plus_one_per_quest_hall_without_changing
 
 func test_the_board_never_shows_a_quest_twice_and_leaves_a_slot_empty_when_none_is_free() -> void:
 	# Fourteen slots, thirteen quests a new guild can take.
-	var board := _board(Dispatch.new(START), 11)
+	var board := _board(_four(START), 11)
 	assert_eq(board.slots.size(), 14)
 	assert_eq(board.filled(), 13)
 	assert_eq(board.slots[13], "")
@@ -122,7 +155,7 @@ func test_the_board_never_shows_a_quest_twice_and_leaves_a_slot_empty_when_none_
 
 
 func test_a_sent_quests_slot_refills_after_a_countdown_set_by_its_rank_f_10_minutes_e_30_and_d_60() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	assert_true(board.send(dispatch, "cartographer", ["bram"], 1, START + 100, NO_HALLS))
 	assert_true(board.send(dispatch, "sealed_door", ["ilse"], 1, START + 100, NO_HALLS))
@@ -152,7 +185,7 @@ func test_a_sent_quests_slot_refills_after_a_countdown_set_by_its_rank_f_10_minu
 
 
 func test_each_slot_counts_down_on_its_own() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	assert_true(board.send(dispatch, "cartographer", ["bram"], 1, START + 100, NO_HALLS))
 	assert_true(board.send(dispatch, "sealed_door", ["ilse"], 1, START + 200, NO_HALLS))
@@ -169,7 +202,7 @@ func test_each_slot_counts_down_on_its_own() -> void:
 
 
 func test_the_next_refill_is_the_soonest_empty_slots_countdown_and_none_while_no_slot_is_empty() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	assert_eq(board.seconds_to_next_refill(dispatch, START), -1)
 	# Slot 0 empties first but counts down longer: rank E, 30 minutes, against slot 1's rank F, 10.
@@ -186,7 +219,7 @@ func test_the_next_refill_is_the_soonest_empty_slots_countdown_and_none_while_no
 
 
 func test_an_empty_slot_waiting_for_a_free_quest_gives_way_to_a_slot_counting_down_else_the_next_refill_is_0() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	# Fourteen slots, thirteen quests: the last slot is due and waits for a quest to be free.
 	var board := _board(dispatch, 11)
 	assert_eq(board.slots[13], "")
@@ -196,7 +229,7 @@ func test_an_empty_slot_waiting_for_a_free_quest_gives_way_to_a_slot_counting_do
 
 
 func test_a_quest_out_is_not_offered_and_an_empty_slot_takes_it_once_its_party_is_back() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	# Fourteen slots, thirteen quests: every quest on the board, the last slot empty.
 	var board := _board(dispatch, 11)
 	var shown := board.slots.duplicate()
@@ -220,9 +253,9 @@ func test_a_quest_out_is_not_offered_and_an_empty_slot_takes_it_once_its_party_i
 	assert_eq(board.slots, shown)
 
 
-func test_a_new_guild_is_offered_every_rank_f_and_e_quest_in_turn_never_one_twice_and_never_rank_d() -> void:
+func test_a_rank_f_guild_is_offered_every_rank_f_and_e_quest_in_turn_never_one_twice_and_never_rank_d() -> void:
 	var gold := Gold.new(0)
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	var seen := {}
 	var now := START
@@ -245,7 +278,7 @@ func test_a_new_guild_is_offered_every_rank_f_and_e_quest_in_turn_never_one_twic
 
 func test_with_one_rank_e_adventurer_rank_d_quests_reach_the_board() -> void:
 	var gold := Gold.new(0)
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	dispatch.adventurers.roster["maren"]["rank"] = "E"
 	var board := _board(dispatch, 0)
 	var seen_ranks := {}
@@ -294,7 +327,7 @@ func test_one_refill_after_an_absence_gives_the_board_refilling_every_second_giv
 	assert_eq(away.filled(), 3)
 	assert_eq(_sent_ranks, {"F": true, "E": true, "D": true})
 	# Fourteen slots: a slot with nothing free takes rats when its party is back, while away.
-	var rats := _board(Dispatch.new(START), 11).slots.find("rats")
+	var rats := _board(_four(START), 11).slots.find("rats")
 	sends = [[START + 100, rats, ["bram"]], [START + 110, 0, ["ilse"]]]
 	away = _play(sends, _halls(11), START + 5_000, 0)
 	assert_eq(away.slots[13], "rats")
@@ -303,7 +336,7 @@ func test_one_refill_after_an_absence_gives_the_board_refilling_every_second_giv
 
 
 func test_a_quest_not_on_the_board_cannot_be_sent() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	for quest: String in ["rats", ""]:
 		assert_false(board.send(dispatch, quest, ["bram"], 1, START + 100, NO_HALLS))
@@ -312,14 +345,14 @@ func test_a_quest_not_on_the_board_cannot_be_sent() -> void:
 
 
 func test_a_party_the_dispatch_refuses_leaves_the_quest_on_the_board() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	assert_false(board.send(dispatch, "sealed_door", [], 1, START + 100, NO_HALLS))
 	assert_eq(board.slots, PackedStringArray(START_SLOTS))
 
 
 func test_clock_set_back_neither_undoes_a_refill_nor_restarts_a_countdown() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	assert_true(board.send(dispatch, "cartographer", ["bram"], 1, START + 100, NO_HALLS))
 	dispatch.checkpoint(START + 700)
@@ -341,7 +374,7 @@ func test_clock_set_back_neither_undoes_a_refill_nor_restarts_a_countdown() -> v
 
 func test_the_same_save_always_refills_the_same_way() -> void:
 	var gold := Gold.new(0)
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	assert_true(board.send(dispatch, "cartographer", ["bram"], 1, START + 100, NO_HALLS))
 	assert_true(board.send(dispatch, "sealed_door", ["ilse"], 1, START + 500, NO_HALLS))
@@ -352,19 +385,19 @@ func test_the_same_save_always_refills_the_same_way() -> void:
 	board.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 
-	var loaded := Board.load_or_start(SAVE_PATH)
+	var loaded := _load_old_board()
 	var loaded_dispatch := Dispatch.load_or_start(SAVE_PATH, START + 550)
 	assert_eq(loaded.slots, PackedStringArray(["", "", "crypt"]))
 	assert_eq(loaded.seconds_to_refill(1, loaded_dispatch, START + 550), 150)
 	# Away until the sealed door is back: the save alone says it was out when slot 1 came due.
 	loaded_dispatch.checkpoint(START + 1_000)
-	for refilled: Board in [loaded, Board.load_or_start(SAVE_PATH)]:
+	for refilled: Board in [loaded, _load_old_board()]:
 		refilled.refill(loaded_dispatch, START + 1_000, NO_HALLS)
 		assert_eq(refilled.slots, PackedStringArray(["", "lurker", "crypt"]))
 	# The slot and its refill time pick the quest: refilled at other times, the slot draws others.
 	var drawn := {}
 	for seconds: int in 10:
-		var later := Board.load_or_start(SAVE_PATH)
+		var later := _load_old_board()
 		later.refill_at[1] += seconds
 		later.refill(loaded_dispatch, START + 1_000, NO_HALLS)
 		drawn[later.slots[1]] = true
@@ -376,15 +409,15 @@ func test_a_save_from_before_slots_starts_with_every_slot_filled() -> void:
 	file.set_value("board", "day", 11)
 	file.set_value("board", "used", PackedStringArray(["letters", "goblins"]))
 	assert_eq(file.save(SAVE_PATH), OK)
-	var board := Board.load_or_start(SAVE_PATH)
-	board.refill(Dispatch.new(START), START, NO_HALLS)
+	var board := _load_old_board()
+	board.refill(_four(START), START, NO_HALLS)
 	assert_eq(board.slots, PackedStringArray(START_SLOTS))
 
 
 func test_a_save_from_before_ranked_countdowns_with_old_quests_on_the_board_and_out_loads_and_plays_on() -> void:
 	# The previous build: six quests, one countdown of an hour, goblins out with Bram and Ilse.
 	var gold := Gold.new(40)
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	assert_true(dispatch.send("goblins", ["bram", "ilse"], 1, START))
 	var file := ConfigFile.new()
 	gold.write(file)
@@ -398,7 +431,7 @@ func test_a_save_from_before_ranked_countdowns_with_old_quests_on_the_board_and_
 
 	var loaded_gold := Gold.load_or_start(SAVE_PATH)
 	var loaded := Dispatch.load_or_start(SAVE_PATH, START + 3_599)
-	var board := Board.load_or_start(SAVE_PATH)
+	var board := _load_old_board()
 	loaded.checkpoint(START + 3_599)
 	board.refill(loaded, START + 3_599, NO_HALLS)
 	assert_eq(board.slots, PackedStringArray(["letters", "", "rats"]))
@@ -419,7 +452,7 @@ const MAP_ROOM_EARLY: int = START - 1_000
 
 
 func test_without_a_finished_map_room_no_challenge_is_revealed_however_long_a_quest_waits() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	board.refill(dispatch, START + 100_000, NO_HALLS)
 	# A Map room under way, finishing at START + 150_000.
@@ -434,8 +467,8 @@ func test_without_a_finished_map_room_no_challenge_is_revealed_however_long_a_qu
 
 
 func test_with_a_map_room_finished_a_quest_is_revealed_exactly_300_seconds_after_it_was_put_on_the_board() -> void:
-	var dispatch := Dispatch.new(START)
-	var board := Board.new()
+	var dispatch := _four(START)
+	var board := _old_board()
 	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
 	assert_eq(board.seconds_to_reveal("crypt", dispatch, START), 300)
 	board.refill(dispatch, START + 299, NO_HALLS, MAP_ROOM_EARLY)
@@ -459,7 +492,7 @@ func test_with_a_map_room_finished_a_quest_is_revealed_exactly_300_seconds_after
 
 
 func test_a_quest_on_the_board_before_the_map_room_finished_is_revealed_300_seconds_after_the_room_finishes() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	var map_room := START + 1_000
 	board.refill(dispatch, START + 1_299, NO_HALLS, map_room)
@@ -470,9 +503,9 @@ func test_a_quest_on_the_board_before_the_map_room_finished_is_revealed_300_seco
 
 
 func test_a_quest_the_map_room_revealed_stays_revealed_while_out_and_back_on_the_board() -> void:
-	var dispatch := Dispatch.new(START)
+	var dispatch := _four(START)
 	# Fourteen slots, thirteen quests: every quest on the board, the last slot empty.
-	var board := Board.new()
+	var board := _old_board()
 	board.refill(dispatch, START, _halls(11), MAP_ROOM_EARLY)
 	assert_eq(board.slots[13], "")
 	board.refill(dispatch, START + 300, _halls(11), MAP_ROOM_EARLY)
@@ -495,8 +528,8 @@ func test_a_quest_the_map_room_revealed_stays_revealed_while_out_and_back_on_the
 
 
 func test_a_quest_sent_before_its_reveal_is_not_revealed_by_the_map_room_but_by_its_return() -> void:
-	var dispatch := Dispatch.new(START)
-	var board := Board.new()
+	var dispatch := _four(START)
+	var board := _old_board()
 	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
 	# The cartographer takes two and a half minutes: out from START + 299 to START + 449.
 	assert_true(board.send(dispatch, "cartographer", ["bram"], 1, START + 299, NO_HALLS, -1, MAP_ROOM_EARLY))
@@ -531,8 +564,8 @@ func test_one_refill_after_an_absence_reveals_what_refilling_every_second_reveal
 
 
 func test_a_clock_set_back_neither_restarts_a_reveal_countdown_nor_undoes_a_reveal() -> void:
-	var dispatch := Dispatch.new(START)
-	var board := Board.new()
+	var dispatch := _four(START)
+	var board := _old_board()
 	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
 	board.refill(dispatch, START + 200, NO_HALLS, MAP_ROOM_EARLY)
 	# Set back to START + 50: the countdown runs on from the time already seen.
@@ -547,8 +580,8 @@ func test_a_clock_set_back_neither_restarts_a_reveal_countdown_nor_undoes_a_reve
 
 func test_fill_times_and_reveals_survive_save_and_load() -> void:
 	var gold := Gold.new(0)
-	var dispatch := Dispatch.new(START)
-	var board := Board.new()
+	var dispatch := _four(START)
+	var board := _old_board()
 	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
 	# The sealed door is revealed at START + 300; crypt's slot takes moonherbs at START + 2_200, to
 	# be revealed at START + 2_500.
@@ -562,7 +595,7 @@ func test_fill_times_and_reveals_survive_save_and_load() -> void:
 	board.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 
-	var loaded := Board.load_or_start(SAVE_PATH)
+	var loaded := _load_old_board()
 	var loaded_dispatch := Dispatch.load_or_start(SAVE_PATH, START + 2_300)
 	assert_true(loaded_dispatch.unknown_challenges("sealed_door").is_empty())
 	loaded.refill(loaded_dispatch, START + 2_499, NO_HALLS, MAP_ROOM_EARLY)
@@ -580,8 +613,8 @@ func test_a_save_from_before_fill_times_reveals_its_board_counting_from_when_it_
 	file.set_value("board", "back_at", back_at)
 	file.set_value("board", "checked_at", START + 100)
 	assert_eq(file.save(SAVE_PATH), OK)
-	var dispatch := Dispatch.new(START + 100)
-	var board := Board.load_or_start(SAVE_PATH)
+	var dispatch := _four(START + 100)
+	var board := _load_old_board()
 	board.refill(dispatch, START + 399, NO_HALLS, MAP_ROOM_EARLY)
 	assert_eq(board.seconds_to_reveal("letters", dispatch, START + 399), 1)
 	assert_eq(dispatch.unknown_challenges("letters"), PackedStringArray(["Protect"]))

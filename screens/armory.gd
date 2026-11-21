@@ -22,7 +22,7 @@ func show_gear(adventurers: Adventurers) -> void:
 	if shown == _shown:
 		return
 	_shown = shown
-	_stash_section.text = "STASH · %d / %d" % [gear.stash.size(), Gear.STASH_CAP]
+	_stash_section.text = "STASH · %d / %d" % [gear.stash.size(), gear.stash_cap]
 	for row: Node in _stash.get_children():
 		_stash.remove_child(row)
 		row.queue_free()

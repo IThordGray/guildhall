@@ -6,14 +6,17 @@ extends RefCounted
 
 ## The stats every adventurer has, in the order they are shown, with their names for the player.
 const STATS: Dictionary[String, String] = {"might": "Might", "agility": "Agility", "mind": "Mind", "grit": "Grit"}
-## The adventurers a new game starts with, in roster order: who each one is, as `roster` keeps it.
-## Their faces come from their ids (Faces.seed_of).
+## The starters, in roster order: who each one is, as `roster` keeps it. A guild saved before guild
+## ranks started with all of them. Their faces come from their ids (Faces.seed_of).
 const STARTERS: Dictionary[String, Dictionary] = {
 	"bram": {"name": "Bram", "class": "Swordsman", "rank": "F"},
 	"ilse": {"name": "Ilse", "class": "Mage", "rank": "F"},
 	"tobin": {"name": "Tobin", "class": "Scout", "rank": "F"},
 	"maren": {"name": "Maren", "class": "Healer", "rank": "F"},
 }
+## The starters a new game has, in roster order: between them they cover the commonest rank-F
+## challenges, Brute force, Traps and Navigation.
+const NEW_GAME_STARTERS: PackedStringArray = ["bram", "tobin"]
 ## The starters' stats on joining the guild.
 const STARTING_STATS: Dictionary[String, Dictionary] = {
 	"bram": {"might": 6, "agility": 3, "mind": 2, "grit": 7},
@@ -62,11 +65,11 @@ var history: Dictionary[String, Array] = {}
 var gear: Gear = Gear.new()
 
 
-func _init() -> void:
-	for adventurer: String in STARTERS:
+## A guild of `starters`, keys of STARTERS, each in their starter gear.
+func _init(starters: PackedStringArray = NEW_GAME_STARTERS) -> void:
+	for adventurer: String in starters:
 		add(adventurer, STARTERS[adventurer], STARTING_STATS[adventurer], GROWTH[adventurer])
-	# The starters join in their starter gear.
-	gear = Gear.new()
+		gear.worn[adventurer] = Gear.STARTER_GEAR[adventurer].duplicate()
 
 
 ## Brings `adventurer` into the guild as `who` (as `roster` keeps them), with
@@ -208,15 +211,19 @@ func write(file: ConfigFile) -> void:
 	gear.write(file)
 
 
-## The adventurers saved at `path`, or the starters at their starting stats, level 1 and no XP when
-## the save has none; their gear as Gear.load_or_start finds it.
+## The adventurers saved at `path`, or a new game's starters at their starting stats, level 1 and
+## no XP, in their starter gear, when there is no save. A save from before guild ranks that lacks
+## any of that holds every starter as they started; their gear as Gear.load_or_start finds it.
 static func load_or_start(path: String) -> Adventurers:
-	var adventurers := Adventurers.new()
-	adventurers.gear = Gear.load_or_start(path)
 	var file := ConfigFile.new()
-	if file.load(path) != OK or not file.has_section("adventurers"):
+	if file.load(path) != OK:
+		return Adventurers.new()
+	var adventurers := Adventurers.new(PackedStringArray(STARTERS.keys()))
+	if file.has_section("gear"):
+		adventurers.gear = Gear.load_or_start(path)
+	if not file.has_section("adventurers"):
 		return adventurers
-	# A save from before the roster was saved holds the starters, as a new game has them.
+	# A save from before the roster was saved holds every starter.
 	if file.has_section_key("adventurers", "roster"):
 		var saved: Dictionary = file.get_value("adventurers", "roster")
 		adventurers.roster.clear()

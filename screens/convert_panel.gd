@@ -30,10 +30,13 @@ func _ready() -> void:
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
 
 
-## Shows which choices `slot` can be converted into at `now`, and why not for the others.
+## Shows the types the guild's rank opens, which of them `slot` can be converted into at `now`, and
+## why not for the others.
 func show_hall(hall: Hall, slot: String, gold: Gold, now: int) -> void:
+	var open := hall.open_types()
 	for type: String in _choices:
 		var reason := hall.convert_refusal(slot, type, gold, now)
+		_choices[type].visible = type in open
 		_choices[type].disabled = not reason.is_empty()
 		_reasons[type].text = reason
-		_reasons[type].visible = not reason.is_empty()
+		_reasons[type].visible = type in open and not reason.is_empty()

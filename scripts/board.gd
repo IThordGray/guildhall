@@ -1,8 +1,6 @@
 class_name Board
 extends RefCounted
 
-## How many slots the board has without a Quest hall; each finished one adds one.
-const QUESTS_A_REFRESH: int = 3
 ## How long a slot takes to refill after its quest is sent, by the rank of the quest sent from it:
 ## short for easy quests, longer for hard ones (stand-ins).
 const REFILL_SECONDS: Dictionary[String, int] = {"F": 600, "E": 1_800, "D": 3_600}
@@ -22,6 +20,9 @@ var filled_at: PackedInt64Array = PackedInt64Array()
 var back_at: Dictionary[String, int] = {}
 ## Latest unix seconds the board has been refilled up to.
 var checked_at: int = 0
+## How many slots the board has without a Quest hall, as the Reception gives it (Hall.reception);
+## each finished one adds one. Not saved: whoever loads the game sets it from the hall.
+var reception_slots: int = Hall.LAYOUTS[Hall.NEW_LAYOUT]["board_slots"]
 ## The unix seconds the first Map room is finished at, as the last refill was told; -1 for none.
 var _map_room_from: int = -1
 
@@ -45,11 +46,11 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, ma
 	var at := maxi(maxi(now, dispatch.checked_at), checked_at)
 	if slots.is_empty():
 		checked_at = at
-	while slots.size() < QUESTS_A_REFRESH:
+	while slots.size() < reception_slots:
 		_add_slot(checked_at)
 	var halls := quest_halls_done.duplicate()
 	halls.sort()
-	for i: int in range(slots.size() - QUESTS_A_REFRESH, halls.size()):
+	for i: int in range(slots.size() - reception_slots, halls.size()):
 		_add_slot(halls[i])
 	_note_outings(dispatch)
 	# The rank now stands for every refill due up to `at`: a rank changes only by a player action,

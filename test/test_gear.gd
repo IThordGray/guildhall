@@ -8,6 +8,11 @@ func after_each() -> void:
 	DirAccess.remove_absolute(SAVE_PATH)
 
 
+# The gear of a guild of all four starters, each in their starter gear.
+func _starters_gear() -> Gear:
+	return Adventurers.new(["bram", "ilse", "tobin", "maren"]).gear
+
+
 func test_there_are_33_items_each_in_one_of_eight_slots_with_a_quality_its_bonuses_fit_and_an_icon() -> void:
 	assert_eq(Gear.ITEMS.size(), 33)
 	assert_eq(Gear.SLOTS.keys(), SLOTS)
@@ -95,20 +100,20 @@ func test_the_same_seed_always_brings_the_same_loot() -> void:
 	assert_gt(first.filter(func(item: String) -> bool: return not item.is_empty()).size(), 50)
 
 
-func test_the_stash_holds_twenty_and_an_item_brought_to_a_full_stash_is_lost() -> void:
+func test_a_new_games_stash_holds_six_and_an_item_brought_to_a_full_stash_is_lost() -> void:
 	var gear := Gear.new()
-	for i: int in 19:
+	for i: int in 5:
 		assert_true(gear.stow("belt"))
 	assert_true(gear.stow("night_cloak"))
-	assert_eq(gear.stash.size(), 20)
+	assert_eq(gear.stash.size(), 6)
 	assert_false(gear.stow("chapel_plate"))
-	assert_eq(gear.stash.size(), 20)
+	assert_eq(gear.stash.size(), 6)
 	assert_does_not_have(gear.stash, "chapel_plate")
 	assert_has(gear.stash, "night_cloak")
 
 
 func test_wearing_a_stash_item_swaps_it_in_and_puts_the_replaced_one_in_the_stash() -> void:
-	var gear := Gear.new()
+	var gear := _starters_gear()
 	gear.stow("night_cloak")
 	gear.stow("goblin_slayer_blade")
 	gear.wear("bram", 1)
@@ -129,7 +134,7 @@ func test_wearing_a_stash_item_swaps_it_in_and_puts_the_replaced_one_in_the_stas
 
 
 func test_the_items_that_fit_a_slot_are_found_where_they_are_in_the_stash() -> void:
-	var gear := Gear.new()
+	var gear := _starters_gear()
 	for item: String in ["night_cloak", "sash", "chapel_plate", "forest_cloak"]:
 		gear.stow(item)
 	assert_eq(gear.fitting("back"), PackedInt32Array([0, 3]))
@@ -142,7 +147,7 @@ func test_the_items_that_fit_a_slot_are_found_where_they_are_in_the_stash() -> v
 
 
 func test_taking_off_puts_the_item_in_the_stash_and_empties_the_slot_and_wearing_it_puts_it_back() -> void:
-	var gear := Gear.new()
+	var gear := _starters_gear()
 	gear.stow("sash")
 	assert_true(gear.take_off("bram", "weapon"))
 	assert_false(gear.worn["bram"].has("weapon"))
@@ -154,19 +159,19 @@ func test_taking_off_puts_the_item_in_the_stash_and_empties_the_slot_and_wearing
 
 
 func test_taking_off_is_refused_with_nothing_changed_when_the_stash_is_full_or_the_slot_empty() -> void:
-	var gear := Gear.new()
+	var gear := _starters_gear()
 	assert_false(gear.take_off("bram", "back"))
 	assert_eq(gear.stash, PackedStringArray())
-	for i: int in Gear.STASH_CAP:
+	for i: int in gear.stash_cap:
 		gear.stow("belt")
 	assert_false(gear.take_off("bram", "weapon"))
 	assert_eq(gear.worn["bram"]["weapon"], "short_sword")
-	assert_eq(gear.stash.size(), 20)
+	assert_eq(gear.stash.size(), 6)
 	assert_does_not_have(gear.stash, "short_sword")
 
 
 func test_worn_gear_and_the_stash_survive_save_and_load() -> void:
-	var gear := Gear.new()
+	var gear := _starters_gear()
 	gear.stow("chapel_plate")
 	gear.stow("sash")
 	gear.wear("maren", 0)
