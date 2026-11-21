@@ -18,7 +18,7 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** the Hall plan drawn as a blueprint at a fixed scale (revertable on its own), then guild
+- **Next:** the human plays the blueprint Hall locally (its own commit, revertable), then push; then guild
   rank (spec: Guild rank) G2: reputation and ranking up at Reception to E (the ground-floor wing,
   E quests, Storeroom, Infirmary, Quest hall); G3 room tiers. Death
   stays deferred: its own decision.
