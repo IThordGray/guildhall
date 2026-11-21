@@ -21,9 +21,8 @@ var _chips: Dictionary[String, HFlowContainer] = {}
 var _unknown_shown: Dictionary[String, int] = {}
 ## The board's slots shown, so the rows change only when the board does.
 var _shown: PackedStringArray = PackedStringArray()
-## Each slot's row and countdown for while it refills, by slot, made as slots are added.
-var _refill_rows: Array[PanelContainer] = []
-var _refill_labels: Array[Label] = []
+## The one line under the quests for the empty slots: the soonest refill.
+var _refill: Label
 ## The debriefs and parties out the rows were built for, so they are rebuilt only when those
 ## change; `_back_labels` and `_out_rows` are their parts that change with time, in the same order.
 var _debriefs_shown: Array[Dictionary] = []
@@ -70,10 +69,12 @@ func _ready() -> void:
 		line.add_child(words)
 		line.add_child(send)
 		var row := PanelContainer.new()
-		row.visible = false
 		row.add_child(line)
-		_rows[quest] = row
-		_list.add_child(row)
+		_rows[quest] = Touch.whole_card(row, send)
+		_rows[quest].visible = false
+		_list.add_child(_rows[quest])
+	_refill = _label("", &"Secondary")
+	_list.add_child(_refill)
 
 
 ## Landscape shows how many parties are out beside the title.
@@ -81,9 +82,9 @@ func set_landscape(landscape: bool) -> void:
 	_parties.visible = landscape
 
 
-## Shows the debriefs waiting and the parties out in `dispatch` at `now`, then `board`'s slots in
-## order: each its quest, or the countdown to its refill. An unknown challenge shows the time to its
-## reveal while the Map room is revealing it.
+## Shows the debriefs waiting and the parties out in `dispatch` at `now`, then the quests in
+## `board`'s slots in order, and under them, while a slot is empty, the soonest refill. An unknown
+## challenge shows the time to its reveal while the Map room is revealing it.
 func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 	_parties_count.text = str(dispatch.outings.size())
 	_show_debriefs(dispatch, now)
@@ -91,25 +92,22 @@ func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 	_show_challenges(dispatch)
 	if board.slots != _shown:
 		_shown = board.slots.duplicate()
-		while _refill_rows.size() < _shown.size():
-			var label := _label("", &"Secondary")
-			var row := PanelContainer.new()
-			row.add_child(label)
-			_list.add_child(row)
-			_refill_rows.append(row)
-			_refill_labels.append(label)
 		for quest: String in _rows:
 			_rows[quest].visible = quest in _shown
-		for i: int in _shown.size():
-			_refill_rows[i].visible = _shown[i] == ""
-			_list.move_child(_refill_rows[i] if _shown[i] == "" else _rows[_shown[i]], i)
-	for i: int in _shown.size():
-		if _shown[i] == "":
-			var left := board.seconds_to_refill(i, dispatch, now)
-			_refill_labels[i].text = "New quest in " + Duration.label(left) if left > 0 else "New quest when one is free"
+		# The quests first, in slot order, before the hidden rows and the refill line.
+		var at := 0
+		for quest: String in _shown:
+			if quest != "":
+				_list.move_child(_rows[quest], at)
+				at += 1
+	var left := board.seconds_to_next_refill(dispatch, now)
+	_refill.visible = left >= 0
+	_refill.text = "New quest in " + Duration.label(left) if left > 0 else "New quest when one is free"
+	for quest: String in _shown:
+		if quest == "":
 			continue
-		var reveal := board.seconds_to_reveal(_shown[i], dispatch, now)
-		for chip_shown: Label in _chips[_shown[i]].get_children():
+		var reveal := board.seconds_to_reveal(quest, dispatch, now)
+		for chip_shown: Label in _chips[quest].get_children():
 			if chip_shown.theme_type_variation == &"ChipUnknown":
 				chip_shown.text = "? · " + Duration.label(reveal) if reveal > 0 else "?"
 
@@ -224,7 +222,7 @@ func _show_debriefs(dispatch: Dispatch, now: int) -> void:
 			var row := PanelContainer.new()
 			row.theme_type_variation = &"DebriefRow"
 			row.add_child(line)
-			_debriefs.add_child(row)
+			_debriefs.add_child(Touch.whole_card(row, open))
 		_debrief_count.text = str(_debriefs_shown.size())
 		_debriefs_header.visible = not _debriefs_shown.is_empty()
 		_debriefs.visible = not _debriefs_shown.is_empty()

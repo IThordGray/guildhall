@@ -48,15 +48,6 @@ theme_type_variation = &"ProgressList"
 layout_mode = 2
 theme_override_constants/separation = 0
 
-[node name="WornSection" type="Label" parent="Box/Scroll/Lists"]
-layout_mode = 2
-theme_type_variation = &"Section"
-text = "WORN"
-
-[node name="Worn" type="VBoxContainer" parent="Box/Scroll/Lists"]
-layout_mode = 2
-theme_override_constants/separation = 24
-
 [node name="Back" type="Button" parent="Box"]
 custom_minimum_size = Vector2(0, 144)
 layout_mode = 2

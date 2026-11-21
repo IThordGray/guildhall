@@ -128,11 +128,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Train"
 
-[node name="TrainReason" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words"]
-layout_mode = 2
-theme_type_variation = &"Alert"
-autowrap_mode = 3
-
 [node name="StatsSection" type="Label" parent="Box/Scroll/Content/Card"]
 layout_mode = 2
 theme_type_variation = &"Section"

@@ -168,6 +168,33 @@ func test_each_slot_counts_down_on_its_own() -> void:
 	assert_ne(board.slots[0], board.slots[1])
 
 
+func test_the_next_refill_is_the_soonest_empty_slots_countdown_and_none_while_no_slot_is_empty() -> void:
+	var dispatch := Dispatch.new(START)
+	var board := _board(dispatch, 0)
+	assert_eq(board.seconds_to_next_refill(dispatch, START), -1)
+	# Slot 0 empties first but counts down longer: rank E, 30 minutes, against slot 1's rank F, 10.
+	assert_true(board.send(dispatch, "sealed_door", ["ilse"], 1, START + 100, NO_HALLS))
+	assert_eq(board.seconds_to_next_refill(dispatch, START + 100), 1_800)
+	assert_true(board.send(dispatch, "cartographer", ["bram"], 1, START + 200, NO_HALLS))
+	assert_eq(board.seconds_to_next_refill(dispatch, START + 200), 600)
+	board.refill(dispatch, START + 800, NO_HALLS)
+	assert_ne(board.slots[1], "")
+	assert_eq(board.seconds_to_next_refill(dispatch, START + 800), 1_100)
+	board.refill(dispatch, START + 1_900, NO_HALLS)
+	assert_eq(board.filled(), 3)
+	assert_eq(board.seconds_to_next_refill(dispatch, START + 1_900), -1)
+
+
+func test_an_empty_slot_waiting_for_a_free_quest_gives_way_to_a_slot_counting_down_else_the_next_refill_is_0() -> void:
+	var dispatch := Dispatch.new(START)
+	# Fourteen slots, thirteen quests: the last slot is due and waits for a quest to be free.
+	var board := _board(dispatch, 11)
+	assert_eq(board.slots[13], "")
+	assert_eq(board.seconds_to_next_refill(dispatch, START), 0)
+	assert_true(board.send(dispatch, "rats", ["bram"], 1, START + 100, _halls(11)))
+	assert_eq(board.seconds_to_next_refill(dispatch, START + 100), 600)
+
+
 func test_a_quest_out_is_not_offered_and_an_empty_slot_takes_it_once_its_party_is_back() -> void:
 	var dispatch := Dispatch.new(START)
 	# Fourteen slots, thirteen quests: every quest on the board, the last slot empty.

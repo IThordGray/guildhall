@@ -67,8 +67,8 @@ static func _button(text: String, refusal: String) -> Button:
 	return button
 
 
-# `item`'s icon, name and bonus, with `button` after them.
-static func _row(item: String, button: Button) -> PanelContainer:
+# `item`'s icon, name and bonus, with `button` after them, which a tap anywhere on the row presses.
+static func _row(item: String, button: Button) -> Control:
 	var words := VBoxContainer.new()
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	words.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -82,4 +82,4 @@ static func _row(item: String, button: Button) -> PanelContainer:
 	var row := PanelContainer.new()
 	row.theme_type_variation = &"ProgressRow"
 	row.add_child(line)
-	return row
+	return Touch.whole_card(row, button)

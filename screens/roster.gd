@@ -15,12 +15,12 @@ var _statuses: Dictionary[String, Label] = {}
 var _details: Dictionary[String, Label] = {}
 var _healths: Dictionary[String, HBoxContainer] = {}
 ## The candidates the candidate rows were built for, so they are rebuilt only when one is hired or
-## arrives; the parts that change without that, by slot: each candidate's hire button and why it
-## can't be pressed, and each empty slot's countdown.
+## arrives; the parts that change without that: by slot, each candidate's hire button and why it
+## can't be pressed, and the one line under them for the empty slots, the soonest refill.
 var _candidates_shown: Array[Dictionary] = []
 var _hires: Dictionary[int, Button] = {}
 var _hire_reasons: Dictionary[int, Label] = {}
-var _countdowns: Dictionary[int, Label] = {}
+var _countdown: Label
 
 @onready var _list: VBoxContainer = $Scroll/Box/List
 @onready var _beds: Label = $Scroll/Box/Header/Beds
@@ -45,7 +45,8 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 
 
 ## Shows how many beds `adventurers` fill of `beds`, and `recruits`' candidates at `now`: each with
-## a hire button, disabled with the reason when `gold` or a bed is short, or their slot's countdown.
+## a hire button, disabled with the reason when `gold` or a bed is short; then, while a slot is
+## empty, the soonest refill.
 func show_recruits(recruits: Recruits, adventurers: Adventurers, gold: Gold, beds: int, now: int) -> void:
 	_beds.text = "%d adventurers · %d beds" % [adventurers.roster.size(), beds]
 	if recruits.candidates != _candidates_shown:
@@ -55,8 +56,9 @@ func show_recruits(recruits: Recruits, adventurers: Adventurers, gold: Gold, bed
 		_hires[slot].disabled = not reason.is_empty()
 		_hire_reasons[slot].text = reason
 		_hire_reasons[slot].visible = not reason.is_empty()
-	for slot: int in _countdowns:
-		_countdowns[slot].text = "New candidate in " + Duration.label(recruits.seconds_to_refill(slot, now))
+	var left := recruits.seconds_to_next_refill(now)
+	_countdown.visible = left >= 0
+	_countdown.text = "New candidate in " + Duration.label(left)
 
 
 ## The adventurer `step` places after `adventurer` in `roster` order (Adventurers.roster), wrapping
@@ -119,8 +121,8 @@ func _build(roster: Dictionary[String, Dictionary]) -> void:
 		_list.add_child(row)
 
 
-# One row per slot of `candidates`: the candidate, what they show of themselves and a hire button,
-# or a countdown while the slot refills.
+# One row per filled slot of `candidates`, in slot order: the candidate, what they show of
+# themselves and a hire button, which a tap anywhere on the row presses. Then the refill line.
 func _build_candidates(candidates: Array[Dictionary]) -> void:
 	_candidates_shown = candidates.duplicate()
 	for row: Node in _candidates.get_children():
@@ -128,14 +130,9 @@ func _build_candidates(candidates: Array[Dictionary]) -> void:
 		row.queue_free()
 	_hires.clear()
 	_hire_reasons.clear()
-	_countdowns.clear()
 	for slot: int in candidates.size():
-		var row := PanelContainer.new()
-		_candidates.add_child(row)
 		var candidate := candidates[slot]
 		if candidate.is_empty():
-			_countdowns[slot] = _label("", &"Secondary")
-			row.add_child(_countdowns[slot])
 			continue
 		var who: Dictionary = candidate["who"]
 		var words := VBoxContainer.new()
@@ -162,7 +159,11 @@ func _build_candidates(candidates: Array[Dictionary]) -> void:
 		box.add_child(_label(Recruits.stats_line(candidate), &"Secondary"))
 		_hire_reasons[slot] = _label("", &"Alert")
 		box.add_child(_hire_reasons[slot])
+		var row := PanelContainer.new()
 		row.add_child(box)
+		_candidates.add_child(Touch.whole_card(row, hire))
+	_countdown = _label("", &"Secondary")
+	_candidates.add_child(_countdown)
 
 
 func _label(text: String, variation: StringName) -> Label:

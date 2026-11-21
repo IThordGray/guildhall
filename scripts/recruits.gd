@@ -88,6 +88,15 @@ func seconds_to_refill(slot: int, now: int) -> int:
 	return maxi(0, refill_at[slot] - maxi(now, checked_at))
 
 
+## Seconds from `now` until the soonest empty slot refills; -1 when no slot is empty.
+func seconds_to_next_refill(now: int) -> int:
+	var soonest := -1
+	for slot: int in candidates.size():
+		if candidates[slot].is_empty() and (soonest == -1 or seconds_to_refill(slot, now) < soonest):
+			soonest = seconds_to_refill(slot, now)
+	return soonest
+
+
 ## What hiring `candidate` costs: more for a rank-E one.
 static func hire_gold(candidate: Dictionary) -> int:
 	return HIRE_GOLD_E if candidate["who"]["rank"] == "E" else HIRE_GOLD

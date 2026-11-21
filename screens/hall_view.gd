@@ -414,16 +414,18 @@ func _rebuild_rows(roster: Dictionary) -> void:
 			_rows.append(row)
 		else:
 			words.add_child(_label(entry["sub"], entry.get("sub_style", &"Secondary")))
+		var panel := PanelContainer.new()
+		panel.theme_type_variation = &"ProgressRow"
+		panel.add_child(line)
 		if entry.has("send"):
 			var go := Button.new()
 			go.text = "Send →"
 			go.theme_type_variation = &"GoldLink"
 			go.pressed.connect(send_pressed.emit)
 			line.add_child(go)
-		var panel := PanelContainer.new()
-		panel.theme_type_variation = &"ProgressRow"
-		panel.add_child(line)
-		_list_rows.add_child(panel)
+			_list_rows.add_child(Touch.whole_card(panel, go))
+		else:
+			_list_rows.add_child(panel)
 
 
 # A floor's layer over the whole plan, for its rooms.
@@ -505,6 +507,10 @@ func _add_room(slot: String, area: Rect2, layer: Control) -> void:
 	room.collect.pressed.connect(collect_pressed.emit.bind(slot))
 	for part: Control in [room.title, room.line, spacer, room.tokens, room.restore_row, room.job, room.countdown, room.bar, room.collect]:
 		box.add_child(part)
+	# A room offers one action at a time, so a tap anywhere on it presses the one it shows.
+	var cover := Touch.cover([room.restore, room.job, room.collect])
+	room.add_child(cover)
+	cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_lay(room, area, layer)
 	_rooms[slot] = room
 

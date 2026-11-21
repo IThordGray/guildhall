@@ -54,7 +54,6 @@ var _press_at: Vector2 = Vector2.ZERO
 @onready var _training_xp: Label = $Box/Scroll/Content/Card/Header/Row/Words/Training/Xp
 @onready var _stop: Button = $Box/Scroll/Content/Card/Header/Row/Words/Training/Stop
 @onready var _train: Button = $Box/Scroll/Content/Card/Header/Row/Words/Training/Train
-@onready var _train_reason: Label = $Box/Scroll/Content/Card/Header/Row/Words/TrainReason
 @onready var _training_notes: Label = $Box/Scroll/Content/Card/Stats/Rows/TrainingNotes
 @onready var _history: VBoxContainer = $Box/Scroll/Content/Card/Stats/Rows/History
 @onready var _gear: GridContainer = $Box/Scroll/Content/GearColumn/Gear
@@ -130,8 +129,9 @@ func set_landscape(landscape: bool) -> void:
 		_show_gear(_gear_shown[1])
 
 
-## Shows `adventurer` as `dispatch` has them at `now`, with whether `gold` pays for their promotion
-## and whether one of `training_places` is free for them.
+## Shows `adventurer` as `dispatch` has them at `now`: Promote once they reach the level their next
+## rank needs, disabled with the reason when `gold` is short or they are out; Train only when one of
+## `training_places` would take them now.
 func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, training_places: int, now: int) -> void:
 	if adventurer != _adventurer:
 		var token := QuestBoard.token(adventurer, dispatch.adventurers.roster)
@@ -160,20 +160,18 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	_xp_text.text = xp_line(xp, needed, level + 1)
 	var next_rank := adventurers.next_rank(adventurer)
 	var reason := adventurers.promotion_refusal(adventurer, gold, not dispatch.quest_of(adventurer).is_empty())
-	_promote.visible = not next_rank.is_empty()
+	# Promote shows from the level the next rank needs; short of gold or out on a quest, it says why.
+	_promote.visible = not next_rank.is_empty() and level >= Adventurers.PROMOTIONS[next_rank]["level"]
 	_promote.text = "" if next_rank.is_empty() else "Promote to %s · %dg" % [next_rank, Adventurers.PROMOTIONS[next_rank]["gold"]]
 	_promote.disabled = not reason.is_empty()
 	_promote_reason.text = reason
 	_promote_reason.visible = _promote.visible and not reason.is_empty()
 	var training := dispatch.training.has(adventurer)
-	var train_reason := "" if training else dispatch.training_refusal(adventurer, training_places, now)
 	_training_xp.visible = training
 	_training_xp.text = "Training · +%d XP" % dispatch.training_xp(adventurer, now)
 	_stop.visible = training
-	_train.visible = not training
-	_train.disabled = not train_reason.is_empty()
-	_train_reason.text = train_reason
-	_train_reason.visible = not train_reason.is_empty()
+	# Train shows only when training would start now.
+	_train.visible = dispatch.training_refusal(adventurer, training_places, now).is_empty()
 	var hint := dispatch.training_hint(adventurer, now)
 	_training_notes.text = "Grows fastest in " + hint
 	_training_notes.visible = not hint.is_empty()

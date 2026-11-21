@@ -62,6 +62,11 @@ func _touch_drag(from: Vector2, to: Vector2) -> void:
 	await wait_process_frames(1)
 
 
+# The tap's slop in this viewport, in its pixels.
+func _slop() -> float:
+	return Touch.tap_slop_px(get_viewport().get_visible_rect().size)
+
+
 func _middle(control: Control) -> Vector2:
 	return control.get_global_rect().get_center()
 
@@ -72,7 +77,7 @@ func _assert_drag_scrolls_and_does_not_fire(scroll: ScrollContainer, button: Bas
 	assert_false(button.disabled)
 	assert_eq(scroll.scroll_vertical, 0)
 	var from := _middle(button)
-	var to := from + Vector2(0, -(Touch.TAP_SLOP_PX + 10))
+	var to := from + Vector2(0, -(_slop() + 10))
 	assert_true(button.get_global_rect().has_point(to))
 	await _touch_drag(from, to)
 	assert_gt(scroll.scroll_vertical, 0)
@@ -110,7 +115,9 @@ func test_a_drag_starting_on_a_hall_room_scrolls_the_hall_and_does_not_restore_i
 	await wait_process_frames(1)
 	var restore := hall_view.get_node("Scroll/Box/Columns/Left/Plan").find_children("*", "Button", true, false).filter(
 			func(button: Button) -> bool: return button.text == "Restore" and button.is_visible_in_tree())[0] as Button
-	await _assert_drag_scrolls_and_does_not_fire(hall_view.get_node("Scroll"), restore)
+	# The whole room is its Restore: the button over it, its last child.
+	var room := restore.get_parent().get_parent().get_parent() as Control
+	await _assert_drag_scrolls_and_does_not_fire(hall_view.get_node("Scroll"), room.get_child(-1) as Button)
 
 
 func test_a_drag_starting_on_a_board_quest_scrolls_the_board_and_does_not_send_it() -> void:
@@ -132,8 +139,8 @@ func test_a_tap_fires_even_when_the_finger_moves_a_little() -> void:
 	var row := _middle(_roster_row(roster, 1))
 	await _touch_drag(row, row)
 	assert_eq(_fired, 1)
-	await _touch_drag(row, row + Vector2(Touch.TAP_SLOP_PX - 2, 0))
-	await _touch_drag(row, row + Vector2(0, Touch.TAP_SLOP_PX - 2))
+	await _touch_drag(row, row + Vector2(_slop() - 2, 0))
+	await _touch_drag(row, row + Vector2(0, _slop() - 2))
 	assert_eq(_fired, 3)
 	assert_eq((roster.get_node("Scroll") as ScrollContainer).scroll_vertical, 0)
 
@@ -147,7 +154,7 @@ func test_moving_just_past_the_slop_fires_nothing_in_a_scroll_or_out_of_one() ->
 	picker.position.y = SCREEN_SIZE.y * 2
 	picker.open("rats", Dispatch.new(1_000), 1_000)
 	await wait_process_frames(1)
-	var past := Touch.TAP_SLOP_PX + 2
+	var past := _slop() + 2
 	var row := _middle(_roster_row(roster, 1))
 	await _touch_drag(row, row + Vector2(past, 0))
 	await _touch_drag(row, row + Vector2(0, past))
@@ -179,3 +186,126 @@ func test_the_mouse_wheel_still_scrolls_the_roster() -> void:
 	await wait_process_frames(1)
 	assert_gt((roster.get_node("Scroll") as ScrollContainer).scroll_vertical, 0)
 	assert_eq(_fired, 0)
+
+
+func test_the_slop_is_about_10_dp_on_a_phone_in_either_orientation() -> void:
+	# A 1080 × 2400 phone at a device pixel ratio of 2.6 shows the 1080-wide portrait viewport, or
+	# in landscape the 1080-high one, at one viewport pixel to the device pixel.
+	for visible: Vector2 in [Vector2(1080, 2400), Vector2(2400, 1080)]:
+		var slop_dp := Touch.tap_slop_px(visible) / 2.6
+		assert_between(slop_dp, 8.0, 11.0)
+	# Twice the viewport is twice the pixels: the same finger travel.
+	assert_eq(Touch.tap_slop_px(Vector2(2160, 4800)), 2.0 * Touch.tap_slop_px(Vector2(1080, 2400)))
+
+
+func _press(at: Vector2) -> void:
+	var press := InputEventScreenTouch.new()
+	press.pressed = true
+	press.position = at
+	_send(press)
+
+
+# Moves a finger held at `from` through each of `moves` in turn, a physics frame apart.
+func _move(from: Vector2, moves: Array[Vector2]) -> void:
+	for to: Vector2 in moves:
+		var drag := InputEventScreenDrag.new()
+		drag.position = to
+		drag.relative = to - from
+		_send(drag)
+		from = to
+		await wait_physics_frames(1)
+
+
+func _lift(at: Vector2) -> void:
+	var release := InputEventScreenTouch.new()
+	release.position = at
+	_send(release)
+
+
+func test_past_the_slop_the_content_follows_the_finger_one_to_one_without_jumping_by_the_slop() -> void:
+	var roster := _roster()
+	var scroll := roster.get_node("Scroll") as ScrollContainer
+	await wait_process_frames(1)
+	var row := _middle(_roster_row(roster, 1))
+	var at_slop := row - Vector2(0, _slop() - 1)
+	_press(row)
+	await _move(row, [at_slop])
+	assert_eq(scroll.scroll_vertical, 0)
+	# 4 pixels past it, the content has moved those 4, not the slop as well.
+	await _move(at_slop, [at_slop - Vector2(0, 5)])
+	assert_almost_eq(scroll.scroll_vertical, 4, 1)
+	await _move(at_slop - Vector2(0, 5), [at_slop - Vector2(0, 55), at_slop - Vector2(0, 105)])
+	assert_almost_eq(scroll.scroll_vertical, 104, 1)
+	_lift(at_slop - Vector2(0, 105))
+	assert_eq(_fired, 0)
+
+
+# Flings the roster up from `row` at 10 pixels a physics frame and lifts the finger while it moves.
+func _fling(row: Vector2) -> void:
+	var moves: Array[Vector2] = []
+	for i: int in range(1, 9):
+		moves.append(row - Vector2(0, 10 * i))
+	_press(row)
+	await _move(row, moves)
+	_lift(moves[-1])
+
+
+func test_a_fling_glides_to_a_stop_and_a_touch_during_it_stops_it_without_pressing_what_is_under_it() -> void:
+	var roster := _roster()
+	var scroll := roster.get_node("Scroll") as ScrollContainer
+	await wait_process_frames(1)
+	var row := _middle(_roster_row(roster, 1))
+	await _fling(row)
+	var lifted_at := scroll.scroll_vertical
+	await wait_physics_frames(3)
+	assert_gt(scroll.scroll_vertical, lifted_at)
+	# A tap mid-glide on someone stops it and opens nobody.
+	var tap := _middle(_roster_row(roster, 2))
+	_press(tap)
+	_lift(tap)
+	var stopped_at := scroll.scroll_vertical
+	await wait_physics_frames(10)
+	assert_eq(scroll.scroll_vertical, stopped_at)
+	assert_eq(_fired, 0)
+	assert_lt(stopped_at, (scroll.get_v_scroll_bar().max_value - scroll.size.y) as int)
+	# Still, the same tap opens them.
+	_press(tap)
+	_lift(tap)
+	assert_eq(_fired, 1)
+	# Left alone, a fling slows to a stop.
+	scroll.scroll_vertical = 0
+	await wait_process_frames(1)
+	await _fling(row)
+	var glided := scroll.scroll_vertical
+	await wait_physics_frames(300)
+	var settled := scroll.scroll_vertical
+	assert_gt(settled, glided)
+	await wait_physics_frames(10)
+	assert_eq(scroll.scroll_vertical, settled)
+
+
+func test_a_tap_anywhere_on_a_candidate_hires_them_and_does_nothing_while_the_hire_is_refused() -> void:
+	var roster := _screen("res://screens/roster.tscn") as Roster
+	var adventurers := Adventurers.new()
+	var recruits := Recruits.new()
+	recruits.refill(adventurers, 1_000)
+	roster.show_recruits(recruits, adventurers, Gold.new(0), Hall.MAX_ROSTER, 1_000)
+	roster.hire_pressed.connect(func(_slot: int) -> void: _fire())
+	var scroll := roster.get_node("Scroll") as ScrollContainer
+	await wait_process_frames(1)
+	scroll.scroll_vertical = 10_000
+	await wait_process_frames(1)
+	# The candidate's name, away from the Hire button.
+	var card := roster.get_node("Scroll/Box/Candidates").get_child(0) as Control
+	var hire := card.find_children("*", "Button", true, false)[0] as Button
+	var name_label := card.find_children("*", "Label", true, false)[0] as Label
+	assert_true(scroll.get_global_rect().has_point(_middle(name_label)))
+	assert_false(hire.get_global_rect().has_point(_middle(name_label)))
+	assert_true(hire.disabled)
+	await _touch_drag(_middle(name_label), _middle(name_label))
+	assert_eq(_fired, 0)
+	roster.show_recruits(recruits, adventurers, Gold.new(1_000), Hall.MAX_ROSTER, 1_000)
+	# Without the refusal's line, the card is laid out shorter on the next frame.
+	await wait_process_frames(1)
+	await _touch_drag(_middle(name_label), _middle(name_label))
+	assert_eq(_fired, 1)

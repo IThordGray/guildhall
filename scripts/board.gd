@@ -101,6 +101,19 @@ func seconds_to_refill(slot: int, dispatch: Dispatch, now: int) -> int:
 	return maxi(0, refill_at[slot] - maxi(maxi(now, dispatch.checked_at), checked_at))
 
 
+## Seconds from `now` until the soonest of the empty slots that is counting down refills; 0 when
+## every empty slot is due and waits for a quest to be free; -1 when no slot is empty.
+func seconds_to_next_refill(dispatch: Dispatch, now: int) -> int:
+	var soonest := -1
+	for slot: int in slots.size():
+		if slots[slot] != "":
+			continue
+		var left := seconds_to_refill(slot, dispatch, now)
+		if soonest <= 0 or (left > 0 and left < soonest):
+			soonest = left
+	return soonest
+
+
 ## Seconds from `now` until the Map room reveals `quest`'s unknown challenges; 0 once due, -1 when
 ## no reveal is coming: no Map room finished by then as the last refill was told, `quest` not on the
 ## board, or nothing about it unknown.

@@ -87,6 +87,21 @@ func test_each_slot_counts_down_on_its_own() -> void:
 	assert_false(recruits.candidates[1].is_empty())
 
 
+func test_the_next_refill_is_the_soonest_empty_slots_countdown_and_none_while_no_slot_is_empty() -> void:
+	var adventurers := Adventurers.new()
+	var recruits := _recruits(adventurers)
+	assert_eq(recruits.seconds_to_next_refill(START), -1)
+	# Slot 1 empties first, so it refills before slot 0.
+	_hire(recruits, 1, adventurers, START)
+	_hire(recruits, 0, adventurers, START + 600)
+	assert_eq(recruits.seconds_to_next_refill(START + 1_000), 800)
+	recruits.refill(adventurers, START + 1_800)
+	assert_false(recruits.candidates[1].is_empty())
+	assert_eq(recruits.seconds_to_next_refill(START + 1_800), 600)
+	recruits.refill(adventurers, START + 2_400)
+	assert_eq(recruits.seconds_to_next_refill(START + 2_400), -1)
+
+
 func test_one_refill_after_an_absence_gives_the_same_candidates_as_refilling_every_second() -> void:
 	var watched_guild := Adventurers.new()
 	var watched := _recruits(watched_guild)
