@@ -10,9 +10,14 @@ signal debrief_pressed(index: int)
 const DASH_LENGTH: float = 12.0
 ## How many times larger than its pixels a face shows: a whole number, so the pixels stay crisp.
 const FACE_SCALE: int = 3
+## How many times larger than its pixels a figure shows: the design's 80 × 108 on its 390-wide
+## phone, on the 1080-wide screen, to a whole number.
+const FIGURE_SCALE: int = 7
 
-## Each face shown so far, by its seed, as `face` makes it.
-static var _faces: Dictionary[int, Texture2D] = {}
+## What each adventurer wears, Gear.worn itself, so a token shows it; main sets it when a game opens.
+static var worn: Dictionary[String, Dictionary] = {}
+## Each person's look shown so far, by their face seed: one per adventurer or candidate shown.
+static var _looks: Dictionary[int, Look] = {}
 
 var _rows: Dictionary[String, Control] = {}
 ## Each quest's challenge chips, and how many of them were unknown when last shown, so they change
@@ -44,6 +49,17 @@ var _out_rows: Array[OutRow] = []
 class OutRow extends RefCounted:
 	var bar: ProgressBar
 	var time: Label
+
+
+## Someone's figure and face as they look in `items`, what they wore when the textures were drawn.
+## A change of items redraws the same textures, so every token and figure showing them changes at
+## once.
+class Look extends RefCounted:
+	var items: Dictionary = {}
+	## The figure at its own size, and as shown, by how many times larger.
+	var figure: Image
+	var figures: Dictionary[int, ImageTexture] = {}
+	var face: ImageTexture = ImageTexture.new()
 
 
 func _ready() -> void:
@@ -112,20 +128,21 @@ func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 				chip_shown.text = "? · " + Duration.label(reveal) if reveal > 0 else "?"
 
 
-## A round token: the face of `who` when they are in `roster` (Adventurers.roster), else `who` as
-## text, such as a count.
+## A round token: the face of `who` in what they wear when they are in `roster`
+## (Adventurers.roster), else `who` as text, such as a count.
 static func token(who: String, roster: Dictionary) -> Label:
 	if who in roster:
-		return face_token(Faces.seed_of(who, roster[who]))
+		return face_token(Faces.seed_of(who, roster[who]), worn.get(who, {}))
 	return _token(who)
 
 
-## A round token showing the face made from `face_seed`, such as a candidate's before they are hired.
-static func face_token(face_seed: int) -> Label:
+## A round token showing the face made from `face_seed` wearing `items`, such as a candidate's,
+## who wears nothing, before they are hired.
+static func face_token(face_seed: int, items: Dictionary = {}) -> Label:
 	var label := _token("")
 	# The face at FACE_SCALE, a whole number, so its pixels stay crisp, centred in the circle.
 	var picture := TextureRect.new()
-	picture.texture = face(face_seed)
+	picture.texture = face(face_seed, items)
 	picture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	picture.position = Vector2(10, 13)
@@ -144,14 +161,43 @@ static func _token(text: String) -> Label:
 	return label
 
 
-## The face made from `face_seed`, FACE_SCALE times its pixels. Each face is made once and kept, so
-## no more are kept than the guild has had adventurers and candidates.
-static func face(face_seed: int) -> Texture2D:
-	if face_seed not in _faces:
-		var image := Faces.image(face_seed)
-		image.resize(image.get_width() * FACE_SCALE, image.get_height() * FACE_SCALE, Image.INTERPOLATE_NEAREST)
-		_faces[face_seed] = ImageTexture.create_from_image(image)
-	return _faces[face_seed]
+## The face made from `face_seed` wearing `items`, FACE_SCALE times its pixels.
+static func face(face_seed: int, items: Dictionary = {}) -> Texture2D:
+	return _look(face_seed, items).face
+
+
+## The figure made from `face_seed` wearing `items`, `scale` times its pixels: a whole number, so
+## the pixels stay crisp.
+static func figure(face_seed: int, items: Dictionary, scale: int = FIGURE_SCALE) -> Texture2D:
+	var look := _look(face_seed, items)
+	if scale not in look.figures:
+		look.figures[scale] = ImageTexture.create_from_image(_scaled(look.figure, scale))
+	return look.figures[scale]
+
+
+# The look of whoever has `face_seed`, wearing `items`. It is drawn only when first shown and when
+# what they wear changes, and only their latest look is kept, so no more are kept than the guild
+# has had adventurers and candidates.
+static func _look(face_seed: int, items: Dictionary) -> Look:
+	var look: Look = _looks.get(face_seed)
+	if look != null and look.items == items:
+		return look
+	if look == null:
+		look = Look.new()
+		_looks[face_seed] = look
+	look.items = items.duplicate()
+	look.figure = Figures.image(face_seed, items)
+	for scale: int in look.figures:
+		look.figures[scale].set_image(_scaled(look.figure, scale))
+	look.face.set_image(_scaled(Faces.image(face_seed, items), FACE_SCALE))
+	return look
+
+
+# A copy of `image`, `scale` times larger, its pixels kept square and sharp.
+static func _scaled(image: Image, scale: int) -> Image:
+	var larger := image.duplicate() as Image
+	larger.resize(image.get_width() * scale, image.get_height() * scale, Image.INTERPOLATE_NEAREST)
+	return larger
 
 
 ## A challenge chip in `variation`: Chip, ChipCovered, ChipUncovered or ChipUnknown, the last with

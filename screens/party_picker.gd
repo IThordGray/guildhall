@@ -6,14 +6,15 @@ signal send_pressed(quest: String, party: PackedStringArray)
 ## The player is done with the quest picked without sending a party.
 signal back_pressed
 
-## The tick on a picked adventurer's card in landscape.
+## The tick on a picked adventurer's card.
 const TICK_SIZE_PX: float = 40.0
 const TICK_GOLD: Color = Color("#f2c14e")
 const TICK_MARK: Color = Color("#16131b")
-## The most landscape cards in a row; more wrap to the next.
+## The most cards in a row, in landscape and in portrait; more wrap to the next.
 const CARDS_ACROSS: int = 4
-## A portrait adventurer line's height.
-const LINE_HEIGHT_PX: float = 150.0
+const PORTRAIT_CARDS_ACROSS: int = 2
+## How many times larger than its pixels a figure shows on a docked card, so four fit across.
+const DOCKED_FIGURE_SCALE: int = 5
 ## In landscape the gaps between the picker's parts shrink to this, so the docked panel fits
 ## without scrolling.
 const LANDSCAPE_GAP_PX: int = 12
@@ -24,8 +25,9 @@ var _picked: PackedStringArray = PackedStringArray()
 ## someone joins or leaves.
 var _built: Array = []
 var _toggles: Dictionary[String, Button] = {}
-## Each adventurer's face for their landscape card, and the tick shown on it when picked.
-var _faces: Dictionary[String, Texture2D] = {}
+## Each adventurer's figure for their card: [in portrait, docked].
+var _figures: Dictionary[String, Array] = {}
+## The tick on each adventurer's card, shown when they are picked.
 var _ticks: Dictionary[String, Control] = {}
 ## The dispatch and time last shown, so picking someone can update the odds at once.
 var _dispatch: Dispatch
@@ -65,10 +67,10 @@ func _ready() -> void:
 	_portrait_panel = get_theme_stylebox(&"panel")
 
 
-## Landscape docks the picker beside the board, a panel whose adventurers are cards four across:
-## face, name, power and health, or their status when they can't go; Cancel drops the quest. Portrait
-## makes it a screen of its own, with no panel, one adventurer per line, and Back. Either way the
-## lines and forecast scroll above the reason and buttons.
+## Landscape docks the picker beside the board, a panel with the adventurers' cards four across;
+## Cancel drops the quest. Portrait makes it a screen of its own, with no panel, cards two across,
+## and Back. A card shows the adventurer's figure in their gear, name, power and health, or their
+## status when they can't go. Either way the cards and forecast scroll above the reason and buttons.
 func set_landscape(landscape: bool) -> void:
 	_docked = landscape
 	if landscape:
@@ -85,41 +87,41 @@ func set_landscape(landscape: bool) -> void:
 		show_dispatch(_dispatch, _now)
 
 
-# Each adventurer as a landscape card or a portrait line, as `_docked` says.
+# The cards as many across as `_docked` says.
 func _lay_out_toggles() -> void:
-	_list.columns = clampi(_toggles.size(), 1, CARDS_ACROSS) if _docked else 1
+	_list.columns = clampi(_toggles.size(), 1, CARDS_ACROSS if _docked else PORTRAIT_CARDS_ACROSS)
 	for adventurer: String in _toggles:
-		var toggle := _toggles[adventurer]
-		toggle.theme_type_variation = &"PickCard" if _docked else &""
-		toggle.custom_minimum_size.y = 0.0 if _docked else LINE_HEIGHT_PX
-		toggle.alignment = HORIZONTAL_ALIGNMENT_CENTER if _docked else HORIZONTAL_ALIGNMENT_LEFT
-		toggle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if _docked else TextServer.AUTOWRAP_OFF
-		toggle.icon = _faces[adventurer] if _docked else null
-		# A top icon makes room for itself even without one, so portrait keeps the defaults.
-		toggle.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER if _docked else HORIZONTAL_ALIGNMENT_LEFT
-		toggle.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP if _docked else VERTICAL_ALIGNMENT_CENTER
+		_toggles[adventurer].icon = _figures[adventurer][1 if _docked else 0]
 
 
-# One toggle per adventurer in `roster`, with their face for the landscape card; those picked
+# One card per adventurer in `adventurers`' roster, with their figure in their gear; those picked
 # stay picked.
-func _build(roster: Dictionary[String, Dictionary]) -> void:
+func _build(adventurers: Adventurers) -> void:
+	var roster := adventurers.roster
 	_built = roster.keys()
 	for toggle: Button in _toggles.values():
 		_list.remove_child(toggle)
 		toggle.queue_free()
 	_toggles.clear()
-	_faces.clear()
+	_figures.clear()
 	_ticks.clear()
 	for adventurer: String in roster:
+		var face_seed := Faces.seed_of(adventurer, roster[adventurer])
+		var worn: Dictionary = adventurers.gear.worn[adventurer]
+		_figures[adventurer] = [QuestBoard.figure(face_seed, worn), QuestBoard.figure(face_seed, worn, DOCKED_FIGURE_SCALE)]
 		var toggle := Button.new()
 		toggle.toggle_mode = true
+		toggle.theme_type_variation = &"PickCard"
 		toggle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		toggle.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		toggle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		toggle.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		toggle.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
 		toggle.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		toggle.set_pressed_no_signal(adventurer in _picked)
 		toggle.toggled.connect(_on_toggled.bind(adventurer))
 		_toggles[adventurer] = toggle
 		_list.add_child(toggle)
-		_faces[adventurer] = QuestBoard.face(Faces.seed_of(adventurer, roster[adventurer]))
 		var tick := Control.new()
 		tick.visible = false
 		tick.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -166,7 +168,7 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 	_now = now
 	var roster := dispatch.adventurers.roster
 	if roster.keys() != _built:
-		_build(roster)
+		_build(dispatch.adventurers)
 	for adventurer: String in _toggles:
 		var info: Dictionary = roster[adventurer]
 		var toggle := _toggles[adventurer]
@@ -174,14 +176,12 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 		var most := dispatch.adventurers.max_health(adventurer)
 		var power := dispatch.adventurers.power(adventurer)
 		var can_go := dispatch.can_go(adventurer, now)
-		if not _docked:
-			toggle.text = "%s · %s %s · power %d\n%s · health %d / %d" % [info["name"], info["class"], info["rank"], power, dispatch.status(adventurer, now), points, most]
-		elif can_go:
+		if can_go:
 			toggle.text = "%s\nPower %d\n%d / %d health" % [info["name"], power, points, most]
 		else:
 			toggle.text = "%s\n%s" % [info["name"], dispatch.status(adventurer, now)]
 		toggle.disabled = not can_go
-		_ticks[adventurer].visible = _docked and toggle.button_pressed
+		_ticks[adventurer].visible = toggle.button_pressed
 	var reason := dispatch.party_refusal(_quest, _picked, now)
 	_reason.text = reason
 	_reason.visible = not reason.is_empty()

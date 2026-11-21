@@ -97,10 +97,10 @@ func test_a_newcomer_shows_their_face_not_their_initial_in_a_token_and_on_the_la
 	picker.open("rats", _dispatch, 1_000)
 	var cards := picker.get_node("Root/Scroll/Box/List")
 	var card := cards.get_child(4) as Button
-	assert_eq(card.icon.get_size(), Vector2(60, 54))
+	assert_eq(card.icon.get_size(), Vector2(160, 220))
 	assert_eq(_texts(card), [] as Array[String])
 	# A starter's card shows their face, with no initial over it.
 	assert_eq(_texts(cards.get_child(0)), [] as Array[String])
 	await wait_process_frames(1)
 	picker.set_landscape(false)
-	assert_null(card.icon)
+	assert_eq(card.icon.get_size(), Vector2(224, 308))

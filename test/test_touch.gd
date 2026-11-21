@@ -104,7 +104,7 @@ func _roster_row(roster: Roster, index: int) -> Button:
 func test_a_drag_starting_on_an_adventurer_in_the_roster_scrolls_it_and_does_not_open_them() -> void:
 	var roster := _roster()
 	await wait_process_frames(1)
-	await _assert_drag_scrolls_and_does_not_fire(roster.get_node("Scroll"), _roster_row(roster, 1))
+	await _assert_drag_scrolls_and_does_not_fire(roster.get_node("Scroll"), _roster_row(roster, 0))
 
 
 func test_a_drag_starting_on_a_hall_room_scrolls_the_hall_and_does_not_restore_it() -> void:
@@ -136,7 +136,7 @@ func test_a_drag_starting_on_a_board_quest_scrolls_the_board_and_does_not_send_i
 func test_a_tap_fires_even_when_the_finger_moves_a_little() -> void:
 	var roster := _roster()
 	await wait_process_frames(1)
-	var row := _middle(_roster_row(roster, 1))
+	var row := _middle(_roster_row(roster, 0))
 	await _touch_drag(row, row)
 	assert_eq(_fired, 1)
 	await _touch_drag(row, row + Vector2(_slop() - 2, 0))
@@ -155,7 +155,7 @@ func test_moving_just_past_the_slop_fires_nothing_in_a_scroll_or_out_of_one() ->
 	picker.open("rats", Dispatch.new(1_000), 1_000)
 	await wait_process_frames(1)
 	var past := _slop() + 2
-	var row := _middle(_roster_row(roster, 1))
+	var row := _middle(_roster_row(roster, 0))
 	await _touch_drag(row, row + Vector2(past, 0))
 	await _touch_drag(row, row + Vector2(0, past))
 	# Outside any scroll: the start screen's New game.
@@ -168,7 +168,7 @@ func test_moving_just_past_the_slop_fires_nothing_in_a_scroll_or_out_of_one() ->
 	assert_false(toggle.button_pressed)
 	# The same presses, lifted where they started, fire.
 	await _touch_drag(new_game, new_game)
-	await _touch_drag(_middle(_roster_row(roster, 1)), _middle(_roster_row(roster, 1)))
+	await _touch_drag(_middle(_roster_row(roster, 0)), _middle(_roster_row(roster, 0)))
 	assert_eq(_fired, 2)
 	await _touch_drag(_middle(toggle), _middle(toggle))
 	assert_true(toggle.button_pressed)
@@ -181,7 +181,7 @@ func test_the_mouse_wheel_still_scrolls_the_roster() -> void:
 	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
 	wheel.pressed = true
 	wheel.factor = 1.0
-	wheel.position = _middle(_roster_row(roster, 1))
+	wheel.position = _middle(_roster_row(roster, 0))
 	_send(wheel)
 	await wait_process_frames(1)
 	assert_gt((roster.get_node("Scroll") as ScrollContainer).scroll_vertical, 0)
@@ -226,7 +226,7 @@ func test_past_the_slop_the_content_follows_the_finger_one_to_one_without_jumpin
 	var roster := _roster()
 	var scroll := roster.get_node("Scroll") as ScrollContainer
 	await wait_process_frames(1)
-	var row := _middle(_roster_row(roster, 1))
+	var row := _middle(_roster_row(roster, 0))
 	var at_slop := row - Vector2(0, _slop() - 1)
 	_press(row)
 	await _move(row, [at_slop])
@@ -254,13 +254,13 @@ func test_a_fling_glides_to_a_stop_and_a_touch_during_it_stops_it_without_pressi
 	var roster := _roster()
 	var scroll := roster.get_node("Scroll") as ScrollContainer
 	await wait_process_frames(1)
-	var row := _middle(_roster_row(roster, 1))
+	var row := _middle(_roster_row(roster, 0))
 	await _fling(row)
 	var lifted_at := scroll.scroll_vertical
 	await wait_physics_frames(3)
 	assert_gt(scroll.scroll_vertical, lifted_at)
 	# A tap mid-glide on someone stops it and opens nobody.
-	var tap := _middle(_roster_row(roster, 2))
+	var tap := _middle(_roster_row(roster, 1))
 	_press(tap)
 	_lift(tap)
 	var stopped_at := scroll.scroll_vertical

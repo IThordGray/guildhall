@@ -41,7 +41,7 @@ var _press_held: bool = false
 ## Where the held press started, in viewport pixels.
 var _press_at: Vector2 = Vector2.ZERO
 
-@onready var _token: Label = $Box/Scroll/Content/Card/Header/Row/Token
+@onready var _figure: TextureRect = $Box/Scroll/Content/Card/Header/Row/Figure
 @onready var _name: Label = $Box/Scroll/Content/Card/Header/Row/Words/NameLine/Name
 @onready var _status: Label = $Box/Scroll/Content/Card/Header/Row/Words/NameLine/Status
 @onready var _details: Label = $Box/Scroll/Content/Card/Header/Row/Words/Details
@@ -114,7 +114,7 @@ func _input(event: InputEvent) -> void:
 		swiped.emit(1 if travel.x < 0 else -1)
 
 
-## Landscape sets the card and the gear side by side: the card stacks its face, name and status,
+## Landscape sets the card and the gear side by side: the card stacks its figure, name and status,
 ## and its training XP and Stop, and the gear's cells are as narrow as their boxes. Portrait stacks
 ## the two. The gear goes four to a row either way.
 func set_landscape(landscape: bool) -> void:
@@ -133,17 +133,10 @@ func set_landscape(landscape: bool) -> void:
 ## rank needs, disabled with the reason when `gold` is short or they are out; Train only when one of
 ## `training_places` would take them now.
 func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, training_places: int, now: int) -> void:
-	if adventurer != _adventurer:
-		var token := QuestBoard.token(adventurer, dispatch.adventurers.roster)
-		token.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		# Not replace_by: it would move the old token's face onto the new one.
-		_token.add_sibling(token)
-		_token.get_parent().remove_child(_token)
-		_token.queue_free()
-		_token = token
 	_adventurer = adventurer
 	var adventurers := dispatch.adventurers
 	var info: Dictionary = adventurers.roster[adventurer]
+	_figure.texture = QuestBoard.figure(Faces.seed_of(adventurer, info), adventurers.gear.worn[adventurer])
 	var level: int = adventurers.levels[adventurer]
 	_name.text = info["name"]
 	_status.text = dispatch.status(adventurer, now)

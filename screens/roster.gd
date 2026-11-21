@@ -8,6 +8,9 @@ signal hire_pressed(slot: int)
 ## The player asked to see the guild's gear.
 signal armory_pressed
 
+## The space above and below the figure in an adventurer's row.
+const ROW_PADDING_PX: int = 22
+
 ## The adventurers the rows were built for, in roster order, so they are rebuilt only when someone
 ## joins or leaves.
 var _built: Array = []
@@ -34,7 +37,7 @@ func _ready() -> void:
 func show_dispatch(dispatch: Dispatch, now: int) -> void:
 	var roster := dispatch.adventurers.roster
 	if roster.keys() != _built:
-		_build(roster)
+		_build(dispatch.adventurers)
 	for adventurer: String in _statuses:
 		var info: Dictionary = roster[adventurer]
 		_details[adventurer].text = "%s · rank %s · level %d" % [info["class"], info["rank"], dispatch.adventurers.levels[adventurer]]
@@ -77,8 +80,10 @@ static func status_look(dispatch: Dispatch, adventurer: String, now: int) -> Str
 	return &"Secondary"
 
 
-# One row per adventurer in `roster`: their face, name, status, details and health.
-func _build(roster: Dictionary[String, Dictionary]) -> void:
+# One row per adventurer in `adventurers`' roster: their figure in their gear, name, status, details
+# and health.
+func _build(adventurers: Adventurers) -> void:
+	var roster := adventurers.roster
 	_built = roster.keys()
 	for row: Node in _list.get_children():
 		_list.remove_child(row)
@@ -109,10 +114,16 @@ func _build(roster: Dictionary[String, Dictionary]) -> void:
 		var line := HBoxContainer.new()
 		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		line.add_theme_constant_override("separation", 32)
-		line.add_child(QuestBoard.token(adventurer, roster))
+		var figure := TextureRect.new()
+		figure.texture = QuestBoard.figure(Faces.seed_of(adventurer, roster[adventurer]), adventurers.gear.worn[adventurer])
+		figure.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		figure.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		figure.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		line.add_child(figure)
 		line.add_child(words)
 		var row := Button.new()
-		row.custom_minimum_size = Vector2(0, 220)
+		# A button does not fit its children, so the row is made tall enough for the figure.
+		row.custom_minimum_size = Vector2(0, figure.texture.get_height() + 2 * ROW_PADDING_PX)
 		row.add_child(line)
 		line.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		line.offset_left = 36

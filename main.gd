@@ -126,6 +126,7 @@ func _open_game() -> void:
 	_gold = Gold.load_or_start(SAVE_PATH)
 	_hall = Hall.load_or_start(SAVE_PATH, now)
 	_dispatch = Dispatch.load_or_start(SAVE_PATH, now)
+	QuestBoard.worn = _dispatch.adventurers.gear.worn
 	_quest_board = Board.load_or_start(SAVE_PATH)
 	_recruits = Recruits.load_or_start(SAVE_PATH)
 	_arrive()
