@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=53 format=3]
+[gd_resource type="Theme" load_steps=55 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -236,11 +236,17 @@ corner_radius_bottom_left = 22
 bg_color = Color(0.1647, 0.1451, 0.2, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_plan"]
-bg_color = Color(0.051, 0.0431, 0.0667, 1)
+bg_color = Color(0.0588, 0.2118, 0.3922, 1)
 corner_radius_top_left = 11
 corner_radius_top_right = 11
 corner_radius_bottom_right = 11
 corner_radius_bottom_left = 11
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_plan_track"]
+bg_color = Color(0.8471, 0.9373, 1, 0.2)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_plan_fill"]
+bg_color = Color(1, 0.6353, 0.3412, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dim"]
 bg_color = Color(0, 0, 0, 0.6)
@@ -649,6 +655,9 @@ PickCard/styles/normal = SubResource("StyleBoxFlat_pick_card")
 PickCard/styles/pressed = SubResource("StyleBoxFlat_pick_card_pressed")
 Plan/base_type = &"Panel"
 Plan/styles/panel = SubResource("StyleBoxFlat_plan")
+PlanBar/base_type = &"ProgressBar"
+PlanBar/styles/background = SubResource("StyleBoxFlat_plan_track")
+PlanBar/styles/fill = SubResource("StyleBoxFlat_plan_fill")
 ProgressList/base_type = &"PanelContainer"
 ProgressList/styles/panel = SubResource("StyleBoxFlat_progress_list")
 ProgressRow/base_type = &"PanelContainer"
@@ -660,7 +669,9 @@ RangeBand/styles/panel = SubResource("StyleBoxFlat_bar_gold")
 RangeTrack/base_type = &"Panel"
 RangeTrack/styles/panel = SubResource("StyleBoxFlat_bar_track")
 RoomName/base_type = &"Heading"
-RoomName/font_sizes/font_size = 40
+RoomName/colors/font_color = Color(0.8471, 0.9373, 1, 1)
+RoomName/font_sizes/font_size = 28
+RoomName/fonts/font = ExtResource("2_mono")
 RowTitle/base_type = &"Heading"
 RowTitle/font_sizes/font_size = 39
 Secondary/base_type = &"Label"
