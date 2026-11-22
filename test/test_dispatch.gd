@@ -514,7 +514,7 @@ func test_a_party_out_and_an_injury_survive_save_and_load_with_the_same_outcome(
 	var loaded_gold := Gold.load_or_start(SAVE_PATH)
 	assert_eq(_statuses(loaded, 1_024), ["On quest: Gather moonherbs", "Resting", "Debrief waiting", "On quest: Gather moonherbs"])
 	assert_eq(loaded.injury_left("tobin", 1_024), 6)
-	assert_eq(loaded.debriefs, [{"quest": "goblins", "returned_at": 1_020, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 22}, "injured": {"tobin": 10}, "gold": 0, "xp": 3, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "paid": false, "xp_given": true}])
+	assert_eq(loaded.debriefs, [{"quest": "goblins", "returned_at": 1_020, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 22}, "injured": {"tobin": 10}, "gold": 0, "xp": 7, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "paid": false, "xp_given": true}])
 	assert_eq(loaded.outings[0]["seed"], roll_seed)
 	assert_eq(loaded.seconds_left(loaded.outings[0], 1_024), 5)
 	loaded.checkpoint(1_040)
@@ -559,7 +559,7 @@ func test_an_m3_save_with_the_party_out_pays_that_quest_in_full_on_return_with_n
 	dispatch.checkpoint(1_019)
 	assert_eq(gold.amount, 20)
 	dispatch.checkpoint(1_020)
-	assert_eq(dispatch.debriefs, [{"quest": "goblins", "returned_at": 1_020, "success": true, "party": PackedStringArray(), "damage": {}, "injured": {}, "gold": 42, "xp": 13, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "paid": false, "xp_given": true}])
+	assert_eq(dispatch.debriefs, [{"quest": "goblins", "returned_at": 1_020, "success": true, "party": PackedStringArray(), "damage": {}, "injured": {}, "gold": 42, "xp": 30, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(), "paid": false, "xp_given": true}])
 	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 62)
 	assert_eq(_statuses(dispatch, 1_020), ["Resting", "Resting", "Resting", "Resting"])
@@ -756,7 +756,7 @@ func test_a_clock_set_back_never_changes_an_injury_already_decided() -> void:
 
 
 var rats_debrief: Dictionary = {"quest": "rats", "returned_at": 1_012, "success": false, "party": PackedStringArray(["tobin"]), "damage": {"tobin": 12}, "injured": {}, "gold": 0, "xp": 1, "revealed": PackedStringArray(), "loot": PackedStringArray(), "paid": false, "xp_given": true}
-var goblins_debrief: Dictionary = {"quest": "goblins", "returned_at": 1_020, "success": true, "party": PackedStringArray(["bram", "ilse"]), "damage": {"bram": 8, "ilse": 10}, "injured": {}, "gold": 42, "xp": 6, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(["short_sword"]), "paid": false, "xp_given": true}
+var goblins_debrief: Dictionary = {"quest": "goblins", "returned_at": 1_020, "success": true, "party": PackedStringArray(["bram", "ilse"]), "damage": {"bram": 8, "ilse": 10}, "injured": {}, "gold": 42, "xp": 15, "revealed": PackedStringArray(["Navigation"]), "loot": PackedStringArray(["short_sword"]), "paid": false, "xp_given": true}
 
 
 ## Goblin camp succeeds for Bram and Ilse, sent at 1_000 (back at 1_020); Rats in the cellar
@@ -835,7 +835,7 @@ func test_debriefs_survive_save_and_load() -> void:
 
 
 ## Bram and Ilse sent at 1_000 on Goblin camp with a seed they succeed with and bring loot back
-## from: back at 1_020 with 42 gold, 6 XP each and the loot.
+## from: back at 1_020 with 42 gold, 15 XP each and the loot.
 func _goblins_with_loot() -> Dispatch:
 	var party: PackedStringArray = ["bram", "ilse"]
 	var chance := _guild(0).success_chance("goblins", party)
@@ -856,7 +856,7 @@ func test_after_a_return_its_xp_is_given_but_gold_and_the_stash_are_unchanged_an
 	assert_eq(dispatch.debriefs.size(), 1)
 	assert_eq(gold.amount, 100)
 	# XP comes home with the party, so a member can level up from the debrief.
-	assert_eq(_xp(dispatch), [6, 6, 0, 0])
+	assert_eq(_xp(dispatch), [15, 15, 0, 0])
 	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray())
 	assert_eq(_statuses(dispatch, 1_020), ["Debrief waiting", "Debrief waiting", "Resting", "Resting"])
 	assert_false(dispatch.can_go("bram", 1_020))
@@ -866,7 +866,7 @@ func test_after_a_return_its_xp_is_given_but_gold_and_the_stash_are_unchanged_an
 	# However long it waits unread, nothing more is paid and nobody is freed.
 	dispatch.checkpoint(9_000)
 	assert_eq(gold.amount, 100)
-	assert_eq(_xp(dispatch), [6, 6, 0, 0])
+	assert_eq(_xp(dispatch), [15, 15, 0, 0])
 	assert_false(dispatch.can_go("ilse", 9_000))
 
 
@@ -896,12 +896,12 @@ func test_reading_the_debrief_pays_exactly_its_gold_and_loot_gives_no_xp_twice_a
 	var item := Gear.loot(dispatch.outings[0]["seed"], "E")
 	dispatch.checkpoint(1_020)
 	assert_eq(dispatch.debriefs[0]["gold"], 42)
-	assert_eq(dispatch.debriefs[0]["xp"], 6)
+	assert_eq(dispatch.debriefs[0]["xp"], 15)
 	assert_eq(dispatch.debriefs[0]["loot"], PackedStringArray([item]))
 	dispatch.read_debrief(0, gold)
 	assert_true(dispatch.debriefs.is_empty())
 	assert_eq(gold.amount, 142)
-	assert_eq(_xp(dispatch), [6, 6, 0, 0])
+	assert_eq(_xp(dispatch), [15, 15, 0, 0])
 	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray([item]))
 	assert_eq(_statuses(dispatch, 1_020), ["Resting", "Resting", "Resting", "Resting"])
 	assert_true(dispatch.can_go("bram", 1_020))
@@ -999,7 +999,7 @@ func test_an_unpaid_debrief_survives_save_and_load_and_pays_once_when_read() -> 
 	assert_false(loaded.can_go("bram", 1_020))
 	loaded.read_debrief(0, loaded_gold)
 	assert_eq(loaded_gold.amount, 142)
-	assert_eq(_xp(loaded), [6, 6, 0, 0])
+	assert_eq(_xp(loaded), [15, 15, 0, 0])
 	assert_eq(loaded.adventurers.gear.stash, PackedStringArray([item]))
 	assert_true(loaded.can_go("bram", 1_020))
 	# Saved and loaded again, nothing is paid twice.
@@ -1011,7 +1011,7 @@ func test_an_unpaid_debrief_survives_save_and_load_and_pays_once_when_read() -> 
 	var again_gold := Gold.load_or_start(SAVE_PATH)
 	_read_all(again, again_gold)
 	assert_eq(again_gold.amount, 142)
-	assert_eq(_xp(again), [6, 6, 0, 0])
+	assert_eq(_xp(again), [15, 15, 0, 0])
 	assert_eq(again.adventurers.gear.stash, PackedStringArray([item]))
 
 
@@ -1102,17 +1102,17 @@ func test_every_member_of_a_returning_party_gains_an_equal_share_of_its_xp_and_a
 	dispatch.send("goblins", ["tobin"], _seed("goblins", ["tobin"], false), 1_000)
 	dispatch.checkpoint(1_005)
 	assert_eq(_xp(dispatch), [0, 0, 0, 0])
-	# Moonherbs gives 8 XP, 4 each for two; goblin camp 13, a quarter rounded down for failing: 3.
+	# Moonherbs gives 8 XP, 4 each for two; goblin camp 30, a quarter rounded down for failing: 7.
 	dispatch.checkpoint(1_006)
 	assert_eq(dispatch.debriefs[0]["xp"], 4)
 	_read_all(dispatch, gold)
 	assert_eq(_xp(dispatch), [4, 0, 0, 4])
 	dispatch.checkpoint(1_020)
-	assert_eq(dispatch.debriefs[0]["xp"], 3)
+	assert_eq(dispatch.debriefs[0]["xp"], 7)
 	_read_all(dispatch, gold)
-	assert_eq(_xp(dispatch), [4, 0, 3, 4])
+	assert_eq(_xp(dispatch), [4, 0, 7, 4])
 	dispatch.checkpoint(5_000)
-	assert_eq(_xp(dispatch), [4, 0, 3, 4])
+	assert_eq(_xp(dispatch), [4, 0, 7, 4])
 
 
 ## The debrief XP and each starter's XP after `party` comes back from `quest`, sent with a seed
@@ -1129,14 +1129,14 @@ func test_a_solo_member_gains_a_quests_whole_xp_and_each_of_four_a_quarter_round
 	assert_eq(_xp_from("cartographer", ["bram"], true), [7, [7, 0, 0, 0]])
 	assert_eq(_xp_from("cartographer", PackedStringArray(EVERYONE), true), [1, [1, 1, 1, 1]])
 	assert_eq(_xp_from("rats", ["bram", "tobin"], true), [2, [2, 0, 2, 0]])
-	# Goblin camp gives 13 XP: 3 each for four.
-	assert_eq(_xp_from("goblins", ["tobin"], true), [13, [0, 0, 13, 0]])
-	assert_eq(_xp_from("goblins", PackedStringArray(EVERYONE), true), [3, [3, 3, 3, 3]])
+	# Goblin camp gives 30 XP: 7 each for four.
+	assert_eq(_xp_from("goblins", ["tobin"], true), [30, [0, 0, 30, 0]])
+	assert_eq(_xp_from("goblins", PackedStringArray(EVERYONE), true), [7, [7, 7, 7, 7]])
 
 
 func test_a_failure_pays_no_gold_and_a_quarter_of_the_xp_but_at_least_1_shared_by_the_party() -> void:
-	# Goblin camp's 13 XP, a quarter rounded down for failing: 3 alone, and at least 1 each for four.
-	assert_eq(_xp_from("goblins", ["tobin"], false), [3, [0, 0, 3, 0]])
+	# Goblin camp's 30 XP, a quarter rounded down for failing: 7 alone, and at least 1 each for four.
+	assert_eq(_xp_from("goblins", ["tobin"], false), [7, [0, 0, 7, 0]])
 	assert_eq(_xp_from("goblins", PackedStringArray(EVERYONE), false), [1, [1, 1, 1, 1]])
 	# Rats' 4 XP: a quarter is 1; two would share it as 0 each, but every member gains at least 1.
 	assert_eq(_xp_from("rats", ["tobin"], false), [1, [0, 0, 1, 0]])
@@ -1149,11 +1149,11 @@ func test_a_failure_pays_no_gold_and_a_quarter_of_the_xp_but_at_least_1_shared_b
 	assert_eq(dispatch.debriefs[0]["gold"], 0)
 	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 50)
-	assert_eq(_xp(dispatch), [0, 0, 3, 0])
+	assert_eq(_xp(dispatch), [0, 0, 7, 0])
 
 
 func test_a_success_pays_each_quests_new_gold_in_its_debrief() -> void:
-	var expected := {"rats": 3, "well": 5, "letters": 7, "spiders": 7, "cartographer": 8, "mouth": 8, "moonherbs": 10, "wolves": 22, "sealed_door": 25, "lurker": 30, "crypt": 33, "pilgrims": 38, "goblins": 42, "maze": 58, "chapel": 67, "minotaur": 75, "envoy": 83, "vault": 100}
+	var expected := {"rats": 3, "well": 5, "letters": 7, "spiders": 7, "cartographer": 8, "mouth": 8, "moonherbs": 10, "wolves": 22, "sealed_door": 25, "lurker": 30, "crypt": 33, "pilgrims": 38, "goblins": 42, "maze": 87, "chapel": 100, "minotaur": 113, "envoy": 125, "vault": 150}
 	var paid := {}
 	for quest: String in Dispatch.QUESTS:
 		var dispatch := _guild(1_000)
@@ -1167,7 +1167,7 @@ func test_a_success_pays_each_quests_new_gold_in_its_debrief() -> void:
 
 func test_each_quest_takes_its_own_seconds_and_a_success_gives_its_party_its_own_xp() -> void:
 	var seconds := {"rats": 2, "well": 3, "letters": 4, "spiders": 4, "cartographer": 5, "mouth": 5, "moonherbs": 6, "wolves": 10, "sealed_door": 12, "lurker": 14, "crypt": 16, "pilgrims": 18, "goblins": 20, "maze": 30, "chapel": 36, "minotaur": 40, "envoy": 50, "vault": 60}
-	var xp := {"rats": 4, "well": 5, "letters": 6, "spiders": 6, "cartographer": 7, "mouth": 7, "moonherbs": 8, "wolves": 7, "sealed_door": 8, "lurker": 9, "crypt": 11, "pilgrims": 12, "goblins": 13, "maze": 20, "chapel": 24, "minotaur": 27, "envoy": 33, "vault": 40}
+	var xp := {"rats": 4, "well": 5, "letters": 6, "spiders": 6, "cartographer": 7, "mouth": 7, "moonherbs": 8, "wolves": 15, "sealed_door": 18, "lurker": 21, "crypt": 24, "pilgrims": 27, "goblins": 30, "maze": 50, "chapel": 60, "minotaur": 67, "envoy": 83, "vault": 100}
 	var took := {}
 	var gave := {}
 	for quest: String in Dispatch.QUESTS:
@@ -1209,13 +1209,13 @@ func test_xp_banks_past_several_level_ups_and_an_adventurer_with_one_waiting_can
 	var dispatch := _guild(1_000)
 	var party: PackedStringArray = ["bram", "ilse"]
 	var now := 1_000
-	for quest: int in 5:
+	for quest: int in 2:
 		assert_true(dispatch.send("goblins", party, _seed("goblins", party, true), now))
 		# Back after 20 s, then healed to full before the next.
 		now += 1_000
 		dispatch.checkpoint(now)
 		_read_all(dispatch, gold)
-	# 6 XP each a goblin camp shared by two: five are enough for level 2 (10) and level 3 (20).
+	# 15 XP each a goblin camp shared by two: two are enough for level 2 (10) and level 3 (20).
 	assert_eq(dispatch.adventurers.xp["bram"], 30)
 	assert_true(dispatch.adventurers.level_up_ready("bram"))
 	assert_true(dispatch.can_go("bram", now))
