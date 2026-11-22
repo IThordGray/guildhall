@@ -52,12 +52,15 @@ it merges. Screens and wording live in the code.
 - The board has a fixed number of slots. Sending a quest empties its slot, which refills after its
   own countdown with a quest not on the board and not out, whatever the outcome. Refills depend only
   on saved timestamps, so being away gives the same board as watching.
-- The board offers only quests at most one rank above the guild's highest-ranked adventurer. A
-  player action that changes a rank brings the board up to date first.
+- The board offers only quests at most one rank above the guild's highest-ranked adventurer, and
+  only of the guild's rank or one either side, weighted toward the guild's own (R−1 10%, R 70%,
+  R+1 20%). A player action that changes a rank brings the board up to date first.
 - A party's chance of success and each member's health are fixed when it leaves; nothing done
   while it is out changes how the quest ends. Nobody heals while out.
 - A returning party's damage, injuries, healing and XP count from its return, so members can level
   up from the debrief; its gold and loot are paid, and its members free for new quests, only when
   its debrief is read. A debrief pays once.
 - A quest's XP is the party's total: each member gains the total ÷ party size, rounded down. A
-  failed quest pays no gold and a quarter of the XP.
+  failed quest pays no gold and a quarter of the XP, at least 1.
+- The guild learns its quests: every party back from a quest, whatever the outcome, adds 1 point to
+  that quest's chance, up to +15. It counts in the chance shown and is fixed when a party leaves.

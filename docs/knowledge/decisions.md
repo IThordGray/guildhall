@@ -18,10 +18,14 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** guild
-  rank (spec: Guild rank) G2: reputation and ranking up at Reception to E (the ground-floor wing,
-  E quests, Storeroom, Infirmary, Quest hall); G3 room tiers. Death
-  stays deferred: its own decision.
+- **Now:** play notes 3: anyone can be anything (nine stats incl. Endurance, Presence, Luck;
+  challenges test weighted stats, the weakest counted twice; gear adds more and shapes growth;
+  titles from the top two stats; Luck's lucky break), then walk-ins (free, a hidden 3–7 min
+  arrival, swap when beds are full, dismiss).
+- **Next:** guild rank (spec: Guild rank) G2: reputation and ranking up at Reception to E (the
+  ground-floor wing, E quests, Storeroom, Infirmary, Quest hall); G3 room tiers. Walk-ins come
+  faster as reputation grows. Death starts at rank C quests, built when C quests exist.
+- Single-player for good: no multiplayer is planned.
 - **Later, not planned yet:** battery use (a phone emptied in a day of play: frames drawn while
   nothing moves, low-processor mode, pausing when hidden); Quest hall extras, the labyrinth.
 - Screens follow the v2 designs (linked from the spec).
@@ -66,7 +70,9 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   Reception gives 2 beds, 1 candidate slot, 2 board slots, stash of 6; Bunk room and Common room
   only) · Hall icons (rooms show name and one icon; restore and extend confirm in a small sheet). · Quiet floor plan (designed on the canvas: game
   colours, faint furniture per room type, building centred, no faces or unbuilt outlines; the
-  confirmation is a centred card).
+  confirmation is a centred card). · Pacing (every timer ÷30 and quest rewards ÷3 after play at
+  ×60; F quests easy for the two starters; the board's ranks weighted by the guild's rank; the
+  guild learns a quest, +1 a try up to +15).
 
 ## Stack
 
