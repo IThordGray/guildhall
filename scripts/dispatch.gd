@@ -524,10 +524,11 @@ func _bring_home(outing: Dictionary) -> void:
 	if not revealing.is_empty():
 		revealed.append(outing["quest"])
 	tries[outing["quest"]] = int(tries.get(outing["quest"], 0)) + 1
-	# The party shares the quest's XP, each member gaining an equal part, rounded down, so a member of
-	# a big party may gain 0 from a small quest. A party with no members gains nothing, and its
+	# The party shares the quest's XP, each member gaining an equal part, rounded down, but at least 1,
+	# so nobody comes back from a quest with nothing. A party with no members gains nothing, and its
 	# debrief keeps the whole.
-	var xp := floori(Adventurers.quest_xp(quest["xp"], success) / float(maxi(1, party.size())))
+	var whole := Adventurers.quest_xp(quest["xp"], success)
+	var xp := whole if party.is_empty() else maxi(1, floori(whole / float(party.size())))
 	for adventurer: String in party:
 		adventurers.gain_xp(adventurer, xp)
 	# Loot comes whatever the outcome, from the seed the party left with.

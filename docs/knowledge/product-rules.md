@@ -65,7 +65,7 @@ it merges. Screens and wording live in the code.
 - A returning party's damage, injuries, healing and XP count from its return, so members can level
   up from the debrief; its gold and loot are paid, and its members free for new quests, only when
   its debrief is read. A debrief pays once.
-- A quest's XP is the party's total: each member gains the total ÷ party size, rounded down. A
+- A quest's XP is the party's total: each member gains the total ÷ party size, rounded down, but at least 1. A
   failed quest pays no gold and a quarter of the XP, at least 1.
 - Anyone can be anything: there are no classes. A challenge tests the party's weighted stats, gear
   included, and a quest's chance averages its challenges with the weakest counted twice. Gear

@@ -303,8 +303,8 @@ func test_a_success_pays_the_full_reward_and_injures_nobody() -> void:
 	var dispatch := _guild(1_000)
 	dispatch.send("rats", ["bram", "maren"], _seed("rats", ["bram", "maren"], true), 1_000)
 	dispatch.checkpoint(1_002)
-	# Rats' 1 XP shared by two is 0 each.
-	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_002, "success": true, "party": PackedStringArray(["bram", "maren"]), "damage": {"bram": 4, "maren": 1}, "injured": {}, "gold": 3, "xp": 0, "revealed": PackedStringArray(), "loot": PackedStringArray(), "paid": false, "xp_given": true}])
+	# Rats' 1 XP shared by two would be 0 each, but every member gains at least 1.
+	assert_eq(dispatch.debriefs, [{"quest": "rats", "returned_at": 1_002, "success": true, "party": PackedStringArray(["bram", "maren"]), "damage": {"bram": 4, "maren": 1}, "injured": {}, "gold": 3, "xp": 1, "revealed": PackedStringArray(), "loot": PackedStringArray(), "paid": false, "xp_given": true}])
 	_read_all(dispatch, gold)
 	assert_eq(gold.amount, 8)
 	assert_eq(_statuses(dispatch, 1_002), ["Resting", "Resting", "Resting", "Resting"])
@@ -779,8 +779,8 @@ func test_a_returned_party_adds_a_debrief_with_its_quest_result_party_injured_me
 	dispatch.checkpoint(1_125, hall.first_done_at("infirmary"))
 	assert_true(dispatch.debriefs.is_empty())
 	dispatch.checkpoint(1_200, hall.first_done_at("infirmary"))
-	# A failure's 1 XP shared by three is 0 each.
-	assert_eq(dispatch.debriefs, [{"quest": "moonherbs", "returned_at": 1_126, "success": false, "party": PARTY, "damage": {"bram": 5, "ilse": 8, "tobin": 8}, "injured": {"tobin": 5}, "gold": 0, "xp": 0, "revealed": PackedStringArray(["Attrition"]), "loot": PackedStringArray(["leather_jerkin"]), "paid": false, "xp_given": true}])
+	# A failure's 1 XP shared by three would be 0 each, but every member gains at least 1.
+	assert_eq(dispatch.debriefs, [{"quest": "moonherbs", "returned_at": 1_126, "success": false, "party": PARTY, "damage": {"bram": 5, "ilse": 8, "tobin": 8}, "injured": {"tobin": 5}, "gold": 0, "xp": 1, "revealed": PackedStringArray(["Attrition"]), "loot": PackedStringArray(["leather_jerkin"]), "paid": false, "xp_given": true}])
 
 
 func test_two_returns_give_two_debriefs_in_the_order_they_came_back() -> void:
@@ -1124,20 +1124,21 @@ func _xp_from(quest: String, party: PackedStringArray, success: bool) -> Array:
 	return [dispatch.debriefs[0]["xp"], _xp(dispatch)]
 
 
-func test_a_solo_member_gains_a_quests_whole_xp_and_each_of_four_a_quarter_rounded_down_maybe_0() -> void:
-	# Escorting the cartographer gives 3 XP: four share it as 0 each, so a small quest in a big
-	# party can give a member nothing.
+func test_a_solo_member_gains_a_quests_whole_xp_and_each_of_four_a_quarter_rounded_down_but_at_least_1() -> void:
+	# Escorting the cartographer gives 3 XP: four would share it as 0 each, but every member gains
+	# at least 1. Rats gives 1 XP: two gain 1 each.
 	assert_eq(_xp_from("cartographer", ["bram"], true), [3, [3, 0, 0, 0]])
-	assert_eq(_xp_from("cartographer", PackedStringArray(EVERYONE), true), [0, [0, 0, 0, 0]])
+	assert_eq(_xp_from("cartographer", PackedStringArray(EVERYONE), true), [1, [1, 1, 1, 1]])
+	assert_eq(_xp_from("rats", ["bram", "tobin"], true), [1, [1, 0, 1, 0]])
 	# Goblin camp gives 13 XP: 3 each for four.
 	assert_eq(_xp_from("goblins", ["tobin"], true), [13, [0, 0, 13, 0]])
 	assert_eq(_xp_from("goblins", PackedStringArray(EVERYONE), true), [3, [3, 3, 3, 3]])
 
 
 func test_a_failure_pays_no_gold_and_a_quarter_of_the_xp_but_at_least_1_shared_by_the_party() -> void:
-	# Goblin camp's 13 XP, a quarter rounded down for failing: 3 alone, 0 each for four.
+	# Goblin camp's 13 XP, a quarter rounded down for failing: 3 alone, and at least 1 each for four.
 	assert_eq(_xp_from("goblins", ["tobin"], false), [3, [0, 0, 3, 0]])
-	assert_eq(_xp_from("goblins", PackedStringArray(EVERYONE), false), [0, [0, 0, 0, 0]])
+	assert_eq(_xp_from("goblins", PackedStringArray(EVERYONE), false), [1, [1, 1, 1, 1]])
 	# Rats' 1 XP: a quarter rounds down to 0, but a failure gives at least 1.
 	assert_eq(_xp_from("rats", ["tobin"], false), [1, [0, 0, 1, 0]])
 	var gold := Gold.new(50)
