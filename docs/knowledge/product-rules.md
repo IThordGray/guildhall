@@ -19,8 +19,9 @@ it merges. Screens and wording live in the code.
 - Portrait 9:16 and landscape, picked by the window's shape. Gold and how many parties are out are
   always on screen: in portrait in the top bar, in landscape in the left rail and screen headers.
 - No dialogs or overlay panels: everything opens as a full screen with Back (the landscape party
-  picker docks beside the board). The one exception: an action that spends (restore, extend) confirms
-  in a small centred card showing only its cost and time, with Cancel and the action. Any scroll scrolls by dragging anywhere on it, and a control fires
+  picker docks beside the board). The one exception: an action that spends (restore, extend) or lets an
+  adventurer go (dismiss, swap) confirms in a small centred card showing only its cost and time, or
+  what leaves with them, with Cancel and the action. Any scroll scrolls by dragging anywhere on it, and a control fires
   only on a tap that stayed within about 10 dp; a press that turns into a drag never fires. A card
   with only one action does it from a tap anywhere on it.
 - A list of slots shows what can be acted on first, then at most one line for the soonest refill.
@@ -30,6 +31,10 @@ it merges. Screens and wording live in the code.
 
 - The roster never holds more adventurers than the guild has beds. A hire is refused with nothing
   changed when gold is short or every bed is taken.
+- Walk-ins arrive one at a time, a hidden 3–7 minutes apart, from saved timestamps and seeds only;
+  each waits until the next arrives. Accepting is free and needs a bed; with every bed taken, a
+  walk-in can be swapped for a current adventurer. Dismissing returns gear to the stash where it
+  fits; nobody out, training or waiting on a debrief, and never the last adventurer, can go.
 - Candidate slots refill from saved timestamps only, like the quest board: being away gives the same
   candidates as watching.
 - Taverns and training fill from saved timestamps only, up to their cap. Gold held changes only by
