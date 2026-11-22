@@ -33,9 +33,6 @@ const GROWTH: Dictionary[String, Dictionary] = {
 }
 ## XP to go from level L to L + 1 is this times L.
 const XP_PER_LEVEL: int = 40
-## A successful quest gives its party one XP per this many quest seconds, shared by its members; a
-## failed one a quarter of that.
-const QUEST_SECONDS_PER_XP: int = 15
 ## Maximum health is this plus HEALTH_PER_GRIT per point of Grit and HEALTH_PER_LEVEL per level
 ## past the first (stand-ins), so a member failing a quest of the rank their level reaches is
 ## injured about half to three quarters of the time, not almost always.
@@ -102,11 +99,11 @@ func max_health(adventurer: String) -> int:
 	return BASE_HEALTH + HEALTH_PER_GRIT * stat_total(adventurer, "grit") + HEALTH_PER_LEVEL * (levels[adventurer] - 1)
 
 
-## The XP a party gains in all from a quest of `quest_seconds` that ended in `success`: on a failure
-## a quarter of a success's, rounded down. Each member gains an equal part (see Dispatch).
-static func quest_xp(quest_seconds: int, success: bool) -> int:
-	var full := floori(quest_seconds / float(QUEST_SECONDS_PER_XP))
-	return full if success else floori(full / 4.0)
+## The XP a party gains in all from a quest whose success gives `full` (Dispatch.QUESTS "xp") that
+## ended in `success`: on a failure a quarter of that, rounded down, but at least 1, so even a
+## failure teaches something. Each member gains an equal part (see Dispatch).
+static func quest_xp(full: int, success: bool) -> int:
+	return full if success else maxi(1, floori(full / 4.0))
 
 
 func gain_xp(adventurer: String, amount: int) -> void:

@@ -89,15 +89,15 @@ func test_a_hire_costs_100_gold_adds_the_candidate_last_at_level_1_and_empties_t
 	assert_false(recruits.candidates[0].is_empty())
 
 
-func test_an_emptied_slot_refills_exactly_1800_seconds_after_the_hire_and_not_before() -> void:
+func test_an_emptied_slot_refills_exactly_60_seconds_after_the_hire_and_not_before() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	_hire(recruits, 0, adventurers, START + 100)
-	assert_eq(recruits.seconds_to_refill(0, START + 100), 1_800)
-	recruits.refill(adventurers, START + 1_899)
+	assert_eq(recruits.seconds_to_refill(0, START + 100), 60)
+	recruits.refill(adventurers, START + 159)
 	assert_true(recruits.candidates[0].is_empty())
-	assert_eq(recruits.seconds_to_refill(0, START + 1_899), 1)
-	recruits.refill(adventurers, START + 1_900)
+	assert_eq(recruits.seconds_to_refill(0, START + 159), 1)
+	recruits.refill(adventurers, START + 160)
 	assert_false(recruits.candidates[0].is_empty())
 
 
@@ -105,12 +105,12 @@ func test_each_slot_counts_down_on_its_own() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	_hire(recruits, 0, adventurers, START)
-	_hire(recruits, 1, adventurers, START + 600)
-	recruits.refill(adventurers, START + 1_800)
+	_hire(recruits, 1, adventurers, START + 20)
+	recruits.refill(adventurers, START + 60)
 	assert_false(recruits.candidates[0].is_empty())
 	assert_true(recruits.candidates[1].is_empty())
-	assert_eq(recruits.seconds_to_refill(1, START + 1_800), 600)
-	recruits.refill(adventurers, START + 2_400)
+	assert_eq(recruits.seconds_to_refill(1, START + 60), 20)
+	recruits.refill(adventurers, START + 80)
 	assert_false(recruits.candidates[1].is_empty())
 
 
@@ -120,13 +120,13 @@ func test_the_next_refill_is_the_soonest_empty_slots_countdown_and_none_while_no
 	assert_eq(recruits.seconds_to_next_refill(START), -1)
 	# Slot 1 empties first, so it refills before slot 0.
 	_hire(recruits, 1, adventurers, START)
-	_hire(recruits, 0, adventurers, START + 600)
-	assert_eq(recruits.seconds_to_next_refill(START + 1_000), 800)
-	recruits.refill(adventurers, START + 1_800)
+	_hire(recruits, 0, adventurers, START + 20)
+	assert_eq(recruits.seconds_to_next_refill(START + 33), 27)
+	recruits.refill(adventurers, START + 60)
 	assert_false(recruits.candidates[1].is_empty())
-	assert_eq(recruits.seconds_to_next_refill(START + 1_800), 600)
-	recruits.refill(adventurers, START + 2_400)
-	assert_eq(recruits.seconds_to_next_refill(START + 2_400), -1)
+	assert_eq(recruits.seconds_to_next_refill(START + 60), 20)
+	recruits.refill(adventurers, START + 80)
+	assert_eq(recruits.seconds_to_next_refill(START + 80), -1)
 
 
 func test_one_refill_after_an_absence_gives_the_same_candidates_as_refilling_every_second() -> void:
@@ -155,16 +155,16 @@ func test_a_clock_set_back_neither_undoes_a_refill_nor_restarts_a_countdown() ->
 	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	_hire(recruits, 0, adventurers, START)
-	_hire(recruits, 1, adventurers, START + 1_000)
-	recruits.refill(adventurers, START + 1_800)
+	_hire(recruits, 1, adventurers, START + 30)
+	recruits.refill(adventurers, START + 60)
 	var refilled := recruits.candidates[0]
 	assert_false(refilled.is_empty())
 
 	recruits.refill(adventurers, START)
 	assert_eq(recruits.candidates[0], refilled)
 	assert_true(recruits.candidates[1].is_empty())
-	assert_eq(recruits.seconds_to_refill(1, START), 1_000)
-	recruits.refill(adventurers, START + 2_800)
+	assert_eq(recruits.seconds_to_refill(1, START), 30)
+	recruits.refill(adventurers, START + 90)
 	assert_false(recruits.candidates[1].is_empty())
 
 
@@ -182,9 +182,9 @@ func test_candidates_and_countdowns_survive_save_and_load() -> void:
 	assert_eq(loaded.candidates, recruits.candidates)
 	assert_eq(loaded.refill_at, recruits.refill_at)
 	assert_eq(loaded.checked_at, START + 50)
-	assert_eq(loaded.seconds_to_refill(1, START + 50), 1_800)
-	loaded.refill(loaded_guild, START + 1_850)
-	recruits.refill(adventurers, START + 1_850)
+	assert_eq(loaded.seconds_to_refill(1, START + 50), 60)
+	loaded.refill(loaded_guild, START + 110)
+	recruits.refill(adventurers, START + 110)
 	assert_false(loaded.candidates[1].is_empty())
 	assert_eq(loaded.candidates, recruits.candidates)
 
@@ -477,8 +477,8 @@ func test_a_clock_set_back_neither_removes_a_common_room_slot_nor_restarts_its_c
 	recruits.refill(adventurers, START, rooms)
 	assert_eq(recruits.candidates.size(), 3)
 	assert_true(recruits.candidates[2].is_empty())
-	assert_eq(recruits.seconds_to_refill(2, START), 1_800)
-	recruits.refill(adventurers, START + 2_800, rooms)
+	assert_eq(recruits.seconds_to_refill(2, START), 60)
+	recruits.refill(adventurers, START + 1_060, rooms)
 	assert_false(recruits.candidates[2].is_empty())
 
 

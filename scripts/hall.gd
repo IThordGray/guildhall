@@ -8,10 +8,10 @@ enum State { USABLE, DAMAGED, RESTORING, RESTORED, CONVERTING, CONVERTED, UNBUIL
 ## What restoring a room costs and takes, by the order rooms are restored in: the first room the
 ## first entry, and so on; any after the last, the last (stand-ins). Cheap and quick first.
 const RESTORES: Array[Dictionary] = [
-	{"gold": 60, "seconds": 30},
-	{"gold": 120, "seconds": 120},
-	{"gold": 200, "seconds": 300},
-	{"gold": 300, "seconds": 600},
+	{"gold": 60, "seconds": 1},
+	{"gold": 120, "seconds": 4},
+	{"gold": 200, "seconds": 10},
+	{"gold": 300, "seconds": 20},
 ]
 ## Rooms usable from the start, where the hall has them; every other ground-floor room starts damaged.
 const STARTING_USABLE: Array[String] = ["entrance", "reception"]
@@ -32,7 +32,7 @@ const STARTING_RANK: String = "F"
 ## Extending the hall builds the First floor: what it costs and takes, done by the builder like a
 ## restoration, and how many rooms must be restored first (stand-ins).
 const EXTEND_GOLD: int = 400
-const EXTEND_SECONDS: int = 600
+const EXTEND_SECONDS: int = 20
 const EXTEND_AFTER_RESTORES: int = 3
 ## The guild rank extending needs.
 const EXTEND_RANK: String = "E"
@@ -45,18 +45,18 @@ const EXTENSION: String = "first_floor"
 ## building another. The save and the art refer to a type by its id. What a type does is applied
 ## where its effect is: see Dispatch.
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
-	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "rank": "E", "gold": 60, "seconds": 60},
-	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "rank": "E", "gold": 60, "seconds": 60},
-	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "rank": "F", "gold": 60, "seconds": 60},
-	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "rank": "D", "gold": 60, "seconds": 60},
-	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "rank": "D", "gold": 60, "seconds": 60},
-	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "rank": "D", "gold": 60, "seconds": 60},
-	"common_room": {"name": "Common room", "blurb": "more candidates visit", "rank": "F", "gold": 60, "seconds": 60},
+	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "rank": "E", "gold": 60, "seconds": 2},
+	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "rank": "E", "gold": 60, "seconds": 2},
+	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "rank": "F", "gold": 60, "seconds": 2},
+	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "rank": "D", "gold": 60, "seconds": 2},
+	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "rank": "D", "gold": 60, "seconds": 2},
+	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "rank": "D", "gold": 60, "seconds": 2},
+	"common_room": {"name": "Common room", "blurb": "more candidates visit", "rank": "F", "gold": 60, "seconds": 2},
 }
 ## A finished Tavern fills with gold at this rate from when it finished or was last collected, up
 ## to TAVERN_CAP; the cap is the reason to come back before it is full (stand-ins).
-const TAVERN_GOLD_PER_MINUTE: int = 2
-const TAVERN_CAP: int = 120
+const TAVERN_GOLD_PER_MINUTE: int = 20
+const TAVERN_CAP: int = 40
 ## Beds each finished Bunk room adds to the Reception's.
 const BEDS_PER_BUNK_ROOM: int = 2
 ## The most adventurers the guild can have, however many Bunk rooms it has.

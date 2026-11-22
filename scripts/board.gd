@@ -3,11 +3,15 @@ extends RefCounted
 
 ## How long a slot takes to refill after its quest is sent, by the rank of the quest sent from it:
 ## short for easy quests, longer for hard ones (stand-ins).
-const REFILL_SECONDS: Dictionary[String, int] = {"F": 600, "E": 1_800, "D": 3_600}
+const REFILL_SECONDS: Dictionary[String, int] = {"F": 20, "E": 60, "D": 120}
 ## Once the first Map room is finished, each quest on the board has its unknown challenges revealed
 ## this long after the later of when it was put on the board and when that room finished; more Map
 ## rooms don't speed it (stand-in).
-const MAP_REVEAL_SECONDS: int = 300
+const MAP_REVEAL_SECONDS: int = 10
+## How a filling slot picks its quest's rank, by the guild's rank (Hall.rank): weights for one rank
+## below it, its own and one above, so most of the board is at the guild's rank. No other rank is
+## offered.
+const RANK_WEIGHTS: Array[int] = [10, 70, 20]
 
 ## Each slot's quest, a key of Dispatch.QUESTS, or "" while the slot refills.
 var slots: PackedStringArray = PackedStringArray()
@@ -36,13 +40,14 @@ func filled() -> int:
 ## time in `quest_halls_done`, and fills the empty slots in the order their time comes. Each slot
 ## is judged at its own refill time from saved timestamps alone, so refilling once after an absence
 ## gives the same board as refilling every second through it: it takes a quest neither on the
-## board nor out with a party at that moment, or, with none free, the first freed after it; and
-## only a quest at most one rank above the guild's highest-ranked adventurer. Time is read from no
+## board nor out with a party at that moment, or, with none free, the first freed after it; only a
+## quest at most one rank above the guild's highest-ranked adventurer; and one whose rank is drawn
+## by RANK_WEIGHTS around `guild_rank`, among the ranks with a quest free. Time is read from no
 ## earlier than `dispatch` or the board last saw, so a clock set back never undoes a refill or
 ## restarts a countdown. A new board starts with every slot filled. Then, with the first Map room
 ## finished at `map_room_from` (-1 for none), reveals for good the unknown challenges of each quest
 ## on the board MAP_REVEAL_SECONDS after the later of its fill time and that, all by `now`.
-func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, map_room_from: int = -1) -> void:
+func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, map_room_from: int = -1, guild_rank: String = Hall.STARTING_RANK) -> void:
 	var at := maxi(maxi(now, dispatch.checked_at), checked_at)
 	if slots.is_empty():
 		checked_at = at
@@ -53,14 +58,14 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, ma
 	for i: int in range(slots.size() - reception_slots, halls.size()):
 		_add_slot(halls[i])
 	_note_outings(dispatch)
-	# The rank now stands for every refill due up to `at`: a rank changes only by a player action,
+	# The ranks now stand for every refill due up to `at`: a rank changes only by a player action,
 	# and whatever does that refills the board first, so fills due before it use the rank before it.
 	var top := _top_rank(dispatch.adventurers.roster)
 	while true:
 		var next := -1
 		var next_time := 0
 		for i: int in slots.size():
-			var time := _fill_time(i, top)
+			var time := _fill_time(i, top, guild_rank)
 			if time < 0 or time > at:
 				continue
 			if next == -1 or time < next_time or (time == next_time and refill_at[i] < refill_at[next]):
@@ -68,7 +73,7 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, ma
 				next_time = time
 		if next == -1:
 			break
-		slots[next] = _pick(next, next_time, top)
+		slots[next] = _pick(next, next_time, top, guild_rank)
 		filled_at[next] = next_time
 	checked_at = at
 	# A quest leaves the board only when sent, and every send refills first, so the quests on the
@@ -83,9 +88,9 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, ma
 ## Sends `party` on `quest` through `dispatch`, empties its slot and starts that slot's countdown;
 ## false, with nothing sent, when the board at `now` doesn't show `quest` or `dispatch` refuses the
 ## party. The other arguments are as for `refill` and `Dispatch.send`.
-func send(dispatch: Dispatch, quest: String, party: PackedStringArray, roll_seed: int, now: int, quest_halls_done: PackedInt64Array, infirmary_from: int = -1, map_room_from: int = -1) -> bool:
+func send(dispatch: Dispatch, quest: String, party: PackedStringArray, roll_seed: int, now: int, quest_halls_done: PackedInt64Array, infirmary_from: int = -1, map_room_from: int = -1, guild_rank: String = Hall.STARTING_RANK) -> bool:
 	dispatch.checkpoint(now, infirmary_from)
-	refill(dispatch, now, quest_halls_done, map_room_from)
+	refill(dispatch, now, quest_halls_done, map_room_from, guild_rank)
 	var slot := slots.find(quest)
 	if quest == "" or slot == -1:
 		return false
@@ -173,11 +178,11 @@ static func _top_rank(roster: Dictionary) -> String:
 	return Challenges.RANKS[top]
 
 
-# When empty slot `slot` fills, for a guild whose highest rank is `top`: its refill time, or no
-# earlier than the board was last refilled to, as it found nothing free before then; else the
-# first party's return after that frees a quest. -1 when the slot is filled or no return to come
-# frees one.
-func _fill_time(slot: int, top: String) -> int:
+# When empty slot `slot` fills, for a guild of `guild_rank` whose highest-ranked adventurer is
+# `top`: its refill time, or no earlier than the board was last refilled to, as it found nothing
+# free before then; else the first party's return after that frees a quest. -1 when the slot is
+# filled or no return to come frees one.
+func _fill_time(slot: int, top: String, guild_rank: String) -> int:
 	if slots[slot] != "":
 		return -1
 	var from := maxi(refill_at[slot], checked_at)
@@ -187,25 +192,49 @@ func _fill_time(slot: int, top: String) -> int:
 			times.append(back)
 	times.sort()
 	for time: int in times:
-		if not _free(time, top).is_empty():
+		if not _free(time, top, guild_rank).is_empty():
 			return time
 	return -1
 
 
-# The quests neither on the board nor out at `time` that a guild whose highest rank is `top` can
-# take (Challenges.can_join), in Dispatch.QUESTS order.
-func _free(time: int, top: String) -> PackedStringArray:
+# The quests neither on the board nor out at `time` that a guild of `guild_rank` whose
+# highest-ranked adventurer is `top` can be offered: of a rank RANK_WEIGHTS weighs, and one that
+# adventurer can take (Challenges.can_join). In Dispatch.QUESTS order.
+func _free(time: int, top: String, guild_rank: String) -> PackedStringArray:
 	var free := PackedStringArray()
 	for quest: String in Dispatch.QUESTS:
-		if quest not in slots and back_at.get(quest, 0) <= time and Challenges.can_join(top, Dispatch.QUESTS[quest]["rank"]):
+		var rank: String = Dispatch.QUESTS[quest]["rank"]
+		if quest not in slots and back_at.get(quest, 0) <= time and _weight_index(rank, guild_rank) != -1 and Challenges.can_join(top, rank):
 			free.append(quest)
 	return free
 
 
-# A quest for `slot` from those free at `time` for a guild whose highest rank is `top`, drawn by a
-# seed of the slot and its refill time, so the same save always refills the same way.
-func _pick(slot: int, time: int, top: String) -> String:
-	var free := _free(time, top)
+# Where `rank` is in RANK_WEIGHTS for a guild of `guild_rank`; -1 when it is not weighed.
+static func _weight_index(rank: String, guild_rank: String) -> int:
+	var index := Challenges.RANKS.find(rank) - Challenges.RANKS.find(guild_rank) + 1
+	return index if index >= 0 and index < RANK_WEIGHTS.size() else -1
+
+
+# A quest for `slot` from those free at `time`, as `_free` has them: first a rank, by RANK_WEIGHTS
+# among the ranks with a quest free, then one of that rank's, each as likely. Drawn by a seed of the
+# slot and its refill time, so the same save always refills the same way.
+func _pick(slot: int, time: int, top: String, guild_rank: String) -> String:
+	var by_rank: Array[Array] = []
+	for index: int in RANK_WEIGHTS.size():
+		by_rank.append([])
+	for quest: String in _free(time, top, guild_rank):
+		by_rank[_weight_index(Dispatch.QUESTS[quest]["rank"], guild_rank)].append(quest)
+	var total := 0
+	for index: int in RANK_WEIGHTS.size():
+		if not by_rank[index].is_empty():
+			total += RANK_WEIGHTS[index]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([slot, refill_at[slot]])
-	return free[rng.randi_range(0, free.size() - 1)]
+	var roll := rng.randi_range(1, total)
+	for index: int in RANK_WEIGHTS.size():
+		if by_rank[index].is_empty():
+			continue
+		roll -= RANK_WEIGHTS[index]
+		if roll <= 0:
+			return by_rank[index][rng.randi_range(0, by_rank[index].size() - 1)]
+	return ""

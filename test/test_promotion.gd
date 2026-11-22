@@ -106,32 +106,34 @@ func test_a_promoted_adventurer_can_join_a_rank_d_quest_and_keeps_the_rank_throu
 
 
 func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_can_draw_rank_d() -> void:
+	# A rank-E guild weighs rank D quests, so only the adventurers' ranks keep them off its board.
+	const GUILD: String = "E"
 	var gold := Gold.new(0)
 	var dispatch := _guild(START)
 	dispatch.adventurers.levels["maren"] = 3
 	var board := Board.new()
 	board.reception_slots = 3
-	board.refill(dispatch, START, NO_HALLS)
-	# Cartographer (F) is sent from slot 1, which comes due 600 seconds later.
-	var sent_at := START + 20
-	assert_eq(board.slots[1], "cartographer")
-	assert_true(board.send(dispatch, "cartographer", ["bram"], 1, sent_at, NO_HALLS))
+	board.refill(dispatch, START, NO_HALLS, -1, GUILD)
+	# The goblin camp (E) is sent from slot 1, which comes due 60 seconds later.
+	var sent_at := START + 9
+	assert_eq(board.slots[1], "goblins")
+	assert_true(board.send(dispatch, "goblins", ["bram"], 1, sent_at, NO_HALLS, -1, -1, GUILD))
 	var promoted_at := START + 1_000
 	# Promoting first would let the slot due before it draw a rank D quest, so this case separates
 	# the two orders.
 	var wrong := Board.new()
 	wrong.reception_slots = 3
-	wrong.refill(_guild(START), START, NO_HALLS)
+	wrong.refill(_guild(START), START, NO_HALLS, -1, GUILD)
 	var wrong_dispatch := _guild(START)
-	assert_true(wrong.send(wrong_dispatch, "cartographer", ["bram"], 1, sent_at, NO_HALLS))
+	assert_true(wrong.send(wrong_dispatch, "goblins", ["bram"], 1, sent_at, NO_HALLS, -1, -1, GUILD))
 	wrong_dispatch.adventurers.roster["maren"]["rank"] = "E"
-	wrong.refill(wrong_dispatch, promoted_at, NO_HALLS)
+	wrong.refill(wrong_dispatch, promoted_at, NO_HALLS, -1, GUILD)
 	assert_eq(Dispatch.QUESTS[wrong.slots[1]]["rank"], "D")
 	# As main does it: the board is brought up to the moment, then the promotion.
 	dispatch.checkpoint(promoted_at)
-	board.refill(dispatch, promoted_at, NO_HALLS)
+	board.refill(dispatch, promoted_at, NO_HALLS, -1, GUILD)
 	assert_true(dispatch.adventurers.promote("maren", Gold.new(150), false))
-	board.refill(dispatch, promoted_at + 1, NO_HALLS)
+	board.refill(dispatch, promoted_at + 1, NO_HALLS, -1, GUILD)
 	assert_ne(board.slots[1], "")
 	assert_ne(Dispatch.QUESTS[board.slots[1]]["rank"], "D")
 	# Refills after the promotion draw rank D quests too.
@@ -139,11 +141,11 @@ func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_
 	var now := promoted_at
 	for i: int in 30:
 		now += 3_600
-		assert_true(board.send(dispatch, board.slots[i % 3], ["maren"], 1, now, NO_HALLS), str(i))
+		assert_true(board.send(dispatch, board.slots[i % 3], ["maren"], 1, now, NO_HALLS, -1, -1, GUILD), str(i))
 		now += 3_600
 		dispatch.checkpoint(now)
 		while not dispatch.debriefs.is_empty(): dispatch.read_debrief(0, gold)
-		board.refill(dispatch, now, NO_HALLS)
+		board.refill(dispatch, now, NO_HALLS, -1, GUILD)
 		for quest: String in board.slots:
 			ranks[Dispatch.QUESTS[quest]["rank"]] = true
 	assert_true(ranks.has("D"))

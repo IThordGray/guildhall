@@ -24,19 +24,21 @@ var damage: Dictionary = {}
 
 ## Chance of success in whole percent: even odds when the party's power matches the difficulty,
 ## 10 points per point of difference, then UNCOVERED_POINTS off for each of `uncovered` challenges
-## nobody covers; each step kept within MIN_CHANCE to MAX_CHANCE.
-static func chance_percent(party_power: int, difficulty: int, uncovered: int = 0) -> int:
+## nobody covers, then `bonus` points on; each step kept within MIN_CHANCE to MAX_CHANCE.
+static func chance_percent(party_power: int, difficulty: int, uncovered: int = 0, bonus: int = 0) -> int:
 	var by_power := clampi(50 + 10 * (party_power - difficulty), MIN_CHANCE, MAX_CHANCE)
-	return clampi(by_power - UNCOVERED_POINTS * uncovered, MIN_CHANCE, MAX_CHANCE)
+	var by_cover := clampi(by_power - UNCOVERED_POINTS * uncovered, MIN_CHANCE, MAX_CHANCE)
+	return clampi(by_cover + bonus, MIN_CHANCE, MAX_CHANCE)
 
 
 ## The chance the player is shown, as [low, high] in whole percent, for a party of `party_power`
-## on a quest of `difficulty` with `uncovered` known challenges nobody covers and `unknown`
-## challenges the player doesn't know: low counts every unknown one uncovered, high counts it
-## covered, and each end is widened by HIDDEN_DIFFICULTY_POINTS, within MIN_CHANCE to MAX_CHANCE.
-static func chance_range(party_power: int, difficulty: int, uncovered: int, unknown: int) -> Vector2i:
-	var low := chance_percent(party_power, difficulty, uncovered + unknown) - HIDDEN_DIFFICULTY_POINTS
-	var high := chance_percent(party_power, difficulty, uncovered) + HIDDEN_DIFFICULTY_POINTS
+## on a quest of `difficulty` with `uncovered` known challenges nobody covers, `unknown`
+## challenges the player doesn't know and `bonus` points on: low counts every unknown one
+## uncovered, high counts it covered, and each end is widened by HIDDEN_DIFFICULTY_POINTS, within
+## MIN_CHANCE to MAX_CHANCE.
+static func chance_range(party_power: int, difficulty: int, uncovered: int, unknown: int, bonus: int = 0) -> Vector2i:
+	var low := chance_percent(party_power, difficulty, uncovered + unknown, bonus) - HIDDEN_DIFFICULTY_POINTS
+	var high := chance_percent(party_power, difficulty, uncovered, bonus) + HIDDEN_DIFFICULTY_POINTS
 	return Vector2i(clampi(low, MIN_CHANCE, MAX_CHANCE), clampi(high, MIN_CHANCE, MAX_CHANCE))
 
 

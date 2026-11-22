@@ -88,15 +88,16 @@ func test_maximum_health_is_ten_plus_two_per_grit_and_a_level_up_that_raises_gri
 	assert_gt(adventurers.max_health("bram"), 24)
 
 
-func test_a_quest_gives_its_party_one_xp_per_fifteen_seconds_on_success_and_a_quarter_rounded_down_on_failure() -> void:
-	assert_eq(Adventurers.quest_xp(600, true), 40)
-	assert_eq(Adventurers.quest_xp(600, false), 10)
-	assert_eq(Adventurers.quest_xp(180, true), 12)
-	assert_eq(Adventurers.quest_xp(180, false), 3)
-	assert_eq(Adventurers.quest_xp(90, true), 6)
-	assert_eq(Adventurers.quest_xp(90, false), 1)
-	assert_eq(Adventurers.quest_xp(60, true), 4)
-	assert_eq(Adventurers.quest_xp(60, false), 1)
+func test_a_quest_gives_its_party_its_whole_xp_on_success_and_a_quarter_rounded_down_but_at_least_1_on_failure() -> void:
+	assert_eq(Adventurers.quest_xp(40, true), 40)
+	assert_eq(Adventurers.quest_xp(40, false), 10)
+	assert_eq(Adventurers.quest_xp(13, true), 13)
+	assert_eq(Adventurers.quest_xp(13, false), 3)
+	assert_eq(Adventurers.quest_xp(7, false), 1)
+	assert_eq(Adventurers.quest_xp(3, true), 3)
+	assert_eq(Adventurers.quest_xp(3, false), 1)
+	assert_eq(Adventurers.quest_xp(1, true), 1)
+	assert_eq(Adventurers.quest_xp(1, false), 1)
 
 
 func test_a_level_up_needs_forty_xp_times_the_level_and_spends_it_keeping_the_rest() -> void:
@@ -330,10 +331,11 @@ func test_a_wound_saved_under_the_old_maximum_loads_as_it_was_and_heals_up_to_th
 
 	var loaded := Dispatch.load_or_start(SAVE_PATH, 5_000)
 	assert_eq(loaded.health("bram", 5_000), old_most - 1)
-	var short := most - (old_most - 1)
-	assert_eq(loaded.seconds_to_full("bram", 5_000), short * Dispatch.HEAL_SECONDS)
-	assert_eq(loaded.health("bram", 5_000 + short * Dispatch.HEAL_SECONDS - 1), most - 1)
-	assert_eq(loaded.health("bram", 5_000 + short * Dispatch.HEAL_SECONDS), most)
+	# Seven points short, at three points every two seconds: full in five.
+	assert_eq(most - (old_most - 1), 7)
+	assert_eq(loaded.seconds_to_full("bram", 5_000), 5)
+	assert_eq(loaded.health("bram", 5_004), most - 1)
+	assert_eq(loaded.health("bram", 5_005), most)
 	assert_eq(loaded.health("bram", 50_000), most)
 
 

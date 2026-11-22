@@ -3,42 +3,50 @@ extends RefCounted
 
 ## Every quest the board can offer: see Board. The save refers to a quest by its id. A
 ## quest's challenges say why it is hard (see Challenges); its difficulty is never shown. Durations
-## and difficulties are stand-ins, tuned so the four starters have good odds on every rank F quest,
-## fair odds together on rank E and little hope on rank D. Gold is a stand-in too, 10 to 13 a minute
-## of quest time, kept small next to what the guild can spend so a quest's reward matters.
+## and difficulties are stand-ins. Rank F difficulties are tuned so a new game's Bram and Tobin
+## together have at least 80% on every rank F quest and each alone 45–75%; the four starters have
+## fair odds together on rank E and little hope on rank D. Gold is a stand-in too, kept small next to
+## what the guild can spend so a quest's reward matters. "xp" is the XP the whole party shares on a
+## success.
 const QUESTS: Dictionary[String, Dictionary] = {
-	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 60, "gold": 10, "difficulty": 3, "challenges": ["Brute force"]},
-	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 90, "gold": 15, "difficulty": 4, "challenges": ["Curse"]},
-	"letters": {"name": "Carry letters to the abbey", "rank": "F", "seconds": 120, "gold": 20, "difficulty": 4, "challenges": ["Navigation", "Protect"]},
-	"spiders": {"name": "Spiders in the gatehouse", "rank": "F", "seconds": 120, "gold": 20, "difficulty": 5, "challenges": ["Brute force", "Attrition"]},
-	"cartographer": {"name": "Escort the cartographer to the first gate", "rank": "F", "seconds": 150, "gold": 25, "difficulty": 4, "challenges": ["Protect", "Traps"]},
-	"mouth": {"name": "Chart the labyrinth's mouth", "rank": "F", "seconds": 150, "gold": 25, "difficulty": 5, "challenges": ["Traps", "Navigation"]},
-	"moonherbs": {"name": "Gather moonherbs", "rank": "F", "seconds": 180, "gold": 30, "difficulty": 4, "challenges": ["Navigation", "Attrition"]},
-	"wolves": {"name": "Wolves at the mill", "rank": "E", "seconds": 300, "gold": 65, "difficulty": 9, "challenges": ["Brute force", "Attrition"]},
-	"sealed_door": {"name": "Break the curse on the sealed door", "rank": "E", "seconds": 360, "gold": 75, "difficulty": 10, "challenges": ["Curse", "Navigation"]},
-	"lurker": {"name": "Hunt the cave lurker", "rank": "E", "seconds": 420, "gold": 90, "difficulty": 9, "challenges": ["Brute force", "Curse"]},
-	"crypt": {"name": "Clear the old crypt", "rank": "E", "seconds": 480, "gold": 100, "difficulty": 11, "challenges": ["Curse", "Traps", "Attrition"]},
-	"pilgrims": {"name": "Guard pilgrims through the low halls", "rank": "E", "seconds": 540, "gold": 115, "difficulty": 10, "challenges": ["Protect", "Attrition"]},
-	"goblins": {"name": "Goblin camp", "rank": "E", "seconds": 600, "gold": 125, "difficulty": 11, "challenges": ["Brute force", "Traps", "Navigation"]},
-	"maze": {"name": "Map the shifting maze", "rank": "D", "seconds": 900, "gold": 175, "difficulty": 14, "challenges": ["Navigation", "Traps"]},
-	"chapel": {"name": "Unbind the drowned chapel", "rank": "D", "seconds": 1_080, "gold": 200, "difficulty": 15, "challenges": ["Curse", "Attrition"]},
-	"minotaur": {"name": "Slay the minotaur of the third ring", "rank": "D", "seconds": 1_200, "gold": 225, "difficulty": 15, "challenges": ["Brute force", "Attrition"]},
-	"envoy": {"name": "Escort the envoy to the deep market", "rank": "D", "seconds": 1_500, "gold": 250, "difficulty": 14, "challenges": ["Protect", "Traps", "Navigation"]},
-	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 1_800, "gold": 300, "difficulty": 16, "challenges": ["Curse", "Traps", "Protect"]},
+	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 2, "gold": 3, "xp": 1, "difficulty": 2, "challenges": ["Brute force"]},
+	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 3, "gold": 5, "xp": 2, "difficulty": 1, "challenges": ["Curse"]},
+	"letters": {"name": "Carry letters to the abbey", "rank": "F", "seconds": 4, "gold": 7, "xp": 3, "difficulty": 1, "challenges": ["Navigation", "Protect"]},
+	"spiders": {"name": "Spiders in the gatehouse", "rank": "F", "seconds": 4, "gold": 7, "xp": 3, "difficulty": 0, "challenges": ["Brute force", "Attrition"]},
+	"cartographer": {"name": "Escort the cartographer to the first gate", "rank": "F", "seconds": 5, "gold": 8, "xp": 3, "difficulty": 1, "challenges": ["Protect", "Traps"]},
+	"mouth": {"name": "Chart the labyrinth's mouth", "rank": "F", "seconds": 5, "gold": 8, "xp": 3, "difficulty": 1, "challenges": ["Traps", "Navigation"]},
+	"moonherbs": {"name": "Gather moonherbs", "rank": "F", "seconds": 6, "gold": 10, "xp": 4, "difficulty": 1, "challenges": ["Navigation", "Attrition"]},
+	"wolves": {"name": "Wolves at the mill", "rank": "E", "seconds": 10, "gold": 22, "xp": 7, "difficulty": 9, "challenges": ["Brute force", "Attrition"]},
+	"sealed_door": {"name": "Break the curse on the sealed door", "rank": "E", "seconds": 12, "gold": 25, "xp": 8, "difficulty": 10, "challenges": ["Curse", "Navigation"]},
+	"lurker": {"name": "Hunt the cave lurker", "rank": "E", "seconds": 14, "gold": 30, "xp": 9, "difficulty": 9, "challenges": ["Brute force", "Curse"]},
+	"crypt": {"name": "Clear the old crypt", "rank": "E", "seconds": 16, "gold": 33, "xp": 11, "difficulty": 11, "challenges": ["Curse", "Traps", "Attrition"]},
+	"pilgrims": {"name": "Guard pilgrims through the low halls", "rank": "E", "seconds": 18, "gold": 38, "xp": 12, "difficulty": 10, "challenges": ["Protect", "Attrition"]},
+	"goblins": {"name": "Goblin camp", "rank": "E", "seconds": 20, "gold": 42, "xp": 13, "difficulty": 11, "challenges": ["Brute force", "Traps", "Navigation"]},
+	"maze": {"name": "Map the shifting maze", "rank": "D", "seconds": 30, "gold": 58, "xp": 20, "difficulty": 14, "challenges": ["Navigation", "Traps"]},
+	"chapel": {"name": "Unbind the drowned chapel", "rank": "D", "seconds": 36, "gold": 67, "xp": 24, "difficulty": 15, "challenges": ["Curse", "Attrition"]},
+	"minotaur": {"name": "Slay the minotaur of the third ring", "rank": "D", "seconds": 40, "gold": 75, "xp": 27, "difficulty": 15, "challenges": ["Brute force", "Attrition"]},
+	"envoy": {"name": "Escort the envoy to the deep market", "rank": "D", "seconds": 50, "gold": 83, "xp": 33, "difficulty": 14, "challenges": ["Protect", "Traps", "Navigation"]},
+	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 60, "gold": 100, "xp": 40, "difficulty": 16, "challenges": ["Curse", "Traps", "Protect"]},
 }
 const MAX_PARTY_SIZE: int = 4
 ## How long an injury lasts, counted from the moment the party returns.
-const INJURY_SECONDS: int = 300
+const INJURY_SECONDS: int = 10
 ## The same with an Infirmary finished by the moment of return; more Infirmaries don't shorten it.
-const INFIRMARY_INJURY_SECONDS: int = 150
-## Seconds to heal one point of health; from the moment the first Infirmary is finished, half that.
-const HEAL_SECONDS: int = 20
-## An adventurer in training gains this much XP per whole minute since their stint started, at most
-## TRAINING_MAX_XP a stint; the cap is the reason to come back (stand-ins).
-const TRAINING_XP_PER_MINUTE: int = 1
-const TRAINING_MAX_XP: int = 60
+const INFIRMARY_INJURY_SECONDS: int = 5
+## Health heals HEAL_POINTS points every HEAL_SECONDS seconds, counted in whole points from the
+## moment of return; from the moment the first Infirmary is finished, twice as fast.
+const HEAL_POINTS: int = 3
+const HEAL_SECONDS: int = 2
+## An adventurer in training gains one XP per whole TRAINING_SECONDS_PER_XP since their stint
+## started, at most TRAINING_MAX_XP a stint; the cap is the reason to come back (stand-ins).
+const TRAINING_SECONDS_PER_XP: int = 6
+const TRAINING_MAX_XP: int = 20
 ## Once an adventurer has trained this many seconds in all, the Training room hints at their growth.
-const TRAINING_HINT_SECONDS: int = 600
+const TRAINING_HINT_SECONDS: int = 20
+## Each party back from a quest is a try at it, success or failure: every try adds POINTS_PER_TRY
+## to that quest's chance, up to MOST_TRY_POINTS, because the guild learns its tricks.
+const POINTS_PER_TRY: int = 1
+const MOST_TRY_POINTS: int = 15
 ## Why an adventurer can't start training while every Training room's one place is taken.
 const NO_TRAINING_PLACE: String = "No free training place — convert a Training room"
 
@@ -76,6 +84,8 @@ var revealed: PackedStringArray = PackedStringArray()
 var training: Dictionary[String, int] = {}
 ## Seconds each adventurer has trained in all over stints already stopped.
 var trained_seconds: Dictionary[String, int] = {}
+## How many parties have come back from each quest, success or failure: see `try_points`.
+var tries: Dictionary[String, int] = {}
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back neither
 ## adds time to a quest or an injury nor brings back a party that has returned.
 var checked_at: int
@@ -88,13 +98,13 @@ func _init(at: int) -> void:
 
 
 ## The whole-percent chance that `party`, as they are now, succeeds on `quest_id`, counting every
-## challenge, known to the player or not.
+## challenge, known to the player or not, and the guild's tries at it.
 func success_chance(quest_id: String, party: PackedStringArray) -> int:
 	var uncovered := 0
 	for challenge: String in QUESTS[quest_id]["challenges"]:
 		if Challenges.covered_by(challenge, party, adventurers.roster).is_empty():
 			uncovered += 1
-	return Outcome.chance_percent(party_power(party), int(QUESTS[quest_id]["difficulty"]), uncovered)
+	return Outcome.chance_percent(party_power(party), int(QUESTS[quest_id]["difficulty"]), uncovered, try_points(quest_id))
 
 
 ## The chance the player is shown for `party` on `quest_id`, as [low, high] in whole percent: see
@@ -105,7 +115,13 @@ func chance_range(quest_id: String, party: PackedStringArray) -> Vector2i:
 	for challenge: String in QUESTS[quest_id]["challenges"]:
 		if challenge not in unknown and Challenges.covered_by(challenge, party, adventurers.roster).is_empty():
 			uncovered += 1
-	return Outcome.chance_range(party_power(party), int(QUESTS[quest_id]["difficulty"]), uncovered, unknown.size())
+	return Outcome.chance_range(party_power(party), int(QUESTS[quest_id]["difficulty"]), uncovered, unknown.size(), try_points(quest_id))
+
+
+## The points the guild's tries at `quest_id` add to its chance: POINTS_PER_TRY a try, at most
+## MOST_TRY_POINTS.
+func try_points(quest_id: String) -> int:
+	return mini(MOST_TRY_POINTS, POINTS_PER_TRY * int(tries.get(quest_id, 0)))
 
 
 ## The challenges of `quest_id` the player doesn't know yet. A quest's last challenge starts
@@ -154,8 +170,8 @@ func injury_seconds(adventurer: String) -> int:
 
 
 ## `adventurer`'s health at `now`. Out on a quest, what they left with: nobody heals while out. At
-## home, what their last return left them with, plus a point per HEAL_SECONDS since (twice as fast
-## from the moment the Infirmary is finished), up to their maximum.
+## home, what their last return left them with, plus HEAL_POINTS per HEAL_SECONDS since, in whole
+## points (twice as fast from the moment the Infirmary is finished), up to their maximum.
 func health(adventurer: String, now: int) -> int:
 	var outing := _outing_of(adventurer)
 	if outing.has("health"):
@@ -170,7 +186,8 @@ func seconds_to_full(adventurer: String, now: int) -> int:
 		return 0
 	var at := maxi(now, checked_at)
 	var wound := wounds[adventurer]
-	var need := HEAL_SECONDS * (adventurers.max_health(adventurer) - int(wound["health"])) - _heal_units(int(wound["at"]), at)
+	var missing := adventurers.max_health(adventurer) - int(wound["health"])
+	var need := ceili(missing * HEAL_SECONDS / float(HEAL_POINTS)) - _heal_units(int(wound["at"]), at)
 	if need <= 0:
 		return 0
 	if _infirmary_from < 0:
@@ -191,7 +208,7 @@ func _health_at(adventurer: String, at: int) -> int:
 	if not wounds.has(adventurer):
 		return most
 	var wound := wounds[adventurer]
-	return mini(most, int(wound["health"]) + floori(_heal_units(int(wound["at"]), at) / float(HEAL_SECONDS)))
+	return mini(most, int(wound["health"]) + floori(_heal_units(int(wound["at"]), at) * HEAL_POINTS / float(HEAL_SECONDS)))
 
 
 # The healing from `from` to `to`, in seconds at the slow rate: each second from the moment the
@@ -309,22 +326,20 @@ func train(adventurer: String, places: int, now: int) -> bool:
 	return true
 
 
-## The XP `adventurer`'s current stint has earned by `now`: TRAINING_XP_PER_MINUTE a whole minute,
+## The XP `adventurer`'s current stint has earned by `now`: one per whole TRAINING_SECONDS_PER_XP,
 ## at most TRAINING_MAX_XP; 0 when not training.
 func training_xp(adventurer: String, now: int) -> int:
 	if not training.has(adventurer):
 		return 0
-	var minutes := floori((maxi(now, checked_at) - training[adventurer]) / 60.0)
-	return mini(TRAINING_MAX_XP, minutes * TRAINING_XP_PER_MINUTE)
+	return mini(TRAINING_MAX_XP, floori((maxi(now, checked_at) - training[adventurer]) / float(TRAINING_SECONDS_PER_XP)))
 
 
-## Seconds from `now` until `adventurer`'s stint reaches TRAINING_MAX_XP: XP comes a whole minute
-## at a time, so the cap lands at the first whole minute whose XP reaches it. 0 once capped or
-## when not training.
+## Seconds from `now` until `adventurer`'s stint reaches TRAINING_MAX_XP; 0 once capped or when not
+## training.
 func training_seconds_left(adventurer: String, now: int) -> int:
 	if not training.has(adventurer):
 		return 0
-	var full_at := training[adventurer] + ceili(TRAINING_MAX_XP / float(TRAINING_XP_PER_MINUTE)) * 60
+	var full_at := training[adventurer] + TRAINING_MAX_XP * TRAINING_SECONDS_PER_XP
 	return maxi(0, full_at - maxi(now, checked_at))
 
 
@@ -461,9 +476,11 @@ func _bring_home(outing: Dictionary) -> void:
 	var revealing := unknown_challenges(outing["quest"])
 	if not revealing.is_empty():
 		revealed.append(outing["quest"])
-	# The party shares the quest's XP, each member gaining an equal part, rounded down. A party with
-	# no members gains nothing, and its debrief keeps the whole.
-	var xp := floori(Adventurers.quest_xp(quest["seconds"], success) / float(maxi(1, party.size())))
+	tries[outing["quest"]] = int(tries.get(outing["quest"], 0)) + 1
+	# The party shares the quest's XP, each member gaining an equal part, rounded down, so a member of
+	# a big party may gain 0 from a small quest. A party with no members gains nothing, and its
+	# debrief keeps the whole.
+	var xp := floori(Adventurers.quest_xp(quest["xp"], success) / float(maxi(1, party.size())))
 	for adventurer: String in party:
 		adventurers.gain_xp(adventurer, xp)
 	# Loot comes whatever the outcome, from the seed the party left with.
@@ -524,6 +541,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("dispatch", "revealed", revealed)
 	file.set_value("dispatch", "training", training)
 	file.set_value("dispatch", "trained_seconds", trained_seconds)
+	file.set_value("dispatch", "tries", tries)
 	file.set_value("dispatch", "checked_at", checked_at)
 	adventurers.write(file)
 
@@ -556,5 +574,7 @@ static func load_or_start(path: String, now: int) -> Dispatch:
 	# A save from before training has nobody training and nobody trained.
 	dispatch.training.assign(file.get_value("dispatch", "training", {}))
 	dispatch.trained_seconds.assign(file.get_value("dispatch", "trained_seconds", {}))
+	# A save from before tries were counted has tried nothing.
+	dispatch.tries.assign(file.get_value("dispatch", "tries", {}))
 	dispatch.checked_at = int(file.get_value("dispatch", "checked_at", now))
 	return dispatch

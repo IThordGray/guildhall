@@ -7,7 +7,7 @@ extends RefCounted
 ## The most candidates who visit at once, however many Common rooms the guild has.
 const MAX_CANDIDATE_SLOTS: int = 4
 ## How long a slot takes to refill after its candidate is hired.
-const CANDIDATE_REFILL_SECONDS: int = 1_800
+const CANDIDATE_REFILL_SECONDS: int = 60
 ## What a hire costs.
 const HIRE_GOLD: int = 100
 ## The rank every candidate starts at.

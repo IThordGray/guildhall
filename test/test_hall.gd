@@ -32,7 +32,7 @@ func test_a_new_game_is_a_rank_f_guild_with_three_rooms_bram_and_tobin_100_gold_
 	assert_eq(dispatch.adventurers.gear.worn["tobin"], Gear.STARTER_GEAR["tobin"])
 	assert_eq(gold.amount, 100)
 	# The first restoration is affordable at once.
-	assert_eq(hall.next_restore(), {"gold": 60, "seconds": 30})
+	assert_eq(hall.next_restore(), {"gold": 60, "seconds": 1})
 	assert_eq(hall.refusal("side_left", gold, 1_000), "")
 	assert_eq(hall.beds(1_000), 2)
 	# As the game takes them from the hall: one candidate slot, two board slots, a stash of six.
@@ -68,8 +68,8 @@ func test_restoring_the_first_damaged_room_takes_60_gold_at_once() -> void:
 	assert_eq(hall.state("back_left", 1_000), Hall.State.RESTORING)
 
 
-func test_each_room_restored_costs_and_takes_more_than_the_last_60g_30s_120g_2m_200g_5m_then_300g_10m() -> void:
-	var expected := [[60, 30], [120, 120], [200, 300], [300, 600]]
+func test_each_room_restored_costs_and_takes_more_than_the_last_60g_1s_120g_4s_200g_10s_then_300g_20s() -> void:
+	var expected := [[60, 1], [120, 4], [200, 10], [300, 20]]
 	var slots: Array[String] = ["back_left", "back_right", "side_left", "side_right"]
 	var gold := Gold.new(1_000)
 	var hall := _six_room_hall(1_000)
@@ -120,12 +120,12 @@ func test_restoring_is_refused_while_the_builder_is_busy_and_allowed_once_free()
 	var gold := Gold.new(1_000)
 	var hall := _six_room_hall(1_000)
 	assert_true(hall.restore("back_left", gold, 1_000))
-	assert_eq(hall.refusal("back_right", gold, 1_010), "Builder busy")
-	assert_false(hall.restore("back_right", gold, 1_010))
+	assert_eq(hall.refusal("back_right", gold, 1_000), "Builder busy")
+	assert_false(hall.restore("back_right", gold, 1_000))
 	assert_eq(gold.amount, 940)
-	assert_eq(hall.state("back_right", 1_010), Hall.State.DAMAGED)
-	assert_true(hall.restore("back_right", gold, 1_030))
-	assert_eq(hall.state("back_left", 1_030), Hall.State.RESTORED)
+	assert_eq(hall.state("back_right", 1_000), Hall.State.DAMAGED)
+	assert_true(hall.restore("back_right", gold, 1_001))
+	assert_eq(hall.state("back_left", 1_001), Hall.State.RESTORED)
 
 
 func test_restoring_is_refused_for_a_room_that_is_not_damaged() -> void:
@@ -137,14 +137,14 @@ func test_restoring_is_refused_for_a_room_that_is_not_damaged() -> void:
 	assert_eq(gold.amount, 940)
 
 
-func test_the_first_room_is_restored_exactly_30_seconds_after_starting() -> void:
+func test_the_first_room_is_restored_exactly_1_second_after_starting() -> void:
 	var gold := Gold.new(60)
 	var hall := _six_room_hall(1_000)
 	hall.restore("side_left", gold, 1_000)
-	assert_eq(hall.state("side_left", 1_029), Hall.State.RESTORING)
-	assert_eq(hall.seconds_left(1_029), 1)
-	assert_eq(hall.state("side_left", 1_030), Hall.State.RESTORED)
-	assert_eq(hall.seconds_left(1_030), 0)
+	assert_eq(hall.state("side_left", 1_000), Hall.State.RESTORING)
+	assert_eq(hall.seconds_left(1_000), 1)
+	assert_eq(hall.state("side_left", 1_001), Hall.State.RESTORED)
+	assert_eq(hall.seconds_left(1_001), 0)
 
 
 func test_a_clock_set_back_after_completion_keeps_the_room_restored_and_charges_nothing() -> void:
@@ -163,14 +163,17 @@ func test_a_clock_set_back_after_completion_keeps_the_room_restored_and_charges_
 
 
 func test_a_clock_set_back_mid_restoration_adds_no_time_to_the_countdown() -> void:
-	var gold := Gold.new(60)
+	var gold := Gold.new(180)
 	var hall := _six_room_hall(1_000)
 	hall.restore("back_left", gold, 1_000)
-	hall.checkpoint(1_015)
-	assert_eq(hall.seconds_left(500), 15)
+	hall.checkpoint(1_001)
+	# The second restoration takes 4 seconds: from 1_001 to 1_005.
+	hall.restore("back_right", gold, 1_001)
+	hall.checkpoint(1_003)
+	assert_eq(hall.seconds_left(500), 2)
 	hall.checkpoint(500)
-	assert_eq(hall.seconds_left(500), 15)
-	assert_eq(hall.seconds_left(1_020), 10)
+	assert_eq(hall.seconds_left(500), 2)
+	assert_eq(hall.seconds_left(1_004), 1)
 
 
 func test_a_restoration_in_progress_survives_save_and_load() -> void:
@@ -179,19 +182,19 @@ func test_a_restoration_in_progress_survives_save_and_load() -> void:
 	hall.restore("back_left", gold, 1_000)
 	hall.checkpoint(1_120)
 	hall.restore("side_right", gold, 1_130)
-	hall.checkpoint(1_150)
+	hall.checkpoint(1_132)
 	var file := ConfigFile.new()
 	gold.write(file)
 	hall.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 
 	var loaded := Hall.load_or_start(SAVE_PATH, 99_999)
-	assert_eq(loaded.state("back_left", 1_150), Hall.State.RESTORED)
-	assert_eq(loaded.state("side_right", 1_150), Hall.State.RESTORING)
-	assert_eq(loaded.seconds_left(1_150), 100)
-	assert_eq(loaded.state("side_right", 1_250), Hall.State.RESTORED)
-	assert_eq(loaded.state("back_right", 1_150), Hall.State.DAMAGED)
-	assert_eq(loaded.next_restore(), {"gold": 200, "seconds": 300})
+	assert_eq(loaded.state("back_left", 1_132), Hall.State.RESTORED)
+	assert_eq(loaded.state("side_right", 1_132), Hall.State.RESTORING)
+	assert_eq(loaded.seconds_left(1_132), 2)
+	assert_eq(loaded.state("side_right", 1_134), Hall.State.RESTORED)
+	assert_eq(loaded.state("back_right", 1_132), Hall.State.DAMAGED)
+	assert_eq(loaded.next_restore(), {"gold": 200, "seconds": 10})
 	assert_eq(Gold.load_or_start(SAVE_PATH).amount, 500 - 60 - 120)
 
 
@@ -211,8 +214,8 @@ func test_a_restoration_that_finished_while_away_is_reported_on_return_once() ->
 	var gold := Gold.new(60)
 	var hall := _six_room_hall(1_000)
 	hall.restore("back_left", gold, 1_000)
-	hall.checkpoint(1_010)
-	assert_false(hall.finished_since_checkpoint(1_020))
+	hall.checkpoint(1_000)
+	assert_false(hall.finished_since_checkpoint(1_000))
 	assert_true(hall.finished_since_checkpoint(1_300))
 	hall.checkpoint(1_300)
 	assert_false(hall.finished_since_checkpoint(1_400))
@@ -227,7 +230,7 @@ func _hall_with_empty_room(slot: String, gold: Gold) -> Hall:
 	return hall
 
 
-func test_the_convert_choices_are_every_room_type_each_60_gold_and_a_minute() -> void:
+func test_the_convert_choices_are_every_room_type_each_60_gold_and_2_seconds() -> void:
 	assert_eq(Hall.ROOM_TYPES.keys(), ["quest_hall", "infirmary", "bunk_room", "tavern", "map_room", "training_room", "common_room"])
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["name"], "Quest hall")
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["blurb"], "adds a slot to the quest board")
@@ -241,7 +244,7 @@ func test_the_convert_choices_are_every_room_type_each_60_gold_and_a_minute() ->
 	assert_eq(Hall.ROOM_TYPES["training_room"]["blurb"], "trains one adventurer at a time")
 	for type: String in Hall.ROOM_TYPES:
 		assert_eq(Hall.ROOM_TYPES[type]["gold"], 60, type)
-		assert_eq(Hall.ROOM_TYPES[type]["seconds"], 60, type)
+		assert_eq(Hall.ROOM_TYPES[type]["seconds"], 2, type)
 
 
 func test_a_new_guild_has_2_beds_and_a_bunk_room_makes_4_and_a_common_room_2_candidate_slots() -> void:
@@ -252,18 +255,18 @@ func test_a_new_guild_has_2_beds_and_a_bunk_room_makes_4_and_a_common_room_2_can
 	hall.checkpoint(1_150)
 	assert_eq(hall.beds(1_150), 2)
 	assert_true(hall.convert_room("side_left", "bunk_room", gold, 1_150))
-	assert_eq(hall.beds(1_209), 2)
-	assert_eq(hall.beds(1_210), 4)
-	assert_true(hall.convert_room("back_left", "common_room", gold, 1_210))
-	hall.checkpoint(1_270)
-	assert_eq(hall.beds(1_270), 4)
+	assert_eq(hall.beds(1_151), 2)
+	assert_eq(hall.beds(1_152), 4)
+	assert_true(hall.convert_room("back_left", "common_room", gold, 1_152))
+	hall.checkpoint(1_154)
+	assert_eq(hall.beds(1_154), 4)
 	# The Common room's slot comes on top of the Reception's one.
 	var recruits := Recruits.new()
 	recruits.reception_slots = hall.reception("candidate_slots")
 	var adventurers := Adventurers.new()
-	recruits.refill(adventurers, 1_269, PackedInt64Array())
+	recruits.refill(adventurers, 1_153, PackedInt64Array())
 	assert_eq(recruits.candidates.size(), 1)
-	recruits.refill(adventurers, 1_270, PackedInt64Array([hall.first_done_at("common_room")]))
+	recruits.refill(adventurers, 1_154, PackedInt64Array([hall.first_done_at("common_room")]))
 	assert_eq(recruits.candidates.size(), 2)
 	assert_false(recruits.candidates[1].is_empty())
 
@@ -273,31 +276,31 @@ func test_a_six_room_hall_has_4_beds_and_each_finished_bunk_room_adds_2_up_to_8(
 	var hall := _hall_with_empty_room("back_left", gold)
 	assert_eq(hall.beds(1_120), 4)
 	assert_true(hall.convert_room("back_left", "bunk_room", gold, 1_120))
-	assert_eq(hall.beds(1_179), 4)
-	assert_eq(hall.beds(1_180), 6)
+	assert_eq(hall.beds(1_121), 4)
+	assert_eq(hall.beds(1_122), 6)
 	# Other rooms add no beds.
 	hall.converted["side_left"] = {"type": "infirmary", "done_at": 1_000}
-	assert_eq(hall.beds(1_180), 6)
+	assert_eq(hall.beds(1_122), 6)
 	hall.converted["back_right"] = {"type": "bunk_room", "done_at": 1_000}
-	assert_eq(hall.beds(1_180), 8)
+	assert_eq(hall.beds(1_122), 8)
 	hall.converted["side_right"] = {"type": "bunk_room", "done_at": 1_000}
-	assert_eq(hall.beds(1_180), 8)
+	assert_eq(hall.beds(1_122), 8)
 
 
-func test_converting_an_empty_room_takes_60_gold_at_once_and_finishes_exactly_60_seconds_later() -> void:
+func test_converting_an_empty_room_takes_60_gold_at_once_and_finishes_exactly_2_seconds_later() -> void:
 	var gold := Gold.new(200)
 	var hall := _hall_with_empty_room("back_left", gold)
 	assert_eq(hall.convert_refusal("back_left", "quest_hall", gold, 1_200), "")
 	assert_true(hall.convert_room("back_left", "quest_hall", gold, 1_200))
 	assert_eq(gold.amount, 80)
-	assert_eq(hall.state("back_left", 1_259), Hall.State.CONVERTING)
-	assert_eq(hall.seconds_left(1_259), 1)
-	assert_eq(hall.rooms_done("quest_hall", 1_259), 0)
-	assert_eq(hall.state("back_left", 1_260), Hall.State.CONVERTED)
-	assert_eq(hall.seconds_left(1_260), 0)
+	assert_eq(hall.state("back_left", 1_201), Hall.State.CONVERTING)
+	assert_eq(hall.seconds_left(1_201), 1)
+	assert_eq(hall.rooms_done("quest_hall", 1_201), 0)
+	assert_eq(hall.state("back_left", 1_202), Hall.State.CONVERTED)
+	assert_eq(hall.seconds_left(1_202), 0)
 	assert_eq(hall.room_type("back_left"), "quest_hall")
-	assert_eq(hall.rooms_done("quest_hall", 1_260), 1)
-	assert_eq(hall.rooms_done("infirmary", 1_260), 0)
+	assert_eq(hall.rooms_done("quest_hall", 1_202), 1)
+	assert_eq(hall.rooms_done("infirmary", 1_202), 0)
 	hall.checkpoint(1_300)
 	assert_eq(hall.state("back_left", 1_300), Hall.State.CONVERTED)
 	assert_eq(hall.room_type("back_left"), "quest_hall")
@@ -318,16 +321,16 @@ func test_converting_is_refused_while_a_restoration_runs_and_restoring_while_a_c
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_empty_room("back_left", gold)
 	assert_true(hall.restore("back_right", gold, 1_200))
-	assert_eq(hall.convert_refusal("back_left", "quest_hall", gold, 1_250), "Builder busy")
-	assert_false(hall.convert_room("back_left", "quest_hall", gold, 1_250))
+	assert_eq(hall.convert_refusal("back_left", "quest_hall", gold, 1_202), "Builder busy")
+	assert_false(hall.convert_room("back_left", "quest_hall", gold, 1_202))
 	assert_eq(gold.amount, 820)
-	assert_true(hall.convert_room("back_left", "quest_hall", gold, 1_320))
-	assert_eq(hall.state("back_right", 1_320), Hall.State.RESTORED)
+	assert_true(hall.convert_room("back_left", "quest_hall", gold, 1_204))
+	assert_eq(hall.state("back_right", 1_204), Hall.State.RESTORED)
 
-	assert_eq(hall.refusal("side_left", gold, 1_330), "Builder busy")
-	assert_false(hall.restore("side_left", gold, 1_330))
-	assert_eq(hall.convert_refusal("back_right", "infirmary", gold, 1_330), "Builder busy")
-	assert_false(hall.convert_room("back_right", "infirmary", gold, 1_330))
+	assert_eq(hall.refusal("side_left", gold, 1_205), "Builder busy")
+	assert_false(hall.restore("side_left", gold, 1_205))
+	assert_eq(hall.convert_refusal("back_right", "infirmary", gold, 1_205), "Builder busy")
+	assert_false(hall.convert_room("back_right", "infirmary", gold, 1_205))
 	assert_eq(gold.amount, 760)
 	assert_true(hall.restore("side_left", gold, 1_380))
 	assert_eq(gold.amount, 560)
@@ -340,7 +343,7 @@ func test_only_an_empty_restored_room_can_be_converted() -> void:
 		assert_eq(hall.convert_refusal(slot, "quest_hall", gold, 1_000), "Not an empty room", slot)
 		assert_false(hall.convert_room(slot, "quest_hall", gold, 1_000), slot)
 	hall.restore("back_left", gold, 1_000)
-	assert_eq(hall.convert_refusal("back_left", "quest_hall", gold, 1_020), "Not an empty room")
+	assert_eq(hall.convert_refusal("back_left", "quest_hall", gold, 1_000), "Not an empty room")
 	assert_eq(gold.amount, 940)
 
 
@@ -358,8 +361,8 @@ func test_a_room_being_converted_or_converted_cannot_be_converted_again() -> voi
 	assert_eq(gold.amount, 880)
 
 
-## A hall with back_left converted into a Tavern from 1_200 to 1_260 and back_right restored and
-## empty from 1_380, the builder free, paid from `gold`.
+## A hall with back_left converted into a Tavern from 1_200 to 1_202 and back_right restored and
+## empty from 1_264, the builder free, paid from `gold`.
 func _hall_with_tavern_and_empty_room(gold: Gold) -> Hall:
 	var hall := _hall_with_empty_room("back_left", gold)
 	assert_true(hall.convert_room("back_left", "tavern", gold, 1_200))
@@ -390,18 +393,18 @@ func test_converting_to_a_type_being_built_is_refused_with_nothing_changed_and_a
 	hall.checkpoint(1_240)
 	assert_true(hall.convert_room("back_left", "tavern", gold, 1_240))
 	assert_eq(gold.amount, 760)
-	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_299), "Being built")
-	assert_false(hall.convert_room("back_right", "tavern", gold, 1_299))
-	assert_eq(hall.convert_refusal("back_right", "infirmary", gold, 1_299), "Builder busy")
+	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_241), "Being built")
+	assert_false(hall.convert_room("back_right", "tavern", gold, 1_241))
+	assert_eq(hall.convert_refusal("back_right", "infirmary", gold, 1_241), "Builder busy")
 	assert_eq(gold.amount, 760)
-	assert_eq(hall.state("back_right", 1_299), Hall.State.RESTORED)
+	assert_eq(hall.state("back_right", 1_241), Hall.State.RESTORED)
 	# Finished but not yet checkpointed, and after.
-	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_300), "Already built")
-	assert_false(hall.convert_room("back_right", "tavern", gold, 1_300))
-	hall.checkpoint(1_300)
-	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_300), "Already built")
+	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_242), "Already built")
+	assert_false(hall.convert_room("back_right", "tavern", gold, 1_242))
+	hall.checkpoint(1_242)
+	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_242), "Already built")
 	assert_eq(gold.amount, 760)
-	assert_eq(hall.state("back_right", 1_300), Hall.State.RESTORED)
+	assert_eq(hall.state("back_right", 1_242), Hall.State.RESTORED)
 
 
 func test_an_old_save_with_two_bunk_rooms_keeps_both_and_8_beds() -> void:
@@ -425,16 +428,16 @@ func test_the_first_infirmary_is_dated_from_when_its_conversion_finishes() -> vo
 	var hall := _hall_with_empty_room("back_left", gold)
 	assert_eq(hall.first_done_at("infirmary"), -1)
 	hall.convert_room("back_left", "infirmary", gold, 1_200)
-	assert_eq(hall.first_done_at("infirmary"), 1_260)
+	assert_eq(hall.first_done_at("infirmary"), 1_202)
 	assert_eq(hall.first_done_at("quest_hall"), -1)
 	hall.checkpoint(1_400)
 	hall.restore("back_right", gold, 1_400)
 	hall.checkpoint(1_520)
 	# A second Infirmary, as a save from before rooms were unique can hold.
 	hall.converted["back_right"] = {"type": "infirmary", "done_at": 1_580}
-	assert_eq(hall.first_done_at("infirmary"), 1_260)
+	assert_eq(hall.first_done_at("infirmary"), 1_202)
 	hall.checkpoint(1_600)
-	assert_eq(hall.first_done_at("infirmary"), 1_260)
+	assert_eq(hall.first_done_at("infirmary"), 1_202)
 	assert_eq(hall.rooms_done("infirmary", 1_600), 2)
 
 
@@ -460,12 +463,12 @@ func test_a_clock_set_back_mid_conversion_adds_no_time_and_does_not_undo_it() ->
 	var gold := Gold.new(300)
 	var hall := _hall_with_empty_room("back_left", gold)
 	hall.convert_room("back_left", "infirmary", gold, 1_200)
-	hall.checkpoint(1_230)
+	hall.checkpoint(1_201)
 	hall.checkpoint(500)
 	assert_eq(hall.state("back_left", 500), Hall.State.CONVERTING)
-	assert_eq(hall.seconds_left(500), 30)
-	assert_eq(hall.first_done_at("infirmary"), 1_260)
-	assert_eq(hall.seconds_left(1_250), 10)
+	assert_eq(hall.seconds_left(500), 1)
+	assert_eq(hall.first_done_at("infirmary"), 1_202)
+	assert_eq(hall.seconds_left(1_202), 0)
 	assert_eq(gold.amount, 180)
 
 
@@ -477,7 +480,7 @@ func test_a_conversion_in_progress_and_a_converted_room_survive_save_and_load() 
 	hall.restore("side_right", gold, 1_260)
 	hall.checkpoint(1_380)
 	hall.convert_room("side_right", "quest_hall", gold, 1_400)
-	hall.checkpoint(1_420)
+	hall.checkpoint(1_401)
 	var file := ConfigFile.new()
 	gold.write(file)
 	hall.write(file)
@@ -486,16 +489,16 @@ func test_a_conversion_in_progress_and_a_converted_room_survive_save_and_load() 
 	var loaded := Hall.load_or_start(SAVE_PATH, 99_999)
 	var loaded_gold := Gold.load_or_start(SAVE_PATH)
 	assert_eq(loaded_gold.amount, 1_000 - 60 - 60 - 120 - 60)
-	assert_eq(loaded.state("back_left", 1_420), Hall.State.CONVERTED)
+	assert_eq(loaded.state("back_left", 1_401), Hall.State.CONVERTED)
 	assert_eq(loaded.room_type("back_left"), "infirmary")
-	assert_eq(loaded.first_done_at("infirmary"), 1_260)
-	assert_eq(loaded.state("side_right", 1_420), Hall.State.CONVERTING)
-	assert_eq(loaded.seconds_left(1_420), 40)
-	assert_eq(loaded.convert_refusal("back_right", "quest_hall", loaded_gold, 1_420), "Not an empty room")
-	assert_eq(loaded.rooms_done("quest_hall", 1_459), 0)
-	assert_eq(loaded.state("side_right", 1_460), Hall.State.CONVERTED)
+	assert_eq(loaded.first_done_at("infirmary"), 1_202)
+	assert_eq(loaded.state("side_right", 1_401), Hall.State.CONVERTING)
+	assert_eq(loaded.seconds_left(1_401), 1)
+	assert_eq(loaded.convert_refusal("back_right", "quest_hall", loaded_gold, 1_401), "Not an empty room")
+	assert_eq(loaded.rooms_done("quest_hall", 1_401), 0)
+	assert_eq(loaded.state("side_right", 1_402), Hall.State.CONVERTED)
 	assert_eq(loaded.room_type("side_right"), "quest_hall")
-	assert_eq(loaded.rooms_done("quest_hall", 1_460), 1)
+	assert_eq(loaded.rooms_done("quest_hall", 1_402), 1)
 
 
 func _m4_save() -> void:
@@ -503,9 +506,9 @@ func _m4_save() -> void:
 	file.set_value("gold", "saved", 400)
 	file.set_value("hall", "restored", PackedStringArray(["back_left"]))
 	file.set_value("hall", "restoring", "side_left")
-	file.set_value("hall", "restoring_since", 1_000)
+	file.set_value("hall", "restoring_since", 1_048)
 	file.set_value("hall", "checked_at", 1_050)
-	file.set_value("dispatch", "outings", [{"quest": "rats", "since": 1_020, "party": PackedStringArray(["bram"]), "seed": 7}])
+	file.set_value("dispatch", "outings", [{"quest": "rats", "since": 1_049, "party": PackedStringArray(["bram"]), "seed": 7}])
 	file.set_value("dispatch", "injured_until", {"tobin": 1_200})
 	file.set_value("dispatch", "last_return", "Goblin camp: failed · +125 gold · Tobin injured")
 	file.set_value("dispatch", "checked_at", 1_050)
@@ -520,22 +523,22 @@ func test_an_m4_save_loads_with_no_converted_rooms_and_everything_else_as_it_was
 	assert_eq(gold.amount, 400)
 	assert_eq(hall.state("back_left", 1_050), Hall.State.RESTORED)
 	assert_eq(hall.state("side_left", 1_050), Hall.State.RESTORING)
-	assert_eq(hall.seconds_left(1_050), 70)
-	assert_eq(hall.state("side_left", 1_120), Hall.State.RESTORED)
+	assert_eq(hall.seconds_left(1_050), 2)
+	assert_eq(hall.state("side_left", 1_052), Hall.State.RESTORED)
 	assert_eq(hall.state("back_right", 1_050), Hall.State.DAMAGED)
 	assert_true(hall.converted.is_empty())
-	assert_eq(hall.rooms_done("quest_hall", 1_120), 0)
+	assert_eq(hall.rooms_done("quest_hall", 1_052), 0)
 	assert_eq(hall.first_done_at("infirmary"), -1)
 	assert_eq(dispatch.outings[0]["quest"], "rats")
-	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_050), 30)
+	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_050), 1)
 	assert_eq(dispatch.injury_left("tobin", 1_050), 150)
 	assert_true(dispatch.debriefs.is_empty())
 	assert_eq(hall.convert_refusal("back_left", "bunk_room", gold, 1_050), "Builder busy")
-	assert_true(hall.convert_room("back_left", "bunk_room", gold, 1_120))
+	assert_true(hall.convert_room("back_left", "bunk_room", gold, 1_052))
 	assert_eq(gold.amount, 340)
 
 
-## A hall with a Tavern in `slot` converted from 1_200, finishing at 1_260, paid from `gold`.
+## A hall with a Tavern in `slot` converted from 1_200, finishing at 1_202, paid from `gold`.
 func _hall_with_tavern(slot: String, gold: Gold) -> Hall:
 	var hall := _hall_with_empty_room(slot, gold)
 	assert_true(hall.convert_room(slot, "tavern", gold, 1_200))
@@ -545,123 +548,123 @@ func _hall_with_tavern(slot: String, gold: Gold) -> Hall:
 func test_a_tavern_holds_no_gold_until_its_conversion_finishes() -> void:
 	var hall := _hall_with_tavern("back_left", Gold.new(1_000))
 	assert_eq(hall.tavern_gold("back_left", 1_200), 0)
-	assert_eq(hall.tavern_gold("back_left", 1_259), 0)
-	assert_eq(hall.tavern_gold("back_left", 1_260), 0)
-	assert_eq(hall.tavern_gold("back_left", 1_290), 1)
+	assert_eq(hall.tavern_gold("back_left", 1_201), 0)
+	assert_eq(hall.tavern_gold("back_left", 1_202), 0)
+	assert_eq(hall.tavern_gold("back_left", 1_205), 1)
 
 
-func test_a_finished_tavern_fills_with_2_gold_a_minute_from_when_it_finished() -> void:
+func test_a_finished_tavern_fills_with_20_gold_a_minute_from_when_it_finished() -> void:
 	var hall := _hall_with_tavern("back_left", Gold.new(1_000))
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 60), 2)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 17 * 60), 34)
-	hall.checkpoint(1_260 + 17 * 60)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 17 * 60), 34)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 30 * 60), 60)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 60), 20)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 51), 17)
+	hall.checkpoint(1_202 + 51)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 51), 17)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 90), 30)
 	# Other rooms hold none.
-	assert_eq(hall.tavern_gold("reception", 1_260 + 30 * 60), 0)
+	assert_eq(hall.tavern_gold("reception", 1_202 + 90), 0)
 
 
-func test_a_tavern_stops_filling_at_120_gold() -> void:
+func test_a_tavern_stops_filling_at_40_gold() -> void:
 	var hall := _hall_with_tavern("back_left", Gold.new(1_000))
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 59 * 60), 118)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 60 * 60), 120)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 61 * 60), 120)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 24 * 3_600), 120)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 117), 39)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 120), 40)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 123), 40)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 24 * 3_600), 40)
 
 
 func test_collecting_moves_exactly_the_tavern_gold_into_gold_and_it_fills_again_from_then() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_tavern("back_left", gold)
 	assert_eq(gold.amount, 880)
-	var at := 1_260 + 17 * 60
-	assert_eq(hall.collect("back_left", gold, at), 34)
-	assert_eq(gold.amount, 914)
+	var at := 1_202 + 51
+	assert_eq(hall.collect("back_left", gold, at), 17)
+	assert_eq(gold.amount, 897)
 	assert_eq(hall.tavern_gold("back_left", at), 0)
-	assert_eq(hall.tavern_gold("back_left", at + 60), 2)
-	assert_eq(hall.tavern_gold("back_left", at + 70 * 60), 120)
+	assert_eq(hall.tavern_gold("back_left", at + 60), 20)
+	assert_eq(hall.tavern_gold("back_left", at + 3_600), 40)
 
 
 func test_collecting_twice_in_a_row_gives_nothing_the_second_time() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_tavern("back_left", gold)
-	assert_eq(hall.collect("back_left", gold, 1_260 + 10 * 60), 20)
-	assert_eq(hall.collect("back_left", gold, 1_260 + 10 * 60), 0)
-	assert_eq(gold.amount, 900)
+	assert_eq(hall.collect("back_left", gold, 1_202 + 30), 10)
+	assert_eq(hall.collect("back_left", gold, 1_202 + 30), 0)
+	assert_eq(gold.amount, 890)
 	# Collecting an empty room does not restart its filling.
-	assert_eq(hall.collect("back_left", gold, 1_260 + 10 * 60 + 29), 0)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 10 * 60 + 30), 1)
+	assert_eq(hall.collect("back_left", gold, 1_202 + 30 + 2), 0)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 30 + 3), 1)
 
 
 func test_a_tavern_finished_since_the_last_checkpoint_can_be_collected() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_tavern("back_left", gold)
-	assert_eq(hall.collect("back_left", gold, 1_260 + 5 * 60), 10)
-	assert_eq(gold.amount, 890)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 6 * 60), 2)
+	assert_eq(hall.collect("back_left", gold, 1_202 + 15), 5)
+	assert_eq(gold.amount, 885)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 15 + 60), 20)
 
 
 func test_two_taverns_fill_and_are_collected_each_on_their_own() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_tavern("back_left", gold)
-	hall.checkpoint(1_260)
-	assert_true(hall.restore("back_right", gold, 1_260))
-	hall.checkpoint(1_380)
+	hall.checkpoint(1_202)
+	assert_true(hall.restore("back_right", gold, 1_202))
+	hall.checkpoint(1_206)
 	# A second Tavern, as a save from before rooms were unique can hold.
-	hall.converted["back_right"] = {"type": "tavern", "done_at": 1_440}
-	# The second finishes at 1_440, three minutes after the first.
-	var at := 1_440 + 10 * 60
-	assert_eq(hall.tavern_gold("back_left", at), 26)
-	assert_eq(hall.tavern_gold("back_right", at), 20)
+	hall.converted["back_right"] = {"type": "tavern", "done_at": 1_211}
+	# The second finishes at 1_211, nine seconds after the first.
+	var at := 1_211 + 30
+	assert_eq(hall.tavern_gold("back_left", at), 13)
+	assert_eq(hall.tavern_gold("back_right", at), 10)
 	var before := gold.amount
-	assert_eq(hall.collect("back_left", gold, at), 26)
+	assert_eq(hall.collect("back_left", gold, at), 13)
 	assert_eq(hall.tavern_gold("back_left", at), 0)
-	assert_eq(hall.tavern_gold("back_right", at), 20)
-	assert_eq(hall.tavern_gold("back_right", at + 60), 22)
-	assert_eq(hall.tavern_gold("back_left", at + 60), 2)
-	assert_eq(gold.amount, before + 26)
+	assert_eq(hall.tavern_gold("back_right", at), 10)
+	assert_eq(hall.tavern_gold("back_right", at + 3), 11)
+	assert_eq(hall.tavern_gold("back_left", at + 3), 1)
+	assert_eq(gold.amount, before + 13)
 
 
 func test_a_clock_set_back_neither_removes_nor_adds_tavern_gold() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_tavern("back_left", gold)
-	hall.checkpoint(1_260 + 20 * 60)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 20 * 60), 40)
+	hall.checkpoint(1_202 + 60)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 60), 20)
 	hall.checkpoint(500)
-	assert_eq(hall.tavern_gold("back_left", 500), 40)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 21 * 60), 42)
+	assert_eq(hall.tavern_gold("back_left", 500), 20)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 63), 21)
 
-	assert_eq(hall.collect("back_left", gold, 1_260 + 21 * 60), 42)
+	assert_eq(hall.collect("back_left", gold, 1_202 + 63), 21)
 	hall.checkpoint(500)
 	assert_eq(hall.tavern_gold("back_left", 500), 0)
 	assert_eq(hall.collect("back_left", gold, 500), 0)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 22 * 60), 2)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 66), 1)
 	# Collected while the clock is set back, it starts filling again from the latest time seen.
-	hall.checkpoint(1_260 + 25 * 60)
-	assert_eq(hall.collect("back_left", gold, 500), 8)
-	assert_eq(hall.tavern_gold("back_left", 1_260 + 25 * 60), 0)
-	assert_eq(gold.amount, 880 + 42 + 8)
+	hall.checkpoint(1_202 + 75)
+	assert_eq(hall.collect("back_left", gold, 500), 4)
+	assert_eq(hall.tavern_gold("back_left", 1_202 + 75), 0)
+	assert_eq(gold.amount, 880 + 21 + 4)
 
 
 func test_one_read_after_an_absence_equals_reading_every_second() -> void:
 	var away := _hall_with_tavern("back_left", Gold.new(1_000))
 	var watched := _hall_with_tavern("back_left", Gold.new(1_000))
 	var seen := 0
-	for now: int in range(1_200, 1_260 + 50 * 60 + 1):
+	for now: int in range(1_200, 1_202 + 100 + 1):
 		watched.checkpoint(now)
 		seen = watched.tavern_gold("back_left", now)
-	assert_eq(seen, 100)
-	assert_eq(away.tavern_gold("back_left", 1_260 + 50 * 60), 100)
+	assert_eq(seen, 33)
+	assert_eq(away.tavern_gold("back_left", 1_202 + 100), 33)
 	var gold := Gold.new(0)
-	assert_eq(away.collect("back_left", gold, 1_260 + 50 * 60), 100)
-	assert_eq(watched.collect("back_left", gold, 1_260 + 50 * 60), 100)
-	assert_eq(gold.amount, 200)
+	assert_eq(away.collect("back_left", gold, 1_202 + 100), 33)
+	assert_eq(watched.collect("back_left", gold, 1_202 + 100), 33)
+	assert_eq(gold.amount, 66)
 
 
 func test_a_tavern_amount_and_collected_at_survive_save_and_load() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_tavern("back_left", gold)
-	assert_eq(hall.collect("back_left", gold, 1_260 + 10 * 60), 20)
-	hall.checkpoint(1_260 + 25 * 60)
+	assert_eq(hall.collect("back_left", gold, 1_202 + 30), 10)
+	hall.checkpoint(1_202 + 75)
 	var file := ConfigFile.new()
 	gold.write(file)
 	hall.write(file)
@@ -669,12 +672,12 @@ func test_a_tavern_amount_and_collected_at_survive_save_and_load() -> void:
 
 	var loaded := Hall.load_or_start(SAVE_PATH, 99_999)
 	var loaded_gold := Gold.load_or_start(SAVE_PATH)
-	assert_eq(loaded_gold.amount, 900)
+	assert_eq(loaded_gold.amount, 890)
 	assert_eq(loaded.room_type("back_left"), "tavern")
-	assert_eq(loaded.tavern_gold("back_left", 1_260 + 25 * 60), 30)
-	assert_eq(loaded.tavern_gold("back_left", 1_260 + 26 * 60), 32)
-	assert_eq(loaded.collect("back_left", loaded_gold, 1_260 + 26 * 60), 32)
-	assert_eq(loaded_gold.amount, 932)
+	assert_eq(loaded.tavern_gold("back_left", 1_202 + 75), 15)
+	assert_eq(loaded.tavern_gold("back_left", 1_202 + 78), 16)
+	assert_eq(loaded.collect("back_left", loaded_gold, 1_202 + 78), 16)
+	assert_eq(loaded_gold.amount, 906)
 
 
 func test_an_old_save_loads_with_no_tavern_and_its_rooms_hold_no_gold() -> void:
@@ -696,7 +699,7 @@ func test_an_old_save_loads_with_no_tavern_and_its_rooms_hold_no_gold() -> void:
 	# A Tavern needs rank D, which the guild reaches later.
 	hall.rank = "D"
 	assert_true(hall.convert_room("side_left", "tavern", gold, 2_000))
-	assert_eq(hall.tavern_gold("side_left", 2_060 + 60), 2)
+	assert_eq(hall.tavern_gold("side_left", 2_002 + 60), 20)
 
 
 func test_at_rank_f_only_a_bunk_room_and_a_common_room_can_be_built_and_any_other_type_is_refused_with_nothing_changed() -> void:
@@ -741,9 +744,9 @@ func test_an_extension_under_way_at_rank_f_still_finishes() -> void:
 	var hall := _hall_with_restores(3, gold)
 	assert_true(hall.extend(gold, 1_500))
 	hall.rank = "F"
-	assert_false(hall.has_first_floor(2_099))
-	assert_true(hall.has_first_floor(2_100))
-	hall.checkpoint(2_100)
+	assert_false(hall.has_first_floor(1_519))
+	assert_true(hall.has_first_floor(1_520))
+	hall.checkpoint(1_520)
 	assert_true(hall.first_floor)
 
 
@@ -759,7 +762,7 @@ func _hall_with_restores(restores: int, gold: Gold) -> Hall:
 	return hall
 
 
-## A hall with the First floor built from 1_500 to 2_100 and checkpointed then, paid from `gold`.
+## A hall with the First floor built from 1_500 to 1_520 and checkpointed at 2_100, paid from `gold`.
 func _hall_with_first_floor(gold: Gold) -> Hall:
 	var hall := _hall_with_restores(3, gold)
 	assert_true(hall.extend(gold, 1_500))
@@ -778,16 +781,16 @@ func test_extending_is_refused_until_3_ground_floor_rooms_are_restored_with_noth
 	assert_eq(hall.seconds_left(1_450), 0)
 	# The third restoration counts the moment it finishes, before any checkpoint.
 	assert_true(hall.restore("side_left", gold, 1_450))
-	assert_eq(hall.extend_refusal(gold, 1_749), "Restore the ground floor first")
-	assert_eq(hall.extend_refusal(gold, 1_750), "")
+	assert_eq(hall.extend_refusal(gold, 1_459), "Restore the ground floor first")
+	assert_eq(hall.extend_refusal(gold, 1_460), "")
 
 
 func test_extending_is_refused_while_the_builder_is_busy_with_nothing_changed() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_restores(3, gold)
 	assert_true(hall.restore("side_right", gold, 1_500))
-	assert_eq(hall.extend_refusal(gold, 1_600), "Builder busy")
-	assert_false(hall.extend(gold, 1_600))
+	assert_eq(hall.extend_refusal(gold, 1_510), "Builder busy")
+	assert_false(hall.extend(gold, 1_510))
 	assert_eq(gold.amount, 320)
 	assert_eq(hall.building, "side_right")
 	assert_false(hall.has_first_floor(99_999))
@@ -807,24 +810,24 @@ func test_extending_is_refused_with_the_shortfall_when_gold_is_short_with_nothin
 	assert_eq(hall.extend_refusal(gold, 1_500), "")
 
 
-func test_extending_costs_400_gold_and_builds_the_first_floor_exactly_600_seconds_later() -> void:
+func test_extending_costs_400_gold_and_builds_the_first_floor_exactly_20_seconds_later() -> void:
 	var gold := Gold.new(780)
 	var hall := _hall_with_restores(3, gold)
 	assert_true(hall.extend(gold, 1_500))
 	assert_eq(gold.amount, 0)
-	assert_eq(hall.job_seconds(), 600)
-	assert_eq(hall.seconds_left(1_500), 600)
-	assert_false(hall.has_first_floor(2_099))
-	assert_eq(hall.state("upper_nw", 2_099), Hall.State.UNBUILT)
-	assert_true(hall.has_first_floor(2_100))
+	assert_eq(hall.job_seconds(), 20)
+	assert_eq(hall.seconds_left(1_500), 20)
+	assert_false(hall.has_first_floor(1_519))
+	assert_eq(hall.state("upper_nw", 1_519), Hall.State.UNBUILT)
+	assert_true(hall.has_first_floor(1_520))
 	for slot: String in ["upper_nw", "upper_ne", "upper_sw", "upper_se"]:
-		assert_eq(hall.state(slot, 2_100), Hall.State.RESTORED, slot)
+		assert_eq(hall.state(slot, 1_520), Hall.State.RESTORED, slot)
 	# Restore pricing counts restorations only, under way or after.
-	assert_eq(hall.next_restore(), {"gold": 300, "seconds": 600})
-	hall.checkpoint(2_100)
-	assert_true(hall.has_first_floor(2_100))
-	assert_eq(hall.next_restore(), {"gold": 300, "seconds": 600})
-	assert_eq(hall.state("side_right", 2_100), Hall.State.DAMAGED)
+	assert_eq(hall.next_restore(), {"gold": 300, "seconds": 20})
+	hall.checkpoint(1_520)
+	assert_true(hall.has_first_floor(1_520))
+	assert_eq(hall.next_restore(), {"gold": 300, "seconds": 20})
+	assert_eq(hall.state("side_right", 1_520), Hall.State.DAMAGED)
 
 
 func test_the_first_floor_rooms_start_empty_and_cannot_be_restored_or_converted_before_it_is_built() -> void:
@@ -849,11 +852,11 @@ func test_a_bunk_room_quest_hall_and_tavern_on_the_first_floor_count_as_on_the_g
 	assert_true(hall.convert_room("upper_se", "tavern", gold, 2_220))
 	assert_eq(hall.beds(2_160), 6)
 	assert_eq(hall.rooms_done("quest_hall", 2_220), 1)
-	assert_eq(hall.converted["upper_sw"], {"type": "quest_hall", "done_at": 2_220})
+	assert_eq(hall.converted["upper_sw"], {"type": "quest_hall", "done_at": 2_162})
 	assert_eq(hall.state("upper_se", 2_280), Hall.State.CONVERTED)
-	assert_eq(hall.tavern_gold("upper_se", 2_280 + 10 * 60), 20)
-	assert_eq(hall.collect("upper_se", gold, 2_280 + 10 * 60), 20)
-	assert_eq(gold.amount, 2_000 - 380 - 400 - 3 * 60 + 20)
+	assert_eq(hall.tavern_gold("upper_se", 2_222 + 30), 10)
+	assert_eq(hall.collect("upper_se", gold, 2_222 + 30), 10)
+	assert_eq(gold.amount, 2_000 - 380 - 400 - 3 * 60 + 10)
 
 
 func test_the_first_infirmary_done_is_the_one_injured_adventurers_use_on_either_floor() -> void:
@@ -865,7 +868,7 @@ func test_the_first_infirmary_done_is_the_one_injured_adventurers_use_on_either_
 	hall.converted["back_left"] = {"type": "infirmary", "done_at": 2_220}
 	hall.checkpoint(2_220)
 	assert_eq(hall.first_room("infirmary"), "upper_se")
-	assert_eq(hall.first_done_at("infirmary"), 2_160)
+	assert_eq(hall.first_done_at("infirmary"), 2_102)
 	assert_eq(hall.first_room("tavern"), "")
 
 
@@ -886,9 +889,9 @@ func test_a_clock_set_back_neither_adds_time_to_the_extension_nor_undoes_it() ->
 	var gold := Gold.new(2_000)
 	var hall := _hall_with_restores(3, gold)
 	assert_true(hall.extend(gold, 1_500))
-	hall.checkpoint(1_800)
+	hall.checkpoint(1_510)
 	hall.checkpoint(900)
-	assert_eq(hall.seconds_left(900), 300)
+	assert_eq(hall.seconds_left(900), 10)
 	assert_false(hall.has_first_floor(900))
 	hall.checkpoint(2_100)
 	hall.checkpoint(900)
@@ -902,17 +905,17 @@ func test_an_extension_under_way_and_a_built_first_floor_survive_save_and_load()
 	var gold := Gold.new(2_000)
 	var hall := _hall_with_restores(3, gold)
 	assert_true(hall.extend(gold, 1_500))
-	hall.checkpoint(1_700)
+	hall.checkpoint(1_510)
 	var file := ConfigFile.new()
 	hall.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 
 	var loaded := Hall.load_or_start(SAVE_PATH, 99_999)
-	assert_eq(loaded.seconds_left(1_700), 400)
-	assert_false(loaded.has_first_floor(2_099))
-	assert_eq(loaded.extend_refusal(gold, 1_700), "Already extended")
-	assert_eq(loaded.next_restore(), {"gold": 300, "seconds": 600})
-	assert_true(loaded.has_first_floor(2_100))
+	assert_eq(loaded.seconds_left(1_510), 10)
+	assert_false(loaded.has_first_floor(1_519))
+	assert_eq(loaded.extend_refusal(gold, 1_510), "Already extended")
+	assert_eq(loaded.next_restore(), {"gold": 300, "seconds": 20})
+	assert_true(loaded.has_first_floor(1_520))
 
 	loaded.checkpoint(2_100)
 	assert_true(loaded.convert_room("upper_nw", "bunk_room", gold, 2_100))
@@ -1017,12 +1020,12 @@ func test_a_save_from_before_guild_ranks_loads_unchanged_with_its_capacity_and_i
 	assert_eq(board.slots.size(), 4)
 	recruits.refill(dispatch.adventurers, 2_000, PackedInt64Array([2_000]))
 	assert_eq(recruits.candidates.size(), 3)
-	# The Tavern a rank-F guild could not build now still fills.
-	assert_eq(hall.tavern_gold("back_left", 1_700), 20)
-	assert_eq(hall.tavern_gold("back_left", 2_000), 30)
+	# The Tavern a rank-F guild could not build now still fills, up to its cap.
+	assert_eq(hall.tavern_gold("back_left", 1_200), 33)
+	assert_eq(hall.tavern_gold("back_left", 2_000), 40)
 	var gold := Gold.load_or_start(SAVE_PATH)
-	assert_eq(hall.collect("back_left", gold, 2_000), 30)
-	assert_eq(gold.amount, 530)
+	assert_eq(hall.collect("back_left", gold, 2_000), 40)
+	assert_eq(gold.amount, 540)
 
 
 func test_a_new_game_survives_save_and_load() -> void:
@@ -1036,18 +1039,18 @@ func test_a_new_game_survives_save_and_load() -> void:
 	dispatch.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 
-	var loaded := Hall.load_or_start(SAVE_PATH, 1_010)
+	var loaded := Hall.load_or_start(SAVE_PATH, 1_000)
 	assert_eq(loaded.layout, hall.layout)
 	assert_eq(loaded.rank, "F")
 	assert_eq(loaded.building, "side_left")
-	assert_eq(loaded.seconds_left(1_010), 20)
+	assert_eq(loaded.seconds_left(1_000), 1)
 	for slot: String in ["reception", "side_left", "back_left", "back_right", "side_right", "entrance", "upper_nw"]:
-		assert_eq(loaded.state(slot, 1_010), hall.state(slot, 1_010), slot)
+		assert_eq(loaded.state(slot, 1_000), hall.state(slot, 1_000), slot)
 	for capacity: String in ["beds", "candidate_slots", "board_slots", "stash"]:
 		assert_eq(loaded.reception(capacity), hall.reception(capacity), capacity)
 	assert_eq(loaded.reception("beds"), 2)
 	assert_eq(Gold.load_or_start(SAVE_PATH).amount, 40)
-	var loaded_dispatch := Dispatch.load_or_start(SAVE_PATH, 1_010)
+	var loaded_dispatch := Dispatch.load_or_start(SAVE_PATH, 1_000)
 	assert_eq(loaded_dispatch.adventurers.roster, dispatch.adventurers.roster)
 	assert_eq(loaded_dispatch.adventurers.gear.worn, dispatch.adventurers.gear.worn)
 
@@ -1093,7 +1096,7 @@ func test_one_checkpoint_after_an_absence_in_a_new_game_equals_checkpointing_eve
 	var watched := _new_game_played(1)
 	var away := _new_game_played(0)
 	assert_eq(away, watched)
-	# The candidate's slot refilled 1_800 seconds after the hire, and the Bunk room gave the bed.
+	# The candidate's slot refilled 60 seconds after the hire, and the Bunk room gave the bed.
 	assert_eq(away[2], 4)
 	assert_eq(away[7].size(), 3)
 	assert_false(away[5][0].is_empty())
@@ -1103,11 +1106,11 @@ func test_a_restoration_keeps_the_length_it_started_with_when_the_rule_tables_re
 	var gold := Gold.new(500)
 	var hall := _six_room_hall(1_000)
 	hall.restore("back_left", gold, 1_000)
-	# Another room counted as restored would make today's table give the second room's 2 minutes.
+	# Another room counted as restored would make today's table give the second room's 4 seconds.
 	hall.restored.append("side_left")
-	assert_eq(hall.job_seconds(), 30)
-	assert_eq(hall.seconds_left(1_000), 30)
-	assert_eq(hall.state("back_left", 1_030), Hall.State.RESTORED)
+	assert_eq(hall.job_seconds(), 1)
+	assert_eq(hall.seconds_left(1_000), 1)
+	assert_eq(hall.state("back_left", 1_001), Hall.State.RESTORED)
 
 
 func test_a_job_under_way_loads_with_the_length_saved_when_it_started_and_one_saved_without_it_uses_todays_rule() -> void:
@@ -1121,7 +1124,7 @@ func test_a_job_under_way_loads_with_the_length_saved_when_it_started_and_one_sa
 		extending.restore(slot, gold, extending.checked_at)
 		extending.checkpoint(extending.checked_at + 600)
 	assert_true(extending.extend(Gold.new(400), extending.checked_at))
-	var jobs: Array[Array] = [[restoring, 30], [converting, 60], [extending, 600]]
+	var jobs: Array[Array] = [[restoring, 1], [converting, 2], [extending, 20]]
 	for job: Array in jobs:
 		var hall: Hall = job[0]
 		var file := ConfigFile.new()
@@ -1151,6 +1154,6 @@ func test_a_finished_job_leaves_the_next_one_its_own_length() -> void:
 	hall.restore("back_left", gold, 1_000)
 	hall.checkpoint(1_030)
 	hall.restore("side_left", gold, 1_030)
-	assert_eq(hall.seconds_left(1_030), 120)
-	assert_eq(hall.state("side_left", 1_149), Hall.State.RESTORING)
-	assert_eq(hall.state("side_left", 1_150), Hall.State.RESTORED)
+	assert_eq(hall.seconds_left(1_030), 4)
+	assert_eq(hall.state("side_left", 1_033), Hall.State.RESTORING)
+	assert_eq(hall.state("side_left", 1_034), Hall.State.RESTORED)

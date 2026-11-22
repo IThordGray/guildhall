@@ -184,7 +184,7 @@ func _on_tick() -> void:
 func _checkpoint(now: int) -> void:
 	_dispatch.checkpoint(now, _hall.first_done_at("infirmary"))
 	_hall.checkpoint(now)
-	_quest_board.refill(_dispatch, now, _rooms_done("quest_hall"), _hall.first_done_at("map_room"))
+	_quest_board.refill(_dispatch, now, _rooms_done("quest_hall"), _hall.first_done_at("map_room"), _hall.rank)
 	_recruits.refill(_dispatch.adventurers, now, _rooms_done("common_room"))
 	var file := ConfigFile.new()
 	_clock.write(file, Time.get_unix_time_from_system())
@@ -304,7 +304,7 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
 	# A Quest hall finished since the last tick adds its slot before the send.
 	_hall.checkpoint(now)
-	if _quest_board.send(_dispatch, quest, party, randi(), now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room")):
+	if _quest_board.send(_dispatch, quest, party, randi(), now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank):
 		_close_picker()
 	_checkpoint(now)
 
