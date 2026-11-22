@@ -13,6 +13,8 @@ signal slot_pressed(adventurer: String, slot: String)
 signal train_pressed(adventurer: String)
 ## The player chose to end `adventurer`'s training and bank its XP.
 signal stop_training_pressed(adventurer: String)
+## The player asked to dismiss `adventurer` from the guild.
+signal dismiss_pressed(adventurer: String)
 ## The player swiped to the next adventurer in roster order (`step` 1) or the previous (`step` -1).
 signal swiped(step: int)
 
@@ -58,6 +60,7 @@ var _press_at: Vector2 = Vector2.ZERO
 @onready var _training_xp: Label = $Box/Scroll/Content/Card/Header/Row/Words/Training/Xp
 @onready var _stop: Button = $Box/Scroll/Content/Card/Header/Row/Words/Training/Stop
 @onready var _train: Button = $Box/Scroll/Content/Card/Header/Row/Words/Training/Train
+@onready var _dismiss: Button = $Box/Scroll/Content/Card/Header/Row/Words/Dismiss
 @onready var _training_notes: Label = $Box/Scroll/Content/Card/Stats/Rows/TrainingNotes
 @onready var _history: VBoxContainer = $Box/Scroll/Content/Card/Stats/Rows/History
 @onready var _gear: GridContainer = $Box/Scroll/Content/GearColumn/Gear
@@ -115,6 +118,7 @@ func _ready() -> void:
 	_promote.pressed.connect(func() -> void: promote_pressed.emit(_adventurer))
 	_train.pressed.connect(func() -> void: train_pressed.emit(_adventurer))
 	_stop.pressed.connect(func() -> void: stop_training_pressed.emit(_adventurer))
+	_dismiss.pressed.connect(func() -> void: dismiss_pressed.emit(_adventurer))
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
 
 
@@ -159,7 +163,8 @@ func set_landscape(landscape: bool) -> void:
 
 ## Shows `adventurer` as `dispatch` has them at `now`: Promote once they reach the level their next
 ## rank needs, disabled with the reason when `gold` is short or they are out; Train only when one of
-## `training_places` would take them now.
+## `training_places` would take them now; Dismiss while they are home and not the last, disabled with
+## the reason while something else keeps them.
 func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, training_places: int, now: int) -> void:
 	_adventurer = adventurer
 	var adventurers := dispatch.adventurers
@@ -169,7 +174,7 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	_name.text = info["name"]
 	_status.text = dispatch.status(adventurer, now)
 	_status.theme_type_variation = Roster.status_look(dispatch, adventurer, now)
-	_details.text = "%s · rank %s · level %d" % [adventurers.title(adventurer), info["rank"], level]
+	_details.text = Roster.details_line(adventurers, adventurer)
 	show_health(_health, adventurer, dispatch, now)
 	var xp: int = adventurers.xp[adventurer]
 	var needed := adventurers.xp_needed(adventurer)
@@ -193,6 +198,10 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	_stop.visible = training
 	# Train shows only when training would start now.
 	_train.visible = dispatch.training_refusal(adventurer, training_places, now).is_empty()
+	var keeps_them := dispatch.dismiss_refusal(adventurer)
+	_dismiss.visible = dispatch.quest_of(adventurer).is_empty() and adventurers.roster.size() > 1
+	_dismiss.disabled = not keeps_them.is_empty()
+	_dismiss.text = "Dismiss" if keeps_them.is_empty() else keeps_them
 	var hint := dispatch.training_hint(adventurer, now)
 	_training_notes.text = "Grows fastest in " + hint
 	_training_notes.visible = not hint.is_empty()

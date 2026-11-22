@@ -155,6 +155,23 @@ func take_off(adventurer: String, slot: String) -> bool:
 	return true
 
 
+## Takes everything off `adventurer`, who is leaving the guild, into the stash in SLOTS order, and
+## forgets what they wore. Returns the items that found the stash full: those leave with them.
+func strip(adventurer: String) -> PackedStringArray:
+	var gone := PackedStringArray()
+	for slot: String in SLOTS:
+		var item: String = worn[adventurer].get(slot, "")
+		if not item.is_empty() and not stow(item):
+			gone.append(item)
+	worn.erase(adventurer)
+	return gone
+
+
+## How many of `adventurer`'s items `strip` would find no room for in the stash now.
+func leaving_with(adventurer: String) -> int:
+	return maxi(0, worn[adventurer].size() - (stash_cap - stash.size()))
+
+
 ## Puts the gear into `file`, which other state shares, so one save holds the whole game.
 func write(file: ConfigFile) -> void:
 	file.set_value("gear", "worn", worn)

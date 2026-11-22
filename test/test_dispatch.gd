@@ -2110,3 +2110,99 @@ func test_a_save_with_four_old_stats_classes_a_party_out_and_a_debrief_loads_wit
 	assert_false(loaded.debriefs[1].has("lucky_break"))
 	_read_all(loaded, gold)
 	assert_eq(_statuses(loaded, 1_100), ["Resting", "Resting", "Resting", "Resting"])
+
+
+func test_dismissing_puts_their_gear_in_the_stash_in_slot_order_and_what_does_not_fit_leaves_with_them() -> void:
+	var dispatch := _guild(1_000)
+	var gear := dispatch.adventurers.gear
+	gear.stash = PackedStringArray(["quiver", "belt", "sash"])
+	# Bram wears five items, put on last slot first, and the stash of 6 has room for three.
+	gear.worn["bram"] = {"off_hand": "round_shield", "weapon": "short_sword", "armour": "leather_vest", "clothes": "red_tunic", "head": "iron_cap"}
+	assert_eq(gear.leaving_with("bram"), 2)
+	assert_eq(gear.leaving_with("maren"), 0)
+	assert_true(dispatch.dismiss("bram"))
+	assert_eq(gear.stash, PackedStringArray(["quiver", "belt", "sash", "iron_cap", "red_tunic", "leather_vest"]))
+	assert_false(gear.worn.has("bram"))
+	assert_true(gear.worn.has("tobin"))
+
+
+func test_dismissal_is_refused_with_nothing_changed_while_out_waiting_on_a_debrief_or_training() -> void:
+	var dispatch := _guild(1_000)
+	assert_true(dispatch.send("rats", PackedStringArray(["bram"]), 1, 1_000))
+	assert_true(dispatch.train("ilse", 1, 1_000))
+	assert_eq(dispatch.dismiss_refusal("bram"), "Out on a quest")
+	assert_eq(dispatch.dismiss_refusal("ilse"), "Training")
+	assert_eq(dispatch.dismiss_refusal("tobin"), "")
+	dispatch.checkpoint(1_100)
+	assert_eq(dispatch.dismiss_refusal("bram"), "Debrief waiting")
+	for adventurer: String in ["bram", "ilse"]:
+		assert_false(dispatch.dismiss(adventurer))
+	assert_eq(dispatch.adventurers.roster.keys(), EVERYONE)
+	assert_eq(dispatch.adventurers.gear.worn["bram"], Gear.STARTER_GEAR["bram"])
+	assert_true(dispatch.training.has("ilse"))
+	# Once the debrief is read and the training stopped, both can go.
+	_read_all(dispatch, Gold.new(0))
+	dispatch.stop_training("ilse", 1_100)
+	assert_true(dispatch.dismiss("bram"))
+	assert_true(dispatch.dismiss("ilse"))
+	assert_eq(dispatch.adventurers.roster.keys(), ["tobin", "maren"])
+
+
+func test_the_guilds_last_adventurer_cannot_be_dismissed() -> void:
+	var dispatch := Dispatch.new(1_000)
+	assert_true(dispatch.dismiss("bram"))
+	assert_eq(dispatch.dismiss_refusal("tobin"), "The guild's last adventurer")
+	assert_false(dispatch.dismiss("tobin"))
+	assert_eq(dispatch.adventurers.roster.keys(), ["tobin"])
+
+
+func test_the_save_forgets_a_dismissed_adventurer_wounds_injury_training_and_history_included() -> void:
+	var dispatch := _guild(1_000)
+	assert_true(dispatch.send("rats", PackedStringArray(["bram", "tobin"]), 1, 1_000))
+	_worn_out(dispatch, "bram")
+	dispatch.checkpoint(1_100)
+	_read_all(dispatch, Gold.new(0))
+	assert_true(dispatch.train("bram", 1, 1_100))
+	dispatch.stop_training("bram", 1_200)
+	dispatch.adventurers.history["bram"].append({"level": 2, "gains": {"strength": 1}})
+	# What there is to forget.
+	assert_true(dispatch.wounds.has("bram"))
+	assert_true(dispatch.injured_until.has("bram"))
+	assert_true(dispatch.trained_seconds.has("bram"))
+	assert_true(dispatch.dismiss("bram"))
+	var file := ConfigFile.new()
+	dispatch.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var saved := FileAccess.get_file_as_string(SAVE_PATH)
+	assert_false(saved.contains("\"bram\""))
+	assert_true(saved.contains("\"tobin\""))
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_200)
+	assert_eq(loaded.adventurers.roster.keys(), ["ilse", "tobin", "maren"])
+	for kept: Dictionary in [loaded.adventurers.stats, loaded.adventurers.growth, loaded.adventurers.levels, loaded.adventurers.xp, loaded.adventurers.history, loaded.adventurers.gear.worn]:
+		assert_false(kept.has("bram"))
+		assert_true(kept.has("tobin"))
+	assert_false(loaded.wounds.has("bram"))
+	assert_false(loaded.injured_until.has("bram"))
+	assert_false(loaded.injury_lengths.has("bram"))
+	assert_false(loaded.trained_seconds.has("bram"))
+
+
+func test_a_debrief_naming_someone_no_longer_in_the_guild_still_loads_reads_and_pays() -> void:
+	var dispatch := _guild(1_000)
+	assert_true(dispatch.send("rats", PackedStringArray(["bram", "ilse"]), _seed("rats", PackedStringArray(["bram", "ilse"]), true), 1_000))
+	dispatch.checkpoint(1_100)
+	# Ilse is gone while the debrief that names her is kept.
+	dispatch.adventurers.remove("ilse")
+	var file := ConfigFile.new()
+	dispatch.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_100)
+	assert_eq(loaded.debriefs, dispatch.debriefs)
+	assert_has(loaded.debriefs[0]["party"], "ilse")
+	assert_false(loaded.adventurers.roster.has("ilse"))
+	var gold := Gold.new(0)
+	var reward := int(loaded.debriefs[0]["gold"])
+	assert_gt(reward, 0)
+	loaded.read_debrief(0, gold)
+	assert_eq(gold.amount, reward)
+	assert_true(loaded.debriefs.is_empty())

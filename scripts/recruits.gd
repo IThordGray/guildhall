@@ -64,9 +64,10 @@ var reception_slots: int = Hall.LAYOUTS[Hall.NEW_LAYOUT]["candidate_slots"]
 ## in the order their time comes. Each candidate is drawn from their slot and arrival time alone,
 ## never the global generator, so refilling once after an absence gives the same candidates as
 ## refilling every second through it; one arriving at or after the first Common room finished may
-## be rank E. Time is read as no earlier than the slots last saw, so a clock set back never undoes
-## a refill or restarts a countdown. A new guild starts with every slot filled.
-func refill(adventurers: Adventurers, now: int, common_rooms_done: PackedInt64Array = PackedInt64Array()) -> void:
+## be rank E. Nobody arriving is named after `walk_in_name`, the walk-in waiting (see WalkIns), if
+## any. Time is read as no earlier than the slots last saw, so a clock set back never undoes a refill
+## or restarts a countdown. A new guild starts with every slot filled.
+func refill(adventurers: Adventurers, now: int, common_rooms_done: PackedInt64Array = PackedInt64Array(), walk_in_name: String = "") -> void:
 	var at := maxi(now, checked_at)
 	if candidates.is_empty():
 		for slot: int in reception_slots:
@@ -85,7 +86,10 @@ func refill(adventurers: Adventurers, now: int, common_rooms_done: PackedInt64Ar
 				next = slot
 		if next == -1:
 			break
-		candidates[next] = candidate_for(next, refill_at[next], _taken(adventurers, next), better_from)
+		var taken := names_taken(adventurers, next)
+		if not walk_in_name.is_empty():
+			taken.append(walk_in_name)
+		candidates[next] = candidate_for(next, refill_at[next], taken, better_from)
 	checked_at = at
 
 
@@ -112,31 +116,45 @@ static func hire_gold(candidate: Dictionary) -> int:
 ## the player; "" when they can. A Bunk room is suggested only while `hall` can still build one:
 ## none built or being built, and the guild's rank opens it.
 static func refusal(adventurers: Adventurers, gold: Gold, beds: int, cost: int = HIRE_GOLD, hall: Hall = null) -> String:
-	if adventurers.roster.size() >= beds:
-		var bunk_room_open := hall != null and hall.has_rank(Hall.ROOM_TYPES["bunk_room"]["rank"]) and hall.first_room("bunk_room").is_empty()
-		return "No free bed — convert a Bunk room" if bunk_room_open else "No free bed"
+	var no_bed := bed_refusal(adventurers, beds, hall)
+	if not no_bed.is_empty():
+		return no_bed
 	if gold.amount < cost:
 		return "Not enough gold"
 	return ""
 
 
+## Why nobody can join `adventurers` with `beds`, in words for the player; "" while a bed is free.
+## `hall` is as for `refusal`.
+static func bed_refusal(adventurers: Adventurers, beds: int, hall: Hall = null) -> String:
+	if adventurers.roster.size() >= beds:
+		var bunk_room_open := hall != null and hall.has_rank(Hall.ROOM_TYPES["bunk_room"]["rank"]) and hall.first_room("bunk_room").is_empty()
+		return "No free bed — convert a Bunk room" if bunk_room_open else "No free bed"
+	return ""
+
+
 ## Pays `hire_gold` and brings the candidate in `slot` at `now` into `adventurers`, emptying the
 ## slot until CANDIDATE_REFILL_SECONDS later; false, with nothing paid or hired, when the slot is
-## empty or `refusal` gives a reason. `common_rooms_done` is as for `refill`.
-func hire(slot: int, adventurers: Adventurers, gold: Gold, beds: int, now: int, common_rooms_done: PackedInt64Array = PackedInt64Array()) -> bool:
-	refill(adventurers, now, common_rooms_done)
+## empty or `refusal` gives a reason. `common_rooms_done` and `walk_in_name` are as for `refill`.
+func hire(slot: int, adventurers: Adventurers, gold: Gold, beds: int, now: int, common_rooms_done: PackedInt64Array = PackedInt64Array(), walk_in_name: String = "") -> bool:
+	refill(adventurers, now, common_rooms_done, walk_in_name)
 	if candidates[slot].is_empty() or not refusal(adventurers, gold, beds, hire_gold(candidates[slot])).is_empty():
 		return false
 	var hired := candidates[slot]
 	gold.spend(hire_gold(hired))
 	# A slot and an arrival time belong to one candidate only.
-	# A candidate saved before rank-E ones arrived levelled is hired at level 1, as they were drawn.
-	var id := "recruit_%d_%d" % [slot, refill_at[slot]]
-	adventurers.add(id, hired["who"], hired["stats"], hired["growth"], hired.get("level", 1))
-	adventurers.gear.worn[id] = hired["worn"].duplicate()
+	join(adventurers, "recruit_%d_%d" % [slot, refill_at[slot]], hired)
 	candidates[slot] = {}
 	refill_at[slot] = checked_at + CANDIDATE_REFILL_SECONDS
 	return true
+
+
+## Brings `candidate` into `adventurers` as `id`, at their level with no XP, wearing what they came
+## in.
+static func join(adventurers: Adventurers, id: String, candidate: Dictionary) -> void:
+	# A candidate saved before rank-E ones arrived levelled is hired at level 1, as they were drawn.
+	adventurers.add(id, candidate["who"], candidate["stats"], candidate["growth"], candidate.get("level", 1))
+	adventurers.gear.worn[id] = candidate["worn"].duplicate()
 
 
 ## The candidate who arrives in `slot` at `arrived_at`, named from NAMES other than `taken`; rank E
@@ -182,14 +200,19 @@ static func candidate_for(slot: int, arrived_at: int, taken: PackedStringArray, 
 	}
 	if rank == "E":
 		# Drawn after the rank, so a rank-F candidate is as they were before rank-E ones levelled.
-		var level: int = Adventurers.PROMOTIONS["E"]["level"]
-		for level_up: int in level - 1:
-			var gains := Adventurers.gains_from(rng, growth)
-			for stat: String in gains:
-				stats[stat] += gains[stat]
-		candidate["level"] = level
+		arrive_at_level(candidate, Adventurers.PROMOTIONS["E"]["level"], rng)
 	candidate["who"]["face_seed"] = _face_seed(slot, arrived_at)
 	return candidate
+
+
+## Makes `candidate` arrive at `level`, their stats grown by a level-up's gains, drawn from `rng`,
+## for each level past the first.
+static func arrive_at_level(candidate: Dictionary, level: int, rng: RandomNumberGenerator) -> void:
+	for level_up: int in level - 1:
+		var gains := Adventurers.gains_from(rng, candidate["growth"])
+		for stat: String in gains:
+			candidate["stats"][stat] += gains[stat]
+	candidate["level"] = level
 
 
 # The seed of the face of whoever arrives in `slot` at `arrived_at`. Not drawn from the candidate's
@@ -256,8 +279,9 @@ static func load_or_start(path: String) -> Recruits:
 	return recruits
 
 
-# The names nobody arriving in `slot` may have: everyone's in the guild and the other candidates'.
-func _taken(adventurers: Adventurers, slot: int) -> PackedStringArray:
+## The names nobody arriving in `slot` may have: everyone's in `adventurers` and the other
+## candidates'; every candidate's for a `slot` none has, such as a walk-in's.
+func names_taken(adventurers: Adventurers, slot: int) -> PackedStringArray:
 	var taken := PackedStringArray()
 	for who: Dictionary in adventurers.roster.values():
 		taken.append(who["name"])

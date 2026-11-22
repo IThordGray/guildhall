@@ -55,6 +55,13 @@ theme_override_font_sizes/font_size = 53
 text = "Restore Backroom"
 autowrap_mode = 3
 
+[node name="Note" type="Label" parent="Sheet/Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"Secondary"
+text = "2 items leave with them"
+autowrap_mode = 3
+
 [node name="Price" type="HBoxContainer" parent="Sheet/Box"]
 layout_mode = 2
 theme_override_constants/separation = 50

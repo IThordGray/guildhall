@@ -122,6 +122,18 @@ func add(adventurer: String, who: Dictionary, starting_stats: Dictionary, grows:
 	gear.worn[adventurer] = {}
 
 
+## Takes `adventurer` out of the guild for good, forgetting everything about them; their gear goes
+## into the stash as Gear.strip puts it. Whether they may leave is Dispatch's rule.
+func remove(adventurer: String) -> void:
+	gear.strip(adventurer)
+	roster.erase(adventurer)
+	growth.erase(adventurer)
+	stats.erase(adventurer)
+	levels.erase(adventurer)
+	xp.erase(adventurer)
+	history.erase(adventurer)
+
+
 ## `adventurer`'s `stat` as it counts: their own plus what their gear adds.
 func stat_total(adventurer: String, stat: String) -> int:
 	return int(stats[adventurer][stat]) + gear.bonus(adventurer, stat)

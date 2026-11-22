@@ -175,6 +175,31 @@ func test_a_refused_action_reads_its_reason_and_cannot_be_confirmed() -> void:
 	assert_eq(_fired, 1)
 
 
+func test_the_swap_card_says_what_leaves_with_them_costs_nothing_and_swaps_only_on_a_tap_while_allowed() -> void:
+	var sheet := _screen("res://screens/confirm_sheet.tscn") as ConfirmSheet
+	sheet.confirmed.connect(_fire)
+	sheet.ask("Swap Bram for Aldric", "2 items leave with them", "Swap", "Debrief waiting")
+	await wait_process_frames(1)
+	assert_true((sheet.get_node("Sheet/Box/Note") as Label).is_visible_in_tree())
+	assert_false((sheet.get_node("Sheet/Box/Price") as Control).visible)
+	assert_eq(_action(sheet).text, "Debrief waiting")
+	await _touch_drag(_middle(_action(sheet)), _middle(_action(sheet)))
+	assert_eq(_fired, 0)
+	sheet.ask("Swap Bram for Aldric", "", "Swap", "")
+	await wait_process_frames(1)
+	assert_false((sheet.get_node("Sheet/Box/Note") as Label).visible)
+	assert_eq(_action(sheet).text, "Swap")
+	# A drag off the button swaps nobody; a tap does.
+	await _touch_drag(_middle(_action(sheet)), _middle(_action(sheet)) + Vector2(0, _slop() + 20))
+	assert_eq(_fired, 0)
+	await _touch_drag(_middle(_action(sheet)), _middle(_action(sheet)))
+	assert_eq(_fired, 1)
+	# A spending action shows its price again.
+	sheet.offer("Restore Backroom", 60, 30, "Restore", "")
+	assert_true((sheet.get_node("Sheet/Box/Price") as Control).visible)
+	assert_false((sheet.get_node("Sheet/Box/Note") as Label).visible)
+
+
 func test_a_drag_starting_on_a_board_quest_scrolls_the_board_and_does_not_send_it() -> void:
 	var board_view := _screen("res://screens/quest_board.tscn") as QuestBoard
 	var dispatch := Dispatch.new(1_000)

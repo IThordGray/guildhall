@@ -52,6 +52,10 @@ layout_mode = 2
 size_flags_vertical = 4
 text = "Armory"
 
+[node name="WalkIn" type="VBoxContainer" parent="Scroll/Box"]
+visible = false
+layout_mode = 2
+
 [node name="List" type="VBoxContainer" parent="Scroll/Box"]
 layout_mode = 2
 theme_override_constants/separation = 24

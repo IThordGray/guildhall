@@ -113,3 +113,17 @@ func test_a_newcomer_shows_their_face_not_their_initial_in_a_token_and_on_the_la
 	await wait_process_frames(1)
 	picker.set_landscape(false)
 	assert_eq(card.icon.get_size(), Vector2(224, 308))
+
+
+func test_a_debrief_naming_someone_who_has_left_shows_the_rest_of_its_party_and_its_reward() -> void:
+	assert_true(_dispatch.send("rats", PackedStringArray(["bram", "ilse"]), 1, 1_000))
+	_dispatch.checkpoint(1_100)
+	_dispatch.adventurers.remove("ilse")
+	var debrief := _screen("res://screens/debrief.tscn") as Debrief
+	debrief.show_debrief(_dispatch.debriefs[0], _dispatch)
+	var members := debrief.get_node("Scroll/Box/Who/Members")
+	assert_eq(members.get_child_count(), 1)
+	assert_has(_texts(members), "Bram")
+	assert_does_not_have(_texts(members), "Ilse")
+	assert_has(_texts(debrief), "+%d" % _dispatch.debriefs[0]["gold"])
+	await wait_process_frames(1)

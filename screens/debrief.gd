@@ -33,6 +33,9 @@ func show_debrief(debrief: Dictionary, dispatch: Dispatch) -> void:
 	# A debrief saved before damage was kept says "unhurt".
 	var damage: Dictionary = debrief.get("damage", {})
 	for adventurer: String in debrief["party"]:
+		# Someone dismissed since is no longer anyone the guild can show.
+		if not adventurers.roster.has(adventurer):
+			continue
 		var name_label := Label.new()
 		name_label.text = adventurers.roster[adventurer]["name"]
 		name_label.theme_type_variation = &"RowTitle"

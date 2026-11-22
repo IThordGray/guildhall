@@ -388,6 +388,36 @@ func _seconds_trained(adventurer: String, now: int) -> int:
 	return seconds
 
 
+## Why `adventurer` can't be dismissed, in words for the player; "" when they can. Anyone home can
+## leave, but the guild keeps at least one adventurer.
+func dismiss_refusal(adventurer: String) -> String:
+	if not quest_of(adventurer).is_empty():
+		return "Out on a quest"
+	if debrief_waiting(adventurer):
+		return "Debrief waiting"
+	if training.has(adventurer):
+		return "Training"
+	if adventurers.roster.size() <= 1:
+		return "The guild's last adventurer"
+	return ""
+
+
+## Dismisses `adventurer` for good: the guild forgets them as if they had never joined, their gear
+## going to the stash (Adventurers.remove); false, with nothing changed, when `dismiss_refusal`
+## gives a reason. A debrief naming them still loads, and screens show nothing of them. A rank lost
+## with them changes which quests the board draws, so whoever calls this brings the board up to date
+## first.
+func dismiss(adventurer: String) -> bool:
+	if not dismiss_refusal(adventurer).is_empty():
+		return false
+	wounds.erase(adventurer)
+	injured_until.erase(adventurer)
+	injury_lengths.erase(adventurer)
+	trained_seconds.erase(adventurer)
+	adventurers.remove(adventurer)
+	return true
+
+
 ## Why `party` can't be sent on `quest_id` at `now`, in words for the player; "" when it can.
 ## However many parties are out, anyone home, well and of a rank the quest allows can go.
 func party_refusal(quest_id: String, party: PackedStringArray, now: int) -> String:

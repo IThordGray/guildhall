@@ -1,8 +1,8 @@
 class_name ConfirmSheet
 extends Control
-## A small card in the middle of the dimmed screen that asks to confirm an action
-## that costs gold and time: the one exception to opening everything as a full screen. A tap
-## outside it, Cancel or Android's Back closes it.
+## A small card in the middle of the dimmed screen that asks to confirm an action that costs gold
+## and time, or one that sends an adventurer away for good: the one exception to opening everything
+## as a full screen. A tap outside it, Cancel or Android's Back closes it.
 
 ## The player confirmed the action offered.
 signal confirmed
@@ -10,6 +10,8 @@ signal confirmed
 @onready var _title: Label = $Sheet/Box/Title
 @onready var _cost: Label = $Sheet/Box/Price/Cost
 @onready var _time: Label = $Sheet/Box/Price/Time
+@onready var _note: Label = $Sheet/Box/Note
+@onready var _price: Control = $Sheet/Box/Price
 @onready var _action: Button = $Sheet/Box/Buttons/Action
 
 
@@ -22,9 +24,24 @@ func _ready() -> void:
 ## Opens the sheet, or updates it while open, on `title`, costing `gold` and taking `seconds`, done
 ## by a button reading `action`; while `refusal` gives a reason, the button is disabled and reads it.
 func offer(title: String, gold: int, seconds: int, action: String, refusal: String) -> void:
-	_title.text = title
 	_cost.text = "%dg" % gold
 	_time.text = Duration.label(seconds)
+	_price.show()
+	_note.hide()
+	_open(title, action, refusal)
+
+
+## As `offer`, for an action that costs nothing: `note` under the title says what else it does, and
+## shows only when there is one.
+func ask(title: String, note: String, action: String, refusal: String) -> void:
+	_note.text = note
+	_note.visible = not note.is_empty()
+	_price.hide()
+	_open(title, action, refusal)
+
+
+func _open(title: String, action: String, refusal: String) -> void:
+	_title.text = title
 	_action.disabled = not refusal.is_empty()
 	_action.text = action if refusal.is_empty() else refusal
 	if not visible:

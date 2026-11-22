@@ -8,8 +8,8 @@ const RAIL_WIDTH_PX: float = 200.0
 const SIDE_MARGIN_PX: float = 44.0
 ## In landscape, the space between the screens and the window's top and bottom.
 const END_MARGIN_PX: float = 32.0
-## In landscape, Roster, Debrief, Level up, the gear slot and the Armory are a centred column at
-## most this wide.
+## In landscape, Roster, Debrief, Level up, the gear slot, the Armory and the swap pick are a
+## centred column at most this wide.
 const COLUMN_WIDTH_PX: float = 1100.0
 ## In landscape, the share of the body's width the quest board takes; the party picker has the rest.
 const BOARD_SHARE: float = 0.42
@@ -17,6 +17,10 @@ const BOARD_SHARE: float = 0.42
 const COLLECT_SECONDS: float = 0.6
 ## How much the gold counter grows when collected gold reaches it.
 const COLLECT_PULSE_SCALE: float = 1.3
+## What the confirmation sheet asks about when it confirms sending `_leaving` away: dismissing them,
+## or swapping them for the walk-in.
+const DISMISS: String = "dismiss"
+const SWAP: String = "swap"
 ## Play-testing only: the speeds the Test speed control cycles through.
 const TEST_SPEEDS: Array[int] = [1, 10, 60]
 
@@ -26,10 +30,14 @@ var _hall: Hall
 var _dispatch: Dispatch
 var _quest_board: Board
 var _recruits: Recruits
+var _walk_ins: WalkIns
 ## The slot the Give it a job screen is open for.
 var _chosen_slot: String = ""
-## What the confirmation sheet asks about: the damaged slot to restore, or Hall.EXTENSION.
+## What the confirmation sheet asks about: the damaged slot to restore, Hall.EXTENSION, DISMISS or
+## SWAP.
 var _confirming: String = ""
+## The adventurer DISMISS or SWAP sends away.
+var _leaving: String = ""
 ## Where the debrief the Debrief screen shows is in Dispatch.debriefs.
 var _open_debrief: int = -1
 ## The adventurer the Adventurer screen shows.
@@ -57,11 +65,13 @@ var _portrait_places: Dictionary[Control, Array] = {}
 @onready var _rail_gold: Control = $TabBar/Tabs/Gold
 @onready var _rail_gold_label: Label = $TabBar/Tabs/Gold/Label
 @onready var _debrief_badge: Label = $TabBar/Tabs/Quests/Badge
+@onready var _walk_in_badge: Label = $TabBar/Tabs/Roster/Badge
 @onready var _roster: Roster = $Body/Roster
 @onready var _adventurer: Adventurer = $Body/Adventurer
 @onready var _level_up: LevelUp = $Body/LevelUp
 @onready var _gear_slot: GearSlot = $Body/GearSlot
 @onready var _armory: Armory = $Body/Armory
+@onready var _swap_pick: SwapPick = $Body/SwapPick
 @onready var _picker: PartyPicker = $Body/PartyPicker
 @onready var _convert_panel: ConvertPanel = $Body/ConvertPanel
 @onready var _confirm_sheet: ConfirmSheet = $ConfirmSheet
@@ -91,6 +101,12 @@ func _ready() -> void:
 	_roster.adventurer_pressed.connect(_open_adventurer.bind(_roster))
 	_roster.hire_pressed.connect(_on_hire_pressed)
 	_roster.armory_pressed.connect(_on_armory_pressed)
+	_roster.accept_pressed.connect(_on_accept_pressed)
+	_roster.turn_away_pressed.connect(_on_turn_away_pressed)
+	_roster.swap_pressed.connect(_on_swap_pressed)
+	_swap_pick.picked.connect(_on_swap_picked)
+	_swap_pick.back_pressed.connect(_close_swap_pick)
+	_adventurer.dismiss_pressed.connect(_on_dismiss_pressed)
 	_armory.back_pressed.connect(_on_armory_back)
 	_adventurer.back_pressed.connect(_on_adventurer_back)
 	_adventurer.level_up_pressed.connect(_on_level_up_pressed)
@@ -107,7 +123,7 @@ func _ready() -> void:
 	_test_speed.pressed.connect(_on_test_speed_pressed)
 	_start.continue_pressed.connect(_open_game)
 	_start.new_game_pressed.connect(_on_new_game)
-	for part: Control in [_tab_bar, _body, _board, _debrief, _roster, _adventurer, _level_up, _gear_slot, _armory, _convert_panel, _picker]:
+	for part: Control in [_tab_bar, _body, _board, _debrief, _roster, _adventurer, _level_up, _gear_slot, _armory, _swap_pick, _convert_panel, _picker]:
 		_portrait_places[part] = [
 			Vector4(part.anchor_left, part.anchor_top, part.anchor_right, part.anchor_bottom),
 			Vector4(part.offset_left, part.offset_top, part.offset_right, part.offset_bottom),
@@ -133,6 +149,7 @@ func _open_game() -> void:
 	QuestBoard.worn = _dispatch.adventurers.gear.worn
 	_quest_board = Board.load_or_start(SAVE_PATH)
 	_recruits = Recruits.load_or_start(SAVE_PATH)
+	_walk_ins = WalkIns.load_or_start(SAVE_PATH)
 	# What the Reception gives the guild depends on the hall the save holds.
 	_dispatch.adventurers.gear.stash_cap = _hall.reception("stash")
 	_quest_board.reception_slots = _hall.reception("board_slots")
@@ -185,7 +202,8 @@ func _checkpoint(now: int) -> void:
 	_dispatch.checkpoint(now, _hall.first_done_at("infirmary"))
 	_hall.checkpoint(now)
 	_quest_board.refill(_dispatch, now, _rooms_done("quest_hall"), _hall.first_done_at("map_room"), _hall.rank)
-	_recruits.refill(_dispatch.adventurers, now, _rooms_done("common_room"))
+	_recruits.refill(_dispatch.adventurers, now, _rooms_done("common_room"), _walk_ins.waiting_name())
+	_walk_ins.refill(_dispatch.adventurers, _recruits, now)
 	var file := ConfigFile.new()
 	_clock.write(file, Time.get_unix_time_from_system())
 	_gold.write(file)
@@ -193,6 +211,7 @@ func _checkpoint(now: int) -> void:
 	_dispatch.write(file)
 	_quest_board.write(file)
 	_recruits.write(file)
+	_walk_ins.write(file)
 	if file.save(SAVE_PATH) != OK:
 		push_error("Could not save to " + SAVE_PATH)
 	_gold_label.text = str(_gold.amount)
@@ -200,16 +219,24 @@ func _checkpoint(now: int) -> void:
 	_parties_label.text = str(_dispatch.outings.size())
 	_debrief_badge.text = str(_dispatch.debriefs.size())
 	_debrief_badge.visible = not _dispatch.debriefs.is_empty()
+	_walk_in_badge.visible = not _walk_ins.walk_in.is_empty()
 	_hall_view.show_state(_hall, _dispatch, _quest_board.filled(), now)
 	_board.show_board(_quest_board, _dispatch, now)
 	_roster.show_dispatch(_dispatch, now)
 	_roster.show_recruits(_recruits, _dispatch.adventurers, _gold, _hall.beds(now), _hall, now)
+	_roster.show_walk_in(_walk_ins.walk_in, _dispatch.adventurers.roster.size() < _hall.beds(now))
 	if _adventurer.visible:
 		_show_adventurer(now)
 	if _gear_slot.visible:
 		_gear_slot.show_slot(_shown_adventurer, _shown_slot, _dispatch)
 	if _armory.visible:
 		_armory.show_gear(_dispatch.adventurers)
+	if _swap_pick.visible:
+		# The walk-in may have left, replaced by the next, whom the pick then names.
+		if _walk_ins.walk_in.is_empty():
+			_close_swap_pick()
+		else:
+			_swap_pick.show_dispatch(_walk_ins.waiting_name(), _dispatch, now)
 	if _picker.visible and _picker.has_quest():
 		_picker.show_dispatch(_dispatch, now)
 	if _convert_panel.visible:
@@ -226,7 +253,17 @@ func _confirm(what: String) -> void:
 
 # What `_confirming` costs and takes, and why it can't be done at `now`.
 func _offer(now: int) -> void:
-	if _confirming == Hall.EXTENSION:
+	if _confirming == SWAP and _walk_ins.walk_in.is_empty():
+		_confirm_sheet.close()
+	elif _confirming == DISMISS or _confirming == SWAP:
+		var leaving: String = _dispatch.adventurers.roster[_leaving]["name"]
+		var gone := _dispatch.adventurers.gear.leaving_with(_leaving)
+		var note := "" if gone == 0 else ("1 item leaves with them" if gone == 1 else "%d items leave with them" % gone)
+		if _confirming == DISMISS:
+			_confirm_sheet.ask("Dismiss " + leaving, note, "Dismiss", _dispatch.dismiss_refusal(_leaving))
+		else:
+			_confirm_sheet.ask("Swap %s for %s" % [leaving, _walk_ins.waiting_name()], note, "Swap", _dispatch.dismiss_refusal(_leaving))
+	elif _confirming == Hall.EXTENSION:
 		_confirm_sheet.offer("Build the first floor", Hall.EXTEND_GOLD, Hall.EXTEND_SECONDS, "Extend", _hall.extend_refusal(_gold, now))
 	else:
 		var next := _hall.next_restore()
@@ -235,11 +272,33 @@ func _offer(now: int) -> void:
 
 func _on_confirmed() -> void:
 	var now := _now()
+	if _confirming == DISMISS or _confirming == SWAP:
+		_send_away(now)
+		return
 	if _confirming == Hall.EXTENSION:
 		_hall.extend(_gold, now)
 	else:
 		_hall.restore(_confirming, _gold, now)
 	_confirm_sheet.close()
+	_checkpoint(now)
+
+
+# Dismisses `_leaving`, or swaps them for the walk-in, as `_confirming` says. The checkpoint before
+# fills the board's slots due by now with the guild as it was, so only refills after it can follow a
+# top rank that leaves.
+func _send_away(now: int) -> void:
+	_checkpoint(now)
+	var gone := false
+	if _confirming == DISMISS:
+		gone = _dispatch.dismiss(_leaving)
+	elif not _walk_ins.walk_in.is_empty():
+		gone = _walk_ins.swap(_leaving, _dispatch, _hall.beds(now))
+	_confirm_sheet.close()
+	if gone:
+		if _adventurer.visible:
+			_on_adventurer_back()
+		if _swap_pick.visible:
+			_close_swap_pick()
 	_checkpoint(now)
 
 
@@ -353,8 +412,40 @@ func _on_hire_pressed(slot: int) -> void:
 	var now := _now()
 	# A Common room finished since the last tick adds its slot before the hire.
 	_hall.checkpoint(now)
-	_recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now, _rooms_done("common_room"))
+	_recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now, _rooms_done("common_room"), _walk_ins.waiting_name())
 	_checkpoint(now)
+
+
+func _on_accept_pressed() -> void:
+	var now := _now()
+	_walk_ins.accept(_dispatch.adventurers, _hall.beds(now))
+	_checkpoint(now)
+
+
+func _on_turn_away_pressed() -> void:
+	_walk_ins.turn_away()
+	_checkpoint(_now())
+
+
+func _on_swap_pressed() -> void:
+	_swap_pick.show_dispatch(_walk_ins.waiting_name(), _dispatch, _now())
+	_roster.hide()
+	_swap_pick.show()
+
+
+func _on_swap_picked(adventurer: String) -> void:
+	_leaving = adventurer
+	_confirm(SWAP)
+
+
+func _close_swap_pick() -> void:
+	_swap_pick.hide()
+	_roster.show()
+
+
+func _on_dismiss_pressed(adventurer: String) -> void:
+	_leaving = adventurer
+	_confirm(DISMISS)
 
 
 func _on_adventurer_swiped(step: int) -> void:
@@ -452,6 +543,7 @@ func _on_tab_pressed(tab: BaseButton) -> void:
 	_level_up.hide()
 	_gear_slot.hide()
 	_armory.hide()
+	_swap_pick.hide()
 	_convert_panel.hide()
 	_picker.close()
 	_show_quests(tab == $TabBar/Tabs/Quests)
@@ -487,7 +579,7 @@ func _lay_out() -> void:
 		_place(_body, full, Vector4(RAIL_WIDTH_PX + SIDE_MARGIN_PX, END_MARGIN_PX, -SIDE_MARGIN_PX, -END_MARGIN_PX))
 		_place(_board, Vector4(0, 0, BOARD_SHARE, 1), Vector4(0, 0, -SIDE_MARGIN_PX / 2, 0))
 		_place(_adventurer, full, Vector4.ZERO)
-		for column: Control in [_debrief, _roster, _level_up, _gear_slot, _armory, _convert_panel]:
+		for column: Control in [_debrief, _roster, _level_up, _gear_slot, _armory, _swap_pick, _convert_panel]:
 			_place(column, Vector4(0.5, 0, 0.5, 1), Vector4(-COLUMN_WIDTH_PX / 2, 0, COLUMN_WIDTH_PX / 2, 0))
 		_place(_picker, Vector4(BOARD_SHARE, 0, 1, 1), Vector4(SIDE_MARGIN_PX / 2, 0, 0, 0))
 	_show_quests(_board.visible or _picker.visible)
