@@ -3,8 +3,6 @@ extends GutTest
 const SAVE_PATH: String = "user://test_recruits_save.cfg"
 ## Unix seconds the candidates in these tests first arrive at.
 const START: int = 1_000_000
-## The stat each class grows in most.
-const MAIN_STAT: Dictionary[String, String] = {"Swordsman": "might", "Mage": "mind", "Scout": "agility", "Healer": "mind", "Shield bearer": "grit"}
 const EVERYONE: PackedStringArray = ["bram", "ilse", "tobin", "maren"]
 
 
@@ -61,7 +59,7 @@ func test_a_new_guild_starts_with_one_candidate_and_a_save_from_before_candidate
 	for candidate: Dictionary in recruits.candidates + old.candidates:
 		assert_false(candidate.is_empty())
 		assert_eq(candidate["who"]["rank"], "F")
-		assert_has(Challenges.COVERS.keys(), candidate["who"]["class"])
+		assert_true(candidate["worn"].has("weapon"))
 
 	var file := ConfigFile.new()
 	Gold.new(50).write(file)
@@ -73,7 +71,7 @@ func test_a_new_guild_starts_with_one_candidate_and_a_save_from_before_candidate
 	assert_eq(loaded.candidates, old.candidates)
 
 
-func test_a_hire_costs_100_gold_adds_the_candidate_last_at_level_1_and_empties_the_slot() -> void:
+func test_a_hire_costs_100_gold_adds_the_candidate_last_at_level_1_in_their_weapon_and_empties_the_slot() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	var hired := recruits.candidates[1]
@@ -82,9 +80,10 @@ func test_a_hire_costs_100_gold_adds_the_candidate_last_at_level_1_and_empties_t
 	assert_eq(gold.amount, 30)
 	var id: String = adventurers.roster.keys()[4]
 	assert_eq(adventurers.roster[id]["name"], hired["who"]["name"])
-	assert_eq(adventurers.roster[id]["class"], hired["who"]["class"])
+	assert_eq(adventurers.roster[id], hired["who"])
 	assert_eq(adventurers.levels[id], 1)
-	assert_eq(adventurers.gear.worn[id], {})
+	assert_eq(adventurers.gear.worn[id], hired["worn"])
+	assert_eq(adventurers.gear.worn[id].keys(), ["weapon"])
 	assert_true(recruits.candidates[1].is_empty())
 	assert_false(recruits.candidates[0].is_empty())
 
@@ -220,38 +219,38 @@ func test_a_candidate_is_never_named_after_anyone_in_the_guild_or_the_other_cand
 	assert_eq(adventurers.roster.size(), 8)
 
 
-func test_two_stats_show_before_a_hire_and_all_four_are_known_after() -> void:
+func test_four_of_nine_stats_show_before_a_hire_and_all_nine_are_known_after() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	var candidate := recruits.candidates[0]
 	var line := Recruits.stats_line(candidate)
-	assert_eq(line.count("?"), 2, line)
-	assert_eq(line.split(" · ").size(), 4, line)
+	assert_eq(line.count("?"), 5, line)
+	assert_eq(line.split(" · ").size(), 9, line)
 	for stat: String in candidate["shown"]:
 		assert_string_contains(line, "%s %d" % [Adventurers.STATS[stat], candidate["stats"][stat]])
-	assert_eq(Array(candidate["shown"]).size(), 2)
+	assert_eq(Array(candidate["shown"]).size(), 4)
 
 	_hire(recruits, 0, adventurers, START)
 	var id: String = adventurers.roster.keys()[4]
 	for stat: String in Adventurers.STATS:
-		assert_eq(adventurers.stat_total(id, stat), candidate["stats"][stat], stat)
+		assert_eq(adventurers.stats[id][stat], candidate["stats"][stat], stat)
 
 
-func test_about_one_in_ten_candidates_is_a_late_bloomer_weaker_but_growing_far_faster_in_their_main_stat() -> void:
+func test_about_one_in_ten_candidates_is_a_late_bloomer_weaker_but_growing_far_faster_in_a_stat_they_lean_to() -> void:
 	var bloomers := 0
 	var bloomer_stats := 0
 	var other_stats := 0
 	for at: int in 2_000:
 		var candidate := Recruits.candidate_for(at % 2, START + at, PackedStringArray())
-		var main := MAIN_STAT[candidate["who"]["class"]]
+		var fastest: float = candidate["growth"].values().max()
 		var total := 0
 		for stat: String in Adventurers.STATS:
 			total += int(candidate["stats"][stat])
-		if candidate["growth"][main] >= 0.9:
+		if fastest >= 0.9:
 			bloomers += 1
 			bloomer_stats += total
 		else:
-			assert_lt(float(candidate["growth"][main]), 0.7, candidate["who"]["class"])
+			assert_lt(fastest, 0.7, str(candidate))
 			other_stats += total
 	assert_between(bloomers, 140, 260)
 	assert_lt(bloomer_stats / float(bloomers), other_stats / float(2_000 - bloomers) - 2.0)
@@ -302,23 +301,44 @@ func test_with_every_bed_taken_a_bunk_room_is_suggested_only_while_one_can_still
 	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 4, Recruits.HIRE_GOLD, hall), "No free bed")
 
 
-func test_a_hired_shield_bearer_can_be_sent_on_a_quest_and_covers_protect() -> void:
+func test_a_hired_fighter_can_be_sent_on_a_quest_with_their_sword_counting() -> void:
 	var dispatch := _guild(START)
 	var recruits := _old_recruits()
 	var at := START
 	recruits.refill(dispatch.adventurers, at)
-	while recruits.candidates[0]["who"]["class"] != "Shield bearer":
+	while Recruits.title(recruits.candidates[0]) != "Fighter":
 		at += 1
 		recruits = _old_recruits()
 		recruits.refill(dispatch.adventurers, at)
+	var stats: Dictionary = recruits.candidates[0]["stats"]
 	assert_true(recruits.hire(0, dispatch.adventurers, Gold.new(100), 5, at))
 	var id: String = dispatch.adventurers.roster.keys()[4]
 	var party := PackedStringArray([id])
-	assert_eq(Challenges.covered_by("Protect", party, dispatch.adventurers.roster), party)
-	assert_eq(Challenges.covered_by("Protect", PackedStringArray(["bram", "ilse", "tobin", "maren"]), dispatch.adventurers.roster), PackedStringArray())
-	assert_eq(dispatch.party_refusal("letters", party, at), "")
-	assert_true(dispatch.send("letters", party, 7, at))
-	assert_eq(dispatch.quest_of(id), "letters")
+	assert_eq(dispatch.adventurers.title(id), "Fighter")
+	# The short sword's Strength +1 counts twice in Brute force.
+	assert_eq(Challenges.party_total("Brute force", party, dispatch.adventurers), 2 * (int(stats["strength"]) + 1) + int(stats["defence"]))
+	assert_eq(dispatch.party_refusal("rats", party, at), "")
+	assert_true(dispatch.send("rats", party, 7, at))
+	assert_eq(dispatch.quest_of(id), "rats")
+
+
+func test_every_candidate_arrives_wearing_a_standard_weapon_fitting_what_they_lean_to() -> void:
+	var titles := {}
+	for at: int in 2_000:
+		var candidate := Recruits.candidate_for(at % 4, START + at, PackedStringArray())
+		var worn: Dictionary = candidate["worn"]
+		assert_eq(worn.keys(), ["weapon"])
+		var weapon: Dictionary = Gear.ITEMS[worn["weapon"]]
+		assert_eq(weapon["slot"], "weapon")
+		assert_eq(weapon["quality"], "Standard")
+		# Their two highest stats of their own are what they lean to; the weapon adds to one.
+		var own: Dictionary = candidate["stats"]
+		var order: Array = Adventurers.STATS.keys()
+		order.sort_custom(func(a: String, b: String) -> bool: return own[a] > own[b])
+		assert_true(weapon["bonus"].has(order[0]) or weapon["bonus"].has(order[1]), str(candidate))
+		titles[Recruits.title(candidate)] = true
+	# Every leaning comes.
+	assert_eq(titles.size(), Recruits.LEANING_WEAPONS.size())
 
 
 ## Recruits first filled at START, then refilled at `at` with Common rooms finished at `rooms`.
@@ -446,7 +466,7 @@ func test_one_refill_after_an_absence_equals_refilling_every_second_with_common_
 	var watched := _recruits(watched_guild)
 	var away_guild := Adventurers.new(EVERYONE)
 	var away := _recruits(away_guild)
-	var hires: Array[Vector2i] = [Vector2i(START + 5, 0), Vector2i(START + 700, 1), Vector2i(START + 2_600, 2), Vector2i(START + 2_700, 3)]
+	var hires: Array[Vector2i] = [Vector2i(START + 5, 0), Vector2i(START + 710, 1), Vector2i(START + 2_600, 2), Vector2i(START + 2_700, 3)]
 	for hire: Vector2i in hires:
 		for at: int in range(watched.checked_at, hire.x):
 			watched.refill(watched_guild, at, _done_by(rooms, at))
@@ -544,24 +564,58 @@ func test_a_rank_e_candidate_arrives_at_level_3_with_each_stat_at_least_the_same
 	assert_eq(Recruits.candidate_for(1, START + 5, PackedStringArray(), START), first)
 
 
-func test_a_rank_f_candidate_is_drawn_exactly_as_before_with_or_without_a_common_room_but_now_with_a_face() -> void:
-	var corwin := Recruits.candidate_for(0, 1_000_000, PackedStringArray())
-	var linnea := Recruits.candidate_for(3, 1_000_500, PackedStringArray(), 1_000_000)
-	assert_ne(corwin["who"]["face_seed"], linnea["who"]["face_seed"])
-	corwin["who"].erase("face_seed")
-	linnea["who"].erase("face_seed")
-	assert_eq(corwin, {
-		"who": {"name": "Corwin", "class": "Healer", "rank": "F"},
+func test_a_rank_f_candidate_is_drawn_the_same_with_or_without_a_common_room_and_with_a_face() -> void:
+	var joss := Recruits.candidate_for(0, 1_000_000, PackedStringArray())
+	assert_true(joss["who"].has("face_seed"))
+	joss["who"].erase("face_seed")
+	assert_eq(joss, {
+		"who": {"name": "Joss", "rank": "F"},
+		"stats": {"strength": 6, "agility": 3, "perception": 3, "mind": 3, "spirit": 2, "defence": 5, "endurance": 4, "presence": 3, "luck": 4},
+		"growth": {"strength": 0.6, "agility": 0.25, "perception": 0.25, "mind": 0.25, "spirit": 0.25, "defence": 0.6, "endurance": 0.25, "presence": 0.25, "luck": 0.25},
+		"shown": PackedStringArray(["endurance", "defence", "spirit", "perception"]),
+		"worn": {"weapon": "short_sword"},
+	})
+	var rank_f := 0
+	for at: int in range(1_000_500, 1_000_540):
+		var with_room := Recruits.candidate_for(3, at, PackedStringArray(), 1_000_000)
+		if with_room["who"]["rank"] == "F":
+			rank_f += 1
+			assert_eq(with_room, Recruits.candidate_for(3, at, PackedStringArray()))
+	assert_gt(rank_f, 0)
+
+
+func test_a_candidate_saved_with_the_four_old_stats_loads_with_nine_filled_by_their_class_and_their_weapon() -> void:
+	var recruits := _recruits(Adventurers.new(EVERYONE))
+	# The build before nine stats drew candidates by class.
+	recruits.candidates[0] = {
+		"who": {"name": "Corwin", "class": "Healer", "rank": "F", "face_seed": 7},
 		"stats": {"might": 2, "agility": 3, "mind": 6, "grit": 5},
 		"growth": {"might": 0.2, "agility": 0.3, "mind": 0.55, "grit": 0.5},
 		"shown": PackedStringArray(["grit", "mind"]),
-	})
-	assert_eq(linnea, {
-		"who": {"name": "Linnea", "class": "Shield bearer", "rank": "F"},
-		"stats": {"might": 3, "agility": 2, "mind": 1, "grit": 8},
-		"growth": {"might": 0.45, "agility": 0.2, "mind": 0.15, "grit": 0.6},
-		"shown": PackedStringArray(["mind", "might"]),
-	})
+	}
+	var file := ConfigFile.new()
+	recruits.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := _load_old_recruits()
+	var corwin := loaded.candidates[0]
+	assert_eq(corwin["who"], {"name": "Corwin", "rank": "F", "face_seed": 7})
+	# Might is Strength and Grit Defence; a Healer gets high Spirit and a little Luck.
+	assert_eq(corwin["stats"], {"strength": 2, "agility": 3, "mind": 6, "defence": 5, "perception": 3, "spirit": 7, "endurance": 3, "presence": 3, "luck": 1})
+	assert_eq(corwin["growth"].size(), 9)
+	assert_almost_eq(float(corwin["growth"]["defence"]), 0.5, 0.0001)
+	assert_eq(corwin["shown"], PackedStringArray(["defence", "mind"]))
+	assert_eq(corwin["worn"], {"weapon": "bell_mace"})
+	assert_eq(Recruits.title(corwin), "Mystic")
+	assert_string_contains(Recruits.stats_line(corwin), "Defence 5")
+	# The other candidate, saved with nine, is as it was.
+	assert_eq(loaded.candidates[1], recruits.candidates[1])
+	# And they are hired as they show.
+	var adventurers := Adventurers.new(EVERYONE)
+	assert_true(loaded.hire(0, adventurers, Gold.new(100), 6, START))
+	var id: String = adventurers.roster.keys()[4]
+	assert_eq(adventurers.stats[id], corwin["stats"])
+	assert_eq(adventurers.gear.worn[id], {"weapon": "bell_mace"})
 
 
 func test_a_candidates_face_seed_is_the_face_they_have_once_hired_and_after_save_and_load() -> void:

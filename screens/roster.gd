@@ -40,7 +40,7 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 		_build(dispatch.adventurers)
 	for adventurer: String in _statuses:
 		var info: Dictionary = roster[adventurer]
-		_details[adventurer].text = "%s · rank %s · level %d" % [info["class"], info["rank"], dispatch.adventurers.levels[adventurer]]
+		_details[adventurer].text = "%s · rank %s · level %d" % [dispatch.adventurers.title(adventurer), info["rank"], dispatch.adventurers.levels[adventurer]]
 		var status := _statuses[adventurer]
 		status.text = dispatch.status(adventurer, now)
 		status.theme_type_variation = status_look(dispatch, adventurer, now)
@@ -150,7 +150,7 @@ func _build_candidates(candidates: Array[Dictionary]) -> void:
 		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		words.alignment = BoxContainer.ALIGNMENT_CENTER
 		words.add_child(_label(who["name"], &"RowTitle"))
-		words.add_child(_label("%s · rank %s" % [who["class"], who["rank"]], &"Secondary"))
+		words.add_child(_label("%s · rank %s" % [Recruits.title(candidate), who["rank"]], &"Secondary"))
 		var hire := Button.new()
 		hire.text = "Hire · %dg" % Recruits.hire_gold(candidate)
 		hire.theme_type_variation = &"GoldButton"

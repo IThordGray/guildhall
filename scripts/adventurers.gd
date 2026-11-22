@@ -5,49 +5,90 @@ extends RefCounted
 ## saved: a new game starts with the starters, and `add` brings in anyone else.
 
 ## The stats every adventurer has, in the order they are shown, with their names for the player.
-const STATS: Dictionary[String, String] = {"might": "Might", "agility": "Agility", "mind": "Mind", "grit": "Grit"}
+## Anyone can be anything: what an adventurer is good at is their stats alone. Spirit and Luck work
+## for the whole party (see Dispatch); Luck is never tested by a challenge.
+const STATS: Dictionary[String, String] = {
+	"strength": "Strength", "agility": "Agility", "perception": "Perception", "mind": "Mind",
+	"spirit": "Spirit", "defence": "Defence", "endurance": "Endurance", "presence": "Presence",
+	"luck": "Luck",
+}
+## An adventurer's title when their two highest stats, gear included, are one of these pairs, in
+## STATS order.
+const PAIR_TITLES: Dictionary[String, Array] = {
+	"Fighter": ["strength", "defence"],
+	"Scout": ["agility", "perception"],
+	"Mystic": ["mind", "spirit"],
+	"Cleric": ["spirit", "presence"],
+	"Ranger": ["perception", "endurance"],
+	"Envoy": ["mind", "presence"],
+	"Paladin": ["spirit", "defence"],
+	"Duellist": ["strength", "agility"],
+	"Cartographer": ["perception", "mind"],
+}
+## An adventurer's title by their highest stat when their two highest are no pair in PAIR_TITLES.
+const STAT_TITLES: Dictionary[String, String] = {
+	"strength": "Brawler", "agility": "Rogue", "perception": "Tracker", "mind": "Scholar",
+	"spirit": "Acolyte", "defence": "Guard", "endurance": "Wanderer", "presence": "Herald",
+	"luck": "Gambler",
+}
 ## The starters, in roster order: who each one is, as `roster` keeps it. A guild saved before guild
 ## ranks started with all of them. Their faces come from their ids (Faces.seed_of).
 const STARTERS: Dictionary[String, Dictionary] = {
-	"bram": {"name": "Bram", "class": "Swordsman", "rank": "F"},
-	"ilse": {"name": "Ilse", "class": "Mage", "rank": "F"},
-	"tobin": {"name": "Tobin", "class": "Scout", "rank": "F"},
-	"maren": {"name": "Maren", "class": "Healer", "rank": "F"},
+	"bram": {"name": "Bram", "rank": "F"},
+	"ilse": {"name": "Ilse", "rank": "F"},
+	"tobin": {"name": "Tobin", "rank": "F"},
+	"maren": {"name": "Maren", "rank": "F"},
 }
-## The starters a new game has, in roster order: between them they cover the commonest rank-F
-## challenges, Brute force, Traps and Navigation.
+## The starters a new game has, in roster order: Bram for strength, Tobin for keen eyes.
 const NEW_GAME_STARTERS: PackedStringArray = ["bram", "tobin"]
-## The starters' stats on joining the guild.
+## The starters' stats on joining the guild: Bram leans Strength and Defence with some Endurance,
+## Tobin Agility and Perception with some Luck, Ilse Mind and Presence, Maren Spirit and Mind.
 const STARTING_STATS: Dictionary[String, Dictionary] = {
-	"bram": {"might": 6, "agility": 3, "mind": 2, "grit": 7},
-	"ilse": {"might": 2, "agility": 3, "mind": 8, "grit": 5},
-	"tobin": {"might": 3, "agility": 7, "mind": 3, "grit": 3},
-	"maren": {"might": 2, "agility": 3, "mind": 6, "grit": 5},
+	"bram": {"strength": 6, "agility": 3, "perception": 3, "mind": 2, "spirit": 3, "defence": 7, "endurance": 5, "presence": 3, "luck": 1},
+	"ilse": {"strength": 2, "agility": 3, "perception": 3, "mind": 8, "spirit": 3, "defence": 5, "endurance": 3, "presence": 6, "luck": 1},
+	"tobin": {"strength": 3, "agility": 7, "perception": 6, "mind": 3, "spirit": 3, "defence": 3, "endurance": 3, "presence": 3, "luck": 4},
+	"maren": {"strength": 2, "agility": 3, "perception": 3, "mind": 6, "spirit": 7, "defence": 5, "endurance": 3, "presence": 3, "luck": 1},
 }
 ## The starters' growth, as `growth` keeps it. Tobin's Agility grows far faster than the rest.
 const GROWTH: Dictionary[String, Dictionary] = {
-	"bram": {"might": 0.6, "agility": 0.3, "mind": 0.15, "grit": 0.55},
-	"ilse": {"might": 0.15, "agility": 0.3, "mind": 0.7, "grit": 0.35},
-	"tobin": {"might": 0.3, "agility": 0.9, "mind": 0.25, "grit": 0.3},
-	"maren": {"might": 0.2, "agility": 0.3, "mind": 0.55, "grit": 0.5},
+	"bram": {"strength": 0.6, "agility": 0.3, "perception": 0.15, "mind": 0.15, "spirit": 0.15, "defence": 0.55, "endurance": 0.4, "presence": 0.15, "luck": 0.1},
+	"ilse": {"strength": 0.15, "agility": 0.3, "perception": 0.25, "mind": 0.7, "spirit": 0.3, "defence": 0.35, "endurance": 0.2, "presence": 0.5, "luck": 0.1},
+	"tobin": {"strength": 0.3, "agility": 0.9, "perception": 0.6, "mind": 0.25, "spirit": 0.15, "defence": 0.3, "endurance": 0.3, "presence": 0.2, "luck": 0.3},
+	"maren": {"strength": 0.2, "agility": 0.3, "perception": 0.2, "mind": 0.55, "spirit": 0.65, "defence": 0.5, "endurance": 0.3, "presence": 0.3, "luck": 0.1},
 }
+## Saves from before the nine stats kept four: Might is Strength now and Grit is Defence.
+const RENAMED_STATS: Dictionary[String, String] = {"might": "strength", "grit": "defence"}
+## What an adventurer saved with four stats gets for the five new ones, stats and growth, by the
+## class they had then (a starter gets their own starting ones), and the weapon a candidate of
+## that class is given.
+const OLD_CLASSES: Dictionary[String, Dictionary] = {
+	"Swordsman": {"weapon": "short_sword", "stats": {"perception": 3, "spirit": 3, "endurance": 5, "presence": 3, "luck": 1}, "growth": {"perception": 0.15, "spirit": 0.15, "endurance": 0.4, "presence": 0.15, "luck": 0.1}},
+	"Mage": {"weapon": "oak_staff", "stats": {"perception": 3, "spirit": 3, "endurance": 3, "presence": 5, "luck": 1}, "growth": {"perception": 0.25, "spirit": 0.3, "endurance": 0.2, "presence": 0.45, "luck": 0.1}},
+	"Scout": {"weapon": "hunting_bow", "stats": {"perception": 6, "spirit": 3, "endurance": 3, "presence": 3, "luck": 2}, "growth": {"perception": 0.6, "spirit": 0.15, "endurance": 0.3, "presence": 0.2, "luck": 0.2}},
+	"Healer": {"weapon": "bell_mace", "stats": {"perception": 3, "spirit": 7, "endurance": 3, "presence": 3, "luck": 1}, "growth": {"perception": 0.2, "spirit": 0.65, "endurance": 0.3, "presence": 0.3, "luck": 0.1}},
+	"Shield bearer": {"weapon": "short_sword", "stats": {"perception": 3, "spirit": 3, "endurance": 6, "presence": 3, "luck": 1}, "growth": {"perception": 0.2, "spirit": 0.2, "endurance": 0.6, "presence": 0.2, "luck": 0.1}},
+}
+## A stat's growth chance rises by this for each point worn items add to it, up to
+## MOST_GEAR_GROWTH, so an adventurer grows toward what they wear.
+const GROWTH_PER_GEAR_POINT: float = 0.05
+const MOST_GEAR_GROWTH: float = 0.9
 ## XP to go from level L to L + 1 is this times L.
 const XP_PER_LEVEL: int = 40
-## Maximum health is this plus HEALTH_PER_GRIT per point of Grit and HEALTH_PER_LEVEL per level
-## past the first (stand-ins), so a member failing a quest of the rank their level reaches is
+## Maximum health is this plus HEALTH_PER_DEFENCE per point of Defence and HEALTH_PER_LEVEL per
+## level past the first (stand-ins), so a member failing a quest of the rank their level reaches is
 ## injured about half to three quarters of the time, not almost always.
 const BASE_HEALTH: int = 10
-const HEALTH_PER_GRIT: int = 2
+const HEALTH_PER_DEFENCE: int = 2
 const HEALTH_PER_LEVEL: int = 3
 ## Each rank an adventurer can be promoted to, one rank at a time, with the level it needs and the
 ## gold it costs (stand-ins). No promotion reaches a rank missing here.
 const PROMOTIONS: Dictionary[String, Dictionary] = {"E": {"level": 3, "gold": 150}, "D": {"level": 6, "gold": 400}}
 
-## Who is in the guild, in roster order: each one's {"name", "class", "rank"} and, for a recruit,
+## Who is in the guild, in roster order: each one's {"name", "rank"} and, for a recruit,
 ## "face_seed", their face's (Faces.seed_of). The save refers to an adventurer by their id here.
 var roster: Dictionary[String, Dictionary] = {}
-## Each adventurer's growth per stat, never shown to the player: a level-up gives a stat up to two
-## points, each with this chance.
+## Each adventurer's own growth per stat, their talent, never shown to the player: a level-up gives
+## a stat up to two points, each with this chance raised by gear (see `growth_chance`).
 var growth: Dictionary[String, Dictionary] = {}
 ## Each adventurer's own stats, without gear: see `stat_total` for what counts.
 var stats: Dictionary[String, Dictionary] = {}
@@ -86,17 +127,43 @@ func stat_total(adventurer: String, stat: String) -> int:
 	return int(stats[adventurer][stat]) + gear.bonus(adventurer, stat)
 
 
-## The sum of `adventurer`'s stats, gear included, ÷ 5, rounded.
-func power(adventurer: String) -> int:
-	var total := 0
-	for stat: String in STATS:
-		total += stat_total(adventurer, stat)
-	return roundi(total / 5.0)
-
-
-## Health `adventurer` heals up to, so every level-up, and gear that raises Grit, raises it.
+## Health `adventurer` heals up to, so every level-up, and gear that raises Defence, raises it.
 func max_health(adventurer: String) -> int:
-	return BASE_HEALTH + HEALTH_PER_GRIT * stat_total(adventurer, "grit") + HEALTH_PER_LEVEL * (levels[adventurer] - 1)
+	return BASE_HEALTH + HEALTH_PER_DEFENCE * stat_total(adventurer, "defence") + HEALTH_PER_LEVEL * (levels[adventurer] - 1)
+
+
+## `adventurer`'s title, from their two highest stats, gear included: see `title_of`.
+func title(adventurer: String) -> String:
+	var totals := {}
+	for stat: String in STATS:
+		totals[stat] = stat_total(adventurer, stat)
+	return title_of(totals)
+
+
+## The title of someone with `totals`, {stat: points}: their two highest stats' pair in
+## PAIR_TITLES, or else their highest stat's own in STAT_TITLES. A tie goes to the stat earlier in
+## STATS.
+static func title_of(totals: Dictionary) -> String:
+	var top := ""
+	var second := ""
+	for stat: String in STATS:
+		if top.is_empty() or totals[stat] > totals[top]:
+			second = top
+			top = stat
+		elif second.is_empty() or totals[stat] > totals[second]:
+			second = stat
+	for pair_title: String in PAIR_TITLES:
+		if top in PAIR_TITLES[pair_title] and second in PAIR_TITLES[pair_title]:
+			return pair_title
+	return STAT_TITLES[top]
+
+
+## The chance each point of a level-up in `stat` comes to `adventurer`: their own growth, plus
+## GROWTH_PER_GEAR_POINT per point their worn items add to it, at most MOST_GEAR_GROWTH; gear never
+## lowers a talent already above that.
+func growth_chance(adventurer: String, stat: String) -> float:
+	var talent := float(growth[adventurer][stat])
+	return maxf(talent, minf(MOST_GEAR_GROWTH, talent + GROWTH_PER_GEAR_POINT * gear.bonus(adventurer, stat)))
 
 
 ## The XP a party gains in all from a quest whose success gives `full` (Dispatch.QUESTS "xp") that
@@ -119,8 +186,8 @@ func level_up_ready(adventurer: String) -> bool:
 	return xp[adventurer] >= xp_needed(adventurer)
 
 
-## Raises `adventurer` one level, spending the XP it needs, and grows each stat by 0–2 by their own
-## growth. Returns {stat: points it rose by}; empty, with nothing changed, when not ready.
+## Raises `adventurer` one level, spending the XP it needs, and grows each stat by 0–2 by their
+## `growth_chance`. Returns {stat: points it rose by}; empty, with nothing changed, when not ready.
 func level_up(adventurer: String) -> Dictionary:
 	if not level_up_ready(adventurer):
 		return {}
@@ -179,7 +246,10 @@ func promote(adventurer: String, gold: Gold, out_on_quest: bool) -> bool:
 func _gains(adventurer: String, level: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("%s:%d" % [adventurer, level])
-	return gains_from(rng, growth[adventurer])
+	var grows := {}
+	for stat: String in STATS:
+		grows[stat] = growth_chance(adventurer, stat)
+	return gains_from(rng, grows)
 
 
 ## One level-up's gains drawn from `rng` by `grows`, growth per stat: {stat: 0–2 points}, each
@@ -231,4 +301,35 @@ static func load_or_start(path: String) -> Adventurers:
 	adventurers.levels.assign(file.get_value("adventurers", "levels"))
 	adventurers.xp.assign(file.get_value("adventurers", "xp"))
 	adventurers.history.assign(file.get_value("adventurers", "history"))
+	for adventurer: String in adventurers.roster:
+		if adventurers.stats[adventurer].has("might"):
+			adventurers._to_nine_stats(adventurer)
 	return adventurers
+
+
+## `values`, {stat: value} as saved with the four old stats, with Might and Grit renamed
+## (RENAMED_STATS) and the stats it lacks taken from `fill`.
+static func nine_stats(values: Dictionary, fill: Dictionary) -> Dictionary:
+	var nine := {}
+	for stat: String in values:
+		nine[RENAMED_STATS.get(stat, stat)] = values[stat]
+	nine.merge(fill)
+	return nine
+
+
+# Brings `adventurer`, saved with the four old stats, up to the nine, nothing lost: their stats and
+# growth renamed and filled by their old class (a starter's by their own starting ones), and the
+# gains in their history renamed, so it reads as before. Their class is not kept: their stats say
+# what they are.
+func _to_nine_stats(adventurer: String) -> void:
+	var who := roster[adventurer]
+	var old_class: String = who.get("class", "")
+	who.erase("class")
+	var stats_fill: Dictionary = STARTING_STATS[adventurer] if STARTING_STATS.has(adventurer) else OLD_CLASSES[old_class]["stats"]
+	var growth_fill: Dictionary = GROWTH[adventurer] if GROWTH.has(adventurer) else OLD_CLASSES[old_class]["growth"]
+	stats[adventurer] = nine_stats(stats[adventurer], stats_fill)
+	# A save from before growth was kept has the starters' growth already.
+	if growth[adventurer].has("might"):
+		growth[adventurer] = nine_stats(growth[adventurer], growth_fill)
+	for entry: Dictionary in history[adventurer]:
+		entry["gains"] = nine_stats(entry["gains"], {})

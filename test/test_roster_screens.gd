@@ -18,7 +18,7 @@ func before_each() -> void:
 
 # Wren joins after the starters.
 func _add_wren() -> void:
-	_dispatch.adventurers.add("wren", {"name": "Wren", "class": "Shield bearer", "rank": "F", "face": "wren"}, {"might": 4, "agility": 2, "mind": 1, "grit": 8}, {"might": 0.5, "agility": 0.5, "mind": 0.5, "grit": 0.5})
+	_dispatch.adventurers.add("wren", {"name": "Wren", "rank": "F"}, Adventurers.STARTING_STATS["bram"], Adventurers.GROWTH["bram"])
 
 
 func _screen(path: String) -> Control:

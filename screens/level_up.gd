@@ -44,7 +44,7 @@ func show_level_up(adventurer: String, gains: Dictionary, adventurers: Adventure
 	var info: Dictionary = adventurers.roster[adventurer]
 	var level: int = adventurers.levels[adventurer]
 	_title.text = "%s reached level %d" % [info["name"], level]
-	_details.text = "%s · rank %s" % [info["class"], info["rank"]]
+	_details.text = "%s · rank %s" % [adventurers.title(adventurer), info["rank"]]
 	for stat: String in Adventurers.STATS:
 		var now_value: int = adventurers.stats[adventurer][stat]
 		var gain: int = gains[stat]

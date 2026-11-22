@@ -17,33 +17,37 @@ const RANK: String = "F"
 const RANK_E_CHANCE: float = 0.25
 const HIRE_GOLD_E: int = 180
 ## How many of a candidate's stats show before they are hired; the others show "?".
-const STATS_SHOWN: int = 2
+const STATS_SHOWN: int = 4
 ## The first names candidates are given.
 const NAMES: PackedStringArray = [
 	"Aldric", "Alys", "Bryn", "Cael", "Corwin", "Dagny", "Edda", "Elspeth", "Fenn", "Garrick",
 	"Hesper", "Hollis", "Idris", "Joss", "Kestrel", "Linnea", "Lorcan", "Mabon", "Nell", "Odile",
 	"Osric", "Perrin", "Quill", "Rowan", "Sigrun", "Talia", "Tamsin", "Ulric", "Vesna", "Yara",
 ]
-## Each class's stats on joining, which a candidate's own are up to STAT_SPREAD either side of, its
-## growth, and the stat it grows in most: close to the starter of that class.
-const CLASSES: Dictionary[String, Dictionary] = {
-	"Swordsman": {"main": "might", "stats": {"might": 6, "agility": 3, "mind": 2, "grit": 6}, "growth": {"might": 0.6, "agility": 0.3, "mind": 0.15, "grit": 0.5}},
-	"Mage": {"main": "mind", "stats": {"might": 2, "agility": 3, "mind": 7, "grit": 4}, "growth": {"might": 0.15, "agility": 0.3, "mind": 0.65, "grit": 0.35}},
-	"Scout": {"main": "agility", "stats": {"might": 3, "agility": 7, "mind": 3, "grit": 3}, "growth": {"might": 0.3, "agility": 0.6, "mind": 0.25, "grit": 0.3}},
-	"Healer": {"main": "mind", "stats": {"might": 2, "agility": 3, "mind": 6, "grit": 5}, "growth": {"might": 0.2, "agility": 0.3, "mind": 0.55, "grit": 0.5}},
-	"Shield bearer": {"main": "grit", "stats": {"might": 4, "agility": 2, "mind": 2, "grit": 7}, "growth": {"might": 0.45, "agility": 0.2, "mind": 0.15, "grit": 0.6}},
+## What a candidate leans toward: the two stats of a title in Adventurers.PAIR_TITLES, and the
+## Standard weapon they arrive wearing for it. They join with LEANING_STAT in those two and
+## OTHER_STAT in the rest, each up to STAT_SPREAD either side, growing in them with LEANING_GROWTH
+## and OTHER_GROWTH.
+const LEANING_WEAPONS: Dictionary[String, String] = {
+	"Fighter": "short_sword", "Scout": "hunting_bow", "Mystic": "oak_staff",
+	"Cleric": "bell_mace", "Ranger": "hunting_bow", "Envoy": "oak_staff",
+	"Paladin": "bell_mace", "Duellist": "short_sword", "Cartographer": "hunting_bow",
 }
+const LEANING_STAT: int = 6
+const OTHER_STAT: int = 3
+const LEANING_GROWTH: float = 0.6
+const OTHER_GROWTH: float = 0.25
 const STAT_SPREAD: int = 1
 ## The share of candidates who are late bloomers: each stat LATE_BLOOMER_STAT_LOSS below what it
-## would be, never under 1, but growth in their class's main stat of LATE_BLOOMER_GROWTH.
+## would be, never under 1, but growth in the first stat of their leaning of LATE_BLOOMER_GROWTH.
 const LATE_BLOOMER_CHANCE: float = 0.1
 const LATE_BLOOMER_STAT_LOSS: int = 2
 const LATE_BLOOMER_GROWTH: float = 0.95
 
 ## Each slot's candidate, {} while it refills: {"who": as Adventurers.roster keeps it, face_seed
-## included, "stats" and
-## "growth": as Adventurers.add takes them, "shown": the stats shown before hiring}, and for a
-## rank-E one "level": the level they arrive and are hired at.
+## included, "stats" and "growth": as Adventurers.add takes them, "shown": the stats shown
+## before hiring, "worn": what they wear, {slot: item id} as Gear.worn keeps it}, and for a rank-E
+## one "level": the level they arrive and are hired at.
 var candidates: Array[Dictionary] = []
 ## Unix seconds each slot's candidate arrived, or, while it refills, arrives.
 var refill_at: PackedInt64Array = PackedInt64Array()
@@ -127,7 +131,9 @@ func hire(slot: int, adventurers: Adventurers, gold: Gold, beds: int, now: int, 
 	gold.spend(hire_gold(hired))
 	# A slot and an arrival time belong to one candidate only.
 	# A candidate saved before rank-E ones arrived levelled is hired at level 1, as they were drawn.
-	adventurers.add("recruit_%d_%d" % [slot, refill_at[slot]], hired["who"], hired["stats"], hired["growth"], hired.get("level", 1))
+	var id := "recruit_%d_%d" % [slot, refill_at[slot]]
+	adventurers.add(id, hired["who"], hired["stats"], hired["growth"], hired.get("level", 1))
+	adventurers.gear.worn[id] = hired["worn"].duplicate()
 	candidates[slot] = {}
 	refill_at[slot] = checked_at + CANDIDATE_REFILL_SECONDS
 	return true
@@ -144,17 +150,18 @@ static func candidate_for(slot: int, arrived_at: int, taken: PackedStringArray, 
 	for name: String in NAMES:
 		if name not in taken:
 			names.append(name)
-	var classes := Challenges.COVERS.keys()
-	var type: String = classes[rng.randi_range(0, classes.size() - 1)]
-	var build: Dictionary = CLASSES[type]
+	var leanings := LEANING_WEAPONS.keys()
+	var leaning: String = leanings[rng.randi_range(0, leanings.size() - 1)]
+	var leans: Array = Adventurers.PAIR_TITLES[leaning]
 	var late_bloomer := rng.randf() < LATE_BLOOMER_CHANCE
 	var stats := {}
+	var growth := {}
 	for stat: String in Adventurers.STATS:
-		var points: int = build["stats"][stat] + rng.randi_range(-STAT_SPREAD, STAT_SPREAD)
+		var points: int = (LEANING_STAT if stat in leans else OTHER_STAT) + rng.randi_range(-STAT_SPREAD, STAT_SPREAD)
 		stats[stat] = maxi(1, points - LATE_BLOOMER_STAT_LOSS) if late_bloomer else points
-	var growth: Dictionary = build["growth"].duplicate()
+		growth[stat] = LEANING_GROWTH if stat in leans else OTHER_GROWTH
 	if late_bloomer:
-		growth[build["main"]] = LATE_BLOOMER_GROWTH
+		growth[leans[0]] = LATE_BLOOMER_GROWTH
 	var order := PackedStringArray(Adventurers.STATS.keys())
 	for i: int in range(order.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
@@ -167,10 +174,11 @@ static func candidate_for(slot: int, arrived_at: int, taken: PackedStringArray, 
 	if better_from >= 0 and arrived_at >= better_from and rng.randf() < RANK_E_CHANCE:
 		rank = "E"
 	var candidate := {
-		"who": {"name": name, "class": type, "rank": rank},
+		"who": {"name": name, "rank": rank},
 		"stats": stats,
 		"growth": growth,
 		"shown": order.slice(0, STATS_SHOWN),
+		"worn": {"weapon": LEANING_WEAPONS[leaning]},
 	}
 	if rank == "E":
 		# Drawn after the rank, so a rank-F candidate is as they were before rank-E ones levelled.
@@ -191,8 +199,17 @@ static func _face_seed(slot: int, arrived_at: int) -> int:
 	return hash([slot, arrived_at, "face"])
 
 
-## `candidate`'s stats for the player, those not shown as "?", such as "Might 5 · Agility ? · Mind 3
-## · Grit ?".
+## `candidate`'s title, from their stats and what they wear, as Adventurers.title_of gives it.
+static func title(candidate: Dictionary) -> String:
+	var totals: Dictionary = candidate["stats"].duplicate()
+	for item: String in candidate["worn"].values():
+		for stat: String in Gear.ITEMS[item]["bonus"]:
+			totals[stat] += Gear.ITEMS[item]["bonus"][stat]
+	return Adventurers.title_of(totals)
+
+
+## `candidate`'s stats for the player, those not shown as "?", such as "Strength 5 · Agility ? ·
+## Perception 3 · …".
 static func stats_line(candidate: Dictionary) -> String:
 	var parts := PackedStringArray()
 	for stat: String in Adventurers.STATS:
@@ -218,10 +235,24 @@ static func load_or_start(path: String) -> Recruits:
 	recruits.candidates.assign(file.get_value("recruits", "candidates"))
 	recruits.refill_at = file.get_value("recruits", "refill_at")
 	recruits.checked_at = file.get_value("recruits", "checked_at")
-	# A candidate saved before faces were made gets the one they would arrive with now.
 	for slot: int in recruits.candidates.size():
-		if not recruits.candidates[slot].is_empty() and not recruits.candidates[slot]["who"].has("face_seed"):
-			recruits.candidates[slot]["who"]["face_seed"] = _face_seed(slot, recruits.refill_at[slot])
+		var candidate := recruits.candidates[slot]
+		if candidate.is_empty():
+			continue
+		# A candidate saved before faces were made gets the one they would arrive with now.
+		if not candidate["who"].has("face_seed"):
+			candidate["who"]["face_seed"] = _face_seed(slot, recruits.refill_at[slot])
+		# One saved with the four old stats gets the nine, filled by their class, and its weapon.
+		if candidate["stats"].has("might"):
+			var old: Dictionary = Adventurers.OLD_CLASSES[candidate["who"]["class"]]
+			candidate["who"].erase("class")
+			candidate["stats"] = Adventurers.nine_stats(candidate["stats"], old["stats"])
+			candidate["growth"] = Adventurers.nine_stats(candidate["growth"], old["growth"])
+			var shown := PackedStringArray()
+			for stat: String in candidate["shown"]:
+				shown.append(Adventurers.RENAMED_STATS.get(stat, stat))
+			candidate["shown"] = shown
+			candidate["worn"] = {"weapon": old["weapon"]}
 	return recruits
 
 

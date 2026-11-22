@@ -2,6 +2,10 @@ extends GutTest
 
 const SAVE_PATH: String = "user://test_adventurers_save.cfg"
 const EVERYONE: Array[String] = ["bram", "ilse", "tobin", "maren"]
+const BRAM_STATS: Dictionary = {"strength": 6, "agility": 3, "perception": 3, "mind": 2, "spirit": 3, "defence": 7, "endurance": 5, "presence": 3, "luck": 1}
+const TOBIN_STATS: Dictionary = {"strength": 3, "agility": 7, "perception": 6, "mind": 3, "spirit": 3, "defence": 3, "endurance": 3, "presence": 3, "luck": 4}
+## Someone leaning Strength and Defence: 25 in all.
+const WREN_STATS: Dictionary = {"strength": 4, "agility": 2, "perception": 2, "mind": 1, "spirit": 2, "defence": 8, "endurance": 3, "presence": 2, "luck": 1}
 
 
 ## A guild of all four starters, as one saved before guild ranks has, at `at`.
@@ -15,77 +19,63 @@ func after_each() -> void:
 	DirAccess.remove_absolute(SAVE_PATH)
 
 
-func _powers(adventurers: Adventurers) -> Array[int]:
-	var powers: Array[int] = []
-	for adventurer: String in EVERYONE:
-		powers.append(adventurers.power(adventurer))
-	return powers
-
-
-func test_power_is_the_sum_of_the_stats_over_five_rounded_so_the_starters_keep_their_power() -> void:
-	var adventurers := Adventurers.new(EVERYONE)
-	# Bram 18 → 3.6, Ilse 18, Tobin 16 → 3.2, Maren 16.
-	assert_eq(_powers(adventurers), [4, 4, 3, 3])
-	adventurers.stats["tobin"]["agility"] = 9
-	assert_eq(adventurers.power("tobin"), 4)
-
-
-func test_everyone_starts_in_their_design_gear_which_leaves_their_power_and_health_as_before() -> void:
+func test_everyone_starts_in_their_design_gear_which_adds_to_their_stats() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	assert_eq(adventurers.gear.worn["bram"], {"head": "iron_cap", "clothes": "red_tunic", "armour": "leather_vest", "weapon": "short_sword", "off_hand": "round_shield"})
 	assert_eq(adventurers.gear.worn["ilse"], {"head": "pointed_hat", "clothes": "apprentice_robe", "neck": "moonstone_amulet", "weapon": "oak_staff"})
 	assert_eq(adventurers.gear.worn["tobin"], {"head": "scouts_hood", "clothes": "leather_jerkin", "weapon": "hunting_bow", "back": "quiver"})
 	assert_eq(adventurers.gear.worn["maren"], {"clothes": "healers_robe", "belt": "green_sash", "weapon": "bell_mace"})
 	assert_eq(adventurers.gear.stash, PackedStringArray())
-	assert_eq(_powers(adventurers), [4, 4, 3, 3])
-	assert_eq(adventurers.max_health("bram"), 24)
+	# Bram's iron cap and round shield add 2 to his Defence of 7.
+	assert_eq(adventurers.max_health("bram"), 28)
 	assert_eq(adventurers.max_health("tobin"), 16)
 
 
-func test_a_stat_is_own_plus_gear_and_power_and_health_count_the_total() -> void:
+func test_a_stat_is_own_plus_gear_and_health_counts_the_total() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	adventurers.gear.stow("chapel_plate")
 	adventurers.gear.wear("tobin", 0)
-	# Tobin's own 3 / 7 / 3 / 3 with Chapel plate's Might +3, Grit +4: 6 / 7 / 3 / 7 = 23 → 4.6.
-	assert_eq(adventurers.stat_total("tobin", "might"), 6)
-	assert_eq(adventurers.stat_total("tobin", "grit"), 7)
-	assert_eq(adventurers.stat_total("tobin", "agility"), 7)
-	assert_eq(adventurers.stats["tobin"], {"might": 3, "agility": 7, "mind": 3, "grit": 3})
-	assert_eq(adventurers.power("tobin"), 5)
+	# Tobin's own Defence 3 and Spirit 3 with Chapel plate's Defence +4, Spirit +2; his other gear
+	# adds 2 to Agility.
+	assert_eq(adventurers.stat_total("tobin", "defence"), 7)
+	assert_eq(adventurers.stat_total("tobin", "spirit"), 5)
+	assert_eq(adventurers.stat_total("tobin", "agility"), 9)
+	assert_eq(adventurers.stats["tobin"], TOBIN_STATS)
 	assert_eq(adventurers.max_health("tobin"), 24)
-	assert_eq(adventurers.power("bram"), 4)
-	# Swapping it for a plain vest gives back what their own stats give.
+	# Swapping it for a leather vest, Endurance +1.
 	adventurers.gear.stow("leather_vest")
 	adventurers.gear.wear("tobin", 0)
 	assert_eq(adventurers.gear.worn["tobin"]["armour"], "leather_vest")
-	assert_eq(adventurers.power("tobin"), 3)
+	assert_eq(adventurers.stat_total("tobin", "defence"), 3)
+	assert_eq(adventurers.stat_total("tobin", "endurance"), 4)
 	assert_eq(adventurers.max_health("tobin"), 16)
 
 
 func test_everyone_starts_at_level_one_with_no_xp_and_their_starting_stats() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
-	assert_eq(adventurers.stats["bram"], {"might": 6, "agility": 3, "mind": 2, "grit": 7})
-	assert_eq(adventurers.stats["ilse"], {"might": 2, "agility": 3, "mind": 8, "grit": 5})
-	assert_eq(adventurers.stats["tobin"], {"might": 3, "agility": 7, "mind": 3, "grit": 3})
-	assert_eq(adventurers.stats["maren"], {"might": 2, "agility": 3, "mind": 6, "grit": 5})
+	assert_eq(adventurers.stats["bram"], BRAM_STATS)
+	assert_eq(adventurers.stats["ilse"], {"strength": 2, "agility": 3, "perception": 3, "mind": 8, "spirit": 3, "defence": 5, "endurance": 3, "presence": 6, "luck": 1})
+	assert_eq(adventurers.stats["tobin"], TOBIN_STATS)
+	assert_eq(adventurers.stats["maren"], {"strength": 2, "agility": 3, "perception": 3, "mind": 6, "spirit": 7, "defence": 5, "endurance": 3, "presence": 3, "luck": 1})
 	for adventurer: String in EVERYONE:
 		assert_eq(adventurers.levels[adventurer], 1)
 		assert_eq(adventurers.xp[adventurer], 0)
 		assert_false(adventurers.level_up_ready(adventurer))
 
 
-func test_maximum_health_is_ten_plus_two_per_grit_and_a_level_up_that_raises_grit_raises_it() -> void:
+func test_maximum_health_is_ten_plus_two_per_defence_and_a_level_up_that_raises_defence_raises_it() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
-	assert_eq(adventurers.max_health("bram"), 24)
+	assert_eq(adventurers.max_health("bram"), 28)
 	assert_eq(adventurers.max_health("ilse"), 20)
 	assert_eq(adventurers.max_health("tobin"), 16)
 	assert_eq(adventurers.max_health("maren"), 20)
 	adventurers.gain_xp("bram", 1_000_000)
-	var grit_gain := 0
-	while grit_gain == 0:
-		grit_gain = adventurers.level_up("bram")["grit"]
-	assert_eq(adventurers.max_health("bram"), 10 + 2 * int(adventurers.stats["bram"]["grit"]) + 3 * (adventurers.levels["bram"] - 1))
-	assert_gt(adventurers.max_health("bram"), 24)
+	var defence_gain := 0
+	while defence_gain == 0:
+		defence_gain = adventurers.level_up("bram")["defence"]
+	# His gear adds 2 to his own Defence.
+	assert_eq(adventurers.max_health("bram"), 10 + 2 * (int(adventurers.stats["bram"]["defence"]) + 2) + 3 * (adventurers.levels["bram"] - 1))
+	assert_gt(adventurers.max_health("bram"), 28)
 
 
 func test_a_quest_gives_its_party_its_whole_xp_on_success_and_a_quarter_rounded_down_but_at_least_1_on_failure() -> void:
@@ -132,7 +122,7 @@ func test_a_level_up_raises_each_stat_by_zero_to_two_the_same_for_the_same_adven
 			var before: Dictionary = first.stats[adventurer].duplicate()
 			var gains := first.level_up(adventurer)
 			assert_eq(second.level_up(adventurer), gains, "%s level %d" % [adventurer, level + 2])
-			assert_eq(gains.keys(), ["might", "agility", "mind", "grit"])
+			assert_eq(gains.keys(), ["strength", "agility", "perception", "mind", "spirit", "defence", "endurance", "presence", "luck"])
 			for stat: String in gains:
 				assert_between(int(gains[stat]), 0, 2)
 				assert_eq(first.stats[adventurer][stat], before[stat] + gains[stat])
@@ -146,8 +136,9 @@ func test_tobins_agility_grows_faster_than_any_of_his_other_stats() -> void:
 	for level: int in 20:
 		adventurers.level_up("tobin")
 	var agility_gained: int = adventurers.stats["tobin"]["agility"] - start["agility"]
-	for stat: String in ["might", "mind", "grit"]:
-		assert_gt(agility_gained, adventurers.stats["tobin"][stat] - start[stat], stat)
+	for stat: String in Adventurers.STATS:
+		if stat != "agility":
+			assert_gt(agility_gained, adventurers.stats["tobin"][stat] - start[stat], stat)
 
 
 func test_the_history_records_each_level_up_with_what_it_gave() -> void:
@@ -177,7 +168,6 @@ func test_stats_levels_xp_and_history_survive_save_and_load() -> void:
 	assert_eq(loaded.stats, adventurers.stats)
 	assert_eq(loaded.history["tobin"], adventurers.history["tobin"])
 	assert_eq(loaded.history["tobin"].size(), 2)
-	assert_eq(_powers(loaded), _powers(adventurers))
 	# The next level-up after loading grows as it would have without the reload.
 	loaded.gain_xp("tobin", 120)
 	adventurers.gain_xp("tobin", 120)
@@ -199,7 +189,6 @@ func test_a_save_from_the_previous_build_loads_with_starter_stats_and_nothing_el
 
 	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_100)
 	assert_eq(loaded.adventurers.stats, Adventurers.STARTING_STATS)
-	assert_eq(_powers(loaded.adventurers), [4, 4, 3, 3])
 	for adventurer: String in EVERYONE:
 		assert_eq(loaded.adventurers.levels[adventurer], 1)
 		assert_eq(loaded.adventurers.xp[adventurer], 0)
@@ -241,8 +230,8 @@ func test_an_added_adventurer_joins_last_at_level_1_with_no_xp_and_nothing_worn(
 	assert_eq(adventurers.xp["wren"], 0)
 	assert_eq(adventurers.history["wren"], [])
 	assert_eq(adventurers.gear.worn["wren"], {})
-	# 15 → 3, from their own stats alone; the starters keep their gear.
-	assert_eq(adventurers.power("wren"), 3)
+	# Their stats are their own alone; the starters keep their gear.
+	assert_eq(adventurers.stat_total("wren", "defence"), WREN_STATS["defence"])
 	assert_eq(adventurers.gear.worn["bram"], Gear.STARTER_GEAR["bram"])
 
 
@@ -256,13 +245,13 @@ func test_an_added_adventurer_survives_save_and_load_and_levels_up_by_their_own_
 	var loaded := Adventurers.load_or_start(SAVE_PATH)
 	assert_eq(loaded.roster, adventurers.roster)
 	assert_eq(loaded.roster.keys(), ["bram", "ilse", "tobin", "maren", "wren"])
-	assert_eq(loaded.stats["wren"], {"might": 4, "agility": 2, "mind": 1, "grit": 8})
+	assert_eq(loaded.stats["wren"], WREN_STATS)
 	assert_eq(loaded.gear.worn["wren"], {})
 	assert_eq(loaded.gear.worn["tobin"], Gear.STARTER_GEAR["tobin"])
 	# Certain growth gives both points and none gives nothing, whatever the roll.
 	loaded.gain_xp("wren", 40)
-	assert_eq(loaded.level_up("wren"), {"might": 2, "agility": 0, "mind": 0, "grit": 2})
-	assert_eq(loaded.stats["wren"], {"might": 6, "agility": 2, "mind": 1, "grit": 10})
+	assert_eq(loaded.level_up("wren"), {"strength": 2, "agility": 0, "perception": 0, "mind": 0, "spirit": 0, "defence": 2, "endurance": 0, "presence": 0, "luck": 0})
+	assert_eq(loaded.stats["wren"], {"strength": 6, "agility": 2, "perception": 2, "mind": 1, "spirit": 2, "defence": 10, "endurance": 3, "presence": 2, "luck": 1})
 
 
 func test_a_save_from_before_the_roster_was_saved_loads_the_four_starters_as_they_were() -> void:
@@ -278,8 +267,8 @@ func test_a_save_from_before_the_roster_was_saved_loads_the_four_starters_as_the
 
 	var loaded := Adventurers.load_or_start(SAVE_PATH)
 	assert_eq(loaded.roster.keys(), EVERYONE)
-	assert_eq(loaded.roster["maren"], {"name": "Maren", "class": "Healer", "rank": "F"})
-	assert_eq(loaded.roster["tobin"], {"name": "Tobin", "class": "Scout", "rank": "F"})
+	assert_eq(loaded.roster["maren"], {"name": "Maren", "rank": "F"})
+	assert_eq(loaded.roster["tobin"], {"name": "Tobin", "rank": "F"})
 	assert_eq(loaded.levels["tobin"], 2)
 	assert_eq(loaded.stats, adventurers.stats)
 	assert_eq(loaded.gear.worn, Gear.STARTER_GEAR)
@@ -289,30 +278,30 @@ func test_a_save_from_before_the_roster_was_saved_loads_the_four_starters_as_the
 	assert_eq(loaded.level_up("tobin"), adventurers.level_up("tobin"))
 
 
-func test_maximum_health_at_level_1_is_as_before_and_each_level_past_it_adds_some_even_without_grit() -> void:
+func test_maximum_health_at_level_1_is_10_plus_2_per_defence_and_each_level_past_it_adds_some_even_without_defence() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	_add_wren(adventurers)
-	# Level 1 is unchanged: 10 plus 2 per Grit, gear included.
-	assert_eq(adventurers.max_health("bram"), 24)
+	# 10 plus 2 per Defence, gear included.
+	assert_eq(adventurers.max_health("bram"), 28)
 	assert_eq(adventurers.max_health("tobin"), 16)
 	assert_eq(adventurers.max_health("wren"), 26)
-	adventurers.growth["wren"]["grit"] = 0.0
+	adventurers.growth["wren"]["defence"] = 0.0
 	adventurers.gain_xp("wren", 1_000)
 	var before := adventurers.max_health("wren")
 	adventurers.level_up("wren")
-	assert_eq(adventurers.stats["wren"]["grit"], 8)
+	assert_eq(adventurers.stats["wren"]["defence"], 8)
 	assert_gt(adventurers.max_health("wren"), before)
 	var one_level := adventurers.max_health("wren") - before
 	adventurers.level_up("wren")
 	assert_eq(adventurers.max_health("wren") - before, 2 * one_level)
 
 
-func test_a_failed_quest_of_a_members_promotion_rank_injures_half_to_three_quarters_without_a_healer() -> void:
+func test_a_failed_quest_of_a_members_promotion_rank_injures_half_to_three_quarters_with_no_spirit_or_luck() -> void:
 	for rank: String in ["E", "D"]:
 		var rates := _injury_rates(rank)
 		assert_between(rates["failed"], 0.5, 0.75, rank)
-		# A Healer halves the damage, so far fewer come home injured.
-		assert_lt(rates["failed_with_healer"], rates["failed"] / 2.0, rank)
+		# Spirit enough to halve the damage, so far fewer come home injured.
+		assert_lt(rates["failed_with_spirit"], rates["failed"] / 2.0, rank)
 		assert_lt(rates["succeeded"], 0.1, rank)
 
 
@@ -340,8 +329,9 @@ func test_a_wound_saved_under_the_old_maximum_loads_as_it_was_and_heals_up_to_th
 
 
 # The share of members at `rank`'s promotion level, levelled by their own growth, who come home
-# from a quest of that rank injured from full health: failed without a Healer, failed with one,
-# and succeeded. Members are the starters and 100 candidates, each sent with 40 fixed seeds.
+# from a quest of that rank injured from full health: failed with no Spirit or Luck, failed with
+# Spirit enough to halve the damage, and succeeded. Members are the starters and 100 candidates,
+# each sent with 40 fixed seeds.
 func _injury_rates(rank: String) -> Dictionary:
 	var level: int = Adventurers.PROMOTIONS[rank]["level"]
 	var adventurers := Adventurers.new(EVERYONE)
@@ -353,21 +343,14 @@ func _injury_rates(rank: String) -> Dictionary:
 		adventurers.gain_xp(member, 1_000_000)
 		while adventurers.levels[member] < level:
 			adventurers.level_up(member)
-	adventurers.roster["healer"] = {"name": "Hal", "class": "Healer", "rank": rank, "face": ""}
-	var injured := {"failed": 0, "failed_with_healer": 0, "succeeded": 0}
-	var sent := {"failed": 0, "failed_with_healer": 0, "succeeded": 0}
+	var injured := {"failed": 0, "failed_with_spirit": 0, "succeeded": 0}
+	var sent := {"failed": 0, "failed_with_spirit": 0, "succeeded": 0}
 	for member: String in members:
 		var most := adventurers.max_health(member)
-		var healer := Dispatch.is_healer(adventurers.roster[member])
 		for roll: int in 40:
 			for kind: String in injured:
-				# A Healer is never without one.
-				if kind == "failed" and healer:
-					continue
-				var party := PackedStringArray([member])
-				if kind == "failed_with_healer" and not healer:
-					party.append("healer")
-				var outcome := Outcome.roll(roll * 7_919 + member.hash(), 100 if kind == "succeeded" else 0, Outcome.MOST_DAMAGE[rank], party, adventurers.roster)
+				var spirit := 25 if kind == "failed_with_spirit" else 0
+				var outcome := Outcome.roll(roll * 7_919 + member.hash(), 100 if kind == "succeeded" else 0, Outcome.MOST_DAMAGE[rank], [member], spirit)
 				sent[kind] += 1
 				if Dispatch.under_a_quarter(maxi(1, most - int(outcome.damage[member])), most):
 					injured[kind] += 1
@@ -377,6 +360,166 @@ func _injury_rates(rank: String) -> Dictionary:
 	return rates
 
 
-# A Shield bearer with no art for their face, whose Might and Grit always grow and nothing else.
+# Someone leaning Strength and Defence, whose Strength and Defence always grow and nothing else.
 static func _add_wren(adventurers: Adventurers) -> void:
-	adventurers.add("wren", {"name": "Wren", "class": "Shield bearer", "rank": "F", "face": "wren"}, {"might": 4, "agility": 2, "mind": 1, "grit": 8}, {"might": 1.0, "agility": 0.0, "mind": 0.0, "grit": 1.0})
+	var grows := {}
+	for stat: String in Adventurers.STATS:
+		grows[stat] = 1.0 if stat in ["strength", "defence"] else 0.0
+	adventurers.add("wren", {"name": "Wren", "rank": "F"}, WREN_STATS, grows)
+
+
+func test_a_title_comes_from_the_two_highest_stats_gear_included() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	assert_eq(adventurers.title("bram"), "Fighter")
+	assert_eq(adventurers.title("ilse"), "Envoy")
+	assert_eq(adventurers.title("tobin"), "Scout")
+	assert_eq(adventurers.title("maren"), "Mystic")
+
+
+func test_two_highest_stats_that_are_no_pair_take_the_highest_ones_own_title() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	var stats := {}
+	for stat: String in Adventurers.STATS:
+		stats[stat] = 1
+	stats["endurance"] = 9
+	stats["luck"] = 7
+	adventurers.add("wren", {"name": "Wren", "rank": "F"}, stats, stats)
+	assert_eq(adventurers.title("wren"), "Wanderer")
+	adventurers.stats["wren"]["luck"] = 10
+	assert_eq(adventurers.title("wren"), "Gambler")
+
+
+func test_a_tie_goes_to_the_stat_shown_first() -> void:
+	var even := {}
+	for stat: String in Adventurers.STATS:
+		even[stat] = 3
+	# Strength and Agility come first.
+	assert_eq(Adventurers.title_of(even), "Duellist")
+	even["presence"] = 5
+	# Presence, then Strength: no pair.
+	assert_eq(Adventurers.title_of(even), "Herald")
+	even["mind"] = 5
+	# Mind before Presence: an Envoy.
+	assert_eq(Adventurers.title_of(even), "Envoy")
+
+
+func test_changing_gear_can_change_a_title_and_back() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	# Ilse's Mind 11 and Presence 6 make her an Envoy; Chapel plate's Defence +4 lifts her
+	# Defence of 5 over her Presence: Mind and Defence are no pair.
+	adventurers.gear.stow("chapel_plate")
+	adventurers.gear.wear("ilse", 0)
+	assert_eq(adventurers.title("ilse"), "Scholar")
+	assert_true(adventurers.gear.take_off("ilse", "armour"))
+	assert_eq(adventurers.title("ilse"), "Envoy")
+
+
+func test_growth_leans_toward_what_worn_items_add_a_twentieth_a_point_up_to_nine_tenths() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	_add_wren(adventurers)
+	adventurers.growth["wren"]["mind"] = 0.2
+	adventurers.growth["wren"]["agility"] = 0.85
+	adventurers.growth["wren"]["perception"] = 0.95
+	assert_almost_eq(adventurers.growth_chance("wren", "mind"), 0.2, 0.0001)
+	# Moonherb staff: Mind +3.
+	adventurers.gear.stow("moonherb_staff")
+	adventurers.gear.wear("wren", 0)
+	assert_almost_eq(adventurers.growth_chance("wren", "mind"), 0.35, 0.0001)
+	# Night cloak: Agility +3, but never past 0.9.
+	adventurers.gear.stow("night_cloak")
+	adventurers.gear.wear("wren", 0)
+	assert_almost_eq(adventurers.growth_chance("wren", "agility"), 0.9, 0.0001)
+	# Moss hood: Perception +2. A talent already past 0.9 stays as it is.
+	adventurers.gear.stow("moss_hood")
+	adventurers.gear.wear("wren", 0)
+	assert_almost_eq(adventurers.growth_chance("wren", "perception"), 0.95, 0.0001)
+	# What nothing worn adds grows by talent alone.
+	assert_almost_eq(adventurers.growth_chance("wren", "spirit"), 0.0, 0.0001)
+
+
+func test_a_stat_with_no_talent_grows_only_while_an_item_adds_to_it() -> void:
+	var bare := Adventurers.new(EVERYONE)
+	var armed := Adventurers.new(EVERYONE)
+	for adventurers: Adventurers in [bare, armed]:
+		_add_wren(adventurers)
+		adventurers.gain_xp("wren", 1_000_000)
+	# A staff: a scout can grow into a mage.
+	armed.gear.stow("moonherb_staff")
+	armed.gear.wear("wren", 0)
+	for level: int in 20:
+		bare.level_up("wren")
+		armed.level_up("wren")
+	assert_eq(bare.stats["wren"]["mind"], WREN_STATS["mind"])
+	assert_gt(armed.stats["wren"]["mind"], WREN_STATS["mind"])
+	# Other stats grow as they would anyway: Wren's Strength always grows.
+	assert_eq(armed.stats["wren"]["strength"], bare.stats["wren"]["strength"])
+
+
+func test_a_save_with_the_four_old_stats_loads_them_renamed_and_the_new_ones_filled_by_old_class() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	var file := ConfigFile.new()
+	adventurers.write(file)
+	# The build before nine stats: four stats, growth and history gains in the old names, classes.
+	file.set_value("adventurers", "order", PackedStringArray(["bram", "ilse", "tobin", "maren", "recruit_0_9"]))
+	file.set_value("adventurers", "roster", {
+		"bram": {"name": "Bram", "class": "Swordsman", "rank": "F"},
+		"ilse": {"name": "Ilse", "class": "Mage", "rank": "F"},
+		"tobin": {"name": "Tobin", "class": "Scout", "rank": "E"},
+		"maren": {"name": "Maren", "class": "Healer", "rank": "F"},
+		"recruit_0_9": {"name": "Linnea", "class": "Shield bearer", "rank": "F", "face_seed": 42},
+	})
+	file.set_value("adventurers", "stats", {
+		"bram": {"might": 8, "agility": 3, "mind": 2, "grit": 9},
+		"ilse": {"might": 2, "agility": 3, "mind": 8, "grit": 5},
+		"tobin": {"might": 3, "agility": 9, "mind": 3, "grit": 4},
+		"maren": {"might": 2, "agility": 3, "mind": 6, "grit": 5},
+		"recruit_0_9": {"might": 4, "agility": 2, "mind": 2, "grit": 7},
+	})
+	file.set_value("adventurers", "growth", {
+		"bram": {"might": 0.6, "agility": 0.3, "mind": 0.15, "grit": 0.55},
+		"ilse": {"might": 0.15, "agility": 0.3, "mind": 0.7, "grit": 0.35},
+		"tobin": {"might": 0.3, "agility": 0.9, "mind": 0.25, "grit": 0.3},
+		"maren": {"might": 0.2, "agility": 0.3, "mind": 0.55, "grit": 0.5},
+		"recruit_0_9": {"might": 0.45, "agility": 0.2, "mind": 0.15, "grit": 0.6},
+	})
+	file.set_value("adventurers", "levels", {"bram": 3, "ilse": 1, "tobin": 2, "maren": 1, "recruit_0_9": 1})
+	file.set_value("adventurers", "xp", {"bram": 7, "ilse": 0, "tobin": 5, "maren": 0, "recruit_0_9": 0})
+	file.set_value("adventurers", "history", {
+		"bram": [{"level": 2, "gains": {"might": 1, "agility": 0, "mind": 0, "grit": 1}}, {"level": 3, "gains": {"might": 1, "agility": 0, "mind": 0, "grit": 1}}],
+		"ilse": [], "tobin": [{"level": 2, "gains": {"might": 0, "agility": 2, "mind": 0, "grit": 1}}], "maren": [], "recruit_0_9": [],
+	})
+	var worn: Dictionary = file.get_value("gear", "worn")
+	worn["recruit_0_9"] = {}
+	file.set_value("gear", "worn", worn)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Adventurers.load_or_start(SAVE_PATH)
+	# Might is Strength, Grit Defence; a starter's new stats are their own starting ones.
+	assert_eq(loaded.stats["bram"], {"strength": 8, "agility": 3, "mind": 2, "defence": 9, "perception": 3, "spirit": 3, "endurance": 5, "presence": 3, "luck": 1})
+	assert_eq(loaded.stats["tobin"]["strength"], 3)
+	assert_eq(loaded.stats["tobin"]["defence"], 4)
+	assert_eq(loaded.stats["tobin"]["perception"], 6)
+	assert_eq(loaded.stats["maren"]["spirit"], 7)
+	# Anyone else's come from their old class: a Shield bearer's high Endurance, a little Luck.
+	assert_eq(loaded.stats["recruit_0_9"], {"strength": 4, "agility": 2, "mind": 2, "defence": 7, "perception": 3, "spirit": 3, "endurance": 6, "presence": 3, "luck": 1})
+	assert_almost_eq(float(loaded.growth["recruit_0_9"]["strength"]), 0.45, 0.0001)
+	assert_almost_eq(float(loaded.growth["recruit_0_9"]["defence"]), 0.6, 0.0001)
+	assert_almost_eq(float(loaded.growth["recruit_0_9"]["endurance"]), 0.6, 0.0001)
+	assert_almost_eq(float(loaded.growth["bram"]["strength"]), 0.6, 0.0001)
+	for adventurer: String in loaded.roster:
+		assert_eq(loaded.stats[adventurer].size(), 9, adventurer)
+		assert_eq(loaded.growth[adventurer].size(), 9, adventurer)
+		# Nothing reads a class any more: the stats say what they are.
+		assert_false(loaded.roster[adventurer].has("class"), adventurer)
+	assert_eq(loaded.title("recruit_0_9"), "Guard")
+	# Nothing else lost.
+	assert_eq(loaded.roster["tobin"], {"name": "Tobin", "rank": "E"})
+	assert_eq(loaded.roster["recruit_0_9"]["face_seed"], 42)
+	assert_eq(loaded.levels["bram"], 3)
+	assert_eq(loaded.xp["tobin"], 5)
+	# The history reads in the new names.
+	assert_eq(loaded.history["bram"][1], {"level": 3, "gains": {"strength": 1, "agility": 0, "mind": 0, "defence": 1}})
+	assert_eq(loaded.history["tobin"][0]["gains"]["defence"], 1)
+	# And levels up in nine stats from here.
+	loaded.gain_xp("tobin", 1_000)
+	assert_eq(loaded.level_up("tobin").size(), 9)

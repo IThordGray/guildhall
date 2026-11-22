@@ -3,26 +3,82 @@ extends GutTest
 const PARTY: PackedStringArray = ["bram", "ilse", "tobin"]
 
 
-func test_the_chance_is_even_at_equal_power_and_moves_ten_points_per_point_of_difference() -> void:
-	assert_eq(Outcome.chance_percent(7, 7), 50)
-	assert_eq(Outcome.chance_percent(8, 7), 60)
-	assert_eq(Outcome.chance_percent(4, 7), 20)
-	assert_eq(Outcome.chance_percent(11, 7), 90)
+func test_a_challenges_chance_is_even_when_the_total_meets_the_requirement_and_moves_two_points_per_point() -> void:
+	assert_eq(Outcome.challenge_chance(20, 20), 50)
+	assert_eq(Outcome.challenge_chance(21, 20), 52)
+	assert_eq(Outcome.challenge_chance(12, 20), 34)
+	assert_eq(Outcome.challenge_chance(35, 20), 80)
 
 
-func test_the_chance_never_rises_above_95_or_falls_below_5() -> void:
-	assert_eq(Outcome.chance_percent(11, 3), 95)
-	assert_eq(Outcome.chance_percent(12, 7), 95)
-	assert_eq(Outcome.chance_percent(3, 7), 10)
-	assert_eq(Outcome.chance_percent(3, 12), 5)
-	assert_eq(Outcome.chance_percent(0, 12), 5)
+func test_a_challenges_chance_never_rises_above_95_or_falls_below_5() -> void:
+	assert_eq(Outcome.challenge_chance(42, 20), 94)
+	assert_eq(Outcome.challenge_chance(43, 20), 95)
+	assert_eq(Outcome.challenge_chance(80, 20), 95)
+	assert_eq(Outcome.challenge_chance(-2, 20), 6)
+	assert_eq(Outcome.challenge_chance(-3, 20), 5)
+	assert_eq(Outcome.challenge_chance(0, 90), 5)
+
+
+func test_a_quests_chance_is_its_challenges_average_with_the_weakest_counted_twice() -> void:
+	assert_eq(Outcome.chance_percent([70]), 70)
+	# A plain average would be 60.
+	assert_eq(Outcome.chance_percent([90, 30]), 50)
+	assert_eq(Outcome.chance_percent([30, 90]), 50)
+	# (80 + 60 + 40 + 40) ÷ 4.
+	assert_eq(Outcome.chance_percent([80, 60, 40]), 55)
+	# 220 ÷ 3, rounded down.
+	assert_eq(Outcome.chance_percent([80, 70]), 73)
+
+
+func test_the_bonus_comes_on_after_the_average_kept_within_5_to_95() -> void:
+	assert_eq(Outcome.chance_percent([90, 30], 7), 57)
+	assert_eq(Outcome.chance_percent([95, 90], 15), 95)
+	assert_eq(Outcome.chance_percent([5, 5], 0), 5)
+
+
+func test_a_lucky_break_lifts_only_the_weakest_challenge_only_to_50_and_only_when_below_it() -> void:
+	# The weakest, 30, counts at 50: (90 + 50 + 50) ÷ 3.
+	assert_eq(Outcome.chance_percent([90, 30], 0, true), 63)
+	# Only the weakest: 40 stays 40, so it becomes the weakest; (90 + 50 + 40 + 40) ÷ 4.
+	assert_eq(Outcome.chance_percent([90, 30, 40], 0, true), 55)
+	# Of two equally weak, only one is lifted: (50 + 30 + 30) ÷ 3.
+	assert_eq(Outcome.chance_percent([30, 30], 0, true), 36)
+	# Never above 50: a single challenge at 10 counts at exactly 50.
+	assert_eq(Outcome.chance_percent([10], 0, true), 50)
+	# The weakest at 50 or more is left as it is.
+	assert_eq(Outcome.chance_percent([90, 60], 0, true), Outcome.chance_percent([90, 60]))
+	assert_eq(Outcome.chance_percent([90, 50], 0, true), Outcome.chance_percent([90, 50]))
+
+
+func test_a_lucky_break_comes_2_percent_a_point_of_luck_at_most_25_and_never_without_luck() -> void:
+	const SEEDS: int = 4_000
+	var breaks := {0: 0, 1: 0, 5: 0, 12: 0, 13: 0, 40: 0}
+	for roll_seed: int in SEEDS:
+		for luck: int in breaks:
+			if Outcome.lucky_break(roll_seed, luck):
+				breaks[luck] += 1
+	assert_eq(breaks[0], 0)
+	# 2%, 10% and 24% of 4,000 within 1.5 points, then capped at 25%.
+	assert_between(breaks[1], 20, 140)
+	assert_between(breaks[5], 340, 460)
+	assert_between(breaks[12], 900, 1_020)
+	assert_between(breaks[13], 940, 1_060)
+	assert_between(breaks[40], 940, 1_060)
+
+
+func test_the_same_seed_always_gives_the_same_lucky_break() -> void:
+	var any := false
+	for roll_seed: int in 200:
+		assert_eq(Outcome.lucky_break(roll_seed, 10), Outcome.lucky_break(roll_seed, 10))
+		any = any or Outcome.lucky_break(roll_seed, 10)
+	assert_true(any)
 
 
 func test_the_same_seed_always_gives_the_same_outcome_and_damage() -> void:
 	var successes := 0
 	for roll_seed: int in 100:
-		var first := Outcome.roll(roll_seed, 50, 12, PARTY, Adventurers.STARTERS)
-		var again := Outcome.roll(roll_seed, 50, 12, PARTY, Adventurers.STARTERS)
+		var first := Outcome.roll(roll_seed, 50, 12, PARTY, 4, 6)
+		var again := Outcome.roll(roll_seed, 50, 12, PARTY, 4, 6)
 		assert_eq(again.success, first.success)
 		assert_eq(again.damage, first.damage)
 		if first.success:
@@ -33,7 +89,7 @@ func test_the_same_seed_always_gives_the_same_outcome_and_damage() -> void:
 func test_over_2000_seeds_a_60_percent_chance_succeeds_60_percent_of_the_time_within_4_points() -> void:
 	var successes := 0
 	for roll_seed: int in 2_000:
-		if Outcome.roll(roll_seed, 60, 7, PARTY, Adventurers.STARTERS).success:
+		if Outcome.roll(roll_seed, 60, 7, PARTY).success:
 			successes += 1
 	assert_between(successes, 1_120, 1_280)
 
@@ -41,7 +97,7 @@ func test_over_2000_seeds_a_60_percent_chance_succeeds_60_percent_of_the_time_wi
 func test_a_success_deals_each_member_0_to_half_the_most_damage_and_a_failure_half_to_all_of_it() -> void:
 	var seen := {true: {}, false: {}}
 	for roll_seed: int in 600:
-		var outcome := Outcome.roll(roll_seed, 50, 11, PARTY, Adventurers.STARTERS)
+		var outcome := Outcome.roll(roll_seed, 50, 11, PARTY)
 		assert_eq(outcome.damage.keys(), Array(PARTY))
 		for adventurer: String in PARTY:
 			seen[outcome.success][outcome.damage[adventurer]] = true
@@ -56,67 +112,86 @@ func test_a_success_deals_each_member_0_to_half_the_most_damage_and_a_failure_ha
 func test_members_of_one_party_can_take_different_damage() -> void:
 	var differs := false
 	for roll_seed: int in 50:
-		var damage := Outcome.roll(roll_seed, 50, 12, PARTY, Adventurers.STARTERS).damage
+		var damage := Outcome.roll(roll_seed, 50, 12, PARTY).damage
 		if damage["bram"] != damage["ilse"]:
 			differs = true
 	assert_true(differs)
 
 
-func test_each_challenge_nobody_covers_takes_15_points_off_the_chance_kept_within_5_to_95() -> void:
-	assert_eq(Outcome.chance_percent(7, 7, 0), 50)
-	assert_eq(Outcome.chance_percent(7, 7, 1), 35)
-	assert_eq(Outcome.chance_percent(7, 7, 2), 20)
-	assert_eq(Outcome.chance_percent(7, 7, 3), 5)
-	assert_eq(Outcome.chance_percent(7, 7, 4), 5)
-	# The 15 comes off the power chance as kept within 95: far too strong still loses it.
-	assert_eq(Outcome.chance_percent(16, 3, 1), 80)
+func test_the_partys_spirit_cuts_the_damage_2_percent_a_point_up_to_half() -> void:
+	for roll_seed: int in 300:
+		var plain := Outcome.roll(roll_seed, 50, 40, PARTY)
+		var some := Outcome.roll(roll_seed, 50, 40, PARTY, 10)
+		var most := Outcome.roll(roll_seed, 50, 40, PARTY, 25)
+		var far_more := Outcome.roll(roll_seed, 50, 40, PARTY, 40)
+		# Spirit never changes whether the quest succeeds.
+		assert_eq(some.success, plain.success)
+		for adventurer: String in PARTY:
+			var dealt: int = plain.damage[adventurer]
+			assert_eq(some.damage[adventurer], floori(dealt * 80 / 100.0), "10 Spirit takes 20% off")
+			assert_eq(most.damage[adventurer], floori(dealt / 2.0), "25 Spirit takes half off")
+			assert_eq(far_more.damage[adventurer], floori(dealt / 2.0), "never more than half")
 
 
-func test_a_party_with_a_healer_takes_half_the_damage_rounded_down() -> void:
-	var healed: PackedStringArray = ["bram", "maren"]
-	var unhealed: PackedStringArray = ["bram", "tobin"]
-	var seen := {true: {}, false: {}}
-	for roll_seed: int in 600:
-		var with_healer := Outcome.roll(roll_seed, 50, 11, healed, Adventurers.STARTERS)
-		var without := Outcome.roll(roll_seed, 50, 11, unhealed, Adventurers.STARTERS)
-		assert_eq(with_healer.success, without.success)
-		assert_eq(with_healer.damage["bram"], floori(without.damage["bram"] / 2.0))
-		for adventurer: String in healed:
-			seen[with_healer.success][with_healer.damage[adventurer]] = true
-	var on_success: Array = seen[true].keys()
-	var on_failure: Array = seen[false].keys()
-	on_success.sort()
-	on_failure.sort()
-	assert_eq(on_success, [0, 1, 2])
-	assert_eq(on_failure, [2, 3, 4, 5])
+func test_the_partys_luck_shaves_2_percent_a_point_off_a_failures_damage_up_to_30_and_nothing_off_a_success() -> void:
+	var failures := 0
+	var successes := 0
+	for roll_seed: int in 300:
+		var plain := Outcome.roll(roll_seed, 50, 40, PARTY)
+		var lucky := Outcome.roll(roll_seed, 50, 40, PARTY, 0, 5)
+		var luckiest := Outcome.roll(roll_seed, 50, 40, PARTY, 0, 15)
+		var beyond := Outcome.roll(roll_seed, 50, 40, PARTY, 0, 60)
+		assert_eq(lucky.success, plain.success)
+		for adventurer: String in PARTY:
+			var dealt: int = plain.damage[adventurer]
+			if plain.success:
+				assert_eq(beyond.damage[adventurer], dealt, "luck takes nothing off a success")
+			else:
+				assert_eq(lucky.damage[adventurer], floori(dealt * 90 / 100.0), "5 Luck takes 10% off")
+				assert_eq(luckiest.damage[adventurer], floori(dealt * 70 / 100.0), "15 Luck takes 30% off")
+				assert_eq(beyond.damage[adventurer], floori(dealt * 70 / 100.0), "never more than 30%")
+		if plain.success:
+			successes += 1
+		else:
+			failures += 1
+	assert_gt(successes, 0)
+	assert_gt(failures, 0)
 
 
 func test_the_range_shown_is_the_chance_widened_by_10_with_no_unknown_challenges() -> void:
-	assert_eq(Outcome.chance_range(7, 7, 0, 0), Vector2i(40, 60))
-	assert_eq(Outcome.chance_range(7, 7, 1, 0), Vector2i(25, 45))
-	assert_eq(Outcome.chance_range(16, 3, 0, 0), Vector2i(85, 95))
+	assert_eq(Outcome.chance_range([50], 0), Vector2i(40, 60))
+	assert_eq(Outcome.chance_range([90, 30], 0), Vector2i(40, 60))
+	assert_eq(Outcome.chance_range([95, 95], 0), Vector2i(85, 95))
+	assert_eq(Outcome.chance_range([50], 0, 15), Vector2i(55, 75))
 
 
-func test_the_range_counts_one_unknown_challenge_uncovered_at_the_low_end_and_covered_at_the_high() -> void:
-	assert_eq(Outcome.chance_range(7, 7, 0, 1), Vector2i(25, 60))
-	assert_eq(Outcome.chance_range(8, 7, 1, 1), Vector2i(20, 55))
+func test_the_range_counts_an_unknown_challenge_at_its_worst_at_the_low_end_and_its_best_at_the_high() -> void:
+	# Low: (80 + 5 + 5) ÷ 3 = 30, less 10. High: (80 + 95 + 80) ÷ 3 = 85, plus 10.
+	assert_eq(Outcome.chance_range([80], 1), Vector2i(20, 95))
+	# Low: (60 + 5 + 5 + 5) ÷ 4 = 18, less 10. High: (60 + 95 + 95 + 60) ÷ 4 = 77, plus 10.
+	assert_eq(Outcome.chance_range([60], 2), Vector2i(8, 87))
 
 
-func test_the_range_counts_two_unknown_challenges_and_never_goes_below_5() -> void:
-	assert_eq(Outcome.chance_range(7, 7, 0, 2), Vector2i(10, 60))
-	assert_eq(Outcome.chance_range(7, 7, 1, 2), Vector2i(5, 45))
+func test_the_ranges_high_end_counts_a_lucky_break_when_one_may_come() -> void:
+	# (90 + 30 + 30) ÷ 3 = 50 without one, (90 + 50 + 50) ÷ 3 = 63 with one; plus 10.
+	assert_eq(Outcome.chance_range([90, 30], 0, 0, false), Vector2i(40, 60))
+	assert_eq(Outcome.chance_range([90, 30], 0, 0, true), Vector2i(40, 73))
 
 
-func test_the_true_chance_always_lies_inside_the_range_shown() -> void:
+func test_the_true_chance_always_lies_inside_the_range_shown_lucky_break_or_not() -> void:
 	var checked := 0
-	for power: int in 16:
-		for difficulty: int in range(3, 13):
-			for uncovered: int in 4:
-				for unknown: int in 3:
-					var shown := Outcome.chance_range(power, difficulty, uncovered, unknown)
-					# However many of the unknown challenges the party turns out to cover.
-					for covered: int in unknown + 1:
-						var chance := Outcome.chance_percent(power, difficulty, uncovered + unknown - covered)
-						assert_between(chance, shown.x, shown.y)
-						checked += 1
+	var samples: Array[int] = [5, 20, 35, 49, 50, 65, 80, 95]
+	for a: int in samples:
+		for b: int in samples:
+			for c: int in samples:
+				for bonus: int in [0, 7, 15]:
+					var truth: Array[int] = [a, b, c]
+					for unknown: int in 3:
+						var known: Array[int] = truth.slice(0, 3 - unknown)
+						for may_break: bool in [false, true]:
+							var shown := Outcome.chance_range(known, unknown, bonus, may_break)
+							var breaks: Array = [false, true] if may_break else [false]
+							for lucky: bool in breaks:
+								assert_between(Outcome.chance_percent(truth, bonus, lucky), shown.x, shown.y)
+								checked += 1
 	assert_gt(checked, 0)

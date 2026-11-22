@@ -69,7 +69,7 @@ func _ready() -> void:
 
 ## Landscape docks the picker beside the board, a panel with the adventurers' cards four across;
 ## Cancel drops the quest. Portrait makes it a screen of its own, with no panel, cards two across,
-## and Back. A card shows the adventurer's figure in their gear, name, power and health, or their
+## and Back. A card shows the adventurer's figure in their gear, name, title and health, or their
 ## status when they can't go. Either way the cards and forecast scroll above the reason and buttons.
 func set_landscape(landscape: bool) -> void:
 	_docked = landscape
@@ -174,10 +174,9 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 		var toggle := _toggles[adventurer]
 		var points := dispatch.health(adventurer, now)
 		var most := dispatch.adventurers.max_health(adventurer)
-		var power := dispatch.adventurers.power(adventurer)
 		var can_go := dispatch.can_go(adventurer, now)
 		if can_go:
-			toggle.text = "%s\nPower %d\n%d / %d health" % [info["name"], power, points, most]
+			toggle.text = "%s\n%s\n%d / %d health" % [info["name"], dispatch.adventurers.title(adventurer), points, most]
 		else:
 			toggle.text = "%s\n%s" % [info["name"], dispatch.status(adventurer, now)]
 		toggle.disabled = not can_go
@@ -190,7 +189,7 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 		_show_forecast()
 
 
-# Which challenges the picked party covers and the chance range it is shown; only picking
+# Which known challenges the picked party meets and the chance range it is shown; only picking
 # someone or a challenge revealed changes them while the picker is open.
 func _show_forecast() -> void:
 	for old: Node in _coverage.get_children():
@@ -201,14 +200,8 @@ func _show_forecast() -> void:
 		if challenge in unknown:
 			_coverage.add_child(QuestBoard.chip("? unknown", &"ChipUnknown"))
 			continue
-		var names := PackedStringArray()
-		var roster := _dispatch.adventurers.roster
-		for adventurer: String in Challenges.covered_by(challenge, _picked, roster):
-			names.append(roster[adventurer]["name"])
-		if names.is_empty():
-			_coverage.add_child(QuestBoard.chip(challenge, &"ChipUncovered"))
-		else:
-			_coverage.add_child(QuestBoard.chip("%s · %s" % [challenge, ", ".join(names)], &"ChipCovered"))
+		var met := _dispatch.challenge_met(_quest, challenge, _picked)
+		_coverage.add_child(QuestBoard.chip(challenge, &"ChipCovered" if met else &"ChipUncovered"))
 	var picked := not _picked.is_empty()
 	_chance.visible = picked
 	_band.visible = picked

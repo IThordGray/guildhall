@@ -2,7 +2,7 @@ class_name Gear
 extends RefCounted
 
 ## What each adventurer wears, and the stash the whole guild shares. An item adds its bonuses to
-## the wearer's stats. Any class can wear any item, and gear never wears out.
+## the wearer's stats. Anyone can wear any item, and gear never wears out.
 
 ## The slots every adventurer has, in the order they are shown, with their names for the player.
 const SLOTS: Dictionary[String, String] = {
@@ -10,49 +10,54 @@ const SLOTS: Dictionary[String, String] = {
 	"weapon": "Weapon", "off_hand": "Off-hand", "back": "Back", "neck": "Neck",
 }
 ## How likely a quest's loot is of each quality, in whole percent, from commonest to rarest
-## (stand-ins).
+## (stand-ins), for a party with no Luck: see `quality_percent`.
 const QUALITY_PERCENT: Dictionary[String, int] = {"Standard": 80, "Fine": 18, "Legendary": 2}
 ## The whole-percent chance that a party back from a quest of each rank brings an item (stand-ins).
 const LOOT_PERCENT: Dictionary[String, int] = {"F": 25, "E": 50, "D": 75}
-## Every item, by the id the save and its icon use. Bonuses are stand-ins: Standard +1 to one stat
-## or none, Fine +1 or +2 to one or two, Legendary +3 or +4 to two.
+## A party's total Luck adds a point to its loot chance per point, at most MOST_LUCK_LOOT_POINTS.
+## Each point also moves a point of quality odds from Standard to Fine, and every
+## LUCK_PER_LEGENDARY_POINT points one more to Legendary (stand-ins).
+const MOST_LUCK_LOOT_POINTS: int = 25
+const LUCK_PER_LEGENDARY_POINT: int = 5
+## Every item, by the id the save and its icon use, adding stats where its kind leans: a Standard
+## item +1–2 in all, a Fine one +2–4, a Legendary one +4–7 (stand-ins).
 const ITEMS: Dictionary[String, Dictionary] = {
-	"iron_cap": {"name": "Iron cap", "slot": "head", "quality": "Standard", "bonus": {}},
-	"goblin_bone_helm": {"name": "Goblin-bone helm", "slot": "head", "quality": "Fine", "bonus": {"grit": 1}},
-	"scouts_hood": {"name": "Scout's hood", "slot": "head", "quality": "Standard", "bonus": {}},
-	"moss_hood": {"name": "Moss hood", "slot": "head", "quality": "Standard", "bonus": {"agility": 1}},
-	"pointed_hat": {"name": "Pointed hat", "slot": "head", "quality": "Standard", "bonus": {}},
-	"silver_circlet": {"name": "Silver circlet", "slot": "head", "quality": "Fine", "bonus": {"mind": 1, "grit": 1}},
-	"red_tunic": {"name": "Red tunic", "slot": "clothes", "quality": "Standard", "bonus": {}},
-	"leather_jerkin": {"name": "Leather jerkin", "slot": "clothes", "quality": "Standard", "bonus": {}},
-	"apprentice_robe": {"name": "Apprentice robe", "slot": "clothes", "quality": "Standard", "bonus": {}},
-	"moonweave_robe": {"name": "Moonweave robe", "slot": "clothes", "quality": "Legendary", "bonus": {"mind": 4, "grit": 3}},
-	"healers_robe": {"name": "Healer's robe", "slot": "clothes", "quality": "Standard", "bonus": {}},
-	"leather_vest": {"name": "Leather vest", "slot": "armour", "quality": "Standard", "bonus": {}},
-	"rangers_vest": {"name": "Ranger's vest", "slot": "armour", "quality": "Standard", "bonus": {"agility": 1}},
-	"chain_shirt": {"name": "Chain shirt", "slot": "armour", "quality": "Standard", "bonus": {"grit": 1}},
-	"chapel_plate": {"name": "Chapel plate", "slot": "armour", "quality": "Legendary", "bonus": {"grit": 4, "might": 3}},
-	"round_shield": {"name": "Round shield", "slot": "off_hand", "quality": "Standard", "bonus": {}},
-	"goblin_shield": {"name": "Goblin shield", "slot": "off_hand", "quality": "Fine", "bonus": {"grit": 2}},
-	"chapel_shield": {"name": "Chapel shield", "slot": "off_hand", "quality": "Fine", "bonus": {"grit": 1, "mind": 1}},
-	"short_sword": {"name": "Short sword", "slot": "weapon", "quality": "Standard", "bonus": {}},
-	"goblin_slayer_blade": {"name": "Goblin-slayer blade", "slot": "weapon", "quality": "Legendary", "bonus": {"might": 4, "agility": 3}},
-	"oak_staff": {"name": "Oak staff", "slot": "weapon", "quality": "Standard", "bonus": {}},
-	"moonherb_staff": {"name": "Moonherb staff", "slot": "weapon", "quality": "Fine", "bonus": {"mind": 2}},
-	"hunting_bow": {"name": "Hunting bow", "slot": "weapon", "quality": "Standard", "bonus": {}},
-	"bell_mace": {"name": "Bell mace", "slot": "weapon", "quality": "Standard", "bonus": {}},
-	"red_cloak": {"name": "Red cloak", "slot": "back", "quality": "Standard", "bonus": {}},
-	"night_cloak": {"name": "Night cloak", "slot": "back", "quality": "Fine", "bonus": {"agility": 2}},
-	"forest_cloak": {"name": "Forest cloak", "slot": "back", "quality": "Standard", "bonus": {"agility": 1}},
-	"pilgrim_cloak": {"name": "Pilgrim cloak", "slot": "back", "quality": "Standard", "bonus": {"grit": 1}},
-	"quiver": {"name": "Quiver", "slot": "back", "quality": "Standard", "bonus": {}},
-	"belt": {"name": "Belt", "slot": "belt", "quality": "Standard", "bonus": {}},
-	"sash": {"name": "Sash", "slot": "belt", "quality": "Standard", "bonus": {"mind": 1}},
-	"green_sash": {"name": "Green sash", "slot": "belt", "quality": "Standard", "bonus": {}},
-	"moonstone_amulet": {"name": "Moonstone amulet", "slot": "neck", "quality": "Standard", "bonus": {}},
+	"iron_cap": {"name": "Iron cap", "slot": "head", "quality": "Standard", "bonus": {"defence": 1}},
+	"goblin_bone_helm": {"name": "Goblin-bone helm", "slot": "head", "quality": "Fine", "bonus": {"defence": 2, "strength": 1}},
+	"scouts_hood": {"name": "Scout's hood", "slot": "head", "quality": "Standard", "bonus": {"perception": 1}},
+	"moss_hood": {"name": "Moss hood", "slot": "head", "quality": "Standard", "bonus": {"perception": 2}},
+	"pointed_hat": {"name": "Pointed hat", "slot": "head", "quality": "Standard", "bonus": {"mind": 1}},
+	"silver_circlet": {"name": "Silver circlet", "slot": "head", "quality": "Fine", "bonus": {"presence": 2, "mind": 1}},
+	"red_tunic": {"name": "Red tunic", "slot": "clothes", "quality": "Standard", "bonus": {"endurance": 1}},
+	"leather_jerkin": {"name": "Leather jerkin", "slot": "clothes", "quality": "Standard", "bonus": {"agility": 1}},
+	"apprentice_robe": {"name": "Apprentice robe", "slot": "clothes", "quality": "Standard", "bonus": {"mind": 1}},
+	"moonweave_robe": {"name": "Moonweave robe", "slot": "clothes", "quality": "Legendary", "bonus": {"mind": 4, "spirit": 3}},
+	"healers_robe": {"name": "Healer's robe", "slot": "clothes", "quality": "Standard", "bonus": {"spirit": 1}},
+	"leather_vest": {"name": "Leather vest", "slot": "armour", "quality": "Standard", "bonus": {"endurance": 1}},
+	"rangers_vest": {"name": "Ranger's vest", "slot": "armour", "quality": "Standard", "bonus": {"agility": 1, "endurance": 1}},
+	"chain_shirt": {"name": "Chain shirt", "slot": "armour", "quality": "Standard", "bonus": {"defence": 2}},
+	"chapel_plate": {"name": "Chapel plate", "slot": "armour", "quality": "Legendary", "bonus": {"defence": 4, "spirit": 2}},
+	"round_shield": {"name": "Round shield", "slot": "off_hand", "quality": "Standard", "bonus": {"defence": 1}},
+	"goblin_shield": {"name": "Goblin shield", "slot": "off_hand", "quality": "Fine", "bonus": {"defence": 3}},
+	"chapel_shield": {"name": "Chapel shield", "slot": "off_hand", "quality": "Fine", "bonus": {"defence": 2, "spirit": 1}},
+	"short_sword": {"name": "Short sword", "slot": "weapon", "quality": "Standard", "bonus": {"strength": 1}},
+	"goblin_slayer_blade": {"name": "Goblin-slayer blade", "slot": "weapon", "quality": "Legendary", "bonus": {"strength": 4, "agility": 2}},
+	"oak_staff": {"name": "Oak staff", "slot": "weapon", "quality": "Standard", "bonus": {"mind": 1}},
+	"moonherb_staff": {"name": "Moonherb staff", "slot": "weapon", "quality": "Fine", "bonus": {"mind": 3}},
+	"hunting_bow": {"name": "Hunting bow", "slot": "weapon", "quality": "Standard", "bonus": {"perception": 1, "agility": 1}},
+	"bell_mace": {"name": "Bell mace", "slot": "weapon", "quality": "Standard", "bonus": {"spirit": 1}},
+	"red_cloak": {"name": "Red cloak", "slot": "back", "quality": "Standard", "bonus": {"presence": 1}},
+	"night_cloak": {"name": "Night cloak", "slot": "back", "quality": "Fine", "bonus": {"agility": 3}},
+	"forest_cloak": {"name": "Forest cloak", "slot": "back", "quality": "Standard", "bonus": {"agility": 2}},
+	"pilgrim_cloak": {"name": "Pilgrim cloak", "slot": "back", "quality": "Standard", "bonus": {"presence": 2}},
+	"quiver": {"name": "Quiver", "slot": "back", "quality": "Standard", "bonus": {"perception": 1}},
+	"belt": {"name": "Belt", "slot": "belt", "quality": "Standard", "bonus": {"endurance": 2}},
+	"sash": {"name": "Sash", "slot": "belt", "quality": "Standard", "bonus": {"endurance": 1}},
+	"green_sash": {"name": "Green sash", "slot": "belt", "quality": "Standard", "bonus": {"endurance": 1}},
+	"moonstone_amulet": {"name": "Moonstone amulet", "slot": "neck", "quality": "Standard", "bonus": {"luck": 2}},
 }
-## What each starter wears on joining the guild, by slot; anyone added later joins wearing nothing. Every item here adds nothing, so
-## the starters' power and health are what their own stats give.
+## What each starter wears on joining the guild, by slot; a recruit joins wearing what they came
+## with (Recruits.hire).
 const STARTER_GEAR: Dictionary[String, Dictionary] = {
 	"bram": {"head": "iron_cap", "clothes": "red_tunic", "armour": "leather_vest", "weapon": "short_sword", "off_hand": "round_shield"},
 	"ilse": {"head": "pointed_hat", "clothes": "apprentice_robe", "neck": "moonstone_amulet", "weapon": "oak_staff"},
@@ -77,19 +82,20 @@ func bonus(adventurer: String, stat: String) -> int:
 	return total
 
 
-## The item a party back from a quest of `rank` brings, or "" for none. It depends only on
-## `roll_seed` and `rank`, so the same return always brings the same item.
-static func loot(roll_seed: int, rank: String) -> String:
+## The item a party with `luck` in all, back from a quest of `rank`, brings, or "" for none. It
+## depends only on `roll_seed`, `rank` and `luck`, so the same return always brings the same item.
+static func loot(roll_seed: int, rank: String, luck: int = 0) -> String:
 	var rng := RandomNumberGenerator.new()
 	# Not the outcome's own sequence, so whether loot comes is independent of success.
 	rng.seed = hash("loot:%d" % roll_seed)
-	if rng.randi_range(1, 100) > LOOT_PERCENT[rank]:
+	if rng.randi_range(1, 100) > LOOT_PERCENT[rank] + mini(MOST_LUCK_LOOT_POINTS, luck):
 		return ""
 	var roll := rng.randi_range(1, 100)
+	var shares := quality_percent(luck)
 	var quality := ""
-	for each: String in QUALITY_PERCENT:
+	for each: String in shares:
 		quality = each
-		roll -= QUALITY_PERCENT[each]
+		roll -= shares[each]
 		if roll <= 0:
 			break
 	var choices := PackedStringArray()
@@ -97,6 +103,15 @@ static func loot(roll_seed: int, rank: String) -> String:
 		if ITEMS[item]["quality"] == quality:
 			choices.append(item)
 	return choices[rng.randi_range(0, choices.size() - 1)]
+
+
+## How likely loot is of each quality for a party with `luck` in all, in whole percent, as
+## QUALITY_PERCENT orders them: luck moves odds from Standard to Fine and Legendary, until
+## Standard has none left.
+static func quality_percent(luck: int) -> Dictionary[String, int]:
+	var legendary: int = QUALITY_PERCENT["Legendary"] + floori(luck / float(LUCK_PER_LEGENDARY_POINT))
+	var fine: int = mini(QUALITY_PERCENT["Fine"] + luck, 100 - legendary)
+	return {"Standard": 100 - fine - legendary, "Fine": fine, "Legendary": legendary}
 
 
 ## Puts `item` in the stash; false, with the item lost, when the stash is full.

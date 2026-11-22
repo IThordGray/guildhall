@@ -1,7 +1,7 @@
 extends GutTest
 
 const EVERYONE: PackedStringArray = ["bram", "ilse", "tobin", "maren"]
-const ALL_CHALLENGES: Array[String] = ["Brute force", "Curse", "Traps", "Navigation", "Attrition", "Protect"]
+const ALL_CHALLENGES: Array[String] = ["Brute force", "Curse", "Traps", "Navigation", "Attrition", "Protect", "Negotiation"]
 
 
 ## A guild of all four starters, as one saved before guild ranks has, at `at`.
@@ -16,7 +16,7 @@ func test_the_quests_old_saves_name_keep_their_rank_and_challenges() -> void:
 		"rats": ["F", ["Brute force"]],
 		"moonherbs": ["F", ["Navigation", "Attrition"]],
 		"goblins": ["E", ["Brute force", "Traps", "Navigation"]],
-		"letters": ["F", ["Navigation", "Protect"]],
+		"letters": ["F", ["Navigation", "Negotiation"]],
 		"wolves": ["E", ["Brute force", "Attrition"]],
 		"crypt": ["E", ["Curse", "Traps", "Attrition"]],
 	}
@@ -24,7 +24,7 @@ func test_the_quests_old_saves_name_keep_their_rank_and_challenges() -> void:
 		assert_eq([Dispatch.QUESTS[quest]["rank"], Dispatch.QUESTS[quest]["challenges"]], expected[quest], quest)
 
 
-func test_every_quest_has_one_to_three_challenges_and_every_challenge_appears_at_ranks_f_e_and_d() -> void:
+func test_every_quest_has_one_to_three_challenges_and_every_challenge_appears_at_ranks_f_e_and_d_negotiation_at_f_and_d() -> void:
 	var seen := {"F": {}, "E": {}, "D": {}}
 	for quest: String in Dispatch.QUESTS:
 		var challenges: Array = Dispatch.QUESTS[quest]["challenges"]
@@ -37,6 +37,8 @@ func test_every_quest_has_one_to_three_challenges_and_every_challenge_appears_at
 		at_rank.assign(seen[rank].keys())
 		at_rank.sort()
 		var all := ALL_CHALLENGES.duplicate()
+		if rank == "E":
+			all.erase("Negotiation")
 		all.sort()
 		assert_eq(at_rank, all, rank)
 
@@ -54,24 +56,38 @@ func test_ranks_run_from_f_to_s_and_an_adventurer_can_join_a_quest_at_most_one_r
 	assert_eq(_guild(1_000).party_refusal("goblins", EVERYONE, 1_000), "")
 
 
-func test_each_class_covers_its_own_challenges_and_no_others() -> void:
+func test_each_challenge_sums_its_weighted_stats_over_the_party_gear_included() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	# Ilse, with her gear: Strength 2, Agility 3, Perception 3, Mind 8 + 3, Spirit 3, Defence 5,
+	# Endurance 3, Presence 6.
 	var expected := {
-		"bram": ["Brute force"],
-		"ilse": ["Curse"],
-		"tobin": ["Traps", "Navigation"],
-		"maren": ["Attrition"],
+		"Brute force": 2 * 2 + 5,
+		"Traps": 2 * 3 + 3,
+		"Navigation": 3 + 11,
+		"Curse": 2 * 11 + 3,
+		"Protect": 2 * 5 + 6,
+		"Attrition": 2 * 3 + 3,
+		"Negotiation": 2 * 6 + 11,
 	}
-	for adventurer: String in expected:
-		var covered: Array[String] = []
-		for challenge: String in ALL_CHALLENGES:
-			if Challenges.covered_by(challenge, [adventurer], Adventurers.STARTERS) == PackedStringArray([adventurer]):
-				covered.append(challenge)
-		assert_eq(covered, expected[adventurer], adventurer)
-	assert_eq(Challenges.COVERS["Shield bearer"], ["Protect"])
-	# Nobody in the guild is a Shield bearer, so nobody covers Protect yet.
-	assert_eq(Challenges.covered_by("Protect", EVERYONE, Adventurers.STARTERS), PackedStringArray())
+	for challenge: String in ALL_CHALLENGES:
+		assert_eq(Challenges.party_total(challenge, ["ilse"], adventurers), expected[challenge], challenge)
+	# Over a party: Bram's Strength 6 + 1 and Defence 7 + 2, and Tobin's 3 and 3.
+	assert_eq(Challenges.party_total("Brute force", ["bram", "tobin"], adventurers), 2 * 7 + 9 + 2 * 3 + 3)
+	# Without his sword, Bram brings 2 less.
+	adventurers.gear.stash_cap = 6
+	assert_true(adventurers.gear.take_off("bram", "weapon"))
+	assert_eq(Challenges.party_total("Brute force", ["bram", "tobin"], adventurers), 2 * 6 + 9 + 2 * 3 + 3)
 
 
-func test_a_challenge_is_covered_only_by_the_members_whose_class_covers_it() -> void:
-	assert_eq(Challenges.covered_by("Navigation", ["bram", "tobin", "maren"], Adventurers.STARTERS), PackedStringArray(["tobin"]))
-	assert_eq(Challenges.covered_by("Brute force", ["ilse", "tobin"], Adventurers.STARTERS), PackedStringArray())
+func test_luck_is_never_tested_by_a_challenge() -> void:
+	for challenge: String in Challenges.WEIGHTS:
+		assert_false(Challenges.WEIGHTS[challenge].has("luck"), challenge)
+	assert_eq(Challenges.WEIGHTS.size(), 7)
+
+
+func test_a_challenge_needs_the_quests_difficulty_scaled_by_its_weight() -> void:
+	# Brute force weighs 3, Navigation 2.
+	assert_eq(Challenges.requirement("Brute force", 30), 30)
+	assert_eq(Challenges.requirement("Navigation", 30), 20)
+	assert_eq(Challenges.requirement("Navigation", 7), 5)
+	assert_eq(Challenges.requirement("Curse", 0), 0)

@@ -18,6 +18,10 @@ signal swiped(step: int)
 
 ## A stat at this value fills its bar.
 const STAT_BAR_FULL: int = 20
+## How many stats show side by side.
+const STAT_COLUMNS: int = 3
+## The size of what a worn item adds, in landscape's narrower gear cells.
+const LANDSCAPE_BONUS_FONT_PX: int = 28
 ## The width a health row keeps for its text, so bars in a list line up.
 const HEALTH_TEXT_WIDTH_PX: float = 480.0
 ## A press-drag-release at least this far sideways, and further sideways than up or down, is a swipe.
@@ -60,11 +64,35 @@ var _press_at: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
+	# Three across, each stat's name and value over its bar, so nine take no more height than four
+	# rows did.
+	var grid := GridContainer.new()
+	grid.columns = STAT_COLUMNS
+	grid.add_theme_constant_override("h_separation", 24)
+	grid.add_theme_constant_override("v_separation", 16)
 	var rows := $Box/Scroll/Content/Card/Stats/Rows as VBoxContainer
+	rows.add_child(grid)
+	rows.move_child(grid, 0)
 	for stat: String in Adventurers.STATS:
-		var row := stat_row(Adventurers.STATS[stat], &"Label")
-		var bar: ProgressBar = row.get_child(1)
+		var name_label := Label.new()
+		name_label.text = Adventurers.STATS[stat]
+		name_label.theme_type_variation = &"Secondary"
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var value := Label.new()
+		value.theme_type_variation = &"Numbers"
+		var from_gear := Label.new()
+		from_gear.theme_type_variation = &"GoldText"
+		from_gear.custom_minimum_size = Vector2(44, 0)
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 12)
+		line.add_child(name_label)
+		line.add_child(value)
+		line.add_child(from_gear)
+		var bar := ProgressBar.new()
 		bar.theme_type_variation = &"GoldBar"
+		bar.show_percentage = false
+		bar.max_value = STAT_BAR_FULL
+		bar.custom_minimum_size = Vector2(0, 22)
 		var own := ProgressBar.new()
 		own.theme_type_variation = &"OwnBarOverlay"
 		own.show_percentage = false
@@ -73,14 +101,14 @@ func _ready() -> void:
 		own.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_bars[stat] = bar
 		_own_bars[stat] = own
-		_values[stat] = row.get_child(2)
-		var from_gear := Label.new()
-		from_gear.theme_type_variation = &"GoldText"
-		from_gear.custom_minimum_size = Vector2(70, 0)
-		row.add_child(from_gear)
+		_values[stat] = value
 		_gear_values[stat] = from_gear
-		rows.add_child(row)
-		rows.move_child(row, _bars.size() - 1)
+		var cell := VBoxContainer.new()
+		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cell.add_theme_constant_override("separation", 6)
+		cell.add_child(line)
+		cell.add_child(bar)
+		grid.add_child(cell)
 	_health = health_row()
 	_details.add_sibling(_health)
 	_level_up.pressed.connect(func() -> void: level_up_pressed.emit(_adventurer))
@@ -141,7 +169,7 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	_name.text = info["name"]
 	_status.text = dispatch.status(adventurer, now)
 	_status.theme_type_variation = Roster.status_look(dispatch, adventurer, now)
-	_details.text = "%s · rank %s · level %d" % [info["class"], info["rank"], level]
+	_details.text = "%s · rank %s · level %d" % [adventurers.title(adventurer), info["rank"], level]
 	show_health(_health, adventurer, dispatch, now)
 	var xp: int = adventurers.xp[adventurer]
 	var needed := adventurers.xp_needed(adventurer)
@@ -213,7 +241,7 @@ static func item_name(item: String) -> Label:
 	return label
 
 
-## What `item` adds, "Might +3 · Grit +4", in gold; "none" when nothing.
+## What `item` adds, "Strength +3 · Defence +4", in gold; "none" when nothing.
 static func bonus_label(item: String) -> Label:
 	var bonus: Dictionary = Gear.ITEMS[item]["bonus"]
 	var parts := PackedStringArray()
@@ -256,7 +284,11 @@ func _show_gear(worn: Dictionary) -> void:
 			box.theme_type_variation = &"ItemBox"
 			box.add_child(item_icon(item, 5))
 			cell.add_child(item_name(item))
-			cell.add_child(bonus_label(item))
+			var bonus := bonus_label(item)
+			# Landscape's narrow cells fit a stat's name whole only in smaller type.
+			if _landscape:
+				bonus.add_theme_font_size_override(&"font_size", LANDSCAPE_BONUS_FONT_PX)
+			cell.add_child(bonus)
 		for label: Node in cell.get_children():
 			if label is Label:
 				(label as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -286,7 +318,7 @@ static func stat_row(stat_name: String, look: StringName) -> HBoxContainer:
 	var name_label := Label.new()
 	name_label.text = stat_name
 	name_label.theme_type_variation = look
-	name_label.custom_minimum_size = Vector2(190, 0)
+	name_label.custom_minimum_size = Vector2(250, 0)
 	var bar := ProgressBar.new()
 	bar.theme_type_variation = &"OwnBar"
 	bar.show_percentage = false
@@ -345,7 +377,7 @@ static func xp_line(xp: int, needed: int, next_level: int) -> String:
 	return "XP %d / %d to level %d" % [xp, needed, next_level]
 
 
-# "Level 3 · Might +1 · Grit +2", naming only the stats that rose.
+# "Level 3 · Strength +1 · Defence +2", naming only the stats that rose.
 func _history_line(entry: Dictionary) -> String:
 	var parts := PackedStringArray(["Level %d" % entry["level"]])
 	for stat: String in Adventurers.STATS:

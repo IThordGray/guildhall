@@ -72,7 +72,7 @@ func _guild(rank: String) -> Dispatch:
 func _seed(quest: String, party: PackedStringArray, success: bool) -> int:
 	var chance := _four(0).success_chance(quest, party)
 	for roll_seed: int in 10_000:
-		if Outcome.roll(roll_seed, chance, 0, party, Adventurers.STARTERS).success == success:
+		if Outcome.roll(roll_seed, chance, 0, party).success == success:
 			return roll_seed
 	fail_test("no seed found")
 	return -1
@@ -652,6 +652,6 @@ func test_a_save_from_before_fill_times_reveals_its_board_counting_from_when_it_
 	var board := _load_old_board()
 	board.refill(dispatch, START + 109, NO_HALLS, MAP_ROOM_EARLY)
 	assert_eq(board.seconds_to_reveal("letters", dispatch, START + 109), 1)
-	assert_eq(dispatch.unknown_challenges("letters"), PackedStringArray(["Protect"]))
+	assert_eq(dispatch.unknown_challenges("letters"), PackedStringArray(["Negotiation"]))
 	board.refill(dispatch, START + 110, NO_HALLS, MAP_ROOM_EARLY)
 	assert_true(dispatch.unknown_challenges("letters").is_empty())

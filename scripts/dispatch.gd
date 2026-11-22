@@ -2,31 +2,31 @@ class_name Dispatch
 extends RefCounted
 
 ## Every quest the board can offer: see Board. The save refers to a quest by its id. A
-## quest's challenges say why it is hard (see Challenges); its difficulty is never shown. Durations
-## and difficulties are stand-ins. Rank F difficulties are tuned so a new game's Bram and Tobin
-## together have at least 80% on every rank F quest and each alone 45–75%; the four starters have
-## fair odds together on rank E and little hope on rank D. Gold is a stand-in too, kept small next to
-## what the guild can spend so a quest's reward matters. "xp" is the XP the whole party shares on a
-## success.
+## quest's challenges say why it is hard (see Challenges); its difficulty, what each challenge needs
+## (Challenges.requirement), is never shown. Durations and difficulties are stand-ins. Rank F
+## difficulties are tuned so a new game's Bram and Tobin together have at least 80% on every rank F
+## quest and each alone 45–75%; the four starters have fair odds together on rank E and little
+## hope on rank D. Gold is a stand-in too, kept small next to what the guild can spend so a quest's
+## reward matters. "xp" is the XP the whole party shares on a success.
 const QUESTS: Dictionary[String, Dictionary] = {
-	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 2, "gold": 3, "xp": 1, "difficulty": 2, "challenges": ["Brute force"]},
-	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 3, "gold": 5, "xp": 2, "difficulty": 1, "challenges": ["Curse"]},
-	"letters": {"name": "Carry letters to the abbey", "rank": "F", "seconds": 4, "gold": 7, "xp": 3, "difficulty": 1, "challenges": ["Navigation", "Protect"]},
-	"spiders": {"name": "Spiders in the gatehouse", "rank": "F", "seconds": 4, "gold": 7, "xp": 3, "difficulty": 0, "challenges": ["Brute force", "Attrition"]},
-	"cartographer": {"name": "Escort the cartographer to the first gate", "rank": "F", "seconds": 5, "gold": 8, "xp": 3, "difficulty": 1, "challenges": ["Protect", "Traps"]},
-	"mouth": {"name": "Chart the labyrinth's mouth", "rank": "F", "seconds": 5, "gold": 8, "xp": 3, "difficulty": 1, "challenges": ["Traps", "Navigation"]},
-	"moonherbs": {"name": "Gather moonherbs", "rank": "F", "seconds": 6, "gold": 10, "xp": 4, "difficulty": 1, "challenges": ["Navigation", "Attrition"]},
-	"wolves": {"name": "Wolves at the mill", "rank": "E", "seconds": 10, "gold": 22, "xp": 7, "difficulty": 9, "challenges": ["Brute force", "Attrition"]},
-	"sealed_door": {"name": "Break the curse on the sealed door", "rank": "E", "seconds": 12, "gold": 25, "xp": 8, "difficulty": 10, "challenges": ["Curse", "Navigation"]},
-	"lurker": {"name": "Hunt the cave lurker", "rank": "E", "seconds": 14, "gold": 30, "xp": 9, "difficulty": 9, "challenges": ["Brute force", "Curse"]},
-	"crypt": {"name": "Clear the old crypt", "rank": "E", "seconds": 16, "gold": 33, "xp": 11, "difficulty": 11, "challenges": ["Curse", "Traps", "Attrition"]},
-	"pilgrims": {"name": "Guard pilgrims through the low halls", "rank": "E", "seconds": 18, "gold": 38, "xp": 12, "difficulty": 10, "challenges": ["Protect", "Attrition"]},
-	"goblins": {"name": "Goblin camp", "rank": "E", "seconds": 20, "gold": 42, "xp": 13, "difficulty": 11, "challenges": ["Brute force", "Traps", "Navigation"]},
-	"maze": {"name": "Map the shifting maze", "rank": "D", "seconds": 30, "gold": 58, "xp": 20, "difficulty": 14, "challenges": ["Navigation", "Traps"]},
-	"chapel": {"name": "Unbind the drowned chapel", "rank": "D", "seconds": 36, "gold": 67, "xp": 24, "difficulty": 15, "challenges": ["Curse", "Attrition"]},
-	"minotaur": {"name": "Slay the minotaur of the third ring", "rank": "D", "seconds": 40, "gold": 75, "xp": 27, "difficulty": 15, "challenges": ["Brute force", "Attrition"]},
-	"envoy": {"name": "Escort the envoy to the deep market", "rank": "D", "seconds": 50, "gold": 83, "xp": 33, "difficulty": 14, "challenges": ["Protect", "Traps", "Navigation"]},
-	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 60, "gold": 100, "xp": 40, "difficulty": 16, "challenges": ["Curse", "Traps", "Protect"]},
+	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 2, "gold": 3, "xp": 1, "difficulty": 11, "challenges": ["Brute force"]},
+	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 3, "gold": 5, "xp": 2, "difficulty": 0, "challenges": ["Curse"]},
+	"letters": {"name": "Carry letters to the abbey", "rank": "F", "seconds": 4, "gold": 7, "xp": 3, "difficulty": 1, "challenges": ["Navigation", "Negotiation"]},
+	"spiders": {"name": "Spiders in the gatehouse", "rank": "F", "seconds": 4, "gold": 7, "xp": 3, "difficulty": 9, "challenges": ["Brute force", "Attrition"]},
+	"cartographer": {"name": "Escort the cartographer to the first gate", "rank": "F", "seconds": 5, "gold": 8, "xp": 3, "difficulty": 6, "challenges": ["Protect", "Traps"]},
+	"mouth": {"name": "Chart the labyrinth's mouth", "rank": "F", "seconds": 5, "gold": 8, "xp": 3, "difficulty": 7, "challenges": ["Traps", "Navigation"]},
+	"moonherbs": {"name": "Gather moonherbs", "rank": "F", "seconds": 6, "gold": 10, "xp": 4, "difficulty": 3, "challenges": ["Navigation", "Attrition"]},
+	"wolves": {"name": "Wolves at the mill", "rank": "E", "seconds": 10, "gold": 22, "xp": 7, "difficulty": 40, "challenges": ["Brute force", "Attrition"]},
+	"sealed_door": {"name": "Break the curse on the sealed door", "rank": "E", "seconds": 12, "gold": 25, "xp": 8, "difficulty": 54, "challenges": ["Curse", "Navigation"]},
+	"lurker": {"name": "Hunt the cave lurker", "rank": "E", "seconds": 14, "gold": 30, "xp": 9, "difficulty": 44, "challenges": ["Brute force", "Curse"]},
+	"crypt": {"name": "Clear the old crypt", "rank": "E", "seconds": 16, "gold": 33, "xp": 11, "difficulty": 55, "challenges": ["Curse", "Traps", "Attrition"]},
+	"pilgrims": {"name": "Guard pilgrims through the low halls", "rank": "E", "seconds": 18, "gold": 38, "xp": 12, "difficulty": 56, "challenges": ["Protect", "Attrition"]},
+	"goblins": {"name": "Goblin camp", "rank": "E", "seconds": 20, "gold": 42, "xp": 13, "difficulty": 53, "challenges": ["Brute force", "Traps", "Navigation"]},
+	"maze": {"name": "Map the shifting maze", "rank": "D", "seconds": 30, "gold": 58, "xp": 20, "difficulty": 72, "challenges": ["Navigation", "Traps"]},
+	"chapel": {"name": "Unbind the drowned chapel", "rank": "D", "seconds": 36, "gold": 67, "xp": 24, "difficulty": 76, "challenges": ["Curse", "Attrition"]},
+	"minotaur": {"name": "Slay the minotaur of the third ring", "rank": "D", "seconds": 40, "gold": 75, "xp": 27, "difficulty": 70, "challenges": ["Brute force", "Attrition"]},
+	"envoy": {"name": "Escort the envoy to the deep market", "rank": "D", "seconds": 50, "gold": 83, "xp": 33, "difficulty": 91, "challenges": ["Protect", "Negotiation", "Navigation"]},
+	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 60, "gold": 100, "xp": 40, "difficulty": 83, "challenges": ["Curse", "Traps", "Protect"]},
 }
 const MAX_PARTY_SIZE: int = 4
 ## How long an injury lasts, counted from the moment the party returns.
@@ -52,8 +52,10 @@ const NO_TRAINING_PLACE: String = "No free training place — convert a Training
 
 ## Parties out, in the order they left. Each is {"quest": quest id, "since": unix seconds it left,
 ## "party": adventurer ids, "seed": the seed that fixes how it ends, "chance": its whole-percent
-## chance of success when it left, "health" and "max_health": {adventurer id: points} each member
-## left with}. A party counts as out until the checkpoint after its return brings it home.
+## chance of success when it left, "lucky_break": whether a lucky break raised that chance,
+## "spirit" and "luck": the party's totals when it left, "health" and "max_health": {adventurer
+## id: points} each member left with}. A party counts as out until the checkpoint after its return
+## brings it home.
 var outings: Array[Dictionary] = []
 ## Unix seconds each injured adventurer recovers at. A member who comes home under a quarter of
 ## their maximum health is injured.
@@ -64,13 +66,14 @@ var injury_lengths: Dictionary[String, int] = {}
 ## "returned_at": unix seconds it came back, "success": bool, "party": adventurer ids,
 ## "damage": {adventurer id: damage taken}, "injured": {adventurer id: seconds the injury lasts},
 ## "gold": gold it brought, "xp": XP each member gained, "revealed": the quest's challenges it
-## made known, "loot": item ids it brought, "paid": false, "xp_given": true}. Damage, injuries, XP
-## and the reveal were applied when the party came home, so a member can level up from the debrief;
-## its gold and loot are paid when it is read. One saved without "xp_given" still owes its XP, paid
+## made known, "loot": item ids it brought, "paid": false, "xp_given": true}, and "lucky_break":
+## true when a lucky break raised its chance. Damage, injuries, XP and the reveal were applied when
+## the party came home, so a member can level up from the debrief; its gold and loot are paid when
+## it is read. One saved without "xp_given" still owes its XP, paid
 ## when read. One saved before reading paid has no "paid": it was paid on coming home, its "loot"
 ## the items put in the stash and "lost" those brought to a full stash.
 var debriefs: Array[Dictionary] = []
-## Who is in the guild, and each one's stats, level, XP and gear: their power decides quests, and
+## Who is in the guild, and each one's stats, level, XP and gear: their stats decide quests, and
 ## returns grow them.
 var adventurers: Adventurers = Adventurers.new()
 ## The health each adventurer below their maximum came home with: {"health": points, "at": unix
@@ -98,24 +101,48 @@ func _init(at: int) -> void:
 
 
 ## The whole-percent chance that `party`, as they are now, succeeds on `quest_id`, counting every
-## challenge, known to the player or not, and the guild's tries at it.
-func success_chance(quest_id: String, party: PackedStringArray) -> int:
-	var uncovered := 0
-	for challenge: String in QUESTS[quest_id]["challenges"]:
-		if Challenges.covered_by(challenge, party, adventurers.roster).is_empty():
-			uncovered += 1
-	return Outcome.chance_percent(party_power(party), int(QUESTS[quest_id]["difficulty"]), uncovered, try_points(quest_id))
+## challenge, known to the player or not, the guild's tries at it, and a `lucky_break` if it has
+## one (Outcome.chance_percent).
+func success_chance(quest_id: String, party: PackedStringArray, lucky_break: bool = false) -> int:
+	return Outcome.chance_percent(challenge_chances(quest_id, party), try_points(quest_id), lucky_break)
 
 
 ## The chance the player is shown for `party` on `quest_id`, as [low, high] in whole percent: see
-## Outcome.chance_range. The true chance always lies inside.
+## Outcome.chance_range. Its high end counts a lucky break when the party has any Luck. The true
+## chance always lies inside.
 func chance_range(quest_id: String, party: PackedStringArray) -> Vector2i:
 	var unknown := unknown_challenges(quest_id)
-	var uncovered := 0
+	var known: Array[int] = []
 	for challenge: String in QUESTS[quest_id]["challenges"]:
-		if challenge not in unknown and Challenges.covered_by(challenge, party, adventurers.roster).is_empty():
-			uncovered += 1
-	return Outcome.chance_range(party_power(party), int(QUESTS[quest_id]["difficulty"]), uncovered, unknown.size(), try_points(quest_id))
+		if challenge not in unknown:
+			known.append(_challenge_chance(quest_id, challenge, party))
+	return Outcome.chance_range(known, unknown.size(), try_points(quest_id), party_stat(party, "luck") > 0)
+
+
+## The chance in whole percent that `party` meets each challenge of `quest_id`, in QUESTS order.
+func challenge_chances(quest_id: String, party: PackedStringArray) -> Array[int]:
+	var chances: Array[int] = []
+	for challenge: String in QUESTS[quest_id]["challenges"]:
+		chances.append(_challenge_chance(quest_id, challenge, party))
+	return chances
+
+
+## True when `party`'s total for `challenge` reaches what it needs on `quest_id`.
+func challenge_met(quest_id: String, challenge: String, party: PackedStringArray) -> bool:
+	return Challenges.party_total(challenge, party, adventurers) >= Challenges.requirement(challenge, int(QUESTS[quest_id]["difficulty"]))
+
+
+## The sum of `party`'s `stat`, gear included: what counts for Spirit and Luck, which work for the
+## whole party.
+func party_stat(party: PackedStringArray, stat: String) -> int:
+	var total := 0
+	for adventurer: String in party:
+		total += adventurers.stat_total(adventurer, stat)
+	return total
+
+
+func _challenge_chance(quest_id: String, challenge: String, party: PackedStringArray) -> int:
+	return Outcome.challenge_chance(Challenges.party_total(challenge, party, adventurers), Challenges.requirement(challenge, int(QUESTS[quest_id]["difficulty"])))
 
 
 ## The points the guild's tries at `quest_id` add to its chance: POINTS_PER_TRY a try, at most
@@ -131,21 +158,6 @@ func unknown_challenges(quest_id: String) -> PackedStringArray:
 	if quest_id in revealed or challenges.size() < 2:
 		return PackedStringArray()
 	return PackedStringArray([challenges[-1]])
-
-
-## The power `party` brings to a quest: its members' power, except a Healer's own.
-func party_power(party: PackedStringArray) -> int:
-	var total := 0
-	for adventurer: String in party:
-		if not is_healer(adventurers.roster[adventurer]):
-			total += adventurers.power(adventurer)
-	return total
-
-
-## True when the adventurer who is `who`, as Adventurers.roster has them, is a Healer: their power
-## doesn't count, and a party with one takes half damage.
-static func is_healer(who: Dictionary) -> bool:
-	return who["class"] == "Healer"
 
 
 ## The gold `_quest_id` brings when it fails: none, so failing costs something.
@@ -355,16 +367,15 @@ func stop_training(adventurer: String, now: int) -> int:
 	return xp
 
 
-## The name of the stat `adventurer` grows fastest in, ties going to the first in
-## Adventurers.STATS, once they have trained TRAINING_HINT_SECONDS in all by `now`; "" before.
-## Growth numbers themselves are never shown.
+## The name of the stat `adventurer` grows fastest in, gear counted (Adventurers.growth_chance),
+## ties going to the first in Adventurers.STATS, once they have trained TRAINING_HINT_SECONDS in all
+## by `now`; "" before. Growth numbers themselves are never shown.
 func training_hint(adventurer: String, now: int) -> String:
 	if _seconds_trained(adventurer, now) < TRAINING_HINT_SECONDS:
 		return ""
-	var growth: Dictionary = adventurers.growth[adventurer]
 	var fastest := ""
 	for stat: String in Adventurers.STATS:
-		if fastest.is_empty() or float(growth[stat]) > float(growth[fastest]):
+		if fastest.is_empty() or adventurers.growth_chance(adventurer, stat) > adventurers.growth_chance(adventurer, fastest):
 			fastest = stat
 	return Adventurers.STATS[fastest]
 
@@ -407,7 +418,10 @@ func send(quest_id: String, party: PackedStringArray, roll_seed: int, now: int, 
 	for adventurer: String in party:
 		health_left_with[adventurer] = health(adventurer, checked_at)
 		max_left_with[adventurer] = adventurers.max_health(adventurer)
-	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "seed": roll_seed, "chance": success_chance(quest_id, party), "health": health_left_with, "max_health": max_left_with})
+	# A lucky break is decided by the seed now, and only counts when it lifts the weakest challenge.
+	var luck := party_stat(party, "luck")
+	var lucky: bool = Outcome.lucky_break(roll_seed, luck) and challenge_chances(quest_id, party).min() < Outcome.EVEN_CHANCE
+	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "seed": roll_seed, "chance": success_chance(quest_id, party, lucky), "lucky_break": lucky, "spirit": party_stat(party, "spirit"), "luck": luck, "health": health_left_with, "max_health": max_left_with})
 	return true
 
 
@@ -446,14 +460,17 @@ func _bring_home(outing: Dictionary) -> void:
 	var success := true
 	var damage: Dictionary = {}
 	var injured: Dictionary = {}
+	# Spirit and Luck are the party's when it left, so a level-up while out changes nothing. One sent
+	# before they were kept counts the party's now.
+	var luck: int = outing.get("luck", party_stat(party, "luck"))
 	# A party sent before adventurers existed has no members: it comes home as it was sent then,
 	# earning its reward in full.
 	if not party.is_empty():
 		# The chance is the one it left with, so a level-up while out never changes how it ends. One
-		# sent before chances were kept rolls with the power it has now, which is the power it had
+		# sent before chances were kept rolls with the stats it has now, which are the stats it had
 		# then: nobody could level up before.
 		var chance: int = outing.get("chance", success_chance(outing["quest"], party))
-		var outcome := Outcome.roll(outing["seed"], chance, Outcome.MOST_DAMAGE[quest["rank"]], party, adventurers.roster)
+		var outcome := Outcome.roll(outing["seed"], chance, Outcome.MOST_DAMAGE[quest["rank"]], party, outing.get("spirit", party_stat(party, "spirit")), luck)
 		success = outcome.success
 		if not success:
 			reward = failure_gold(outing["quest"])
@@ -485,10 +502,12 @@ func _bring_home(outing: Dictionary) -> void:
 		adventurers.gain_xp(adventurer, xp)
 	# Loot comes whatever the outcome, from the seed the party left with.
 	var loot := PackedStringArray()
-	var item := Gear.loot(outing["seed"], quest["rank"])
+	var item := Gear.loot(outing["seed"], quest["rank"], luck)
 	if not item.is_empty():
 		loot.append(item)
 	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "damage": damage, "injured": injured, "gold": reward, "xp": xp, "revealed": revealing, "loot": loot, "paid": false, "xp_given": true})
+	if outing.get("lucky_break", false):
+		debriefs[-1]["lucky_break"] = true
 
 
 ## Files the debrief at `index` away once the player has read it, and pays what its party earned:

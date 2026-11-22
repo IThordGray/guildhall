@@ -60,5 +60,5 @@ func test_making_a_face_leaves_the_global_generator_untouched() -> void:
 
 func test_a_starter_or_anyone_without_a_face_seed_has_their_ids_face_and_a_recruit_their_own() -> void:
 	assert_eq(Faces.seed_of("bram", Adventurers.new().roster["bram"]), hash("bram"))
-	assert_eq(Faces.seed_of("recruit_0_5", {"name": "Wren", "class": "Scout", "rank": "F", "face_seed": 99}), 99)
+	assert_eq(Faces.seed_of("recruit_0_5", {"name": "Wren", "rank": "F", "face_seed": 99}), 99)
 	assert_ne(Faces.seed_of("bram", {}), Faces.seed_of("ilse", {}))

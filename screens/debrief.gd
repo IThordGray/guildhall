@@ -10,6 +10,7 @@ signal adventurer_pressed(adventurer: String)
 @onready var _result: Label = $Scroll/Box/Header/Result
 @onready var _members: VBoxContainer = $Scroll/Box/Who/Members
 @onready var _revealed: Label = $Scroll/Box/Revealed
+@onready var _lucky: Label = $Scroll/Box/Lucky
 @onready var _gold: Label = $Scroll/Box/Brought/Rows/Row/Gold
 @onready var _items: VBoxContainer = $Scroll/Box/Brought/Rows/Items
 
@@ -78,6 +79,8 @@ func show_debrief(debrief: Dictionary, dispatch: Dispatch) -> void:
 	var revealed: PackedStringArray = debrief.get("revealed", PackedStringArray())
 	_revealed.text = "Revealed: " + ", ".join(revealed)
 	_revealed.visible = not revealed.is_empty()
+	# A debrief saved before lucky breaks says nothing.
+	_lucky.visible = debrief.get("lucky_break", false)
 	_gold.text = "+%d" % debrief["gold"]
 	for line: Node in _items.get_children():
 		line.queue_free()

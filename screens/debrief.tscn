@@ -72,6 +72,12 @@ theme_type_variation = &"Secondary"
 text = "Revealed: Traps"
 autowrap_mode = 3
 
+[node name="Lucky" type="Label" parent="Scroll/Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"Secondary"
+text = "Lucky break"
+
 [node name="Brought" type="PanelContainer" parent="Scroll/Box"]
 layout_mode = 2
 

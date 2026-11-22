@@ -13,7 +13,7 @@ func _starters_gear() -> Gear:
 	return Adventurers.new(["bram", "ilse", "tobin", "maren"]).gear
 
 
-func test_there_are_33_items_each_in_one_of_eight_slots_with_a_quality_its_bonuses_fit_and_an_icon() -> void:
+func test_there_are_33_items_each_in_one_of_eight_slots_adding_stats_in_its_quality_band_with_an_icon() -> void:
 	assert_eq(Gear.ITEMS.size(), 33)
 	assert_eq(Gear.SLOTS.keys(), SLOTS)
 	var slots_used := {}
@@ -23,21 +23,19 @@ func test_there_are_33_items_each_in_one_of_eight_slots_with_a_quality_its_bonus
 		assert_has(SLOTS, info["slot"], item)
 		slots_used[info["slot"]] = true
 		assert_true(ResourceLoader.exists("res://assets/items/%s.png" % item), item)
+		var total := 0
 		for stat: String in bonus:
 			assert_has(Adventurers.STATS, stat, item)
+			assert_gt(int(bonus[stat]), 0, item)
+			total += int(bonus[stat])
+		# Every item adds something: Standard +1–2 in all, Fine +2–4, Legendary +4–7.
 		match info["quality"]:
 			"Standard":
-				assert_lt(bonus.size(), 2, item)
-				for points: int in bonus.values():
-					assert_eq(points, 1, item)
+				assert_between(total, 1, 2, item)
 			"Fine":
-				assert_between(bonus.size(), 1, 2, item)
-				for points: int in bonus.values():
-					assert_between(points, 1, 2, item)
+				assert_between(total, 2, 4, item)
 			"Legendary":
-				assert_eq(bonus.size(), 2, item)
-				for points: int in bonus.values():
-					assert_between(points, 3, 4, item)
+				assert_between(total, 4, 7, item)
 			_:
 				fail_test("%s has no known quality" % item)
 	assert_eq(slots_used.size(), 8)
@@ -89,6 +87,44 @@ func test_loot_is_standard_80_fine_18_and_legendary_2_percent_of_the_time_drawn_
 	assert_eq(items_seen.size(), 33)
 
 
+# `luck`'s quality odds as [Standard, Fine, Legendary], in whole percent.
+func _shares(luck: int) -> Array[int]:
+	var shares := Gear.quality_percent(luck)
+	return [shares["Standard"], shares["Fine"], shares["Legendary"]]
+
+
+func test_luck_moves_a_point_of_quality_odds_from_standard_to_fine_a_point_and_one_to_legendary_every_5() -> void:
+	assert_eq(_shares(0), [80, 18, 2])
+	assert_eq(_shares(4), [76, 22, 2])
+	assert_eq(_shares(5), [74, 23, 3])
+	assert_eq(_shares(10), [68, 28, 4])
+	# Until Standard has none left.
+	assert_eq(_shares(90), [0, 80, 20])
+
+
+func test_luck_adds_a_point_of_loot_chance_a_point_up_to_25_and_better_loot() -> void:
+	var brought := {0: 0, 10: 0, 25: 0, 60: 0}
+	var rarer := {0: 0, 20: 0}
+	for roll_seed: int in 4_000:
+		for luck: int in brought:
+			if not Gear.loot(roll_seed, "F", luck).is_empty():
+				brought[luck] += 1
+		for luck: int in rarer:
+			var item := Gear.loot(roll_seed, "E", luck)
+			if not item.is_empty() and Gear.ITEMS[item]["quality"] != "Standard":
+				rarer[luck] += 1
+		# Luck never loses an item that would have come without it.
+		if not Gear.loot(roll_seed, "F").is_empty():
+			assert_false(Gear.loot(roll_seed, "F", 10).is_empty())
+	# 25%, 35% and 50% of 4,000 within 2.5 points; past 25 Luck, no more.
+	assert_between(brought[0], 900, 1_100)
+	assert_between(brought[10], 1_300, 1_500)
+	assert_between(brought[25], 1_900, 2_100)
+	assert_eq(brought[60], brought[25])
+	# Fine or Legendary: 20% of the loot without Luck, 44% with 20 (more of it, too).
+	assert_gt(rarer[20], rarer[0] * 2)
+
+
 func test_the_same_seed_always_brings_the_same_loot() -> void:
 	var first: Array[String] = []
 	var second: Array[String] = []
@@ -119,13 +155,13 @@ func test_wearing_a_stash_item_swaps_it_in_and_puts_the_replaced_one_in_the_stas
 	gear.wear("bram", 1)
 	assert_eq(gear.worn["bram"]["weapon"], "goblin_slayer_blade")
 	assert_eq(gear.stash, PackedStringArray(["night_cloak", "short_sword"]))
-	assert_eq(gear.bonus("bram", "might"), 4)
+	assert_eq(gear.bonus("bram", "strength"), 4)
 	# And back again: the blade returns to the stash.
 	gear.wear("bram", 1)
 	assert_eq(gear.worn["bram"]["weapon"], "short_sword")
 	assert_eq(gear.stash, PackedStringArray(["night_cloak", "goblin_slayer_blade"]))
-	assert_eq(gear.bonus("bram", "might"), 0)
-	# Into an empty slot, nothing comes back. Any class wears any item.
+	assert_eq(gear.bonus("bram", "strength"), 1)
+	# Into an empty slot, nothing comes back. Anyone wears any item.
 	assert_false(gear.worn["bram"].has("back"))
 	gear.wear("bram", 0)
 	assert_eq(gear.worn["bram"]["back"], "night_cloak")
@@ -183,4 +219,13 @@ func test_worn_gear_and_the_stash_survive_save_and_load() -> void:
 	assert_eq(loaded.worn, gear.worn)
 	assert_eq(loaded.worn["maren"]["armour"], "chapel_plate")
 	assert_eq(loaded.stash, PackedStringArray(["sash"]))
-	assert_eq(loaded.bonus("maren", "grit"), 4)
+	assert_eq(loaded.bonus("maren", "defence"), 4)
+
+
+func test_the_same_seed_and_luck_always_bring_the_same_loot() -> void:
+	var differs := false
+	for roll_seed: int in 400:
+		assert_eq(Gear.loot(roll_seed, "E", 20), Gear.loot(roll_seed, "E", 20))
+		differs = differs or Gear.loot(roll_seed, "E", 20) != Gear.loot(roll_seed, "E")
+	# Luck does change what comes.
+	assert_true(differs)
