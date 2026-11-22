@@ -62,5 +62,12 @@ it merges. Screens and wording live in the code.
   its debrief is read. A debrief pays once.
 - A quest's XP is the party's total: each member gains the total ÷ party size, rounded down. A
   failed quest pays no gold and a quarter of the XP, at least 1.
+- Anyone can be anything: there are no classes. A challenge tests the party's weighted stats, gear
+  included, and a quest's chance averages its challenges with the weakest counted twice. Gear
+  shapes growth: the stats worn items add grow faster. A title comes from the two highest stats.
+- Spirit and Luck help the whole party: Spirit cuts everyone's damage; Luck brings more and better
+  loot, softens a failure and may give a lucky break (the weakest challenge counts as just met),
+  all fixed at send. What Luck does is never explained on screen; a lucky break shows in its debrief.
+- Every recruit arrives wearing at least a weapon.
 - The guild learns its quests: every party back from a quest, whatever the outcome, adds 1 point to
   that quest's chance, up to +15. It counts in the chance shown and is fixed when a party leaves.
