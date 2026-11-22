@@ -74,5 +74,8 @@ it merges. Screens and wording live in the code.
   loot, softens a failure and may give a lucky break (the weakest challenge counts as just met),
   all fixed at send. What Luck does is never explained on screen; a lucky break shows in its debrief.
 - Every recruit arrives wearing at least a weapon.
+- The picker shows the chance as a range: ±10 around what the known challenges give, an unknown
+  challenge counted as an even match and a lucky break left out. Until every challenge is known the
+  real chance may lie outside it.
 - The guild learns its quests: every party back from a quest, whatever the outcome, adds 1 point to
   that quest's chance, up to +15. It counts in the chance shown and is fixed when a party leaves.
