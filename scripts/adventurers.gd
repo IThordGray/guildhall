@@ -72,8 +72,9 @@ const OLD_CLASSES: Dictionary[String, Dictionary] = {
 ## MOST_GEAR_GROWTH, so an adventurer grows toward what they wear.
 const GROWTH_PER_GEAR_POINT: float = 0.05
 const MOST_GEAR_GROWTH: float = 0.9
-## XP to go from level L to L + 1 is this times L.
-const XP_PER_LEVEL: int = 40
+## XP to go from level L to L + 1 is XP_TO_NEXT[L - 1], a stand-in curve to tune. Past the table,
+## each level needs the one before × 1.3, rounded to the nearest 10.
+const XP_TO_NEXT: PackedInt32Array = [10, 20, 40, 60, 100, 140, 200, 270, 350, 450]
 ## Maximum health is this plus HEALTH_PER_DEFENCE per point of Defence and HEALTH_PER_LEVEL per
 ## level past the first (stand-ins), so a member failing a quest of the rank their level reaches is
 ## injured about half to three quarters of the time, not almost always.
@@ -191,7 +192,14 @@ func gain_xp(adventurer: String, amount: int) -> void:
 
 ## The XP `adventurer` needs to reach the next level.
 func xp_needed(adventurer: String) -> int:
-	return XP_PER_LEVEL * levels[adventurer]
+	var level: int = levels[adventurer]
+	if level <= XP_TO_NEXT.size():
+		return XP_TO_NEXT[level - 1]
+	var needed := XP_TO_NEXT[-1]
+	for each: int in level - XP_TO_NEXT.size():
+		# × 13 ÷ 100 then × 10: × 1.3 to the nearest 10, with no float error in 1.3 to tip a half.
+		needed = roundi(needed * 13 / 100.0) * 10
+	return needed
 
 
 func level_up_ready(adventurer: String) -> bool:

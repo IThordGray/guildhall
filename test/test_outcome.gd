@@ -165,21 +165,26 @@ func test_the_range_shown_is_the_chance_widened_by_10_with_no_unknown_challenges
 	assert_eq(Outcome.chance_range([50], 0, 15), Vector2i(55, 75))
 
 
-func test_the_range_counts_an_unknown_challenge_at_its_worst_at_the_low_end_and_its_best_at_the_high() -> void:
-	# Low: (80 + 5 + 5) ÷ 3 = 30, less 10. High: (80 + 95 + 80) ÷ 3 = 85, plus 10.
-	assert_eq(Outcome.chance_range([80], 1), Vector2i(20, 95))
-	# Low: (60 + 5 + 5 + 5) ÷ 4 = 18, less 10. High: (60 + 95 + 95 + 60) ÷ 4 = 77, plus 10.
-	assert_eq(Outcome.chance_range([60], 2), Vector2i(8, 87))
+func test_the_range_counts_an_unknown_challenge_as_an_even_match_in_the_weakest_twice_average() -> void:
+	# (80 + 50 + 50) ÷ 3 = 60, the unknown one the weakest; plus or less 10.
+	assert_eq(Outcome.chance_range([80], 1), Vector2i(50, 70))
+	# (20 + 20 + 50) ÷ 3 = 30, the known one the weakest.
+	assert_eq(Outcome.chance_range([20], 1), Vector2i(20, 40))
+	# (60 + 50 + 50 + 50) ÷ 4 = 52.
+	assert_eq(Outcome.chance_range([60], 2), Vector2i(42, 62))
+	# (80 + 50 + 50) ÷ 3 = 60, and 15 points for tries.
+	assert_eq(Outcome.chance_range([80], 1, 15), Vector2i(65, 85))
 
 
-func test_the_ranges_high_end_counts_a_lucky_break_when_one_may_come() -> void:
-	# (90 + 30 + 30) ÷ 3 = 50 without one, (90 + 50 + 50) ÷ 3 = 63 with one; plus 10.
-	assert_eq(Outcome.chance_range([90, 30], 0, 0, false), Vector2i(40, 60))
-	assert_eq(Outcome.chance_range([90, 30], 0, 0, true), Vector2i(40, 73))
+func test_the_range_leaves_a_lucky_break_out() -> void:
+	# (90 + 30 + 30) ÷ 3 = 50 without one; a lucky break makes it (90 + 50 + 50) ÷ 3 = 63.
+	assert_eq(Outcome.chance_range([90, 30], 0), Vector2i(40, 60))
+	assert_eq(Outcome.chance_percent([90, 30], 0, true), 63)
 
 
-func test_the_true_chance_always_lies_inside_the_range_shown_lucky_break_or_not() -> void:
-	var checked := 0
+func test_with_every_challenge_known_the_true_chance_lies_inside_the_range_and_with_one_unknown_it_is_counted_at_50() -> void:
+	var known_checked := 0
+	var unknown_checked := 0
 	var samples: Array[int] = [5, 20, 35, 49, 50, 65, 80, 95]
 	for a: int in samples:
 		for b: int in samples:
@@ -188,10 +193,17 @@ func test_the_true_chance_always_lies_inside_the_range_shown_lucky_break_or_not(
 					var truth: Array[int] = [a, b, c]
 					for unknown: int in 3:
 						var known: Array[int] = truth.slice(0, 3 - unknown)
-						for may_break: bool in [false, true]:
-							var shown := Outcome.chance_range(known, unknown, bonus, may_break)
-							var breaks: Array = [false, true] if may_break else [false]
-							for lucky: bool in breaks:
-								assert_between(Outcome.chance_percent(truth, bonus, lucky), shown.x, shown.y)
-								checked += 1
-	assert_gt(checked, 0)
+						var shown := Outcome.chance_range(known, unknown, bonus)
+						assert_lte(shown.y - shown.x, 20, "at most 20 wide")
+						if unknown == 0:
+							assert_between(Outcome.chance_percent(truth, bonus), shown.x, shown.y)
+							known_checked += 1
+							continue
+						var even := known.duplicate()
+						for each: int in unknown:
+							even.append(50)
+						var middle := Outcome.chance_percent(even, bonus)
+						assert_eq(shown, Vector2i(maxi(5, middle - 10), mini(95, middle + 10)))
+						unknown_checked += 1
+	assert_gt(known_checked, 0)
+	assert_gt(unknown_checked, 0)

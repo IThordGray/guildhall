@@ -90,26 +90,45 @@ func test_a_quest_gives_its_party_its_whole_xp_on_success_and_a_quarter_rounded_
 	assert_eq(Adventurers.quest_xp(1, false), 1)
 
 
-func test_a_level_up_needs_forty_xp_times_the_level_and_spends_it_keeping_the_rest() -> void:
+func test_a_level_up_needs_the_xp_its_level_asks_and_spends_it_keeping_the_rest() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
-	adventurers.gain_xp("ilse", 39)
+	assert_eq(adventurers.xp_needed("ilse"), 10)
+	adventurers.gain_xp("ilse", 9)
 	assert_false(adventurers.level_up_ready("ilse"))
 	assert_eq(adventurers.level_up("ilse"), {})
 	assert_eq(adventurers.levels["ilse"], 1)
-	assert_eq(adventurers.xp["ilse"], 39)
-	adventurers.gain_xp("ilse", 91)
+	assert_eq(adventurers.xp["ilse"], 9)
+	adventurers.gain_xp("ilse", 22)
 	assert_true(adventurers.level_up_ready("ilse"))
 	assert_false(adventurers.level_up("ilse").is_empty())
 	assert_eq(adventurers.levels["ilse"], 2)
-	assert_eq(adventurers.xp["ilse"], 90)
-	assert_eq(adventurers.xp_needed("ilse"), 80)
+	assert_eq(adventurers.xp["ilse"], 21)
+	assert_eq(adventurers.xp_needed("ilse"), 20)
 	assert_true(adventurers.level_up_ready("ilse"))
 	adventurers.level_up("ilse")
 	assert_eq(adventurers.levels["ilse"], 3)
-	assert_eq(adventurers.xp["ilse"], 10)
-	assert_eq(adventurers.xp_needed("ilse"), 120)
+	assert_eq(adventurers.xp["ilse"], 1)
+	assert_eq(adventurers.xp_needed("ilse"), 40)
 	assert_false(adventurers.level_up_ready("ilse"))
 	assert_eq(adventurers.levels["bram"], 1)
+
+
+func test_the_xp_to_the_next_level_follows_the_curve_then_grows_30_percent_a_level_and_never_falls() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	var curve: Array[int] = [10, 20, 40, 60, 100, 140, 200, 270, 350, 450]
+	for level: int in range(1, 11):
+		adventurers.levels["ilse"] = level
+		assert_eq(adventurers.xp_needed("ilse"), curve[level - 1], "level %d" % level)
+	# 450 × 1.3 = 585, to the nearest 10; then 590 × 1.3 = 767.
+	adventurers.levels["ilse"] = 11
+	assert_eq(adventurers.xp_needed("ilse"), 590)
+	adventurers.levels["ilse"] = 12
+	assert_eq(adventurers.xp_needed("ilse"), 770)
+	var before := 0
+	for level: int in range(1, 41):
+		adventurers.levels["ilse"] = level
+		assert_gte(adventurers.xp_needed("ilse"), before, "level %d" % level)
+		before = adventurers.xp_needed("ilse")
 
 
 func test_a_level_up_raises_each_stat_by_zero_to_two_the_same_for_the_same_adventurer_and_level() -> void:
@@ -153,7 +172,7 @@ func test_the_history_records_each_level_up_with_what_it_gave() -> void:
 
 func test_stats_levels_xp_and_history_survive_save_and_load() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
-	adventurers.gain_xp("tobin", 130)
+	adventurers.gain_xp("tobin", 40)
 	adventurers.level_up("tobin")
 	adventurers.level_up("tobin")
 	adventurers.gain_xp("bram", 25)
@@ -204,7 +223,7 @@ func test_a_save_from_the_previous_build_loads_with_starter_stats_and_nothing_el
 
 func test_a_save_from_the_current_build_loads_with_starter_gear_an_empty_stash_and_nothing_else_lost() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
-	adventurers.gain_xp("ilse", 50)
+	adventurers.gain_xp("ilse", 20)
 	adventurers.level_up("ilse")
 	var file := ConfigFile.new()
 	adventurers.write(file)

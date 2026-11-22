@@ -214,7 +214,7 @@ func _show_forecast() -> void:
 		_band_fill.anchor_right = shown.y / 100.0
 		# Every quest starts with at most one challenge unknown.
 		if not unknown.is_empty():
-			note = "One challenge is still unknown; revealing it narrows the range. " + note
+			note = "One challenge is still unknown; the real chance may lie outside this range. " + note
 	_note.text = note
 
 

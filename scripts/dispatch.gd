@@ -108,15 +108,15 @@ func success_chance(quest_id: String, party: PackedStringArray, lucky_break: boo
 
 
 ## The chance the player is shown for `party` on `quest_id`, as [low, high] in whole percent: see
-## Outcome.chance_range. Its high end counts a lucky break when the party has any Luck. The true
-## chance always lies inside.
+## Outcome.chance_range, the guild's tries counted. Once every challenge is known, the true chance
+## without a lucky break lies inside.
 func chance_range(quest_id: String, party: PackedStringArray) -> Vector2i:
 	var unknown := unknown_challenges(quest_id)
 	var known: Array[int] = []
 	for challenge: String in QUESTS[quest_id]["challenges"]:
 		if challenge not in unknown:
 			known.append(_challenge_chance(quest_id, challenge, party))
-	return Outcome.chance_range(known, unknown.size(), try_points(quest_id), party_stat(party, "luck") > 0)
+	return Outcome.chance_range(known, unknown.size(), try_points(quest_id))
 
 
 ## The chance in whole percent that `party` meets each challenge of `quest_id`, in QUESTS order.

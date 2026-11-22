@@ -61,19 +61,17 @@ static func chance_percent(challenge_chances: Array[int], bonus: int = 0, lucky_
 	return clampi(average + bonus, MIN_CHANCE, MAX_CHANCE)
 
 
-## The chance the player is shown, as [low, high] in whole percent, from the `known` challenges'
-## chances, `unknown` challenges the player doesn't know and `bonus` points on: low counts every
-## unknown one at MIN_CHANCE, high at MAX_CHANCE, and with a lucky break when `may_break`; each end
-## is widened by HIDDEN_DIFFICULTY_POINTS, within MIN_CHANCE to MAX_CHANCE.
-static func chance_range(known: Array[int], unknown: int, bonus: int = 0, may_break: bool = false) -> Vector2i:
-	var worst := known.duplicate()
-	var best := known.duplicate()
+## The chance the player is shown, as [low, high] in whole percent: the chance from the `known`
+## challenges' chances with `bonus` points on, each of the `unknown` challenges counted as an even
+## match (EVEN_CHANCE), widened HIDDEN_DIFFICULTY_POINTS either way, within MIN_CHANCE to
+## MAX_CHANCE. A lucky break is left out. Narrow over sure: while a challenge is unknown the true
+## chance may fall outside; once all are known, the true chance without a lucky break is inside.
+static func chance_range(known: Array[int], unknown: int, bonus: int = 0) -> Vector2i:
+	var chances := known.duplicate()
 	for each: int in unknown:
-		worst.append(MIN_CHANCE)
-		best.append(MAX_CHANCE)
-	var low := chance_percent(worst, bonus) - HIDDEN_DIFFICULTY_POINTS
-	var high := chance_percent(best, bonus, may_break) + HIDDEN_DIFFICULTY_POINTS
-	return Vector2i(clampi(low, MIN_CHANCE, MAX_CHANCE), clampi(high, MIN_CHANCE, MAX_CHANCE))
+		chances.append(EVEN_CHANCE)
+	var middle := chance_percent(chances, bonus)
+	return Vector2i(clampi(middle - HIDDEN_DIFFICULTY_POINTS, MIN_CHANCE, MAX_CHANCE), clampi(middle + HIDDEN_DIFFICULTY_POINTS, MIN_CHANCE, MAX_CHANCE))
 
 
 ## True when a party with `luck` in all, sent with `roll_seed`, gets a lucky break:

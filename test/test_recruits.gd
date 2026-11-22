@@ -684,7 +684,7 @@ func test_hiring_a_rank_e_candidate_brings_them_in_at_level_3_with_0_xp_and_thei
 	assert_eq(adventurers.levels[id], 3)
 	assert_eq(adventurers.xp[id], 0)
 	assert_eq(adventurers.stats[id], hired["stats"])
-	assert_eq(adventurers.xp_needed(id), 120)
+	assert_eq(adventurers.xp_needed(id), 40)
 
 
 func test_a_rank_e_candidate_saved_before_they_arrived_levelled_loads_and_is_hired_as_saved_at_level_1() -> void:

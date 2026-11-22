@@ -1209,18 +1209,18 @@ func test_xp_banks_past_several_level_ups_and_an_adventurer_with_one_waiting_can
 	var dispatch := _guild(1_000)
 	var party: PackedStringArray = ["bram", "ilse"]
 	var now := 1_000
-	for quest: int in 20:
+	for quest: int in 5:
 		assert_true(dispatch.send("goblins", party, _seed("goblins", party, true), now))
 		# Back after 20 s, then healed to full before the next.
 		now += 1_000
 		dispatch.checkpoint(now)
 		_read_all(dispatch, gold)
-	# 6 XP each a goblin camp shared by two: twenty are enough for level 2 (40) and level 3 (80).
-	assert_eq(dispatch.adventurers.xp["bram"], 120)
+	# 6 XP each a goblin camp shared by two: five are enough for level 2 (10) and level 3 (20).
+	assert_eq(dispatch.adventurers.xp["bram"], 30)
 	assert_true(dispatch.adventurers.level_up_ready("bram"))
 	assert_true(dispatch.can_go("bram", now))
 	assert_eq(dispatch.adventurers.level_up("bram").size(), 9)
-	assert_eq(dispatch.adventurers.xp["bram"], 80)
+	assert_eq(dispatch.adventurers.xp["bram"], 20)
 	assert_true(dispatch.adventurers.level_up_ready("bram"))
 	dispatch.adventurers.level_up("bram")
 	assert_eq(dispatch.adventurers.levels["bram"], 3)
@@ -1479,15 +1479,16 @@ func test_a_new_guild_knows_every_challenge_but_each_quests_last_and_all_of_rats
 	assert_eq(_unknown(Dispatch.new(1_000)), STARTING_UNKNOWN)
 
 
-func test_the_range_shown_holds_the_true_chance_and_the_true_chance_is_what_a_party_leaves_with() -> void:
+func test_the_range_shown_is_the_known_chance_with_an_unknown_challenge_even_and_the_true_chance_is_what_a_party_leaves_with() -> void:
 	var dispatch := _guild(1_000)
 	# Rats has nothing unknown: Bram's 74, widened by 10 either way.
 	assert_eq(dispatch.chance_range("rats", ["bram"]), Vector2i(64, 84))
-	# Moonherbs' Attrition is unknown: Navigation's 80 counts as it is, Attrition at 5 for the low
-	# end, (80 + 5 + 5) ÷ 3, and at 95 for the high, (80 + 95 + 80) ÷ 3.
-	assert_eq(dispatch.chance_range("moonherbs", ["bram", "tobin"]), Vector2i(20, 95))
-	# Maren lifts Navigation to 95: (95 + 5 + 5) ÷ 3 at the low end.
-	assert_eq(dispatch.chance_range("moonherbs", ["bram", "tobin", "maren"]), Vector2i(25, 95))
+	# Moonherbs' Attrition is unknown: Navigation's 80 counts as it is, Attrition as an even match,
+	# (80 + 50 + 50) ÷ 3 = 60.
+	assert_eq(dispatch.chance_range("moonherbs", ["bram", "tobin"]), Vector2i(50, 70))
+	# Maren lifts Navigation to 95: (95 + 50 + 50) ÷ 3 = 65.
+	assert_eq(dispatch.chance_range("moonherbs", ["bram", "tobin", "maren"]), Vector2i(55, 75))
+	# The true chance may lie outside while a challenge is unknown.
 	assert_true(dispatch.send("moonherbs", ["bram", "tobin"], 1, 1_000))
 	assert_eq(dispatch.outings[0]["chance"], 85)
 
@@ -1503,7 +1504,7 @@ func test_a_party_back_from_a_quest_reveals_its_unknown_challenges_for_good() ->
 	known["moonherbs"] = []
 	assert_eq(_unknown(dispatch), known)
 	assert_eq(dispatch.debriefs[0]["revealed"], PackedStringArray(["Attrition"]))
-	# Known now, the range narrows to the true 86, its 85 and a point for the try, widened by 10.
+	# Known now, the range centres on the true 86, its 85 and a point for the try, widened by 10.
 	assert_eq(dispatch.chance_range("moonherbs", ["bram", "tobin"]), Vector2i(76, 95))
 	# A second trip has nothing left to reveal.
 	_read_all(dispatch, gold)
@@ -1876,8 +1877,8 @@ func test_each_party_back_from_a_quest_adds_a_point_to_its_chance_and_both_ends_
 	var gold := Gold.new(0)
 	var dispatch := Dispatch.new(1_000)
 	assert_eq(dispatch.success_chance("rats", ["tobin"]), 46)
-	# Tobin has Luck, so the high end counts a lucky break: his Brute force at 50.
-	assert_eq(dispatch.chance_range("rats", ["tobin"]), Vector2i(36, 60))
+	# Tobin has Luck, but the range leaves a lucky break out.
+	assert_eq(dispatch.chance_range("rats", ["tobin"]), Vector2i(36, 56))
 	var outcomes := {true: 0, false: 0}
 	var now := 1_000
 	for tried: int in range(1, 17):
@@ -1888,13 +1889,13 @@ func test_each_party_back_from_a_quest_adds_a_point_to_its_chance_and_both_ends_
 		_read_all(dispatch, gold)
 		if tried == 1:
 			assert_eq(dispatch.success_chance("rats", ["tobin"]), 47)
-			assert_eq(dispatch.chance_range("rats", ["tobin"]), Vector2i(37, 61))
+			assert_eq(dispatch.chance_range("rats", ["tobin"]), Vector2i(37, 57))
 		if tried == 14:
 			assert_eq(dispatch.success_chance("rats", ["tobin"]), 60)
 	# Fifteen tries reach the most; a sixteenth adds nothing.
 	assert_eq(dispatch.tries["rats"], 16)
 	assert_eq(dispatch.success_chance("rats", ["tobin"]), 61)
-	assert_eq(dispatch.chance_range("rats", ["tobin"]), Vector2i(51, 75))
+	assert_eq(dispatch.chance_range("rats", ["tobin"]), Vector2i(51, 71))
 	# Successes and failures alike are tries.
 	assert_gt(outcomes[true], 0)
 	assert_gt(outcomes[false], 0)
@@ -2033,26 +2034,27 @@ func test_a_lucky_break_changes_nothing_when_the_weakest_challenge_is_already_ev
 		assert_eq(probe.outings[0]["chance"], chance)
 
 
-func test_the_chance_a_party_leaves_with_lucky_break_or_not_always_lies_inside_the_range_shown() -> void:
+func test_with_every_challenge_known_the_chance_a_party_leaves_with_lies_inside_the_range_shown_unless_a_lucky_break_lifts_it() -> void:
 	var parties: Array[PackedStringArray] = [["tobin"], ["bram"], ["maren"], ["bram", "tobin"], ["ilse", "maren"], PackedStringArray(EVERYONE)]
 	var lucky := 0
 	var checked := 0
 	for quest: String in Dispatch.QUESTS:
 		for party: PackedStringArray in parties:
-			for known: bool in [false, true]:
-				var dispatch := _guild(1_000)
-				for adventurer: String in dispatch.adventurers.roster:
-					dispatch.adventurers.roster[adventurer]["rank"] = "D"
-				if known:
-					dispatch.revealed.append(quest)
-				var shown := dispatch.chance_range(quest, party)
-				for roll_seed: int in 40:
-					assert_true(dispatch.send(quest, party, roll_seed, 1_000))
-					assert_between(int(dispatch.outings[0]["chance"]), shown.x, shown.y, "%s %s" % [quest, party])
-					if dispatch.outings[0]["lucky_break"]:
-						lucky += 1
-					dispatch.outings.clear()
-					checked += 1
+			var dispatch := _guild(1_000)
+			for adventurer: String in dispatch.adventurers.roster:
+				dispatch.adventurers.roster[adventurer]["rank"] = "D"
+			dispatch.revealed.append(quest)
+			var shown := dispatch.chance_range(quest, party)
+			for roll_seed: int in 40:
+				assert_true(dispatch.send(quest, party, roll_seed, 1_000))
+				var chance := int(dispatch.outings[0]["chance"])
+				if dispatch.outings[0]["lucky_break"]:
+					assert_gte(chance, shown.x, "%s %s" % [quest, party])
+					lucky += 1
+				else:
+					assert_between(chance, shown.x, shown.y, "%s %s" % [quest, party])
+				dispatch.outings.clear()
+				checked += 1
 	assert_gt(checked, 0)
 	assert_gt(lucky, 0)
 
