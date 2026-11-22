@@ -9,13 +9,13 @@ extends RefCounted
 ## hope on rank D. Gold is a stand-in too, kept small next to what the guild can spend so a quest's
 ## reward matters. "xp" is the XP the whole party shares on a success.
 const QUESTS: Dictionary[String, Dictionary] = {
-	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 2, "gold": 3, "xp": 1, "difficulty": 11, "challenges": ["Brute force"]},
-	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 3, "gold": 5, "xp": 2, "difficulty": 0, "challenges": ["Curse"]},
-	"letters": {"name": "Carry letters to the abbey", "rank": "F", "seconds": 4, "gold": 7, "xp": 3, "difficulty": 1, "challenges": ["Navigation", "Negotiation"]},
-	"spiders": {"name": "Spiders in the gatehouse", "rank": "F", "seconds": 4, "gold": 7, "xp": 3, "difficulty": 9, "challenges": ["Brute force", "Attrition"]},
-	"cartographer": {"name": "Escort the cartographer to the first gate", "rank": "F", "seconds": 5, "gold": 8, "xp": 3, "difficulty": 6, "challenges": ["Protect", "Traps"]},
-	"mouth": {"name": "Chart the labyrinth's mouth", "rank": "F", "seconds": 5, "gold": 8, "xp": 3, "difficulty": 7, "challenges": ["Traps", "Navigation"]},
-	"moonherbs": {"name": "Gather moonherbs", "rank": "F", "seconds": 6, "gold": 10, "xp": 4, "difficulty": 3, "challenges": ["Navigation", "Attrition"]},
+	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 2, "gold": 3, "xp": 4, "difficulty": 11, "challenges": ["Brute force"]},
+	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 3, "gold": 5, "xp": 5, "difficulty": 0, "challenges": ["Curse"]},
+	"letters": {"name": "Carry letters to the abbey", "rank": "F", "seconds": 4, "gold": 7, "xp": 6, "difficulty": 1, "challenges": ["Navigation", "Negotiation"]},
+	"spiders": {"name": "Spiders in the gatehouse", "rank": "F", "seconds": 4, "gold": 7, "xp": 6, "difficulty": 9, "challenges": ["Brute force", "Attrition"]},
+	"cartographer": {"name": "Escort the cartographer to the first gate", "rank": "F", "seconds": 5, "gold": 8, "xp": 7, "difficulty": 6, "challenges": ["Protect", "Traps"]},
+	"mouth": {"name": "Chart the labyrinth's mouth", "rank": "F", "seconds": 5, "gold": 8, "xp": 7, "difficulty": 7, "challenges": ["Traps", "Navigation"]},
+	"moonherbs": {"name": "Gather moonherbs", "rank": "F", "seconds": 6, "gold": 10, "xp": 8, "difficulty": 3, "challenges": ["Navigation", "Attrition"]},
 	"wolves": {"name": "Wolves at the mill", "rank": "E", "seconds": 10, "gold": 22, "xp": 7, "difficulty": 40, "challenges": ["Brute force", "Attrition"]},
 	"sealed_door": {"name": "Break the curse on the sealed door", "rank": "E", "seconds": 12, "gold": 25, "xp": 8, "difficulty": 54, "challenges": ["Curse", "Navigation"]},
 	"lurker": {"name": "Hunt the cave lurker", "rank": "E", "seconds": 14, "gold": 30, "xp": 9, "difficulty": 44, "challenges": ["Brute force", "Curse"]},
