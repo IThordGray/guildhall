@@ -71,7 +71,9 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   guild learns a quest, +1 a try up to +15). · Anyone can be anything (nine stats incl.
   Endurance, Presence, Luck; challenges test weighted stats, the weakest counted twice; every item
   adds stats and shapes growth; titles from the top two stats; Luck's lucky break). · Walk-ins (free,
-  a hidden 3–7 min arrival, swap when beds are full; dismiss from the Adventurer screen).
+  a hidden 3–7 min arrival, swap when beds are full; dismiss from the Adventurer screen)). · Compact gear and roster (52-dp roster rows; stat chips and icon-only slots with fit
+  badges; gear changed in place from a slot or a stash item through a tray; landscape roster list beside
+  the adventurer).
 
 ## Stack
 

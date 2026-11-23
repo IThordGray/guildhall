@@ -18,13 +18,15 @@ it merges. Screens and wording live in the code.
 
 - Portrait 9:16 and landscape, picked by the window's shape. Gold and how many parties are out are
   always on screen: in portrait in the top bar, in landscape in the left rail and screen headers.
-- No dialogs or overlay panels: everything opens as a full screen with Back (the landscape party
-  picker docks beside the board). The one exception: an action that spends (restore, extend), lets an
+- No dialogs or overlay panels: everything opens as a full screen with Back (in landscape the party
+  picker docks beside the board, and the chosen adventurer beside the roster list). Gear changes in
+  place on the Adventurer screen: tapping a slot or a stash item swaps the stash strip (in landscape
+  the left column) for that slot's tray; nothing slides over the screen. The one exception: an action that spends (restore, extend), lets an
   adventurer go (dismiss, swap) or gives up an item (sell, swap loot in) confirms in a small centred
   card showing only its cost and time, what leaves, or the gold it brings, with Cancel and the action. Any scroll scrolls by dragging anywhere on it, and a control fires
   only on a tap that stayed within about 10 dp; a press that turns into a drag never fires. A card
   with only one action does it from a tap anywhere on it.
-- A list of slots shows what can be acted on first, then at most one line for the soonest refill.
+- A list of slots shows what can be acted on first, and at most one line for the soonest refill.
 - A button shows only when its action applies (Train, Promote from the level the rank needs).
 
 ## Roster
