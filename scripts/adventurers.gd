@@ -147,16 +147,35 @@ func max_health(adventurer: String) -> int:
 
 ## `adventurer`'s title, from their two highest stats, gear included: see `title_of`.
 func title(adventurer: String) -> String:
-	var totals := {}
-	for stat: String in STATS:
-		totals[stat] = stat_total(adventurer, stat)
-	return title_of(totals)
+	return title_of(_totals(adventurer))
+
+
+## The stats behind `adventurer`'s title, gear included: both of the pair a pair title comes from,
+## highest first, or else only the highest. Ties go as in `title_of`.
+func title_stats(adventurer: String) -> PackedStringArray:
+	var top := _top_two(_totals(adventurer))
+	return top if not _pair_title(top).is_empty() else PackedStringArray([top[0]])
 
 
 ## The title of someone with `totals`, {stat: points}: their two highest stats' pair in
 ## PAIR_TITLES, or else their highest stat's own in STAT_TITLES. A tie goes to the stat earlier in
 ## STATS.
 static func title_of(totals: Dictionary) -> String:
+	var top := _top_two(totals)
+	var pair_title := _pair_title(top)
+	return pair_title if not pair_title.is_empty() else STAT_TITLES[top[0]]
+
+
+# `adventurer`'s stats as they count, {stat: points}.
+func _totals(adventurer: String) -> Dictionary:
+	var totals := {}
+	for stat: String in STATS:
+		totals[stat] = stat_total(adventurer, stat)
+	return totals
+
+
+# The highest and second-highest of `totals`' stats, a tie going to the stat earlier in STATS.
+static func _top_two(totals: Dictionary) -> PackedStringArray:
 	var top := ""
 	var second := ""
 	for stat: String in STATS:
@@ -165,10 +184,15 @@ static func title_of(totals: Dictionary) -> String:
 			top = stat
 		elif second.is_empty() or totals[stat] > totals[second]:
 			second = stat
+	return PackedStringArray([top, second])
+
+
+# The PAIR_TITLES title `top_two` make, or "" when they are no pair.
+static func _pair_title(top_two: PackedStringArray) -> String:
 	for pair_title: String in PAIR_TITLES:
-		if top in PAIR_TITLES[pair_title] and second in PAIR_TITLES[pair_title]:
+		if top_two[0] in PAIR_TITLES[pair_title] and top_two[1] in PAIR_TITLES[pair_title]:
 			return pair_title
-	return STAT_TITLES[top]
+	return ""
 
 
 ## The chance each point of a level-up in `stat` comes to `adventurer`: their own growth, plus

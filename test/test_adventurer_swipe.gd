@@ -179,14 +179,14 @@ func test_a_swipe_that_ends_on_a_gear_slot_pages_in_landscape_and_does_not_open_
 
 
 func test_a_tap_on_a_gear_slots_box_or_its_name_under_it_opens_that_slot() -> void:
-	# In landscape the gear is beside the card, in view without scrolling.
+	# In landscape the gear is one row, in view in this tall viewport without scrolling.
 	_screen.set_landscape(true)
 	await wait_process_frames(1)
-	# The second slot is Clothes: its box, then its slot name and Bram's Red tunic under it.
+	# The second slot is Clothes: its box, then its slot name under it.
 	var cell := _screen.get_node("Box/Scroll/Content/GearColumn/Gear").get_child(1).get_child(0)
-	var item_name := cell.get_child(2) as Label
-	assert_eq(item_name.text, "Red tunic")
-	for part: Control in [cell.get_child(0), item_name]:
+	var slot_name := cell.get_child(1) as Label
+	assert_eq(slot_name.text, "CLOTHES")
+	for part: Control in [cell.get_child(0), slot_name]:
 		var at := part.get_global_rect().get_center()
 		_mouse_drag(at, at)
 	assert_eq(_slots_opened, ["bram:clothes", "bram:clothes"] as Array[String])

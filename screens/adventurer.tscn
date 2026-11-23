@@ -25,28 +25,27 @@ layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="Content" type="BoxContainer" parent="Box/Scroll"]
+[node name="Content" type="VBoxContainer" parent="Box/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 28
-vertical = true
+theme_override_constants/separation = 22
 
 [node name="Card" type="VBoxContainer" parent="Box/Scroll/Content"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 28
+theme_override_constants/separation = 22
 
 [node name="GearColumn" type="VBoxContainer" parent="Box/Scroll/Content"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 28
+theme_override_constants/separation = 22
 
 [node name="Header" type="PanelContainer" parent="Box/Scroll/Content/Card"]
 layout_mode = 2
 
-[node name="Row" type="BoxContainer" parent="Box/Scroll/Content/Card/Header"]
+[node name="Row" type="HBoxContainer" parent="Box/Scroll/Content/Card/Header"]
 layout_mode = 2
-theme_override_constants/separation = 32
+theme_override_constants/separation = 28
 
 [node name="Figure" type="TextureRect" parent="Box/Scroll/Content/Card/Header/Row"]
 texture_filter = 1
@@ -57,114 +56,203 @@ size_flags_vertical = 4
 [node name="Words" type="VBoxContainer" parent="Box/Scroll/Content/Card/Header/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 16
+theme_override_constants/separation = 14
+alignment = 1
 
-[node name="NameLine" type="BoxContainer" parent="Box/Scroll/Content/Card/Header/Row/Words"]
+[node name="NameLine" type="HBoxContainer" parent="Box/Scroll/Content/Card/Header/Row/Words"]
 layout_mode = 2
+theme_override_constants/separation = 22
 
 [node name="Name" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/NameLine"]
 layout_mode = 2
-size_flags_horizontal = 3
 theme_type_variation = &"Title"
 
 [node name="Status" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/NameLine"]
 layout_mode = 2
+size_flags_horizontal = 3
 theme_type_variation = &"Ok"
+theme_override_font_sizes/font_size = 33
 text = "Resting"
 vertical_alignment = 1
+text_overrun_behavior = 3
 
 [node name="Details" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words"]
 layout_mode = 2
 theme_type_variation = &"Secondary"
+theme_override_font_sizes/font_size = 33
+text_overrun_behavior = 3
+
+[node name="Hp" type="HBoxContainer" parent="Box/Scroll/Content/Card/Header/Row/Words"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Label" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/Hp"]
+custom_minimum_size = Vector2(50, 0)
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "HP"
+vertical_alignment = 1
 
 [node name="LevelUp" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words"]
 visible = false
-custom_minimum_size = Vector2(0, 120)
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
 theme_type_variation = &"GoldButton"
+theme_override_font_sizes/font_size = 33
 text = "Level up"
 
-[node name="Xp" type="VBoxContainer" parent="Box/Scroll/Content/Card/Header/Row/Words"]
+[node name="Xp" type="HBoxContainer" parent="Box/Scroll/Content/Card/Header/Row/Words"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 22
+
+[node name="Label" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/Xp"]
+custom_minimum_size = Vector2(50, 0)
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "XP"
+vertical_alignment = 1
 
 [node name="Bar" type="ProgressBar" parent="Box/Scroll/Content/Card/Header/Row/Words/Xp"]
-custom_minimum_size = Vector2(0, 16)
+custom_minimum_size = Vector2(0, 11)
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
 theme_type_variation = &"OwnBar"
 show_percentage = false
 
 [node name="Text" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/Xp"]
 layout_mode = 2
 theme_type_variation = &"Meta"
+theme_override_font_sizes/font_size = 30
+horizontal_alignment = 2
 
-[node name="Promote" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words"]
-custom_minimum_size = Vector2(0, 120)
+[node name="Actions" type="HFlowContainer" parent="Box/Scroll/Content/Card/Header/Row/Words"]
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
+
+[node name="Train" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Actions"]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+theme_type_variation = &"OutlineButton"
+theme_override_font_sizes/font_size = 33
+text = "Train"
+
+[node name="TrainingXp" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/Actions"]
+layout_mode = 2
+theme_type_variation = &"GoldText"
+theme_override_font_sizes/font_size = 33
+vertical_alignment = 1
+
+[node name="Stop" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Actions"]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+theme_type_variation = &"OutlineButton"
+theme_override_font_sizes/font_size = 33
+text = "Stop"
+
+[node name="Promote" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Actions"]
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
 theme_type_variation = &"GoldButton"
+theme_override_font_sizes/font_size = 33
+
+[node name="Dismiss" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Actions"]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+theme_type_variation = &"OutlineButton"
+theme_override_font_sizes/font_size = 33
+text = "Dismiss"
 
 [node name="PromoteReason" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words"]
 layout_mode = 2
 theme_type_variation = &"Alert"
+theme_override_font_sizes/font_size = 33
+vertical_alignment = 1
 autowrap_mode = 3
-
-[node name="Training" type="BoxContainer" parent="Box/Scroll/Content/Card/Header/Row/Words"]
-layout_mode = 2
-theme_override_constants/separation = 28
-
-[node name="Xp" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/Training"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_type_variation = &"GoldText"
-
-[node name="Stop" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Training"]
-custom_minimum_size = Vector2(240, 120)
-layout_mode = 2
-text = "Stop"
-
-[node name="Train" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Training"]
-custom_minimum_size = Vector2(0, 120)
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Train"
-
-[node name="Dismiss" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words"]
-custom_minimum_size = Vector2(0, 120)
-layout_mode = 2
-theme_type_variation = &"OutlineButton"
-text = "Dismiss"
-
-[node name="StatsSection" type="Label" parent="Box/Scroll/Content/Card"]
-layout_mode = 2
-theme_type_variation = &"Section"
-text = "STATS"
 
 [node name="Stats" type="PanelContainer" parent="Box/Scroll/Content/Card"]
 layout_mode = 2
 
 [node name="Rows" type="VBoxContainer" parent="Box/Scroll/Content/Card/Stats"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 16
 
-[node name="History" type="VBoxContainer" parent="Box/Scroll/Content/Card/Stats/Rows"]
+[node name="Line" type="HBoxContainer" parent="Box/Scroll/Content/Card/Stats/Rows"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 11
+
+[node name="Section" type="Label" parent="Box/Scroll/Content/Card/Stats/Rows/Line"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Section"
+text = "STATS"
+
+[node name="Key" type="ColorRect" parent="Box/Scroll/Content/Card/Stats/Rows/Line"]
+custom_minimum_size = Vector2(17, 22)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.651, 0.5333, 0.8784, 1)
+
+[node name="KeyText" type="Label" parent="Box/Scroll/Content/Card/Stats/Rows/Line"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "= title"
+vertical_alignment = 1
+
+[node name="Grid" type="GridContainer" parent="Box/Scroll/Content/Card/Stats/Rows"]
+layout_mode = 2
+theme_override_constants/h_separation = 11
+theme_override_constants/v_separation = 11
+columns = 3
+
+[node name="LastLevelUp" type="Label" parent="Box/Scroll/Content/Card/Stats/Rows"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"Caption"
+autowrap_mode = 3
 
 [node name="TrainingNotes" type="Label" parent="Box/Scroll/Content/Card/Stats/Rows"]
 visible = false
 layout_mode = 2
-theme_type_variation = &"GoldText"
+theme_type_variation = &"Caption"
 autowrap_mode = 3
 
-[node name="GearSection" type="Label" parent="Box/Scroll/Content/GearColumn"]
+[node name="Line" type="HBoxContainer" parent="Box/Scroll/Content/GearColumn"]
 layout_mode = 2
+theme_override_constants/separation = 11
+
+[node name="Section" type="Label" parent="Box/Scroll/Content/GearColumn/Line"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_type_variation = &"Section"
 text = "GEAR"
+
+[node name="FitKey" type="HBoxContainer" parent="Box/Scroll/Content/GearColumn/Line"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 11
+
+[node name="Badge" type="Label" parent="Box/Scroll/Content/GearColumn/Line/FitKey"]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"FitBadge"
+text = "N"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Text" type="Label" parent="Box/Scroll/Content/GearColumn/Line/FitKey"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "fit from the stash"
+vertical_alignment = 1
 
 [node name="Gear" type="GridContainer" parent="Box/Scroll/Content/GearColumn"]
 layout_mode = 2
 theme_override_constants/h_separation = 16
-theme_override_constants/v_separation = 24
+theme_override_constants/v_separation = 30
 columns = 4
 
 [node name="Back" type="Button" parent="Box"]

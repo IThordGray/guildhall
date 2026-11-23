@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=59 format=3]
+[gd_resource type="Theme" load_steps=64 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -543,6 +543,71 @@ corner_radius_top_right = 11
 corner_radius_bottom_right = 11
 corner_radius_bottom_left = 11
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card_tight"]
+content_margin_left = 28.0
+content_margin_top = 17.0
+content_margin_right = 28.0
+content_margin_bottom = 17.0
+bg_color = Color(0.1294, 0.1137, 0.1569, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.2275, 0.2039, 0.2745, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stat_chip"]
+content_margin_left = 19.0
+content_margin_top = 8.0
+content_margin_right = 19.0
+content_margin_bottom = 8.0
+bg_color = Color(0.102, 0.0902, 0.1255, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stat_chip_title"]
+content_margin_left = 19.0
+content_margin_top = 8.0
+content_margin_right = 19.0
+content_margin_bottom = 8.0
+bg_color = Color(0.102, 0.0902, 0.1255, 1)
+border_width_left = 6
+border_color = Color(0.651, 0.5333, 0.8784, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_item_box_fit"]
+content_margin_left = 16.0
+content_margin_top = 16.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(0.1294, 0.1137, 0.1569, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.949, 0.7569, 0.3059, 0.75)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_fit_badge"]
+content_margin_left = 8.0
+content_margin_right = 8.0
+bg_color = Color(0.949, 0.7569, 0.3059, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
 [resource]
 default_font = ExtResource("1_sans")
 default_font_size = 42
@@ -591,6 +656,8 @@ Chips/constants/h_separation = 14
 Chips/constants/v_separation = 14
 Coin/base_type = &"Panel"
 Coin/styles/panel = SubResource("StyleBoxFlat_coin")
+CardTight/base_type = &"PanelContainer"
+CardTight/styles/panel = SubResource("StyleBoxFlat_card_tight")
 DebriefRow/base_type = &"PanelContainer"
 DebriefRow/styles/panel = SubResource("StyleBoxFlat_debrief_row")
 Dim/base_type = &"Button"
@@ -598,6 +665,9 @@ Dim/styles/hover = SubResource("StyleBoxFlat_dim")
 Dim/styles/hover_pressed = SubResource("StyleBoxFlat_dim")
 Dim/styles/normal = SubResource("StyleBoxFlat_dim")
 Dim/styles/pressed = SubResource("StyleBoxFlat_dim")
+FitBadge/base_type = &"Badge"
+FitBadge/font_sizes/font_size = 28
+FitBadge/styles/normal = SubResource("StyleBoxFlat_fit_badge")
 FailedChip/base_type = &"Label"
 FailedChip/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
 FailedChip/font_sizes/font_size = 36
@@ -661,6 +731,10 @@ ItemBoxEmpty/base_type = &"PanelContainer"
 ItemBoxEmpty/colors/border_color = Color(0.2275, 0.2039, 0.2745, 1)
 ItemBoxEmpty/constants/border_width = 3
 ItemBoxEmpty/styles/panel = SubResource("StyleBoxEmpty_item_box_empty")
+ItemBoxEmptyFit/base_type = &"ItemBoxEmpty"
+ItemBoxEmptyFit/colors/border_color = Color(0.949, 0.7569, 0.3059, 0.75)
+ItemBoxFit/base_type = &"ItemBox"
+ItemBoxFit/styles/panel = SubResource("StyleBoxFlat_item_box_fit")
 ItemFine/base_type = &"Secondary"
 ItemFine/colors/font_color = Color(0.498, 0.7216, 0.902, 1)
 ItemLegendary/base_type = &"Secondary"
@@ -736,6 +810,10 @@ Secondary/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 Secondary/font_sizes/font_size = 36
 Sheet/base_type = &"PanelContainer"
 Sheet/styles/panel = SubResource("StyleBoxFlat_sheet")
+StatChip/base_type = &"PanelContainer"
+StatChip/styles/panel = SubResource("StyleBoxFlat_stat_chip")
+StatChipTitle/base_type = &"StatChip"
+StatChipTitle/styles/panel = SubResource("StyleBoxFlat_stat_chip_title")
 Section/base_type = &"Secondary"
 Section/font_sizes/font_size = 33
 Section/fonts/font = SubResource("FontVariation_sans_semibold")

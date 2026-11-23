@@ -20,27 +20,45 @@ signal swiped(step: int)
 
 ## A stat at this value fills its bar.
 const STAT_BAR_FULL: int = 20
-## How many stats show side by side.
-const STAT_COLUMNS: int = 3
-## The size of what a worn item adds, in landscape's narrower gear cells.
-const LANDSCAPE_BONUS_FONT_PX: int = 28
-## The width a health row keeps for its text, so bars in a list line up.
-const HEALTH_TEXT_WIDTH_PX: float = 480.0
+## The width a health row keeps for its text, and the XP numbers under it, so their bars line up:
+## the design's 64 dp.
+const HEALTH_TEXT_WIDTH_PX: float = 177.0
+## The small type of a stat chip's name, its total, and what gear adds to it.
+const CHIP_NAME_FONT_PX: int = 33
+const CHIP_TOTAL_FONT_PX: int = 36
+const CHIP_GEAR_FONT_PX: int = 28
+## A gear slot's box, which an item's icon at scale 5 fills, and the "+" in an empty one that a
+## stash item fits.
+const SLOT_BOX_PX: int = 172
+const SLOT_PLUS_FONT_PX: int = 50
+## The round badge counting the stash items that fit a slot, and how far it sticks out past the
+## box's top-right corner: the design's 16 and 5 dp.
+const FIT_BADGE_PX: int = 44
+const FIT_BADGE_OVERHANG_PX: int = 14
+## How many gear slots go to a row: four in portrait, all eight in landscape.
+const GEAR_COLUMNS_PORTRAIT: int = 4
+const GEAR_COLUMNS_LANDSCAPE: int = 8
+## The gaps between the sections, the header's lines and the stat chips' rows: as the scene has them
+## in portrait, tighter in landscape so everything fits above Back without scrolling.
+const SECTION_GAP_PX: Vector2i = Vector2i(22, 16)
+const HEADER_LINE_GAP_PX: Vector2i = Vector2i(14, 6)
+const CHIP_ROW_GAP_PX: Vector2i = Vector2i(11, 6)
+## How tall Back is: as the scene has it in portrait; in landscape a small button, so a header with
+## Level up in it still fits.
+const BACK_HEIGHT_PX: Vector2i = Vector2i(144, Roster.SMALL_BUTTON_PX)
 ## A press-drag-release at least this far sideways, and further sideways than up or down, is a swipe.
 const SWIPE_MIN_PX: float = 120.0
 
 var _adventurer: String = ""
-## Each stat's bar: own in purple over own plus gear in gold.
-var _bars: Dictionary[String, ProgressBar] = {}
-var _own_bars: Dictionary[String, ProgressBar] = {}
+## Each stat's chip, its total, and what gear adds to it.
+var _chips: Dictionary[String, PanelContainer] = {}
 var _values: Dictionary[String, Label] = {}
 var _gear_values: Dictionary[String, Label] = {}
 var _health: HBoxContainer
-## The level-ups the history shows, so it is rebuilt only when they change.
-var _history_shown: Array = []
-## The adventurer and their gear, as shown, so the gear is rebuilt only when these change.
+## The adventurer, their gear and how many stash items fit each slot, as shown, so the gear is
+## rebuilt only when these change.
 var _gear_shown: Array = []
-## Whether the landscape layout shows, so the gear is built to fit its narrower column.
+## Whether the landscape layout shows, which leaves out the notes under the stats.
 var _landscape: bool = false
 ## Whether a press that started on this screen is held, so its release may be a swipe.
 var _press_held: bool = false
@@ -52,68 +70,57 @@ var _press_at: Vector2 = Vector2.ZERO
 @onready var _status: Label = $Box/Scroll/Content/Card/Header/Row/Words/NameLine/Status
 @onready var _details: Label = $Box/Scroll/Content/Card/Header/Row/Words/Details
 @onready var _level_up: Button = $Box/Scroll/Content/Card/Header/Row/Words/LevelUp
-@onready var _xp: VBoxContainer = $Box/Scroll/Content/Card/Header/Row/Words/Xp
+@onready var _xp: HBoxContainer = $Box/Scroll/Content/Card/Header/Row/Words/Xp
 @onready var _xp_bar: ProgressBar = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Bar
 @onready var _xp_text: Label = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Text
-@onready var _promote: Button = $Box/Scroll/Content/Card/Header/Row/Words/Promote
+@onready var _promote: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Promote
 @onready var _promote_reason: Label = $Box/Scroll/Content/Card/Header/Row/Words/PromoteReason
-@onready var _training_xp: Label = $Box/Scroll/Content/Card/Header/Row/Words/Training/Xp
-@onready var _stop: Button = $Box/Scroll/Content/Card/Header/Row/Words/Training/Stop
-@onready var _train: Button = $Box/Scroll/Content/Card/Header/Row/Words/Training/Train
-@onready var _dismiss: Button = $Box/Scroll/Content/Card/Header/Row/Words/Dismiss
+@onready var _training_xp: Label = $Box/Scroll/Content/Card/Header/Row/Words/Actions/TrainingXp
+@onready var _stop: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Stop
+@onready var _train: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Train
+@onready var _dismiss: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Dismiss
+@onready var _last_level_up: Label = $Box/Scroll/Content/Card/Stats/Rows/LastLevelUp
 @onready var _training_notes: Label = $Box/Scroll/Content/Card/Stats/Rows/TrainingNotes
-@onready var _history: VBoxContainer = $Box/Scroll/Content/Card/Stats/Rows/History
+## The key to the gear badges, shown while any slot has stash items that fit.
+@onready var _fit_key: Control = $Box/Scroll/Content/GearColumn/Line/FitKey
 @onready var _gear: GridContainer = $Box/Scroll/Content/GearColumn/Gear
 
 
 func _ready() -> void:
-	# Three across, each stat's name and value over its bar, so nine take no more height than four
-	# rows did.
-	var grid := GridContainer.new()
-	grid.columns = STAT_COLUMNS
-	grid.add_theme_constant_override("h_separation", 24)
-	grid.add_theme_constant_override("v_separation", 16)
-	var rows := $Box/Scroll/Content/Card/Stats/Rows as VBoxContainer
-	rows.add_child(grid)
-	rows.move_child(grid, 0)
+	# One chip per stat, three to a row: its name, then its total and what gear adds.
+	var grid := $Box/Scroll/Content/Card/Stats/Rows/Grid as GridContainer
 	for stat: String in Adventurers.STATS:
 		var name_label := Label.new()
 		name_label.text = Adventurers.STATS[stat]
 		name_label.theme_type_variation = &"Secondary"
+		name_label.add_theme_font_size_override(&"font_size", CHIP_NAME_FONT_PX)
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		var value := Label.new()
 		value.theme_type_variation = &"Numbers"
+		value.add_theme_font_size_override(&"font_size", CHIP_TOTAL_FONT_PX)
 		var from_gear := Label.new()
-		from_gear.theme_type_variation = &"GoldText"
-		from_gear.custom_minimum_size = Vector2(44, 0)
+		from_gear.theme_type_variation = &"GoldAmount"
+		from_gear.add_theme_font_size_override(&"font_size", CHIP_GEAR_FONT_PX)
 		var line := HBoxContainer.new()
-		line.add_theme_constant_override("separation", 12)
+		line.add_theme_constant_override("separation", 6)
 		line.add_child(name_label)
 		line.add_child(value)
 		line.add_child(from_gear)
-		var bar := ProgressBar.new()
-		bar.theme_type_variation = &"GoldBar"
-		bar.show_percentage = false
-		bar.max_value = STAT_BAR_FULL
-		bar.custom_minimum_size = Vector2(0, 22)
-		var own := ProgressBar.new()
-		own.theme_type_variation = &"OwnBarOverlay"
-		own.show_percentage = false
-		own.max_value = STAT_BAR_FULL
-		bar.add_child(own)
-		own.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		_bars[stat] = bar
-		_own_bars[stat] = own
+		var chip := PanelContainer.new()
+		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		chip.add_child(line)
+		_chips[stat] = chip
 		_values[stat] = value
 		_gear_values[stat] = from_gear
-		var cell := VBoxContainer.new()
-		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		cell.add_theme_constant_override("separation", 6)
-		cell.add_child(line)
-		cell.add_child(bar)
-		grid.add_child(cell)
+		grid.add_child(chip)
+	# Thin and small, as the XP bar under it.
 	_health = health_row()
-	_details.add_sibling(_health)
+	_health.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	(_health.get_child(0) as Control).custom_minimum_size.y = Roster.HEALTH_BAR_PX
+	(_health.get_child(1) as Label).add_theme_font_size_override(&"font_size", Roster.NUMBERS_FONT_PX)
+	($Box/Scroll/Content/Card/Header/Row/Words/Hp as HBoxContainer).add_child(_health)
+	_xp_text.custom_minimum_size.x = HEALTH_TEXT_WIDTH_PX
 	_level_up.pressed.connect(func() -> void: level_up_pressed.emit(_adventurer))
 	_promote.pressed.connect(func() -> void: promote_pressed.emit(_adventurer))
 	_train.pressed.connect(func() -> void: train_pressed.emit(_adventurer))
@@ -146,19 +153,35 @@ func _input(event: InputEvent) -> void:
 		swiped.emit(1 if travel.x < 0 else -1)
 
 
-## Landscape sets the card and the gear side by side: the card stacks its figure, name and status,
-## and its training XP and Stop, and the gear's cells are as narrow as their boxes. Portrait stacks
-## the two. The gear goes four to a row either way.
+## The header and stats sit over the gear either way. Landscape fits all of it and Back on one
+## screen: all eight gear slots in one row, tighter cards and gaps, Promote's refusal beside the
+## buttons, and no section label lines or notes under the stats. Portrait sets the gear four to a row.
 func set_landscape(landscape: bool) -> void:
 	_landscape = landscape
-	($Box/Scroll/Content as BoxContainer).vertical = not landscape
-	($Box/Scroll/Content/Card/Header/Row as BoxContainer).vertical = landscape
-	($Box/Scroll/Content/Card/Header/Row/Words/NameLine as BoxContainer).vertical = landscape
-	($Box/Scroll/Content/Card/Header/Row/Words/Training as BoxContainer).vertical = landscape
-	# The card is too narrow in landscape for the health text's fixed width to leave room for a bar.
-	(_health.get_child(1) as Control).custom_minimum_size.x = 0.0 if landscape else HEALTH_TEXT_WIDTH_PX
-	if not _gear_shown.is_empty():
-		_show_gear(_gear_shown[1])
+	var pick := func(gaps: Vector2i) -> int: return gaps.y if landscape else gaps.x
+	_gear.columns = GEAR_COLUMNS_LANDSCAPE if landscape else GEAR_COLUMNS_PORTRAIT
+	for card: PanelContainer in [$Box/Scroll/Content/Card/Header, $Box/Scroll/Content/Card/Stats]:
+		card.theme_type_variation = &"CardTight" if landscape else &""
+	for line: Control in [$Box/Scroll/Content/Card/Stats/Rows/Line, $Box/Scroll/Content/GearColumn/Line]:
+		line.visible = not landscape
+	for box: Control in [$Box/Scroll/Content, $Box/Scroll/Content/Card, $Box/Scroll/Content/GearColumn]:
+		box.add_theme_constant_override(&"separation", pick.call(SECTION_GAP_PX))
+	var words := $Box/Scroll/Content/Card/Header/Row/Words as VBoxContainer
+	words.add_theme_constant_override(&"separation", pick.call(HEADER_LINE_GAP_PX))
+	($Box/Scroll/Content/Card/Stats/Rows/Grid as GridContainer).add_theme_constant_override(&"v_separation", pick.call(CHIP_ROW_GAP_PX))
+	var back := $Box/Back as Button
+	back.custom_minimum_size.y = pick.call(BACK_HEIGHT_PX)
+	if landscape:
+		back.add_theme_font_size_override(&"font_size", Roster.SMALL_FONT_PX)
+	else:
+		back.remove_theme_font_size_override(&"font_size")
+	# The wide landscape header has room for the refusal on the buttons' row, on one line.
+	var actions := $Box/Scroll/Content/Card/Header/Row/Words/Actions as Control
+	_promote_reason.reparent(actions if landscape else words, false)
+	if not landscape:
+		words.move_child(_promote_reason, actions.get_index() + 1)
+	_promote_reason.autowrap_mode = TextServer.AUTOWRAP_OFF if landscape else TextServer.AUTOWRAP_WORD_SMART
+	_show_notes()
 
 
 ## Shows `adventurer` as `dispatch` has them at `now`: Promote once they reach the level their next
@@ -170,7 +193,6 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	var adventurers := dispatch.adventurers
 	var info: Dictionary = adventurers.roster[adventurer]
 	_figure.texture = QuestBoard.figure(Faces.seed_of(adventurer, info), adventurers.gear.worn[adventurer])
-	var level: int = adventurers.levels[adventurer]
 	_name.text = info["name"]
 	_status.text = dispatch.status(adventurer, now)
 	_status.theme_type_variation = Roster.status_look(dispatch, adventurer, now)
@@ -183,7 +205,7 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	_xp.visible = not _level_up.visible
 	_xp_bar.max_value = needed
 	_xp_bar.value = xp
-	_xp_text.text = xp_line(xp, needed, level + 1)
+	_xp_text.text = "%d / %d" % [xp, needed]
 	var next_rank := adventurers.next_rank(adventurer)
 	var reason := adventurers.promotion_refusal(adventurer, gold, not dispatch.quest_of(adventurer).is_empty())
 	# Promote shows from the level the next rank needs; short of gold or out on a quest, it says why.
@@ -203,29 +225,31 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	_dismiss.disabled = not keeps_them.is_empty()
 	_dismiss.text = "Dismiss" if keeps_them.is_empty() else keeps_them
 	var hint := dispatch.training_hint(adventurer, now)
-	_training_notes.text = "Grows fastest in " + hint
-	_training_notes.visible = not hint.is_empty()
+	_training_notes.text = "" if hint.is_empty() else "Grows fastest in " + hint
+	var title_stats := adventurers.title_stats(adventurer)
 	for stat: String in Adventurers.STATS:
-		var total := adventurers.stat_total(adventurer, stat)
 		var from_gear := adventurers.gear.bonus(adventurer, stat)
-		_bars[stat].value = total
-		_own_bars[stat].value = total - from_gear
-		_values[stat].text = str(total)
-		_gear_values[stat].text = "+%d" % from_gear if from_gear > 0 else ""
+		_values[stat].text = str(adventurers.stat_total(adventurer, stat))
+		_gear_values[stat].text = "+%d" % from_gear
+		_gear_values[stat].visible = from_gear > 0
+		_chips[stat].theme_type_variation = &"StatChipTitle" if stat in title_stats else &"StatChip"
 	var history: Array = adventurers.history[adventurer]
-	if history != _history_shown:
-		_history_shown = history.duplicate(true)
-		for line: Node in _history.get_children():
-			line.queue_free()
-		for i: int in range(history.size() - 1, -1, -1):
-			var line := Label.new()
-			line.text = _history_line(history[i])
-			line.theme_type_variation = &"Secondary"
-			_history.add_child(line)
-	var gear_shown := [adventurer, adventurers.gear.worn[adventurer].duplicate()]
+	_last_level_up.text = "" if history.is_empty() else _history_line(history.back())
+	_show_notes()
+	var fits: Array[int] = []
+	for slot: String in Gear.SLOTS:
+		fits.append(adventurers.gear.fitting(slot).size())
+	var gear_shown := [adventurer, adventurers.gear.worn[adventurer].duplicate(), fits]
 	if gear_shown != _gear_shown:
 		_gear_shown = gear_shown
-		_show_gear(gear_shown[1])
+		_show_gear(gear_shown[1], fits)
+
+
+# The notes under the stats, the latest level-up and the training hint, each while it has words;
+# none in landscape.
+func _show_notes() -> void:
+	for note: Label in [_last_level_up, _training_notes]:
+		note.visible = not _landscape and not note.text.is_empty()
 
 
 ## An item's icon at a whole `scale` of its 28 × 28 pixels, so they stay crisp.
@@ -264,52 +288,74 @@ static func bonus_label(item: String) -> Label:
 	return label
 
 
-# The eight slots: each item's icon, the slot, its name and bonus; an empty slot dashed. A tap
-# anywhere on a slot, box or words, opens it.
-func _show_gear(worn: Dictionary) -> void:
+# The eight slots, in Gear.SLOTS order: each item's icon over the slot's name, an empty slot dashed.
+# A slot that `fits` (a count per slot, in the same order) says stash items fit is bordered gold and
+# counts them in a badge on its corner, an empty one with a "+" inside. A tap anywhere on a slot,
+# box or name, opens it.
+func _show_gear(worn: Dictionary, fits: Array[int]) -> void:
 	for cell: Node in _gear.get_children():
 		cell.queue_free()
-	for slot: String in Gear.SLOTS:
+	_fit_key.visible = fits.any(func(count: int) -> bool: return count > 0)
+	var slots := Gear.SLOTS.keys()
+	for i: int in slots.size():
+		var slot: String = slots[i]
 		var item: String = worn.get(slot, "")
+		var fit := fits[i]
 		var box := PanelContainer.new()
-		box.custom_minimum_size = Vector2(172, 172)
+		box.custom_minimum_size = Vector2(SLOT_BOX_PX, SLOT_BOX_PX)
 		box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		var slot_name := Label.new()
 		slot_name.text = Gear.SLOTS[slot].to_upper()
 		slot_name.theme_type_variation = &"Caption"
+		slot_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var cell := VBoxContainer.new()
-		cell.custom_minimum_size = Vector2(0 if _landscape else 228, 0)
 		cell.add_theme_constant_override("separation", 6)
 		cell.add_child(box)
 		cell.add_child(slot_name)
 		if item.is_empty():
-			box.theme_type_variation = &"ItemBoxEmpty"
+			box.theme_type_variation = &"ItemBoxEmptyFit" if fit > 0 else &"ItemBoxEmpty"
 			box.draw.connect(_draw_dashed_box.bind(box))
-			var empty := Label.new()
-			empty.text = "Empty"
-			empty.theme_type_variation = &"Caption"
-			cell.add_child(empty)
+			if fit > 0:
+				var plus := Label.new()
+				plus.text = "+"
+				plus.theme_type_variation = &"GoldText"
+				plus.add_theme_font_size_override(&"font_size", SLOT_PLUS_FONT_PX)
+				plus.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				plus.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+				box.add_child(plus)
 		else:
-			box.theme_type_variation = &"ItemBox"
+			box.theme_type_variation = &"ItemBoxFit" if fit > 0 else &"ItemBox"
 			box.add_child(item_icon(item, 5))
-			cell.add_child(item_name(item))
-			var bonus := bonus_label(item)
-			# Landscape's narrow cells fit a stat's name whole only in smaller type.
-			if _landscape:
-				bonus.add_theme_font_size_override(&"font_size", LANDSCAPE_BONUS_FONT_PX)
-			cell.add_child(bonus)
-		for label: Node in cell.get_children():
-			if label is Label:
-				(label as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		# A MarginContainer stacks its children, so the button covers the whole cell and the cell
 		# sets the size.
 		var open := Button.new()
 		open.flat = true
 		open.pressed.connect(slot_pressed.emit.bind(_adventurer, slot))
+		if fit > 0:
+			open.add_child(_fit_badge(fit))
 		var stack := MarginContainer.new()
+		stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		stack.add_child(cell)
 		stack.add_child(open)
 		_gear.add_child(stack)
+
+
+# The gold badge counting `fit` stash items, on the top-right corner of a slot's box. It hangs from
+# the slot's button, which no container lays out, from the top centre, where the box is centred.
+static func _fit_badge(fit: int) -> Label:
+	var badge := Label.new()
+	badge.text = str(fit)
+	badge.theme_type_variation = &"FitBadge"
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.anchor_left = 0.5
+	badge.anchor_right = 0.5
+	badge.offset_left = SLOT_BOX_PX / 2.0 + FIT_BADGE_OVERHANG_PX - FIT_BADGE_PX
+	badge.offset_right = SLOT_BOX_PX / 2.0 + FIT_BADGE_OVERHANG_PX
+	badge.offset_top = -FIT_BADGE_OVERHANG_PX
+	badge.offset_bottom = FIT_BADGE_PX - FIT_BADGE_OVERHANG_PX
+	return badge
 
 
 # A StyleBox can't draw a dashed border, so an empty slot's box is drawn here.

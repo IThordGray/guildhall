@@ -422,6 +422,35 @@ func test_a_tie_goes_to_the_stat_shown_first() -> void:
 	assert_eq(Adventurers.title_of(even), "Envoy")
 
 
+func test_a_pair_title_is_behind_both_stats_of_its_pair() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	# Defence 8 and Strength 4: a Fighter.
+	_add_wren(adventurers)
+	assert_eq(adventurers.title_stats("wren"), PackedStringArray(["defence", "strength"]))
+
+
+func test_a_title_from_one_stat_is_behind_that_stat_alone_gear_included() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	# Chapel plate's Defence +4 lifts Ilse's Defence over her Presence: Mind and Defence are no
+	# pair, so she is a Scholar by her Mind.
+	adventurers.gear.stow("chapel_plate")
+	adventurers.gear.wear("ilse", 0)
+	assert_eq(adventurers.title_stats("ilse"), PackedStringArray(["mind"]))
+
+
+func test_the_stats_behind_a_title_break_ties_toward_the_stat_shown_first() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	var stats := {}
+	for stat: String in Adventurers.STATS:
+		stats[stat] = 3
+	# Spirit, Defence and Presence tie: Spirit and Defence come first, a Paladin's pair.
+	stats["spirit"] = 5
+	stats["defence"] = 5
+	stats["presence"] = 5
+	adventurers.add("wren", {"name": "Wren", "rank": "F"}, stats, stats)
+	assert_eq(adventurers.title_stats("wren"), PackedStringArray(["spirit", "defence"]))
+
+
 func test_changing_gear_can_change_a_title_and_back() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	# Ilse's Mind 11 and Presence 6 make her an Envoy; Chapel plate's Defence +4 lifts her
