@@ -54,6 +54,35 @@ func test_after_an_adventurer_joins_the_roster_shows_five_rows_the_newcomer_last
 	await wait_process_frames(1)
 
 
+# Where in `list` the rows marked as the one shown beside the roster are.
+func _marked_rows(list: Node) -> Array[int]:
+	var marked: Array[int] = []
+	for row: Node in list.get_children():
+		if (row as Button).theme_type_variation == &"ListRowChosen":
+			marked.append(row.get_index())
+	return marked
+
+
+func test_the_marked_row_stays_marked_when_someone_joins_and_the_mark_moves_to_the_row_marked_next() -> void:
+	var roster := _screen("res://screens/roster.tscn") as Roster
+	var list := roster.get_node("Scroll/Box/List")
+	roster.show_dispatch(_dispatch, 1_000)
+	roster.mark("ilse")
+	assert_eq(_marked_rows(list), [1] as Array[int])
+	var ilse_row := list.get_child(1)
+	_add_wren()
+	roster.show_dispatch(_dispatch, 1_001)
+	# The rows were built again, and Ilse's new row is the one marked.
+	assert_ne(list.get_child(1), ilse_row)
+	assert_eq(_marked_rows(list), [1] as Array[int])
+	roster.mark("wren")
+	assert_eq(_marked_rows(list), [4] as Array[int])
+	roster.mark("")
+	assert_eq(list.get_child_count(), 5)
+	assert_eq(_marked_rows(list), [] as Array[int])
+	await wait_process_frames(1)
+
+
 func test_after_an_adventurer_joins_the_party_picker_shows_five_the_newcomer_last_and_sendable() -> void:
 	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
 	var list := picker.get_node("Root/Scroll/Box/List")

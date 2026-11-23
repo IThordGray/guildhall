@@ -9,6 +9,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 script = ExtResource("1_adventurer")
 
 [node name="Box" type="VBoxContainer" parent="."]
@@ -314,6 +315,7 @@ size_flags_horizontal = 3
 theme_type_variation = &"SectionGold"
 vertical_alignment = 1
 autowrap_mode = 3
+text_overrun_behavior = 3
 
 [node name="Done" type="Button" parent="Box/Scroll/Content/Tray/Rows/Line"]
 layout_mode = 2

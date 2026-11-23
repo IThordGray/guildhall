@@ -8,8 +8,8 @@ const RAIL_WIDTH_PX: float = 200.0
 const SIDE_MARGIN_PX: float = 44.0
 ## In landscape, the space between the screens and the window's top and bottom.
 const END_MARGIN_PX: float = 32.0
-## In landscape, Roster, Debrief, Level up, the Armory, the swap pick and the stash pick are a
-## centred column at most this wide.
+## In landscape, Debrief, Level up, the Armory, the swap pick and the stash pick are a centred
+## column at most this wide.
 const COLUMN_WIDTH_PX: float = 1100.0
 ## In landscape, the share of the body's width the quest board takes; the party picker has the rest.
 const BOARD_SHARE: float = 0.42
@@ -48,7 +48,7 @@ var _swapping_in: String = ""
 var _item: String = ""
 ## Where the debrief the Debrief screen shows is in Dispatch.debriefs.
 var _open_debrief: int = -1
-## The adventurer the Adventurer screen shows.
+## The adventurer the Adventurer screen shows, or last showed.
 var _shown_adventurer: String = ""
 ## The screen the Adventurer screen's Back returns to: the Roster or the Debrief it was opened from.
 var _adventurer_from: Control
@@ -126,6 +126,7 @@ func _ready() -> void:
 	_adventurer.train_pressed.connect(_on_train_pressed)
 	_adventurer.stop_training_pressed.connect(_on_stop_training_pressed)
 	_adventurer.swiped.connect(_on_adventurer_swiped)
+	_adventurer.tray_toggled.connect(_on_adventurer_tray_toggled)
 	_level_up.continue_pressed.connect(_on_level_up_continue)
 	_tick.timeout.connect(_on_tick)
 	_test_speed.pressed.connect(_on_test_speed_pressed)
@@ -405,13 +406,31 @@ func _on_debrief_done() -> void:
 
 
 # Opens `adventurer` from `from`, the Roster or a Debrief, which Back returns to. A debrief stays
-# unread.
+# unread. In landscape the roster stays beside them, without Back, unless their tray is open.
 func _open_adventurer(adventurer: String, from: Control) -> void:
 	_shown_adventurer = adventurer
 	_adventurer_from = from
+	var beside := _landscape and from == _roster
+	_adventurer.set_landscape(_landscape, beside)
 	_show_adventurer(_now())
-	from.hide()
+	from.visible = beside and not _adventurer.tray_open()
 	_adventurer.show()
+
+
+# The Roster tab. In landscape, the roster beside the adventurer last shown while they are still in
+# the guild, else the first in roster order; in portrait, the roster alone.
+func _show_roster() -> void:
+	if not _landscape:
+		_roster.show()
+		return
+	var roster := _dispatch.adventurers.roster
+	_open_adventurer(_shown_adventurer if roster.has(_shown_adventurer) else roster.keys()[0], _roster)
+
+
+# Beside the roster, the open tray takes the roster's column and gives it back when it closes.
+func _on_adventurer_tray_toggled(open: bool) -> void:
+	if _adventurer.visible and _landscape and _adventurer_from == _roster:
+		_roster.visible = not open
 
 
 func _on_loot_swap_pressed(item: String) -> void:
@@ -441,12 +460,13 @@ func _on_sell_pressed(item: String) -> void:
 func _on_armory_pressed() -> void:
 	_armory.show_gear(_dispatch.adventurers)
 	_roster.hide()
+	_adventurer.hide()
 	_armory.show()
 
 
 func _on_armory_back() -> void:
 	_armory.hide()
-	_roster.show()
+	_show_roster()
 
 
 func _on_hire_pressed(slot: int) -> void:
@@ -471,6 +491,7 @@ func _on_turn_away_pressed() -> void:
 func _on_swap_pressed() -> void:
 	_swap_pick.show_dispatch(_walk_ins.waiting_name(), _dispatch, _now())
 	_roster.hide()
+	_adventurer.hide()
 	_swap_pick.show()
 
 
@@ -481,7 +502,7 @@ func _on_swap_picked(adventurer: String) -> void:
 
 func _close_swap_pick() -> void:
 	_swap_pick.hide()
-	_roster.show()
+	_show_roster()
 
 
 func _on_dismiss_pressed(adventurer: String) -> void:
@@ -499,7 +520,9 @@ func _on_adventurer_back() -> void:
 	# A level-up taken meanwhile no longer waits, and gear taken off may have filled the stash.
 	if _adventurer_from == _debrief:
 		_debrief.show_debrief(_dispatch.debriefs[_open_debrief], _dispatch)
-	_adventurer_from.show()
+		_debrief.show()
+	else:
+		_show_roster()
 
 
 func _on_level_up_pressed(adventurer: String) -> void:
@@ -507,6 +530,7 @@ func _on_level_up_pressed(adventurer: String) -> void:
 	if gains.is_empty():
 		return
 	_level_up.show_level_up(adventurer, gains, _dispatch.adventurers)
+	_roster.hide()
 	_adventurer.hide()
 	_level_up.show()
 	_checkpoint(_now())
@@ -544,15 +568,16 @@ func _on_stop_training_pressed(adventurer: String) -> void:
 	_checkpoint(now)
 
 
-# Shows the adventurer the Adventurer screen is on, as they are at `now`.
+# Shows the adventurer the Adventurer screen is on, as they are at `now`, their row marked while
+# the roster is beside them.
 func _show_adventurer(now: int) -> void:
 	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _gold, _hall.rooms_done("training_room", now), now)
+	_roster.mark(_shown_adventurer if _landscape and _adventurer_from == _roster else "")
 
 
 func _on_level_up_continue() -> void:
 	_level_up.hide()
-	_show_adventurer(_now())
-	_adventurer.show()
+	_open_adventurer(_shown_adventurer, _adventurer_from)
 
 
 # A tab pressed in code does not signal its group, so the tab is shown here.
@@ -565,7 +590,7 @@ func _on_go_send() -> void:
 func _on_tab_pressed(tab: BaseButton) -> void:
 	_hall_view.visible = tab == $TabBar/Tabs/Hall
 	_debrief.hide()
-	_roster.visible = tab == $TabBar/Tabs/Roster
+	_roster.hide()
 	_adventurer.hide()
 	_level_up.hide()
 	_armory.hide()
@@ -574,6 +599,8 @@ func _on_tab_pressed(tab: BaseButton) -> void:
 	_convert_panel.hide()
 	_picker.close()
 	_show_quests(tab == $TabBar/Tabs/Quests)
+	if tab == $TabBar/Tabs/Roster:
+		_show_roster()
 
 
 # The window's shape picks the layout, wider than tall being landscape: the rail instead of the
@@ -585,6 +612,7 @@ func _lay_out() -> void:
 	if landscape == _landscape:
 		return
 	_landscape = landscape
+	var roster_tab := _roster.visible or (_adventurer.visible and _adventurer_from == _roster)
 	var portrait_size := Vector2i(ProjectSettings.get_setting("display/window/size/viewport_width"), ProjectSettings.get_setting("display/window/size/viewport_height"))
 	window.content_scale_size = Vector2i(portrait_size.y, portrait_size.x) if landscape else portrait_size
 	_top_bar.visible = not landscape
@@ -606,10 +634,18 @@ func _lay_out() -> void:
 		_place(_body, full, Vector4(RAIL_WIDTH_PX + SIDE_MARGIN_PX, END_MARGIN_PX, -SIDE_MARGIN_PX, -END_MARGIN_PX))
 		_place(_board, Vector4(0, 0, BOARD_SHARE, 1), Vector4(0, 0, -SIDE_MARGIN_PX / 2, 0))
 		_place(_adventurer, full, Vector4.ZERO)
-		for column: Control in [_debrief, _roster, _level_up, _armory, _swap_pick, _stash_pick, _convert_panel]:
+		# Where the Adventurer screen keeps its left column.
+		_place(_roster, Vector4(0, 0, Adventurer.SIDE_SHARE, 1), Vector4(0, 0, -Adventurer.SIDE_GAP_PX / 2, 0))
+		for column: Control in [_debrief, _level_up, _armory, _swap_pick, _stash_pick, _convert_panel]:
 			_place(column, Vector4(0.5, 0, 0.5, 1), Vector4(-COLUMN_WIDTH_PX / 2, 0, COLUMN_WIDTH_PX / 2, 0))
 		_place(_picker, Vector4(BOARD_SHARE, 0, 1, 1), Vector4(SIDE_MARGIN_PX / 2, 0, 0, 0))
 	_show_quests(_board.visible or _picker.visible)
+	# The Roster tab keeps the adventurer it shows: beside the roster in landscape, on their own
+	# screen with Back in portrait.
+	if roster_tab and landscape:
+		_show_roster()
+	elif roster_tab and _adventurer.visible:
+		_open_adventurer(_shown_adventurer, _roster)
 
 
 # Sets `control`'s anchors and offsets, each given as left, top, right, bottom. Anchors pushed

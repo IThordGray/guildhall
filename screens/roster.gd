@@ -42,6 +42,8 @@ var _statuses: Dictionary[String, Label] = {}
 var _details: Dictionary[String, Label] = {}
 var _healths: Dictionary[String, HBoxContainer] = {}
 var _level_ups: Dictionary[String, Label] = {}
+## The adventurer whose row is marked as the one shown beside the roster; "" for none.
+var _marked: String = ""
 ## The quiet last line in the rows' card while beds outnumber the roster, and its words.
 var _free: Control
 var _free_beds: Label
@@ -114,6 +116,20 @@ func show_walk_in(walk_in: Dictionary, free_bed: bool) -> void:
 		_swap.visible = not free_bed
 
 
+## Marks `adventurer`'s row as the one shown beside the roster, and no other; "" marks none.
+func mark(adventurer: String) -> void:
+	if adventurer == _marked:
+		return
+	_marked = adventurer
+	_show_mark()
+
+
+func _show_mark() -> void:
+	var rows := _list.get_children()
+	for i: int in rows.size():
+		(rows[i] as Button).theme_type_variation = &"ListRowChosen" if _built[i] == _marked else &"ListRow"
+
+
 ## `adventurer`'s title, rank and level, in words for the player.
 static func details_line(adventurers: Adventurers, adventurer: String) -> String:
 	return "%s · rank %s · level %d" % [adventurers.title(adventurer), adventurers.roster[adventurer]["rank"], adventurers.levels[adventurer]]
@@ -154,6 +170,7 @@ func _build(adventurers: Adventurers) -> void:
 		_level_ups[adventurer] = row.find_child("LevelUp", true, false)
 		row.pressed.connect(adventurer_pressed.emit.bind(adventurer))
 		_list.add_child(row)
+	_show_mark()
 
 
 # The quiet line kept after the rows, whatever the roster: "+  N beds free", not tappable. Internal,

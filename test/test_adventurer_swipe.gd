@@ -174,7 +174,7 @@ func test_a_swipe_that_ends_on_a_gear_slot_pages_in_landscape_and_does_not_open_
 	var on_slot := (slots[1] as Button).get_global_rect().get_center()
 	# A tap on a slot opens its tray, so the swipe below lands on a live button.
 	_mouse_drag(on_slot, on_slot)
-	assert_eq(_open_tray(), "CLOTHES · FITS FROM THE STASH")
+	assert_eq(_open_tray(), "CLOTHES · BRAM")
 	await wait_process_frames(1)
 	# Paging closes the tray; the slot's button firing would open Maren's.
 	_mouse_drag(on_slot + Vector2(-300, 0), on_slot)
@@ -194,13 +194,25 @@ func test_a_tap_on_a_gear_slots_box_or_its_name_under_it_opens_that_slots_tray_o
 	var on_box := (cell.get_child(0) as Control).get_global_rect().get_center()
 	var on_name := slot_name.get_global_rect().get_center()
 	_mouse_drag(on_box, on_box)
-	assert_eq(_open_tray(), "CLOTHES · FITS FROM THE STASH")
+	assert_eq(_open_tray(), "CLOTHES · BRAM")
 	await wait_process_frames(1)
 	_mouse_drag(on_name, on_name)
 	assert_eq(_open_tray(), "")
 	await wait_process_frames(1)
 	_mouse_drag(on_name, on_name)
-	assert_eq(_open_tray(), "CLOTHES · FITS FROM THE STASH")
+	assert_eq(_open_tray(), "CLOTHES · BRAM")
+
+
+func test_beside_the_roster_a_swipe_on_the_adventurer_pages_and_one_on_the_roster_column_does_not() -> void:
+	_screen.set_landscape(true, true)
+	await wait_process_frames(1)
+	var adventurer_side := (_screen.get_node("Box") as Control).get_global_rect()
+	var on_roster := Vector2(adventurer_side.position.x - 100, adventurer_side.get_center().y)
+	_mouse_drag(on_roster, on_roster + Vector2(-200, 0))
+	_touch_drag(on_roster, on_roster + Vector2(-200, 0))
+	assert_eq(_shown_name(), "Bram")
+	_mouse_drag(adventurer_side.get_center(), adventurer_side.get_center() + Vector2(-200, 0))
+	assert_eq(_shown_name(), "Ilse")
 
 
 func test_a_cancelled_touch_is_not_a_swipe() -> void:

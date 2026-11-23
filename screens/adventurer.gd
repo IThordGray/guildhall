@@ -19,6 +19,8 @@ signal stop_training_pressed(adventurer: String)
 signal dismiss_pressed(adventurer: String)
 ## The player swiped to the next adventurer in roster order (`step` 1) or the previous (`step` -1).
 signal swiped(step: int)
+## A slot's tray opened (`open` true) or closed.
+signal tray_toggled(open: bool)
 
 ## A stat at this value fills its bar.
 const STAT_BAR_FULL: int = 20
@@ -43,13 +45,14 @@ const STASH_ICON_SCALE: Vector2i = Vector2i(3, 2)
 const TRAY_ICON_SCALE: Vector2i = Vector2i(5, 2)
 ## How tall a tray row is: the design's 52 dp. The space between its icon, words and button, and the
 ## size of its item name and of its line of changes: smaller in the narrow landscape column, so the
-## name and the changes each keep to one line.
+## name and the changes each keep to one line, and three changes fit whole beside Wear.
 const TRAY_ROW_PX: int = 144
-const TRAY_GAP_PX: Vector2i = Vector2i(Roster.ROW_GAP_PX, 16)
+const TRAY_GAP_PX: Vector2i = Vector2i(Roster.ROW_GAP_PX, 8)
 const TRAY_NAME_FONT_PX: Vector2i = Vector2i(36, Roster.SMALL_FONT_PX)
-const CHANGE_FONT_PX: Vector2i = Vector2i(30, 24)
-## The space between the parts of a tray row's line of changes and the dots between them.
-const CHANGE_GAP_PX: int = 10
+const CHANGE_FONT_PX: Vector2i = Vector2i(30, 22)
+## The space between the parts of a tray row's line of changes and the dots between them: tighter
+## in landscape, as above.
+const CHANGE_GAP_PX: Vector2i = Vector2i(10, 6)
 ## The stats' short names, for a tray row's one line of changes.
 const SHORT_STATS: Dictionary[String, String] = {
 	"strength": "Str", "agility": "Agi", "perception": "Per", "mind": "Mind", "spirit": "Spi",
@@ -102,6 +105,9 @@ var _stash_shown: Array = []
 var _tray_shown: Array = []
 ## Whether the landscape layout shows, which leaves out the notes under the stats.
 var _landscape: bool = false
+## Whether, in landscape, the roster sits in the left column beside this screen, giving it up only
+## to the open tray.
+var _beside_roster: bool = false
 ## Whether a press that started on this screen is held, so its release may be a swipe.
 var _press_held: bool = false
 ## Where the held press started, in viewport pixels.
@@ -195,7 +201,9 @@ func _input(event: InputEvent) -> void:
 	if click == null or click.button_index != MOUSE_BUTTON_LEFT or not is_visible_in_tree():
 		return
 	if click.pressed:
-		_press_held = get_global_rect().has_point(click.position)
+		# Beside the roster, only the adventurer's side pages; a drag on the roster or the tray does not.
+		var area: Control = $Box if _beside_roster else self
+		_press_held = area.get_global_rect().has_point(click.position)
 		_press_at = click.position
 		return
 	var held := _press_held
@@ -215,14 +223,27 @@ func _input(event: InputEvent) -> void:
 ## fits the rest and Back beside it on one screen: all eight gear slots in one row, tighter cards
 ## and gaps, Promote's refusal beside the buttons, and no section label lines, notes under the stats
 ## or hint in the stash's header.
-func set_landscape(landscape: bool) -> void:
+## `beside_roster`, in landscape, leaves the left column to the roster except while the tray is open
+## there, and puts the stash on one line under the gear, and no Back.
+func set_landscape(landscape: bool, beside_roster: bool = false) -> void:
 	_landscape = landscape
+	_beside_roster = landscape and beside_roster
 	var side := $Side as ScrollContainer
-	side.visible = landscape
+	side.visible = landscape and not (_beside_roster and _tray_slot.is_empty())
 	side.set_anchor_and_offset(SIDE_RIGHT, SIDE_SHARE, -SIDE_GAP_PX / 2)
 	($Box as Control).set_anchor_and_offset(SIDE_LEFT, SIDE_SHARE if landscape else 0.0, SIDE_GAP_PX / 2 if landscape else 0.0)
-	for part: Control in [_stash, _tray]:
-		part.reparent($Side/Content if landscape else $Box/Scroll/Content, false)
+	_stash.reparent($Box/Scroll/Content if not landscape or _beside_roster else $Side/Content, false)
+	_tray.reparent($Side/Content if landscape else $Box/Scroll/Content, false)
+	# Beside the roster the stash's title and its tiles share one line, the tiles taking the room
+	# after the title.
+	_stash_title.size_flags_horizontal = Control.SIZE_FILL if _beside_roster else Control.SIZE_EXPAND_FILL
+	var stash_line := _stash_title.get_parent()
+	_tiles.reparent(stash_line if _beside_roster else stash_line.get_parent(), false)
+	if not _beside_roster:
+		_tiles.get_parent().move_child(_tiles, stash_line.get_index() + 1)
+	_tiles.size_flags_horizontal = Control.SIZE_EXPAND_FILL if _beside_roster else Control.SIZE_FILL
+	_tiles.alignment = FlowContainer.ALIGNMENT_END if _beside_roster else FlowContainer.ALIGNMENT_BEGIN
+	_tray_title.autowrap_mode = TextServer.AUTOWRAP_OFF if landscape else TextServer.AUTOWRAP_WORD_SMART
 	_gear.columns = GEAR_COLUMNS_LANDSCAPE if landscape else GEAR_COLUMNS_PORTRAIT
 	_gear.add_theme_constant_override(&"h_separation", _by_layout(SLOT_GAP_PX))
 	# Its own width in landscape, from the left, so the last slot's badge has room before the
@@ -230,6 +251,9 @@ func set_landscape(landscape: bool) -> void:
 	_gear.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN if landscape else Control.SIZE_FILL
 	for card: PanelContainer in [$Box/Scroll/Content/Card/Header, $Box/Scroll/Content/Card/Stats, _stash]:
 		card.theme_type_variation = &"CardTight" if landscape else &""
+	# Beside the roster the stash is a bare line, so a second line of tiles still fits.
+	if _beside_roster:
+		_stash.theme_type_variation = &"Bare"
 	for line: Control in [$Box/Scroll/Content/Card/Stats/Rows/Line, $Box/Scroll/Content/GearColumn/Line]:
 		line.visible = not landscape
 	for box: Control in [$Box/Scroll/Content, $Box/Scroll/Content/Card, $Box/Scroll/Content/GearColumn]:
@@ -238,6 +262,7 @@ func set_landscape(landscape: bool) -> void:
 	words.add_theme_constant_override(&"separation", _by_layout(HEADER_LINE_GAP_PX))
 	($Box/Scroll/Content/Card/Stats/Rows/Grid as GridContainer).add_theme_constant_override(&"v_separation", _by_layout(CHIP_ROW_GAP_PX))
 	var back := $Box/Back as Button
+	back.visible = not _beside_roster
 	back.custom_minimum_size.y = _by_layout(BACK_HEIGHT_PX)
 	if landscape:
 		back.add_theme_font_size_override(&"font_size", Roster.SMALL_FONT_PX)
@@ -351,14 +376,18 @@ func _show_gear_choice() -> void:
 	if gear_shown != _gear_shown:
 		_gear_shown = gear_shown
 		_show_gear(gear_shown[1], fits)
-	_stash.visible = _tray_slot.is_empty()
+	# Beside the roster the stash stays under the gear, dimmed, while the tray has the left column.
+	_stash.visible = _tray_slot.is_empty() or _beside_roster
+	_stash.modulate.a = 1.0 if _tray_slot.is_empty() else SLOT_DIM_ALPHA
 	_tray.visible = not _tray_slot.is_empty()
+	if _beside_roster:
+		($Side as Control).visible = _tray.visible
 	if _stash.visible:
 		var stash_shown := [gear.stash.duplicate(), gear.stash_cap]
 		if stash_shown != _stash_shown:
 			_stash_shown = stash_shown
 			_show_stash(gear)
-	else:
+	if _tray.visible:
 		var worn: String = gear.worn[_adventurer].get(_tray_slot, "")
 		var tray_shown := [_adventurer, _tray_slot, worn, gear.stash.duplicate(), _picked, _dispatch.wear_refusal(_adventurer), _dispatch.take_off_refusal(_adventurer, _tray_slot)]
 		if tray_shown != _tray_shown:
@@ -397,9 +426,17 @@ func _scroll_to_tray() -> void:
 # The tray open on `slot` ("" for closed) with the stash item at `picked` picked; a fresh choice
 # lights no Wear's changes.
 func _set_tray(slot: String, picked: int) -> void:
+	var toggled := slot.is_empty() != _tray_slot.is_empty()
 	_tray_slot = slot
 	_picked = picked
 	_changed = PackedStringArray()
+	if toggled:
+		tray_toggled.emit(not slot.is_empty())
+
+
+## Whether a slot's tray is open.
+func tray_open() -> bool:
+	return not _tray_slot.is_empty()
 
 
 # A tap on `slot` opens its tray, or closes it when it is the one open.
@@ -564,13 +601,18 @@ func _show_tray(worn: String) -> void:
 	for row: Node in _tray_list.get_children():
 		row.queue_free()
 	var gear := _dispatch.adventurers.gear
-	_tray_title.text = "%s · FITS FROM THE STASH" % Gear.SLOTS[_tray_slot].to_upper()
+	# The narrow landscape column has room beside Done for a short title only.
+	var whose: String = _dispatch.adventurers.roster[_adventurer]["name"].to_upper() if _landscape else "FITS FROM THE STASH"
+	_tray_title.text = "%s · %s" % [Gear.SLOTS[_tray_slot].to_upper(), whose]
 	if not worn.is_empty():
 		var wearing := Label.new()
 		wearing.text = "Wearing now"
 		wearing.theme_type_variation = &"Caption"
 		var take_off := _tray_button("Take off", &"OutlineButton", _dispatch.take_off_refusal(_adventurer, _tray_slot))
-		take_off.pressed.connect(func() -> void: take_off_pressed.emit(_adventurer, _tray_slot))
+		# Taking it off loses what it adds, so those stats stay lit, as after Wear.
+		take_off.pressed.connect(func() -> void:
+			_changed = PackedStringArray(Gear.ITEMS[worn]["bonus"].keys())
+			take_off_pressed.emit(_adventurer, _tray_slot))
 		_tray_list.add_child(Touch.whole_card(_tray_row(worn, wearing, take_off, &"TrayRowWorn"), take_off))
 	var fitting := gear.fitting(_tray_slot)
 	if fitting.is_empty():
@@ -644,7 +686,7 @@ func _change_line(change: Dictionary) -> Control:
 		same.theme_type_variation = &"Caption"
 		parts.append(same)
 	var line := HBoxContainer.new()
-	line.add_theme_constant_override(&"separation", CHANGE_GAP_PX)
+	line.add_theme_constant_override(&"separation", _by_layout(CHANGE_GAP_PX))
 	for i: int in parts.size():
 		if i > 0:
 			var dot := Label.new()
