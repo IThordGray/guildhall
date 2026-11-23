@@ -25,7 +25,8 @@ it merges. Screens and wording live in the code.
   adventurer go (dismiss, swap) or gives up an item (sell, swap loot in) confirms in a small centred
   card showing only its cost and time, what leaves, or the gold it brings, with Cancel and the action. Any scroll scrolls by dragging anywhere on it, and a control fires
   only on a tap that stayed within about 10 dp; a press that turns into a drag never fires. A card
-  with only one action does it from a tap anywhere on it.
+  with only one action does it from a tap anywhere on it; a candidate's or the walk-in's card opens
+  their sheet instead, and only its buttons act.
 - A list of slots shows what can be acted on first, and at most one line for the soonest refill.
 - A button shows only when its action applies (Train, Promote from the level the rank needs).
 

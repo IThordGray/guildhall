@@ -39,7 +39,7 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   and loot (eight slots, shared stash, loot by rank and quality; design icons and faces) · M12
   landscape (left rail, side-by-side screens) · board slots each refill on their own countdown ·
   swipe between adventurers · M13 recruitment (roster saved; two candidate slots refilling on their
-  own countdown, some stats hidden until hired; 100 gold a hire; 4 beds +2 per Bunk room, at most
+  own countdown, all stats shown; 100 gold a hire; 4 beds +2 per Bunk room, at most
   8; placeholder faces for recruits) · M14 more quests and the first session (18 quests over F–D; a slot's
   refill time by the rank sent; restores dearer and slower in order; 100 starting gold; damage by
   rank, so a failed E quest can injure from full health) · M15 promotion (F→E at level 3 for 150g,
@@ -73,7 +73,7 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   adds stats and shapes growth; titles from the top two stats; Luck's lucky break). · Walk-ins (free,
   a hidden 3–7 min arrival, swap when beds are full; dismiss from the Adventurer screen)). · Compact gear and roster (52-dp roster rows; stat chips and icon-only slots with fit
   badges; gear changed in place from a slot or a stash item through a tray; landscape roster list beside
-  the adventurer).
+  the adventurer; candidates and walk-ins open a character sheet).
 
 ## Stack
 
