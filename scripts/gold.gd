@@ -4,8 +4,8 @@ extends RefCounted
 ## The gold a new game starts with: enough for the first restoration.
 const STARTING_GOLD: int = 100
 
-## Gold held. It changes only by quest rewards, collecting from a Tavern and spending, never with
-## time, so a clock set back can't change it.
+## Gold held. It changes only by quest rewards, collecting from a Tavern, selling from the stash and
+## spending, never with time, so a clock set back can't change it.
 var amount: int
 
 

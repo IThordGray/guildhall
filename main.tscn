@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
@@ -19,6 +19,7 @@
 [ext_resource type="PackedScene" path="res://screens/armory.tscn" id="17_armory"]
 [ext_resource type="PackedScene" path="res://screens/confirm_sheet.tscn" id="18_confirm_sheet"]
 [ext_resource type="PackedScene" path="res://screens/swap_pick.tscn" id="19_swap_pick"]
+[ext_resource type="PackedScene" path="res://screens/stash_pick.tscn" id="20_stash_pick"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -133,6 +134,11 @@ layout_mode = 1
 offset_bottom = -24.0
 
 [node name="SwapPick" parent="Body" instance=ExtResource("19_swap_pick")]
+visible = false
+layout_mode = 1
+offset_bottom = -24.0
+
+[node name="StashPick" parent="Body" instance=ExtResource("20_stash_pick")]
 visible = false
 layout_mode = 1
 offset_bottom = -24.0

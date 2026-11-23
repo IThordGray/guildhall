@@ -8,8 +8,8 @@ const RAIL_WIDTH_PX: float = 200.0
 const SIDE_MARGIN_PX: float = 44.0
 ## In landscape, the space between the screens and the window's top and bottom.
 const END_MARGIN_PX: float = 32.0
-## In landscape, Roster, Debrief, Level up, the gear slot, the Armory and the swap pick are a
-## centred column at most this wide.
+## In landscape, Roster, Debrief, Level up, the gear slot, the Armory, the swap pick and the stash
+## pick are a centred column at most this wide.
 const COLUMN_WIDTH_PX: float = 1100.0
 ## In landscape, the share of the body's width the quest board takes; the party picker has the rest.
 const BOARD_SHARE: float = 0.42
@@ -21,6 +21,10 @@ const COLLECT_PULSE_SCALE: float = 1.3
 ## or swapping them for the walk-in.
 const DISMISS: String = "dismiss"
 const SWAP: String = "swap"
+## What the confirmation sheet asks about when it confirms discarding `_item` from the stash for
+## `_swapping_in`, or selling `_item`.
+const SWAP_LOOT: String = "swap_loot"
+const SELL: String = "sell"
 ## Play-testing only: the speeds the Test speed control cycles through.
 const TEST_SPEEDS: Array[int] = [1, 10, 60]
 
@@ -33,11 +37,15 @@ var _recruits: Recruits
 var _walk_ins: WalkIns
 ## The slot the Give it a job screen is open for.
 var _chosen_slot: String = ""
-## What the confirmation sheet asks about: the damaged slot to restore, Hall.EXTENSION, DISMISS or
-## SWAP.
+## What the confirmation sheet asks about: the damaged slot to restore, Hall.EXTENSION, DISMISS,
+## SWAP, SWAP_LOOT or SELL.
 var _confirming: String = ""
 ## The adventurer DISMISS or SWAP sends away.
 var _leaving: String = ""
+## The loot of the open debrief that SWAP_LOOT puts into the stash.
+var _swapping_in: String = ""
+## The stash item SWAP_LOOT discards or SELL sells.
+var _item: String = ""
 ## Where the debrief the Debrief screen shows is in Dispatch.debriefs.
 var _open_debrief: int = -1
 ## The adventurer the Adventurer screen shows.
@@ -72,6 +80,7 @@ var _portrait_places: Dictionary[Control, Array] = {}
 @onready var _gear_slot: GearSlot = $Body/GearSlot
 @onready var _armory: Armory = $Body/Armory
 @onready var _swap_pick: SwapPick = $Body/SwapPick
+@onready var _stash_pick: StashPick = $Body/StashPick
 @onready var _picker: PartyPicker = $Body/PartyPicker
 @onready var _convert_panel: ConvertPanel = $Body/ConvertPanel
 @onready var _confirm_sheet: ConfirmSheet = $ConfirmSheet
@@ -96,6 +105,9 @@ func _ready() -> void:
 	_board.debrief_pressed.connect(_on_debrief_pressed)
 	_debrief.done_pressed.connect(_on_debrief_done)
 	_debrief.adventurer_pressed.connect(_open_adventurer.bind(_debrief))
+	_debrief.swap_pressed.connect(_on_loot_swap_pressed)
+	_stash_pick.picked.connect(_on_stash_picked)
+	_stash_pick.back_pressed.connect(_close_stash_pick)
 	_picker.send_pressed.connect(_on_party_sent)
 	_picker.back_pressed.connect(_close_picker)
 	_roster.adventurer_pressed.connect(_open_adventurer.bind(_roster))
@@ -108,6 +120,7 @@ func _ready() -> void:
 	_swap_pick.back_pressed.connect(_close_swap_pick)
 	_adventurer.dismiss_pressed.connect(_on_dismiss_pressed)
 	_armory.back_pressed.connect(_on_armory_back)
+	_armory.sell_pressed.connect(_on_sell_pressed)
 	_adventurer.back_pressed.connect(_on_adventurer_back)
 	_adventurer.level_up_pressed.connect(_on_level_up_pressed)
 	_adventurer.promote_pressed.connect(_on_promote_pressed)
@@ -123,7 +136,7 @@ func _ready() -> void:
 	_test_speed.pressed.connect(_on_test_speed_pressed)
 	_start.continue_pressed.connect(_open_game)
 	_start.new_game_pressed.connect(_on_new_game)
-	for part: Control in [_tab_bar, _body, _board, _debrief, _roster, _adventurer, _level_up, _gear_slot, _armory, _swap_pick, _convert_panel, _picker]:
+	for part: Control in [_tab_bar, _body, _board, _debrief, _roster, _adventurer, _level_up, _gear_slot, _armory, _swap_pick, _stash_pick, _convert_panel, _picker]:
 		_portrait_places[part] = [
 			Vector4(part.anchor_left, part.anchor_top, part.anchor_right, part.anchor_bottom),
 			Vector4(part.offset_left, part.offset_top, part.offset_right, part.offset_bottom),
@@ -245,7 +258,7 @@ func _checkpoint(now: int) -> void:
 		_offer(now)
 
 
-# Asks to confirm `what`, a damaged slot to restore or Hall.EXTENSION, before paying for it.
+# Asks to confirm `what`, any of `_confirming`'s, before doing it.
 func _confirm(what: String) -> void:
 	_confirming = what
 	_offer(_now())
@@ -263,6 +276,12 @@ func _offer(now: int) -> void:
 			_confirm_sheet.ask("Dismiss " + leaving, note, "Dismiss", _dispatch.dismiss_refusal(_leaving))
 		else:
 			_confirm_sheet.ask("Swap %s for %s" % [leaving, _walk_ins.waiting_name()], note, "Swap", _dispatch.dismiss_refusal(_leaving))
+	elif _confirming == SWAP_LOOT:
+		var out: String = Gear.ITEMS[_item]["name"]
+		var refusal := _dispatch.swap_loot_refusal(_dispatch.debriefs[_open_debrief], _swapping_in, _item)
+		_confirm_sheet.ask("Swap %s for %s" % [out, Gear.ITEMS[_swapping_in]["name"]], out + " is discarded", "Swap", refusal)
+	elif _confirming == SELL:
+		_confirm_sheet.ask("Sell " + Gear.ITEMS[_item]["name"], "+%d gold" % Gear.price(_item), "Sell", _dispatch.adventurers.gear.sell_refusal(_item))
 	elif _confirming == Hall.EXTENSION:
 		_confirm_sheet.offer("Build the first floor", Hall.EXTEND_GOLD, Hall.EXTEND_SECONDS, "Extend", _hall.extend_refusal(_gold, now))
 	else:
@@ -275,7 +294,12 @@ func _on_confirmed() -> void:
 	if _confirming == DISMISS or _confirming == SWAP:
 		_send_away(now)
 		return
-	if _confirming == Hall.EXTENSION:
+	if _confirming == SWAP_LOOT:
+		if _dispatch.swap_loot(_dispatch.debriefs[_open_debrief], _swapping_in, _item):
+			_close_stash_pick()
+	elif _confirming == SELL:
+		_dispatch.adventurers.gear.sell(_item, _gold)
+	elif _confirming == Hall.EXTENSION:
 		_hall.extend(_gold, now)
 	else:
 		_hall.restore(_confirming, _gold, now)
@@ -395,6 +419,30 @@ func _open_adventurer(adventurer: String, from: Control) -> void:
 	_show_adventurer(_now())
 	from.hide()
 	_adventurer.show()
+
+
+func _on_loot_swap_pressed(item: String) -> void:
+	_swapping_in = item
+	_stash_pick.show_stash(item, _dispatch.adventurers.gear)
+	_debrief.hide()
+	_stash_pick.show()
+
+
+func _on_stash_picked(stash_item: String) -> void:
+	_item = stash_item
+	_confirm(SWAP_LOOT)
+
+
+# Back to the debrief the stash pick was opened from, showing the stash as it is now.
+func _close_stash_pick() -> void:
+	_stash_pick.hide()
+	_debrief.show_debrief(_dispatch.debriefs[_open_debrief], _dispatch)
+	_debrief.show()
+
+
+func _on_sell_pressed(item: String) -> void:
+	_item = item
+	_confirm(SELL)
 
 
 func _on_armory_pressed() -> void:
@@ -544,6 +592,7 @@ func _on_tab_pressed(tab: BaseButton) -> void:
 	_gear_slot.hide()
 	_armory.hide()
 	_swap_pick.hide()
+	_stash_pick.hide()
 	_convert_panel.hide()
 	_picker.close()
 	_show_quests(tab == $TabBar/Tabs/Quests)
@@ -579,7 +628,7 @@ func _lay_out() -> void:
 		_place(_body, full, Vector4(RAIL_WIDTH_PX + SIDE_MARGIN_PX, END_MARGIN_PX, -SIDE_MARGIN_PX, -END_MARGIN_PX))
 		_place(_board, Vector4(0, 0, BOARD_SHARE, 1), Vector4(0, 0, -SIDE_MARGIN_PX / 2, 0))
 		_place(_adventurer, full, Vector4.ZERO)
-		for column: Control in [_debrief, _roster, _level_up, _gear_slot, _armory, _swap_pick, _convert_panel]:
+		for column: Control in [_debrief, _roster, _level_up, _gear_slot, _armory, _swap_pick, _stash_pick, _convert_panel]:
 			_place(column, Vector4(0.5, 0, 0.5, 1), Vector4(-COLUMN_WIDTH_PX / 2, 0, COLUMN_WIDTH_PX / 2, 0))
 		_place(_picker, Vector4(BOARD_SHARE, 0, 1, 1), Vector4(SIDE_MARGIN_PX / 2, 0, 0, 0))
 	_show_quests(_board.visible or _picker.visible)

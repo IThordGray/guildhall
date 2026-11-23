@@ -5,6 +5,8 @@ extends Control
 signal done_pressed
 ## The player tapped `adventurer`, one of the party, to see them.
 signal adventurer_pressed(adventurer: String)
+## The player chose to swap `item`, which a full stash would lose, for something in the stash.
+signal swap_pressed(item: String)
 
 @onready var _quest: Label = $Scroll/Box/Header/Words/Quest
 @onready var _result: Label = $Scroll/Box/Header/Result
@@ -20,7 +22,8 @@ func _ready() -> void:
 
 
 ## Shows `debrief`, one of `dispatch`'s debriefs, with who of its party has a level-up waiting and
-## which of its items reading it now would lose to a full stash.
+## which of its items reading it now would lose to a full stash, each with Swap while it can be
+## swapped in (Dispatch.swap_loot_refusal).
 func show_debrief(debrief: Dictionary, dispatch: Dispatch) -> void:
 	var adventurers := dispatch.adventurers
 	_quest.text = Dispatch.QUESTS[debrief["quest"]]["name"]
@@ -91,7 +94,15 @@ func show_debrief(debrief: Dictionary, dispatch: Dispatch) -> void:
 	for item: String in loot["loot"]:
 		_items.add_child(_item_line(item, ""))
 	for item: String in loot["lost"]:
-		_items.add_child(_item_line(item, "The stash was full: lost"))
+		var line := _item_line(item, "Stash full")
+		if dispatch.swap_loot_refusal(debrief, item).is_empty():
+			var swap := Button.new()
+			swap.text = "Swap"
+			swap.custom_minimum_size = Vector2(200, 120)
+			swap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			swap.pressed.connect(swap_pressed.emit.bind(item))
+			line.add_child(swap)
+		_items.add_child(line)
 	_items.visible = _items.get_child_count() > 0
 
 

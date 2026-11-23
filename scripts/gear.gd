@@ -12,6 +12,8 @@ const SLOTS: Dictionary[String, String] = {
 ## How likely a quest's loot is of each quality, in whole percent, from commonest to rarest
 ## (stand-ins), for a party with no Luck: see `quality_percent`.
 const QUALITY_PERCENT: Dictionary[String, int] = {"Standard": 80, "Fine": 18, "Legendary": 2}
+## The gold a stash item of each quality sells for (stand-ins).
+const SELL_GOLD: Dictionary[String, int] = {"Standard": 3, "Fine": 15, "Legendary": 60}
 ## The whole-percent chance that a party back from a quest of each rank brings an item (stand-ins).
 const LOOT_PERCENT: Dictionary[String, int] = {"F": 25, "E": 50, "D": 75}
 ## A party's total Luck adds a point to its loot chance per point, at most MOST_LUCK_LOOT_POINTS.
@@ -119,6 +121,38 @@ func stow(item: String) -> bool:
 	if stash.size() >= stash_cap:
 		return false
 	stash.append(item)
+	return true
+
+
+## Discards one `out` from the stash for good and puts `item` in, at the end; false, with nothing
+## changed, when the stash holds no `out`.
+func swap(out: String, item: String) -> bool:
+	var index := stash.find(out)
+	if index < 0:
+		return false
+	stash.remove_at(index)
+	stash.append(item)
+	return true
+
+
+## The gold `item` sells for, by its quality.
+static func price(item: String) -> int:
+	return SELL_GOLD[ITEMS[item]["quality"]]
+
+
+## Why `item` can't be sold, in words for the player; "" when it can. Only stash items sell: a worn
+## one is taken off first.
+func sell_refusal(item: String) -> String:
+	return "" if item in stash else "Not in the stash"
+
+
+## Sells one `item` from the stash for good, its `price` into `gold`; false, with nothing changed,
+## when sell_refusal gives a reason.
+func sell(item: String, gold: Gold) -> bool:
+	if not sell_refusal(item).is_empty():
+		return false
+	stash.remove_at(stash.find(item))
+	gold.amount += price(item)
 	return true
 
 

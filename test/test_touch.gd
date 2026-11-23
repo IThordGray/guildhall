@@ -391,3 +391,27 @@ func test_a_tap_anywhere_on_a_candidate_hires_them_and_does_nothing_while_the_hi
 	await wait_process_frames(1)
 	await _touch_drag(_middle(name_label), _middle(name_label))
 	assert_eq(_fired, 1)
+
+
+func test_a_tap_anywhere_on_a_stash_item_in_the_armory_asks_to_sell_that_item_and_a_drag_does_not() -> void:
+	var armory := _screen("res://screens/armory.tscn") as Armory
+	var adventurers := Adventurers.new()
+	adventurers.gear.stash_cap = 20
+	for item: String in ["night_cloak", "belt", "sash", "quiver", "iron_cap", "oak_staff", "red_cloak", "chapel_plate"]:
+		assert_true(adventurers.gear.stow(item))
+	armory.show_gear(adventurers)
+	var asked: Array[String] = []
+	armory.sell_pressed.connect(func(item: String) -> void:
+		asked.append(item)
+		_fire())
+	await wait_process_frames(1)
+	var rows := armory.get_node("Box/Scroll/Lists/Stash/Items")
+	var sell := rows.get_child(0).find_children("*", "Button", true, false)[0] as Button
+	assert_eq(sell.text, "Sell 15g")
+	await _assert_drag_scrolls_and_does_not_fire(armory.get_node("Box/Scroll") as ScrollContainer, sell)
+	assert_eq(asked, ["night_cloak"] as Array[String])
+	# The item's name, away from its Sell button.
+	var name_label := rows.get_child(1).find_children("*", "Label", true, false)[0] as Label
+	assert_eq(name_label.text, "Belt")
+	await _touch_drag(_middle(name_label), _middle(name_label))
+	assert_eq(asked, ["night_cloak", "belt"] as Array[String])

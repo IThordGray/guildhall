@@ -2209,3 +2209,116 @@ func test_a_debrief_naming_someone_no_longer_in_the_guild_still_loads_reads_and_
 	loaded.read_debrief(0, gold)
 	assert_eq(gold.amount, reward)
 	assert_true(loaded.debriefs.is_empty())
+
+
+const FULL_STASH: PackedStringArray = ["belt", "sash", "green_sash", "quiver", "red_cloak", "iron_cap"]
+
+
+## Bram and Ilse back from Goblin camp at 1_020 with 42 gold and loot, to a stash full of
+## FULL_STASH, so the debrief would lose the loot.
+func _loot_to_a_full_stash() -> Dispatch:
+	var dispatch := _goblins_with_loot()
+	for item: String in FULL_STASH:
+		assert_true(dispatch.adventurers.gear.stow(item))
+	dispatch.checkpoint(1_020)
+	# The loot is none of the stash's, so where it ends up shows.
+	assert_does_not_have(FULL_STASH, dispatch.debriefs[0]["loot"][0])
+	return dispatch
+
+
+func test_a_swap_puts_loot_a_full_stash_would_lose_in_place_of_the_chosen_item_which_is_gone() -> void:
+	var dispatch := _loot_to_a_full_stash()
+	var debrief := dispatch.debriefs[0]
+	var item: String = debrief["loot"][0]
+	assert_eq(dispatch.debrief_loot(debrief), {"loot": PackedStringArray(), "lost": PackedStringArray([item])})
+	assert_eq(dispatch.swap_loot_refusal(debrief, item), "")
+	assert_true(dispatch.swap_loot(debrief, item, "sash"))
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray(["belt", "green_sash", "quiver", "red_cloak", "iron_cap", item]))
+	# The debrief still lists it, no longer lost, and it can't be swapped in again.
+	assert_eq(dispatch.debrief_loot(debrief), {"loot": PackedStringArray([item]), "lost": PackedStringArray()})
+	assert_eq(dispatch.swap_loot_refusal(debrief, item, "belt"), "Not lost")
+	assert_false(dispatch.swap_loot(debrief, item, "belt"))
+	assert_has(dispatch.adventurers.gear.stash, "belt")
+
+
+func test_reading_a_debrief_after_a_swap_stows_nothing_twice_and_still_pays_its_gold_and_xp() -> void:
+	var gold := Gold.new(100)
+	var dispatch := _loot_to_a_full_stash()
+	var item: String = dispatch.debriefs[0]["loot"][0]
+	assert_true(dispatch.swap_loot(dispatch.debriefs[0], item, "sash"))
+	# Room again before reading, so a second stow would show.
+	assert_true(dispatch.adventurers.gear.sell("belt", Gold.new(0)))
+	dispatch.read_debrief(0, gold)
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray(["green_sash", "quiver", "red_cloak", "iron_cap", item]))
+	assert_eq(gold.amount, 142)
+	assert_eq(_xp(dispatch), [15, 15, 0, 0])
+	assert_true(dispatch.can_go("bram", 1_020))
+
+
+func test_loot_not_swapped_in_is_lost_when_the_debrief_is_read() -> void:
+	var gold := Gold.new(0)
+	var dispatch := _guild(1_000)
+	for item: String in FULL_STASH:
+		assert_true(dispatch.adventurers.gear.stow(item))
+	dispatch.debriefs.append({"quest": "rats", "returned_at": 1_000, "success": true, "party": PackedStringArray(["bram"]), "damage": {}, "injured": {}, "gold": 3, "xp": 4, "revealed": PackedStringArray(), "loot": PackedStringArray(["night_cloak", "chapel_plate"]), "paid": false, "xp_given": true})
+	var debrief := dispatch.debriefs[0]
+	assert_true(dispatch.swap_loot(debrief, "chapel_plate", "quiver"))
+	assert_eq(dispatch.debrief_loot(debrief), {"loot": PackedStringArray(["chapel_plate"]), "lost": PackedStringArray(["night_cloak"])})
+	dispatch.read_debrief(0, gold)
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray(["belt", "sash", "green_sash", "red_cloak", "iron_cap", "chapel_plate"]))
+	assert_eq(gold.amount, 3)
+
+
+func test_a_swap_is_refused_with_nothing_changed_when_the_chosen_item_is_no_longer_in_the_stash() -> void:
+	var dispatch := _loot_to_a_full_stash()
+	var debrief := dispatch.debriefs[0]
+	var item: String = debrief["loot"][0]
+	assert_eq(dispatch.swap_loot_refusal(debrief, item, "night_cloak"), "No longer in the stash")
+	assert_false(dispatch.swap_loot(debrief, item, "night_cloak"))
+	assert_eq(dispatch.adventurers.gear.stash, FULL_STASH)
+	assert_eq(dispatch.debrief_loot(debrief), {"loot": PackedStringArray(), "lost": PackedStringArray([item])})
+	assert_true(dispatch.swap_loot(debrief, item, "quiver"))
+
+
+func test_a_swap_made_before_the_debrief_is_read_survives_save_and_load() -> void:
+	var gold := Gold.new(100)
+	var dispatch := _loot_to_a_full_stash()
+	var item: String = dispatch.debriefs[0]["loot"][0]
+	assert_true(dispatch.swap_loot(dispatch.debriefs[0], item, "sash"))
+	var file := ConfigFile.new()
+	dispatch.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Dispatch.load_or_start(SAVE_PATH, 1_020)
+	var stash := PackedStringArray(["belt", "green_sash", "quiver", "red_cloak", "iron_cap", item])
+	assert_eq(loaded.adventurers.gear.stash, stash)
+	assert_eq(loaded.debrief_loot(loaded.debriefs[0]), {"loot": PackedStringArray([item]), "lost": PackedStringArray()})
+	# Room again before reading, so a second stow would show.
+	assert_true(loaded.adventurers.gear.sell("belt", Gold.new(0)))
+	loaded.read_debrief(0, gold)
+	assert_eq(loaded.adventurers.gear.stash, stash.slice(1))
+	assert_eq(gold.amount, 142)
+
+
+func test_a_debrief_saved_before_swaps_reads_as_before_and_one_paid_before_reading_cannot_swap() -> void:
+	var file := ConfigFile.new()
+	file.set_value("dispatch", "debriefs", [
+		{"quest": "rats", "returned_at": 900, "success": true, "party": PackedStringArray(["bram"]), "damage": {}, "injured": {}, "gold": 3, "xp": 4, "revealed": PackedStringArray(), "loot": PackedStringArray(["night_cloak"]), "paid": false, "xp_given": true},
+		{"quest": "goblins", "returned_at": 950, "success": true, "party": PackedStringArray(["ilse"]), "damage": {}, "injured": {}, "gold": 500, "xp": 40, "revealed": PackedStringArray(), "loot": PackedStringArray(), "lost": PackedStringArray(["sash"])},
+	])
+	file.set_value("dispatch", "checked_at", 1_000)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var gold := Gold.new(0)
+	var dispatch := Dispatch.load_or_start(SAVE_PATH, 1_000)
+	var unread := dispatch.debriefs[0]
+	var paid := dispatch.debriefs[1]
+	assert_eq(dispatch.debrief_loot(unread), {"loot": PackedStringArray(["night_cloak"]), "lost": PackedStringArray()})
+	# Paid when it came home: it keeps its saved split, and its lost item is gone for good.
+	assert_eq(dispatch.debrief_loot(paid), {"loot": PackedStringArray(), "lost": PackedStringArray(["sash"])})
+	assert_eq(dispatch.swap_loot_refusal(paid, "sash"), "Already paid")
+	assert_true(dispatch.adventurers.gear.stow("belt"))
+	assert_false(dispatch.swap_loot(paid, "sash", "belt"))
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray(["belt"]))
+	_read_all(dispatch, gold)
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray(["belt", "night_cloak"]))
+	assert_eq(gold.amount, 3)

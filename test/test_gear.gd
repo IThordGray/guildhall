@@ -229,3 +229,37 @@ func test_the_same_seed_and_luck_always_bring_the_same_loot() -> void:
 		differs = differs or Gear.loot(roll_seed, "E", 20) != Gear.loot(roll_seed, "E")
 	# Luck does change what comes.
 	assert_true(differs)
+
+
+func test_a_stash_item_sells_for_3_15_or_60_gold_by_quality_and_leaves_the_stash_for_good() -> void:
+	assert_eq(Gear.SELL_GOLD, {"Standard": 3, "Fine": 15, "Legendary": 60})
+	var gear := Gear.new()
+	for item: String in ["belt", "night_cloak", "moonweave_robe", "belt"]:
+		gear.stow(item)
+	var gold := Gold.new(10)
+	assert_eq(gear.sell_refusal("night_cloak"), "")
+	assert_true(gear.sell("night_cloak", gold))
+	assert_eq(gold.amount, 25)
+	assert_eq(gear.stash, PackedStringArray(["belt", "moonweave_robe", "belt"]))
+	assert_true(gear.sell("moonweave_robe", gold))
+	assert_eq(gold.amount, 85)
+	# One of two the same sells one.
+	assert_true(gear.sell("belt", gold))
+	assert_eq(gold.amount, 88)
+	assert_eq(gear.stash, PackedStringArray(["belt"]))
+	assert_true(gear.sell("belt", gold))
+	assert_eq(gold.amount, 91)
+	assert_eq(gear.stash, PackedStringArray())
+
+
+func test_a_worn_item_cannot_be_sold_until_taken_off() -> void:
+	var gear := _starters_gear()
+	var gold := Gold.new(10)
+	assert_eq(gear.sell_refusal("short_sword"), "Not in the stash")
+	assert_false(gear.sell("short_sword", gold))
+	assert_eq(gold.amount, 10)
+	assert_eq(gear.worn["bram"]["weapon"], "short_sword")
+	assert_true(gear.take_off("bram", "weapon"))
+	assert_true(gear.sell("short_sword", gold))
+	assert_eq(gold.amount, 13)
+	assert_eq(gear.stash, PackedStringArray())

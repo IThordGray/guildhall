@@ -66,8 +66,9 @@ var injury_lengths: Dictionary[String, int] = {}
 ## "returned_at": unix seconds it came back, "success": bool, "party": adventurer ids,
 ## "damage": {adventurer id: damage taken}, "injured": {adventurer id: seconds the injury lasts},
 ## "gold": gold it brought, "xp": XP each member gained, "revealed": the quest's challenges it
-## made known, "loot": item ids it brought, "paid": false, "xp_given": true}, and "lucky_break":
-## true when a lucky break raised its chance. Damage, injuries, XP and the reveal were applied when
+## made known, "loot": item ids it brought, "paid": false, "xp_given": true}, "lucky_break":
+## true when a lucky break raised its chance, and "kept": the loot already swapped into the stash
+## (`swap_loot`), once there is any. Damage, injuries, XP and the reveal were applied when
 ## the party came home, so a member can level up from the debrief; its gold and loot are paid when
 ## it is read. One saved without "xp_given" still owes its XP, paid
 ## when read. One saved before reading paid has no "paid": it was paid on coming home, its "loot"
@@ -543,8 +544,9 @@ func _bring_home(outing: Dictionary) -> void:
 
 ## Files the debrief at `index` away once the player has read it, and pays what its party earned:
 ## its gold into `gold` and its loot into the stash, where an item that finds the stash full is
-## lost, and its XP to each member if coming home did not give it already. One saved before reading paid was paid already, so it is only
-## filed away.
+## lost, and its XP to each member if coming home did not give it already. An item already swapped
+## into the stash (`swap_loot`) is not stowed again. One saved before reading paid was paid already,
+## so it is only filed away.
 func read_debrief(index: int, gold: Gold) -> void:
 	var debrief := debriefs[index]
 	debriefs.remove_at(index)
@@ -554,19 +556,53 @@ func read_debrief(index: int, gold: Gold) -> void:
 	if not debrief.get("xp_given", false):
 		for adventurer: String in debrief["party"]:
 			adventurers.gain_xp(adventurer, int(debrief["xp"]))
-	for item: String in debrief["loot"]:
+	for item: String in _unkept(debrief):
 		adventurers.gear.stow(item)
 
 
 ## The items `debrief` brings, split as reading it now would: {"loot": item ids that go into the
-## stash, "lost": those that find it full}. One saved before reading paid keeps the split it was
-## paid with.
+## stash, those swapped in already first, "lost": those that find it full}. One saved before reading
+## paid keeps the split it was paid with.
 func debrief_loot(debrief: Dictionary) -> Dictionary:
 	if debrief.get("paid", true):
 		return {"loot": debrief.get("loot", PackedStringArray()), "lost": debrief.get("lost", PackedStringArray())}
-	var items: PackedStringArray = debrief["loot"]
+	var kept: PackedStringArray = debrief.get("kept", PackedStringArray())
+	var items := _unkept(debrief)
 	var room := maxi(0, adventurers.gear.stash_cap - adventurers.gear.stash.size())
-	return {"loot": items.slice(0, room), "lost": items.slice(room)}
+	return {"loot": kept + items.slice(0, room), "lost": items.slice(room)}
+
+
+## Why `item`, which `debrief` would lose to a full stash, can't be swapped for `stash_item`, in
+## words for the player; "" when it can. With `stash_item` "", whether `item` can be swapped in for
+## anything, as the debrief's Swap button asks.
+func swap_loot_refusal(debrief: Dictionary, item: String, stash_item: String = "") -> String:
+	if debrief.get("paid", true):
+		return "Already paid"
+	if item not in debrief_loot(debrief)["lost"]:
+		return "Not lost"
+	if not stash_item.is_empty() and stash_item not in adventurers.gear.stash:
+		return "No longer in the stash"
+	return ""
+
+
+## Discards `stash_item` for good to put `item`, which `debrief` would lose, into the stash now, and
+## marks it kept so reading the debrief does not stow it again; false, with nothing changed, when
+## swap_loot_refusal gives a reason. The debrief still lists it among its loot.
+func swap_loot(debrief: Dictionary, item: String, stash_item: String) -> bool:
+	if not swap_loot_refusal(debrief, item, stash_item).is_empty() or not adventurers.gear.swap(stash_item, item):
+		return false
+	var kept: PackedStringArray = debrief.get("kept", PackedStringArray())
+	kept.append(item)
+	debrief["kept"] = kept
+	return true
+
+
+# `debrief`'s loot without the items already swapped into the stash, one of each kept.
+func _unkept(debrief: Dictionary) -> PackedStringArray:
+	var items: PackedStringArray = debrief["loot"].duplicate()
+	for item: String in debrief.get("kept", PackedStringArray()):
+		items.remove_at(items.find(item))
+	return items
 
 
 ## How long ago `debrief` came back at `now`, in words for the player: whole minutes, or "just

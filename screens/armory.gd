@@ -3,6 +3,8 @@ extends Control
 
 ## The player is done looking at the guild's gear.
 signal back_pressed
+## The player chose to sell `item`, an item id in the stash.
+signal sell_pressed(item: String)
 
 ## The stash, as shown, so the list is rebuilt only when it changes.
 var _shown: Array = []
@@ -15,7 +17,8 @@ func _ready() -> void:
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
 
 
-## Shows every item in `adventurers`' stash: the Armory is storage only, not who wears what.
+## Shows every item in `adventurers`' stash, each with Sell at its price: the Armory is storage
+## only, not who wears what.
 func show_gear(adventurers: Adventurers) -> void:
 	var gear := adventurers.gear
 	var shown := [gear.stash.duplicate()]
@@ -35,10 +38,17 @@ func show_gear(adventurers: Adventurers) -> void:
 		row.add_child(empty)
 		_stash.add_child(row)
 	for item: String in gear.stash:
+		var sell := Button.new()
+		sell.text = "Sell %dg" % Gear.price(item)
+		sell.custom_minimum_size = Vector2(260, 120)
+		sell.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		sell.pressed.connect(sell_pressed.emit.bind(item))
+		var line := _item_line(item)
+		line.add_child(sell)
 		var row := PanelContainer.new()
 		row.theme_type_variation = &"ProgressRow"
-		row.add_child(_item_line(item))
-		_stash.add_child(row)
+		row.add_child(line)
+		_stash.add_child(Touch.whole_card(row, sell))
 
 
 # `item`'s icon, its name and its bonus.

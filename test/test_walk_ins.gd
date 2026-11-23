@@ -45,36 +45,38 @@ func test_a_new_games_first_walk_in_arrives_one_gap_after_it_starts_and_nobody_b
 	assert_eq(walk_ins.arrived_at, due)
 
 
-func test_each_walk_in_arrives_3_to_7_minutes_after_the_one_before_about_5_on_average() -> void:
-	var walk_ins := _walk_ins()
+func test_every_later_walk_in_arrives_20_to_28_hours_after_the_one_before_about_a_day_on_average() -> void:
+	var walk_ins := _waiting()
 	var gaps: Array[int] = []
-	var last := START
+	var last := walk_ins.arrived_at
 	for arrival: int in 300:
 		walk_ins.refill(_dispatch.adventurers, _recruits, walk_ins.next_at)
 		gaps.append(walk_ins.arrived_at - last)
 		last = walk_ins.arrived_at
 	var total := 0
 	for gap: int in gaps:
-		assert_between(gap, 180, 420)
+		assert_between(gap, 20 * 3600, 28 * 3600)
 		total += gap
-	assert_between(total / float(gaps.size()), 280.0, 320.0)
-	# Random, not one fixed gap: some come within 4 minutes and some after 6.
-	assert_true(gaps.any(func(gap: int) -> bool: return gap < 240))
-	assert_true(gaps.any(func(gap: int) -> bool: return gap > 360))
+	assert_between(total / float(gaps.size()), 23.0 * 3600, 25.0 * 3600)
+	# Random, not one fixed gap: some come within 21 hours and some after 27.
+	assert_true(gaps.any(func(gap: int) -> bool: return gap < 21 * 3600))
+	assert_true(gaps.any(func(gap: int) -> bool: return gap > 27 * 3600))
 
 
 func test_one_refill_after_an_absence_gives_the_same_walk_in_as_refilling_every_second() -> void:
 	var watched := _walk_ins()
 	var away := _walk_ins()
 	var arrivals := 0
-	for second: int in range(START + 1, START + 3_000):
+	# Four days: the first walk-in and the daily ones after.
+	var back := START + 4 * 86_400
+	for second: int in range(START + 1, back + 1):
 		var before := watched.arrived_at
 		watched.refill(_dispatch.adventurers, _recruits, second)
 		if watched.arrived_at != before:
 			arrivals += 1
-	away.refill(_dispatch.adventurers, _recruits, START + 2_999)
+	away.refill(_dispatch.adventurers, _recruits, back)
 	# Several came and went while away.
-	assert_gt(arrivals, 4)
+	assert_gt(arrivals, 3)
 	assert_eq(away.walk_in, watched.walk_in)
 	assert_eq(away.arrived_at, watched.arrived_at)
 	assert_eq(away.next_at, watched.next_at)
@@ -273,3 +275,25 @@ func test_a_save_from_before_walk_ins_loads_with_nobody_waiting_and_nothing_lost
 	assert_eq(loaded_recruits.candidates, _recruits.candidates)
 	walk_ins.refill(loaded_dispatch.adventurers, loaded_recruits, walk_ins.next_at)
 	assert_false(walk_ins.walk_in.is_empty())
+
+
+func test_a_save_from_before_daily_walk_ins_keeps_its_next_arrival_and_every_one_after_it_is_daily() -> void:
+	# The build before saved the next arrival a few minutes after the last.
+	var file := ConfigFile.new()
+	file.set_value("walk_ins", "walk_in", {})
+	file.set_value("walk_ins", "arrived_at", START)
+	file.set_value("walk_ins", "next_at", START + 300)
+	file.set_value("walk_ins", "checked_at", START + 10)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var walk_ins := WalkIns.load_or_start(SAVE_PATH)
+	walk_ins.refill(_dispatch.adventurers, _recruits, START + 299)
+	assert_true(walk_ins.walk_in.is_empty())
+	assert_eq(walk_ins.next_at, START + 300)
+	walk_ins.refill(_dispatch.adventurers, _recruits, START + 300)
+	assert_false(walk_ins.walk_in.is_empty())
+	assert_eq(walk_ins.arrived_at, START + 300)
+	for arrival: int in 20:
+		var last := walk_ins.arrived_at
+		assert_between(walk_ins.next_at - last, 20 * 3600, 28 * 3600)
+		walk_ins.refill(_dispatch.adventurers, _recruits, walk_ins.next_at)
+		assert_ne(walk_ins.arrived_at, last)

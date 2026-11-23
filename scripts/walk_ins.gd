@@ -5,9 +5,14 @@ extends RefCounted
 ## next one arrives, then leaves for good. Accepting one is free; when to expect the next is never
 ## shown.
 
-## The shortest and longest gap from one walk-in's arrival to the next's, about 5 minutes on average.
-const MIN_GAP_SECONDS: int = 180
-const MAX_GAP_SECONDS: int = 420
+## The shortest and longest wait for a game's first walk-in, about 5 minutes on average, so a new
+## guild sees one early.
+const MIN_FIRST_GAP_SECONDS: int = 180
+const MAX_FIRST_GAP_SECONDS: int = 420
+## The shortest and longest gap from one walk-in's arrival to the next's, about a day on average, so
+## each later walk-in is an event rather than a flood.
+const MIN_GAP_SECONDS: int = 20 * 3600
+const MAX_GAP_SECONDS: int = 28 * 3600
 ## How likely a walk-in arrives at each level, in whole percent: mostly 1, now and then someone
 ## strong. They are always rank F.
 const LEVEL_PERCENT: Dictionary[int, int] = {1: 75, 2: 18, 3: 7}
@@ -30,16 +35,18 @@ func waiting_name() -> String:
 	return "" if walk_in.is_empty() else walk_in["who"]["name"]
 
 
-## Brings the walk-ins up to `now`. The first arrives one gap after the first refill, which is when
-## the game started or a save from before walk-ins first loaded. Whoever arrives replaces whoever
-## waited. Each walk-in and each gap is drawn from its arrival time alone, never the global
-## generator, so refilling once after an absence gives the same walk-in as refilling every second
-## through it; their name is none in `adventurers` or among `recruits`' candidates. Time is read as
-## no earlier than the walk-ins last saw, so a clock set back never undoes an arrival.
+## Brings the walk-ins up to `now`. The first arrives one `first_gap` after the first refill, which
+## is when the game started or a save from before walk-ins first loaded; each later one an
+## `arrival_gap` after the one before, so a save holding the next arrival keeps it. Whoever arrives
+## replaces whoever waited. Each walk-in and each gap is drawn from its arrival time alone, never
+## the global generator, so refilling once after an absence gives the same walk-in as refilling
+## every second through it; their name is none in `adventurers` or among `recruits`' candidates.
+## Time is read as no earlier than the walk-ins last saw, so a clock set back never undoes an
+## arrival.
 func refill(adventurers: Adventurers, recruits: Recruits, now: int) -> void:
 	var at := maxi(now, checked_at)
 	if next_at < 0:
-		next_at = at + arrival_gap(at)
+		next_at = at + first_gap(at)
 	var arriving := -1
 	while next_at <= at:
 		arriving = next_at
@@ -51,9 +58,17 @@ func refill(adventurers: Adventurers, recruits: Recruits, now: int) -> void:
 	checked_at = at
 
 
+## The wait from `started_at`, when the walk-ins were first refilled, until the first walk-in,
+## MIN_FIRST_GAP_SECONDS to MAX_FIRST_GAP_SECONDS, drawn from that time alone.
+static func first_gap(started_at: int) -> int:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(["walk-in gap", started_at])
+	return rng.randi_range(MIN_FIRST_GAP_SECONDS, MAX_FIRST_GAP_SECONDS)
+
+
 ## The gap from a walk-in arriving at `arrived_at` until the next one, MIN_GAP_SECONDS to
-## MAX_GAP_SECONDS, drawn from that time alone. The one place the gap is decided: reputation, once
-## the guild has it, shortens the gap here.
+## MAX_GAP_SECONDS, drawn from that time alone. The one place the gap between walk-ins is decided:
+## reputation, once the guild has it, shortens the gap here.
 static func arrival_gap(arrived_at: int) -> int:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(["walk-in gap", arrived_at])
@@ -115,7 +130,7 @@ func write(file: ConfigFile) -> void:
 
 
 ## The walk-ins saved at `path`, or nobody waiting and nobody due yet, which the first `refill`
-## sets one gap away, when the save has none.
+## sets one `first_gap` away, when the save has none.
 static func load_or_start(path: String) -> WalkIns:
 	var walk_ins := WalkIns.new()
 	var file := ConfigFile.new()
