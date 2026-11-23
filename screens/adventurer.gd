@@ -21,6 +21,14 @@ signal dismiss_pressed(adventurer: String)
 signal swiped(step: int)
 ## A slot's tray opened (`open` true) or closed.
 signal tray_toggled(open: bool)
+## The player asked to hire the candidate shown.
+signal hire_pressed
+## The player accepted the walk-in shown into a free bed.
+signal accept_pressed
+## The player turned the walk-in shown away.
+signal turn_away_pressed
+## The player asked to swap the walk-in shown for someone in the guild, every bed being taken.
+signal swap_pressed
 
 ## A stat at this value fills its bar.
 const STAT_BAR_FULL: int = 20
@@ -82,6 +90,7 @@ const BACK_HEIGHT_PX: Vector2i = Vector2i(144, Roster.SMALL_BUTTON_PX)
 ## A press-drag-release at least this far sideways, and further sideways than up or down, is a swipe.
 const SWIPE_MIN_PX: float = 120.0
 
+## The adventurer shown; "" while a candidate or the walk-in is.
 var _adventurer: String = ""
 ## The guild as last shown, and when, so a tap on the gear shows its choice without waiting on it.
 var _dispatch: Dispatch
@@ -98,8 +107,9 @@ var _chips: Dictionary[String, PanelContainer] = {}
 var _values: Dictionary[String, Label] = {}
 var _gear_values: Dictionary[String, Label] = {}
 var _health: HBoxContainer
-## The adventurer, their gear, how many stash items fit each slot and the open tray, as shown, so
-## the gear is rebuilt only when these change or the layout does; the same for the stash and tray.
+## Who is shown (an adventurer's id, or a visitor's "who"), their gear, how many stash items fit
+## each slot, the open tray and whether the slots open trays, as shown, so the gear is rebuilt only
+## when these change or the layout does; the same for the stash and tray.
 var _gear_shown: Array = []
 var _stash_shown: Array = []
 var _tray_shown: Array = []
@@ -122,11 +132,17 @@ var _press_at: Vector2 = Vector2.ZERO
 @onready var _xp_bar: ProgressBar = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Bar
 @onready var _xp_text: Label = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Text
 @onready var _promote: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Promote
+## Why Promote, or a candidate's Hire, can't be pressed.
 @onready var _promote_reason: Label = $Box/Scroll/Content/Card/Header/Row/Words/PromoteReason
 @onready var _training_xp: Label = $Box/Scroll/Content/Card/Header/Row/Words/Actions/TrainingXp
 @onready var _stop: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Stop
 @onready var _train: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Train
 @onready var _dismiss: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Dismiss
+## A candidate's or the walk-in's actions, in the same row.
+@onready var _hire: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Hire
+@onready var _turn_away: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/TurnAway
+@onready var _accept: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Accept
+@onready var _swap: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Swap
 @onready var _last_level_up: Label = $Box/Scroll/Content/Card/Stats/Rows/LastLevelUp
 @onready var _training_notes: Label = $Box/Scroll/Content/Card/Stats/Rows/TrainingNotes
 ## The key to the gear badges, shown while any slot has stash items that fit.
@@ -184,6 +200,10 @@ func _ready() -> void:
 	_train.pressed.connect(func() -> void: train_pressed.emit(_adventurer))
 	_stop.pressed.connect(func() -> void: stop_training_pressed.emit(_adventurer))
 	_dismiss.pressed.connect(func() -> void: dismiss_pressed.emit(_adventurer))
+	_hire.pressed.connect(hire_pressed.emit)
+	_turn_away.pressed.connect(turn_away_pressed.emit)
+	_accept.pressed.connect(accept_pressed.emit)
+	_swap.pressed.connect(swap_pressed.emit)
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
 	($Box/Scroll/Content/Tray/Rows/Line/Done as Button).pressed.connect(_open_tray.bind("", -1))
 	# Leaving the screen, by Back or anything else, closes the tray.
@@ -213,7 +233,8 @@ func _input(event: InputEvent) -> void:
 	# A swipe is far past the tap's slop, so Touch has already kept the button it started on from
 	# firing.
 	var travel := click.position - _press_at
-	if absf(travel.x) >= SWIPE_MIN_PX and absf(travel.x) > absf(travel.y):
+	# A candidate or the walk-in has no others to page through.
+	if absf(travel.x) >= SWIPE_MIN_PX and absf(travel.x) > absf(travel.y) and not _adventurer.is_empty():
 		# Swiping left brings the next adventurer in, as turning a page does.
 		swiped.emit(1 if travel.x < 0 else -1)
 
@@ -278,7 +299,7 @@ func set_landscape(landscape: bool, beside_roster: bool = false) -> void:
 	_gear_shown = []
 	_stash_shown = []
 	_tray_shown = []
-	if _dispatch != null:
+	if _dispatch != null and not _adventurer.is_empty():
 		_show_gear_choice()
 
 
@@ -335,7 +356,54 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	_training_notes.text = "" if hint.is_empty() else "Grows fastest in " + hint
 	var history: Array = adventurers.history[adventurer]
 	_last_level_up.text = "" if history.is_empty() else _history_line(history.back())
+	for button: Button in [_hire, _turn_away, _accept, _swap]:
+		button.visible = false
 	_show_gear_choice()
+
+
+## Shows `visitor`, a candidate or the walk-in as Recruits and WalkIns keep them, as an adventurer
+## is shown but read-only: tagged "Walk-in" when `walk_in`, else "Candidate", at full health, every
+## stat and what they wear, with no XP, notes, stash or tray. A candidate has Hire, disabled with
+## `refusal` under it when there is one; the walk-in has Turn away, and Accept while `free_bed`, else
+## Swap.
+func show_visitor(visitor: Dictionary, walk_in: bool, refusal: String, free_bed: bool) -> void:
+	_set_tray("", -1)
+	_adventurer = ""
+	var who: Dictionary = visitor["who"]
+	_figure.texture = QuestBoard.figure(who["face_seed"], visitor["worn"])
+	_name.text = who["name"]
+	_status.text = "Walk-in" if walk_in else "Candidate"
+	_status.theme_type_variation = &"Secondary"
+	_details.text = "%s · rank %s · level %d" % [Recruits.title(visitor), who["rank"], visitor.get("level", 1)]
+	var most := Recruits.max_health(visitor)
+	var bar := _health.get_child(0) as ProgressBar
+	bar.max_value = most
+	bar.value = most
+	bar.theme_type_variation = &"HealthBar"
+	var health_text := _health.get_child(1) as Label
+	health_text.text = "%d / %d" % [most, most]
+	health_text.theme_type_variation = &"Meta"
+	for part: Control in [_level_up, _xp, _promote, _training_xp, _stop, _train, _dismiss, _last_level_up, _training_notes, _stash, _tray, $Side]:
+		part.visible = false
+	_hire.visible = not walk_in
+	_hire.text = "Hire · %dg" % Recruits.hire_gold(visitor)
+	_hire.disabled = not refusal.is_empty()
+	_promote_reason.text = refusal
+	_promote_reason.visible = not walk_in and not refusal.is_empty()
+	_turn_away.visible = walk_in
+	_accept.visible = walk_in and free_bed
+	_swap.visible = walk_in and not free_bed
+	var totals := Recruits.totals(visitor)
+	var title_stats := Adventurers.title_stats_of(totals)
+	for stat: String in Adventurers.STATS:
+		_show_chip(stat, totals[stat], totals[stat] - visitor["stats"][stat], 0, stat in title_stats, false)
+	var no_fits: Array[int] = []
+	no_fits.resize(Gear.SLOTS.size())
+	no_fits.fill(0)
+	var gear_shown := [who, visitor["worn"].duplicate(), no_fits, "", false]
+	if gear_shown != _gear_shown:
+		_gear_shown = gear_shown
+		_show_gear(gear_shown[1], no_fits, false)
 
 
 # What the gear choice changes on screen: the health and the stat chips, previewing the item picked
@@ -356,26 +424,16 @@ func _show_gear_choice() -> void:
 	health_text.theme_type_variation = _change_look(health_change, &"Meta")
 	var title_stats := adventurers.title_stats(_adventurer)
 	for stat: String in Adventurers.STATS:
-		var total := adventurers.stat_total(_adventurer, stat)
-		var from_gear := gear.bonus(_adventurer, stat)
 		var points: int = change["stats"].get(stat, 0)
-		_values[stat].text = str(total) if points == 0 else "%d→%d" % [total, total + points]
-		_values[stat].theme_type_variation = _change_look(points, &"Numbers")
-		_gear_values[stat].text = "+%d" % from_gear
-		_gear_values[stat].visible = from_gear > 0 and points == 0
-		var lit := points > 0 or stat in _changed
-		if stat in title_stats:
-			_chips[stat].theme_type_variation = &"StatChipTitleChanged" if lit else &"StatChipTitle"
-		else:
-			_chips[stat].theme_type_variation = &"StatChipChanged" if lit else &"StatChip"
+		_show_chip(stat, adventurers.stat_total(_adventurer, stat), gear.bonus(_adventurer, stat), points, stat in title_stats, points > 0 or stat in _changed)
 	_show_notes()
 	var fits: Array[int] = []
 	for slot: String in Gear.SLOTS:
 		fits.append(gear.fitting(slot).size())
-	var gear_shown := [_adventurer, gear.worn[_adventurer].duplicate(), fits, _tray_slot]
+	var gear_shown := [_adventurer, gear.worn[_adventurer].duplicate(), fits, _tray_slot, true]
 	if gear_shown != _gear_shown:
 		_gear_shown = gear_shown
-		_show_gear(gear_shown[1], fits)
+		_show_gear(gear_shown[1], fits, true)
 	# Beside the roster the stash stays under the gear, dimmed, while the tray has the left column.
 	_stash.visible = _tray_slot.is_empty() or _beside_roster
 	_stash.modulate.a = 1.0 if _tray_slot.is_empty() else SLOT_DIM_ALPHA
@@ -393,6 +451,20 @@ func _show_gear_choice() -> void:
 		if tray_shown != _tray_shown:
 			_tray_shown = tray_shown
 			_show_tray(worn)
+
+
+# `stat`'s chip: its `total`, or "8→9" while a change of `points` is previewed, green for a gain and
+# red for a loss; what gear adds to it, `from_gear`, while nothing is previewed; bordered as behind
+# the title when `in_title`, and lit when `lit`.
+func _show_chip(stat: String, total: int, from_gear: int, points: int, in_title: bool, lit: bool) -> void:
+	_values[stat].text = str(total) if points == 0 else "%d→%d" % [total, total + points]
+	_values[stat].theme_type_variation = _change_look(points, &"Numbers")
+	_gear_values[stat].text = "+%d" % from_gear
+	_gear_values[stat].visible = from_gear > 0 and points == 0
+	if in_title:
+		_chips[stat].theme_type_variation = &"StatChipTitleChanged" if lit else &"StatChipTitle"
+	else:
+		_chips[stat].theme_type_variation = &"StatChipChanged" if lit else &"StatChip"
 
 
 # The look of a number that a change of `points` would move: Gain or Loss, or `unchanged`.
@@ -499,9 +571,9 @@ static func bonus_label(item: String) -> Label:
 # The eight slots, in Gear.SLOTS order: each item's icon over the slot's name, an empty slot dashed.
 # A slot that `fits` (a count per slot, in the same order) says stash items fit is bordered gold and
 # counts them in a badge on its corner, an empty one with a "+" inside. While a tray is open its slot
-# is bordered gold and the others dimmed, without badges. A tap anywhere on a slot, box or name,
-# opens its tray or closes it.
-func _show_gear(worn: Dictionary, fits: Array[int]) -> void:
+# is bordered gold and the others dimmed, without badges. While `tappable`, a tap anywhere on a slot,
+# box or name, opens its tray or closes it.
+func _show_gear(worn: Dictionary, fits: Array[int], tappable: bool) -> void:
 	for cell: Node in _gear.get_children():
 		cell.queue_free()
 	_fit_key.visible = _tray_slot.is_empty() and fits.any(func(count: int) -> bool: return count > 0)
@@ -544,15 +616,16 @@ func _show_gear(worn: Dictionary, fits: Array[int]) -> void:
 			box.draw.connect(_draw_dashed_box.bind(box))
 		# A MarginContainer stacks its children, so the button covers the whole cell and the cell
 		# sets the size.
-		var open := Button.new()
-		open.flat = true
-		open.pressed.connect(_on_slot_tapped.bind(slot))
-		if fit > 0 and _tray_slot.is_empty():
-			open.add_child(_fit_badge(fit, box_px))
 		var stack := MarginContainer.new()
 		stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		stack.add_child(cell)
-		stack.add_child(open)
+		if tappable:
+			var open := Button.new()
+			open.flat = true
+			open.pressed.connect(_on_slot_tapped.bind(slot))
+			if fit > 0 and _tray_slot.is_empty():
+				open.add_child(_fit_badge(fit, box_px))
+			stack.add_child(open)
 		if not _tray_slot.is_empty() and slot != _tray_slot:
 			stack.modulate.a = SLOT_DIM_ALPHA
 		_gear.add_child(stack)

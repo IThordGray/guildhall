@@ -315,6 +315,14 @@ func test_maximum_health_at_level_1_is_10_plus_2_per_defence_and_each_level_past
 	assert_eq(adventurers.max_health("wren") - before, 2 * one_level)
 
 
+func test_the_health_of_anyone_by_defence_and_level_is_10_plus_2_per_defence_plus_3_per_level_past_the_first() -> void:
+	assert_eq(Adventurers.max_health_of(5, 1), 20)
+	assert_eq(Adventurers.max_health_of(5, 3), 26)
+	assert_eq(Adventurers.max_health_of(0, 1), 10)
+	# Bram, Defence 9 with his gear, at level 1.
+	assert_eq(Adventurers.max_health_of(9, 1), Adventurers.new(EVERYONE).max_health("bram"))
+
+
 func test_a_failed_quest_of_a_members_promotion_rank_injures_half_to_three_quarters_with_no_spirit_or_luck() -> void:
 	for rank: String in ["E", "D"]:
 		var rates := _injury_rates(rank)
@@ -449,6 +457,19 @@ func test_the_stats_behind_a_title_break_ties_toward_the_stat_shown_first() -> v
 	stats["presence"] = 5
 	adventurers.add("wren", {"name": "Wren", "rank": "F"}, stats, stats)
 	assert_eq(adventurers.title_stats("wren"), PackedStringArray(["spirit", "defence"]))
+
+
+func test_the_stats_behind_a_title_of_any_totals_are_its_pair_or_its_one_stat_ties_going_first() -> void:
+	var even := {}
+	for stat: String in Adventurers.STATS:
+		even[stat] = 3
+	even["endurance"] = 9
+	even["luck"] = 7
+	# Endurance and Luck are no pair: a Wanderer by Endurance alone.
+	assert_eq(Adventurers.title_stats_of(even), PackedStringArray(["endurance"]))
+	even["perception"] = 9
+	# Perception before Endurance, tied: a Ranger's pair.
+	assert_eq(Adventurers.title_stats_of(even), PackedStringArray(["perception", "endurance"]))
 
 
 func test_changing_gear_can_change_a_title_and_back() -> void:

@@ -166,6 +166,37 @@ theme_type_variation = &"OutlineButton"
 theme_override_font_sizes/font_size = 33
 text = "Dismiss"
 
+[node name="Hire" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Actions"]
+visible = false
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+theme_type_variation = &"GoldButton"
+theme_override_font_sizes/font_size = 33
+
+[node name="TurnAway" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Actions"]
+visible = false
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+theme_type_variation = &"OutlineButton"
+theme_override_font_sizes/font_size = 33
+text = "Turn away"
+
+[node name="Accept" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Actions"]
+visible = false
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+theme_type_variation = &"GoldButton"
+theme_override_font_sizes/font_size = 33
+text = "Accept"
+
+[node name="Swap" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/Actions"]
+visible = false
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+theme_type_variation = &"GoldButton"
+theme_override_font_sizes/font_size = 33
+text = "Swap"
+
 [node name="PromoteReason" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words"]
 layout_mode = 2
 theme_type_variation = &"Alert"

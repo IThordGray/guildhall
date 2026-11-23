@@ -239,3 +239,34 @@ func test_a_hidden_screen_ignores_swipes() -> void:
 	assert_eq(_shown_name(), "Bram")
 	_mouse_drag(_middle(), _middle() + Vector2(-200, 0))
 	assert_eq(_shown_name(), "Ilse")
+
+
+func test_a_swipe_on_a_candidates_sheet_pages_nowhere_and_a_tap_on_their_gear_opens_no_tray() -> void:
+	var joss := Recruits.candidate_for(0, 1_000_000, PackedStringArray())
+	_screen.show_visitor(joss, false, "", true)
+	_screen.swiped.connect(func(_step: int) -> void: _shown = "")
+	await wait_process_frames(1)
+	assert_eq(_shown_name(), "Joss")
+	_mouse_drag(_middle(), _middle() + Vector2(-200, 0))
+	_touch_drag(_middle(), _middle() + Vector2(200, 0))
+	assert_eq(_shown_name(), "Joss")
+	assert_eq(_shown, "bram")
+	# Their weapon, the fifth slot, shows; a tap on it opens nothing.
+	var weapon := _screen.get_node("Box/Scroll/Content/GearColumn/Gear").get_child(4) as Control
+	# Shown again, as each tick does, with nothing changed: the gear is not built again.
+	_screen.show_visitor(joss, false, "", true)
+	assert_false(weapon.is_queued_for_deletion())
+	_mouse_drag(_middle_of(weapon), _middle_of(weapon))
+	assert_eq(_open_tray(), "")
+	# Bram's sheet pages, and his slots open their trays, again.
+	_screen.show_adventurer("bram", _dispatch, Gold.new(0), 0, 1_000)
+	await wait_process_frames(1)
+	weapon = _screen.get_node("Box/Scroll/Content/GearColumn/Gear").get_child(4) as Control
+	_mouse_drag(_middle_of(weapon), _middle_of(weapon))
+	assert_string_starts_with(_open_tray(), "WEAPON")
+	_mouse_drag(_middle(), _middle() + Vector2(-200, 0))
+	assert_eq(_shown_name(), "Ilse")
+
+
+func _middle_of(control: Control) -> Vector2:
+	return control.get_global_rect().get_center()

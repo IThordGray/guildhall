@@ -219,16 +219,16 @@ func test_a_candidate_is_never_named_after_anyone_in_the_guild_or_the_other_cand
 	assert_eq(adventurers.roster.size(), 8)
 
 
-func test_four_of_nine_stats_show_before_a_hire_and_all_nine_are_known_after() -> void:
+func test_all_nine_of_a_candidates_own_stats_show_before_a_hire_and_are_theirs_after() -> void:
+	var joss := Recruits.candidate_for(0, 1_000_000, PackedStringArray())
+	# Joss's Short sword adds Strength +1, which their own stats leave out.
+	assert_eq(Recruits.stats_line(joss), "Strength 6 · Agility 3 · Perception 3 · Mind 3 · Spirit 2 · Defence 5 · Endurance 4 · Presence 3 · Luck 4")
 	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	var candidate := recruits.candidates[0]
 	var line := Recruits.stats_line(candidate)
-	assert_eq(line.count("?"), 5, line)
+	assert_eq(line.count("?"), 0, line)
 	assert_eq(line.split(" · ").size(), 9, line)
-	for stat: String in candidate["shown"]:
-		assert_string_contains(line, "%s %d" % [Adventurers.STATS[stat], candidate["stats"][stat]])
-	assert_eq(Array(candidate["shown"]).size(), 4)
 
 	_hire(recruits, 0, adventurers, START)
 	var id: String = adventurers.roster.keys()[4]
@@ -582,6 +582,23 @@ func test_a_rank_f_candidate_is_drawn_the_same_with_or_without_a_common_room_and
 			rank_f += 1
 			assert_eq(with_room, Recruits.candidate_for(3, at, PackedStringArray()))
 	assert_gt(rank_f, 0)
+
+
+func test_a_candidates_stats_count_what_they_wear_and_their_health_is_as_an_adventurers_at_their_level() -> void:
+	# Joss: Strength 6 and Defence 5, in a Short sword, Strength +1.
+	var joss := Recruits.candidate_for(0, 1_000_000, PackedStringArray())
+	assert_eq(Recruits.totals(joss), {"strength": 7, "agility": 3, "perception": 3, "mind": 3, "spirit": 2, "defence": 5, "endurance": 4, "presence": 3, "luck": 4})
+	# 10 + 2 × Defence 5, at level 1.
+	assert_eq(Recruits.max_health(joss), 20)
+	# Chapel plate's Defence +4 adds 8; two levels past the first add 3 each.
+	joss["worn"]["armour"] = "chapel_plate"
+	joss["level"] = 3
+	assert_eq(Recruits.totals(joss)["defence"], 9)
+	assert_eq(Recruits.max_health(joss), 34)
+	# Hired, they heal up to the same.
+	var adventurers := Adventurers.new(EVERYONE)
+	Recruits.join(adventurers, "joss", joss)
+	assert_eq(adventurers.max_health("joss"), 34)
 
 
 func test_a_candidate_saved_with_the_four_old_stats_loads_with_nine_filled_by_their_class_and_their_weapon() -> void:

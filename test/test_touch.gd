@@ -370,31 +370,38 @@ func test_a_fling_glides_to_a_stop_and_a_touch_during_it_stops_it_without_pressi
 	assert_eq(scroll.scroll_vertical, settled)
 
 
-func test_a_tap_anywhere_on_a_candidate_hires_them_and_does_nothing_while_the_hire_is_refused() -> void:
+func test_a_tap_on_a_candidate_away_from_hire_opens_them_and_hires_nothing_whether_or_not_the_hire_is_refused() -> void:
 	var roster := _screen("res://screens/roster.tscn") as Roster
 	var adventurers := Adventurers.new()
 	var recruits := Recruits.new()
 	recruits.refill(adventurers, 1_000)
 	roster.show_recruits(recruits, adventurers, Gold.new(0), Hall.MAX_ROSTER, Hall.new(1_000), 1_000)
-	roster.hire_pressed.connect(func(_slot: int) -> void: _fire())
+	var hired: Array[int] = []
+	roster.hire_pressed.connect(func(slot: int) -> void: hired.append(slot))
+	roster.visitor_pressed.connect(func(_slot: int) -> void: _fire())
 	var scroll := roster.get_node("Scroll") as ScrollContainer
 	await wait_process_frames(1)
 	scroll.scroll_vertical = 10_000
 	await wait_process_frames(1)
-	# The candidate's name, away from the Hire button.
-	var card := roster.get_node("Scroll/Box/Candidates").get_child(0) as Control
+	# The candidate's card, over the button that opens them; its name, away from the Hire button.
+	var card := roster.get_node("Scroll/Box/Candidates").get_child(0).get_child(1) as Control
 	var hire := card.find_children("*", "Button", true, false)[0] as Button
 	var name_label := card.find_children("*", "Label", true, false)[0] as Label
 	assert_true(scroll.get_global_rect().has_point(_middle(name_label)))
 	assert_false(hire.get_global_rect().has_point(_middle(name_label)))
 	assert_true(hire.disabled)
 	await _touch_drag(_middle(name_label), _middle(name_label))
-	assert_eq(_fired, 0)
+	assert_eq(_fired, 1)
+	assert_eq(hired, [] as Array[int])
 	roster.show_recruits(recruits, adventurers, Gold.new(1_000), Hall.MAX_ROSTER, Hall.new(1_000), 1_000)
 	# Without the refusal's line, the card is laid out shorter on the next frame.
 	await wait_process_frames(1)
 	await _touch_drag(_middle(name_label), _middle(name_label))
-	assert_eq(_fired, 1)
+	assert_eq(_fired, 2)
+	assert_eq(hired, [] as Array[int])
+	await _touch_drag(_middle(hire), _middle(hire))
+	assert_eq(hired, [0] as Array[int])
+	assert_eq(_fired, 2)
 
 
 func test_a_tap_anywhere_on_a_stash_item_in_the_armory_asks_to_sell_that_item_and_a_drag_does_not() -> void:

@@ -16,7 +16,8 @@ const RANK: String = "F"
 ## rank E instead, and what hiring one of them costs.
 const RANK_E_CHANCE: float = 0.25
 const HIRE_GOLD_E: int = 180
-## How many of a candidate's stats show before they are hired; the others show "?".
+## How many stats a candidate's "shown" names. Every stat is shown to the player; the draw is kept so
+## every candidate, and everything drawn after it, stays as it was drawn.
 const STATS_SHOWN: int = 4
 ## The first names candidates are given.
 const NAMES: PackedStringArray = [
@@ -45,8 +46,8 @@ const LATE_BLOOMER_STAT_LOSS: int = 2
 const LATE_BLOOMER_GROWTH: float = 0.95
 
 ## Each slot's candidate, {} while it refills: {"who": as Adventurers.roster keeps it, face_seed
-## included, "stats" and "growth": as Adventurers.add takes them, "shown": the stats shown
-## before hiring, "worn": what they wear, {slot: item id} as Gear.worn keeps it}, and for a rank-E
+## included, "stats" and "growth": as Adventurers.add takes them, "shown": unused, kept as
+## drawn (see STATS_SHOWN), "worn": what they wear, {slot: item id} as Gear.worn keeps it}, and for a rank-E
 ## one "level": the level they arrive and are hired at.
 var candidates: Array[Dictionary] = []
 ## Unix seconds each slot's candidate arrived, or, while it refills, arrives.
@@ -224,20 +225,29 @@ static func _face_seed(slot: int, arrived_at: int) -> int:
 
 ## `candidate`'s title, from their stats and what they wear, as Adventurers.title_of gives it.
 static func title(candidate: Dictionary) -> String:
-	var totals: Dictionary = candidate["stats"].duplicate()
+	return Adventurers.title_of(totals(candidate))
+
+
+## `candidate`'s stats as they would count once in the guild, {stat: points}: their own plus what
+## they wear adds.
+static func totals(candidate: Dictionary) -> Dictionary:
+	var sums: Dictionary = candidate["stats"].duplicate()
 	for item: String in candidate["worn"].values():
 		for stat: String in Gear.ITEMS[item]["bonus"]:
-			totals[stat] += Gear.ITEMS[item]["bonus"][stat]
-	return Adventurers.title_of(totals)
+			sums[stat] += Gear.ITEMS[item]["bonus"][stat]
+	return sums
 
 
-## `candidate`'s stats for the player, those not shown as "?", such as "Strength 5 · Agility ? ·
-## Perception 3 · …".
+## The health `candidate` would heal up to once in the guild, as Adventurers.max_health_of gives it.
+static func max_health(candidate: Dictionary) -> int:
+	return Adventurers.max_health_of(totals(candidate)["defence"], candidate.get("level", 1))
+
+
+## Every one of `candidate`'s own stats for the player, such as "Strength 5 · Agility 3 · …".
 static func stats_line(candidate: Dictionary) -> String:
 	var parts := PackedStringArray()
 	for stat: String in Adventurers.STATS:
-		var value: String = str(candidate["stats"][stat]) if stat in candidate["shown"] else "?"
-		parts.append("%s %s" % [Adventurers.STATS[stat], value])
+		parts.append("%s %d" % [Adventurers.STATS[stat], candidate["stats"][stat]])
 	return " · ".join(parts)
 
 

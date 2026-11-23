@@ -5,6 +5,9 @@ extends Control
 signal adventurer_pressed(adventurer: String)
 ## The player asked to hire the candidate in `slot` of Recruits.candidates.
 signal hire_pressed(slot: int)
+## The player tapped the candidate in `slot` of Recruits.candidates, or the walk-in for WALK_IN, to
+## see them.
+signal visitor_pressed(slot: int)
 ## The player asked to see the guild's gear.
 signal armory_pressed
 ## The player accepted the walk-in into a free bed.
@@ -34,6 +37,9 @@ const DISABLED_ROW_TINT: Color = Color(1, 1, 1, 0.4)
 const FREE_ROW_HEIGHT_PX: int = 110
 ## As wide as QuestBoard's face token, so the free-beds "+" sits under the faces.
 const FACE_COLUMN_PX: int = 80
+## Who a visitor is, beside the candidates' slots: the walk-in, or nobody.
+const WALK_IN: int = -1
+const NO_VISITOR: int = -2
 
 ## The adventurers the rows were built for, in roster order, so they are rebuilt only when someone
 ## joins or leaves.
@@ -42,8 +48,10 @@ var _statuses: Dictionary[String, Label] = {}
 var _details: Dictionary[String, Label] = {}
 var _healths: Dictionary[String, HBoxContainer] = {}
 var _level_ups: Dictionary[String, Label] = {}
-## The adventurer whose row is marked as the one shown beside the roster; "" for none.
+## The adventurer whose row is marked as the one shown beside the roster; "" for none. Or else the
+## visitor whose card is: a candidate's slot, WALK_IN, or NO_VISITOR.
 var _marked: String = ""
+var _marked_visitor: int = NO_VISITOR
 ## The quiet last line in the rows' card while beds outnumber the roster, and its words.
 var _free: Control
 var _free_beds: Label
@@ -51,11 +59,13 @@ var _free_beds: Label
 ## arrives; the parts that change without that: by slot, each candidate's hire button and why it
 ## can't be pressed.
 var _candidates_shown: Array[Dictionary] = []
+var _candidate_cards: Dictionary[int, PanelContainer] = {}
 var _hires: Dictionary[int, Button] = {}
 var _hire_reasons: Dictionary[int, Label] = {}
 ## The walk-in the card was built for, so it is rebuilt only when one arrives or goes; its Accept,
 ## shown while a bed is free, and its Swap, shown while none is.
 var _walk_in_shown: Dictionary = {}
+var _walk_in_card: PanelContainer
 var _accept: Button
 var _swap: Button
 
@@ -116,11 +126,13 @@ func show_walk_in(walk_in: Dictionary, free_bed: bool) -> void:
 		_swap.visible = not free_bed
 
 
-## Marks `adventurer`'s row as the one shown beside the roster, and no other; "" marks none.
-func mark(adventurer: String) -> void:
-	if adventurer == _marked:
+## Marks `adventurer`'s row as the one shown beside the roster, or else the card of `visitor`, a
+## candidate's slot or WALK_IN, and no other; "" and NO_VISITOR mark none.
+func mark(adventurer: String, visitor: int = NO_VISITOR) -> void:
+	if adventurer == _marked and visitor == _marked_visitor:
 		return
 	_marked = adventurer
+	_marked_visitor = visitor
 	_show_mark()
 
 
@@ -128,6 +140,10 @@ func _show_mark() -> void:
 	var rows := _list.get_children()
 	for i: int in rows.size():
 		(rows[i] as Button).theme_type_variation = &"ListRowChosen" if _built[i] == _marked else &"ListRow"
+	for slot: int in _candidate_cards:
+		_candidate_cards[slot].theme_type_variation = &"RowCardChosen" if slot == _marked_visitor else &""
+	if _walk_in_card != null:
+		_walk_in_card.theme_type_variation = &"RowCardChosen" if _marked_visitor == WALK_IN else &""
 
 
 ## `adventurer`'s title, rank and level, in words for the player.
@@ -269,13 +285,14 @@ static func adventurer_row(adventurer: String, adventurers: Adventurers) -> Butt
 
 
 # One compact card per filled slot of `candidates`, in slot order: the candidate's face, name, title
-# and rank over what they show of themselves, and a hire button, which a tap anywhere on the card
-# presses; the reason a hire is refused under them.
+# and rank over their stats, and a hire button; the reason a hire is refused under them. A tap
+# anywhere else on the card opens the candidate.
 func _build_candidates(candidates: Array[Dictionary]) -> void:
 	_candidates_shown = candidates.duplicate()
 	for row: Node in _candidates.get_children():
 		_candidates.remove_child(row)
 		row.queue_free()
+	_candidate_cards.clear()
 	_hires.clear()
 	_hire_reasons.clear()
 	for slot: int in candidates.size():
@@ -296,18 +313,21 @@ func _build_candidates(candidates: Array[Dictionary]) -> void:
 		box.add_child(_hire_reasons[slot])
 		var row := PanelContainer.new()
 		row.add_child(box)
-		_candidates.add_child(Touch.whole_card(row, hire))
+		_candidate_cards[slot] = row
+		_candidates.add_child(_over_tap(row, visitor_pressed.emit.bind(slot)))
+	_show_mark()
 
 
 # The walk-in's compact card under its section label, like a candidate's: their face in their gear,
-# name, title, rank and level over what they show of their stats, with Turn away and Accept or Swap.
-# Two actions, so no whole-card tap.
+# name, title, rank and level over their stats, with Turn away and Accept or Swap. A tap anywhere
+# else on the card opens the walk-in.
 func _build_walk_in(walk_in: Dictionary) -> void:
 	_walk_in_shown = walk_in.duplicate()
 	# Everything after the section label.
 	for card: Node in _walk_in.get_children().slice(1):
 		_walk_in.remove_child(card)
 		card.queue_free()
+	_walk_in_card = null
 	_walk_in.visible = not walk_in.is_empty()
 	if walk_in.is_empty():
 		return
@@ -325,14 +345,33 @@ func _build_walk_in(walk_in: Dictionary) -> void:
 	for button: Button in [turn_away, _accept, _swap]:
 		buttons.add_child(button)
 	line.add_child(buttons)
-	var card := PanelContainer.new()
-	card.add_child(line)
-	_walk_in.add_child(card)
+	_walk_in_card = PanelContainer.new()
+	_walk_in_card.add_child(line)
+	_walk_in.add_child(_over_tap(_walk_in_card, visitor_pressed.emit.bind(WALK_IN)))
+	_show_mark()
+
+
+# `card` over a see-through button, a tap on which calls `on_tap`: everything on the card but its
+# own buttons lets presses through to it.
+static func _over_tap(card: Control, on_tap: Callable) -> MarginContainer:
+	var tap := Button.new()
+	tap.flat = true
+	tap.pressed.connect(on_tap)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for part: Node in card.find_children("*", "Control", true, false):
+		if not part is BaseButton:
+			(part as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# A MarginContainer stacks its children, so the button is the card's size, under it.
+	var stack := MarginContainer.new()
+	stack.add_child(tap)
+	stack.add_child(card)
+	return stack
 
 
 # A candidate's or walk-in's row, short of its buttons: `face`, then `name_text` with `details` on
-# its line, over `stats`, each line cut short rather than wrapped.
-static func _compact_line(face: Control, name_text: String, details: String, stats: String) -> HBoxContainer:
+# its line, over `stats`, each line cut short rather than wrapped. Buttons added after them go on
+# the same line while it has room, else wrap under it, so the row fits the narrow landscape column.
+static func _compact_line(face: Control, name_text: String, details: String, stats: String) -> HFlowContainer:
 	var name_label := _label(name_text, &"RowTitle")
 	name_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	var name_line := HBoxContainer.new()
@@ -344,8 +383,10 @@ static func _compact_line(face: Control, name_text: String, details: String, sta
 	words.alignment = BoxContainer.ALIGNMENT_CENTER
 	words.add_child(name_line)
 	words.add_child(_one_line(stats, &"Caption"))
-	var line := HBoxContainer.new()
-	line.add_theme_constant_override("separation", ROW_GAP_PX)
+	var line := HFlowContainer.new()
+	line.alignment = FlowContainer.ALIGNMENT_END
+	line.add_theme_constant_override("h_separation", ROW_GAP_PX)
+	line.add_theme_constant_override("v_separation", 16)
 	line.add_child(face)
 	line.add_child(words)
 	return line

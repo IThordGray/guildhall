@@ -142,7 +142,12 @@ func stat_total(adventurer: String, stat: String) -> int:
 
 ## Health `adventurer` heals up to, so every level-up, and gear that raises Defence, raises it.
 func max_health(adventurer: String) -> int:
-	return BASE_HEALTH + HEALTH_PER_DEFENCE * stat_total(adventurer, "defence") + HEALTH_PER_LEVEL * (levels[adventurer] - 1)
+	return max_health_of(stat_total(adventurer, "defence"), levels[adventurer])
+
+
+## The health someone with `defence`, gear included, at `level` heals up to.
+static func max_health_of(defence: int, level: int) -> int:
+	return BASE_HEALTH + HEALTH_PER_DEFENCE * defence + HEALTH_PER_LEVEL * (level - 1)
 
 
 ## What `adventurer` wearing `item` instead of what they wear in its slot would change:
@@ -168,7 +173,12 @@ func title(adventurer: String) -> String:
 ## The stats behind `adventurer`'s title, gear included: both of the pair a pair title comes from,
 ## highest first, or else only the highest. Ties go as in `title_of`.
 func title_stats(adventurer: String) -> PackedStringArray:
-	var top := _top_two(_totals(adventurer))
+	return title_stats_of(_totals(adventurer))
+
+
+## The stats behind the title of someone with `totals`, {stat: points}: as `title_stats`.
+static func title_stats_of(totals: Dictionary) -> PackedStringArray:
+	var top := _top_two(totals)
 	return top if not _pair_title(top).is_empty() else PackedStringArray([top[0]])
 
 

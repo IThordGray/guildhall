@@ -50,6 +50,11 @@ var _item: String = ""
 var _open_debrief: int = -1
 ## The adventurer the Adventurer screen shows, or last showed.
 var _shown_adventurer: String = ""
+## The candidate's slot, or Roster.WALK_IN, the Adventurer screen shows instead; Roster.NO_VISITOR
+## while it shows an adventurer. Who they were when opened, so their leaving is seen even when
+## someone new takes their place.
+var _shown_visitor: int = Roster.NO_VISITOR
+var _visitor_who: Dictionary = {}
 ## The screen the Adventurer screen's Back returns to: the Roster or the Debrief it was opened from.
 var _adventurer_from: Control
 ## Whether the window is wider than tall, so the landscape layout shows.
@@ -109,6 +114,7 @@ func _ready() -> void:
 	_picker.back_pressed.connect(_close_picker)
 	_roster.adventurer_pressed.connect(_open_adventurer.bind(_roster))
 	_roster.hire_pressed.connect(_on_hire_pressed)
+	_roster.visitor_pressed.connect(_open_visitor)
 	_roster.armory_pressed.connect(_on_armory_pressed)
 	_roster.accept_pressed.connect(_on_accept_pressed)
 	_roster.turn_away_pressed.connect(_on_turn_away_pressed)
@@ -127,6 +133,10 @@ func _ready() -> void:
 	_adventurer.stop_training_pressed.connect(_on_stop_training_pressed)
 	_adventurer.swiped.connect(_on_adventurer_swiped)
 	_adventurer.tray_toggled.connect(_on_adventurer_tray_toggled)
+	_adventurer.hire_pressed.connect(func() -> void: _on_hire_pressed(_shown_visitor))
+	_adventurer.accept_pressed.connect(_on_accept_pressed)
+	_adventurer.turn_away_pressed.connect(_on_turn_away_pressed)
+	_adventurer.swap_pressed.connect(_on_swap_pressed)
 	_level_up.continue_pressed.connect(_on_level_up_continue)
 	_tick.timeout.connect(_on_tick)
 	_test_speed.pressed.connect(_on_test_speed_pressed)
@@ -408,6 +418,7 @@ func _on_debrief_done() -> void:
 # Opens `adventurer` from `from`, the Roster or a Debrief, which Back returns to. A debrief stays
 # unread. In landscape the roster stays beside them, without Back, unless their tray is open.
 func _open_adventurer(adventurer: String, from: Control) -> void:
+	_shown_visitor = Roster.NO_VISITOR
 	_shown_adventurer = adventurer
 	_adventurer_from = from
 	var beside := _landscape and from == _roster
@@ -420,11 +431,40 @@ func _open_adventurer(adventurer: String, from: Control) -> void:
 # The Roster tab. In landscape, the roster beside the adventurer last shown while they are still in
 # the guild, else the first in roster order; in portrait, the roster alone.
 func _show_roster() -> void:
+	_shown_visitor = Roster.NO_VISITOR
 	if not _landscape:
 		_roster.show()
 		return
 	var roster := _dispatch.adventurers.roster
 	_open_adventurer(_shown_adventurer if roster.has(_shown_adventurer) else roster.keys()[0], _roster)
+
+
+# Opens the candidate in slot `visitor`, or the walk-in for Roster.WALK_IN, on the Adventurer
+# screen: in landscape beside the roster, in portrait on its own with Back to it.
+func _open_visitor(visitor: int) -> void:
+	_shown_visitor = visitor
+	_visitor_who = _visitor(visitor).get("who", {})
+	_adventurer_from = _roster
+	_adventurer.set_landscape(_landscape, _landscape)
+	_show_adventurer(_now())
+	_roster.visible = _landscape
+	_adventurer.show()
+
+
+# The candidate in slot `visitor`, or the walk-in for Roster.WALK_IN, as they are now; {} for nobody.
+func _visitor(visitor: int) -> Dictionary:
+	return _walk_ins.walk_in if visitor == Roster.WALK_IN else _recruits.candidates[visitor]
+
+
+# Back to the roster once the candidate or walk-in shown has gone: in landscape beside the first
+# adventurer.
+func _leave_visitor() -> void:
+	_shown_visitor = Roster.NO_VISITOR
+	if _landscape:
+		_open_adventurer(_dispatch.adventurers.roster.keys()[0], _roster)
+	else:
+		_adventurer.hide()
+		_roster.show()
 
 
 # Beside the roster, the open tray takes the roster's column and gives it back when it closes.
@@ -473,16 +513,24 @@ func _on_hire_pressed(slot: int) -> void:
 	var now := _now()
 	# A Common room finished since the last tick adds its slot before the hire.
 	_hall.checkpoint(now)
-	_recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now, _rooms_done("common_room"), _walk_ins.waiting_name())
+	if _recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now, _rooms_done("common_room"), _walk_ins.waiting_name()):
+		_open_newcomer()
 	_checkpoint(now)
 
 
 func _on_accept_pressed() -> void:
 	var now := _now()
-	_walk_ins.accept(_dispatch.adventurers, _hall.beds(now))
+	if _walk_ins.accept(_dispatch.adventurers, _hall.beds(now)):
+		_open_newcomer()
 	_checkpoint(now)
 
 
+# Shows who just joined, last in the roster: in landscape beside it, in portrait with Back to it.
+func _open_newcomer() -> void:
+	_open_adventurer(_dispatch.adventurers.roster.keys().back(), _roster)
+
+
+# The checkpoint takes a sheet showing the walk-in back to the roster.
 func _on_turn_away_pressed() -> void:
 	_walk_ins.turn_away()
 	_checkpoint(_now())
@@ -571,8 +619,25 @@ func _on_stop_training_pressed(adventurer: String) -> void:
 # Shows the adventurer the Adventurer screen is on, as they are at `now`, their row marked while
 # the roster is beside them.
 func _show_adventurer(now: int) -> void:
+	if _shown_visitor != Roster.NO_VISITOR:
+		_show_visitor(now)
+		return
 	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _gold, _hall.rooms_done("training_room", now), now)
 	_roster.mark(_shown_adventurer if _landscape and _adventurer_from == _roster else "")
+
+
+# Shows the candidate or walk-in the Adventurer screen is on, as they are at `now`, their card marked
+# while the roster is beside them; or, once they have gone, the roster.
+func _show_visitor(now: int) -> void:
+	var visitor := _visitor(_shown_visitor)
+	if visitor.is_empty() or visitor["who"] != _visitor_who:
+		_leave_visitor()
+		return
+	var beds := _hall.beds(now)
+	var walk_in := _shown_visitor == Roster.WALK_IN
+	var refusal := "" if walk_in else Recruits.refusal(_dispatch.adventurers, _gold, beds, Recruits.hire_gold(visitor), _hall)
+	_adventurer.show_visitor(visitor, walk_in, refusal, _dispatch.adventurers.roster.size() < beds)
+	_roster.mark("", _shown_visitor if _landscape else Roster.NO_VISITOR)
 
 
 func _on_level_up_continue() -> void:
@@ -640,9 +705,11 @@ func _lay_out() -> void:
 			_place(column, Vector4(0.5, 0, 0.5, 1), Vector4(-COLUMN_WIDTH_PX / 2, 0, COLUMN_WIDTH_PX / 2, 0))
 		_place(_picker, Vector4(BOARD_SHARE, 0, 1, 1), Vector4(SIDE_MARGIN_PX / 2, 0, 0, 0))
 	_show_quests(_board.visible or _picker.visible)
-	# The Roster tab keeps the adventurer it shows: beside the roster in landscape, on their own
-	# screen with Back in portrait.
-	if roster_tab and landscape:
+	# The Roster tab keeps the adventurer, candidate or walk-in it shows: beside the roster in
+	# landscape, on their own screen with Back in portrait.
+	if roster_tab and _adventurer.visible and _shown_visitor != Roster.NO_VISITOR:
+		_open_visitor(_shown_visitor)
+	elif roster_tab and landscape:
 		_show_roster()
 	elif roster_tab and _adventurer.visible:
 		_open_adventurer(_shown_adventurer, _roster)
