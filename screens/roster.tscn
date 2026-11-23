@@ -41,29 +41,48 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 1
 theme_type_variation = &"Secondary"
-text = "4 adventurers · 4 beds"
+text = "4 / 4 beds"
 horizontal_alignment = 2
 vertical_alignment = 1
 autowrap_mode = 3
 
 [node name="Armory" type="Button" parent="Scroll/Box/Header"]
-custom_minimum_size = Vector2(240, 120)
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
 size_flags_vertical = 4
+theme_type_variation = &"OutlineButton"
+theme_override_font_sizes/font_size = 33
 text = "Armory"
+
+[node name="List" type="VBoxContainer" parent="Scroll/Box"]
+layout_mode = 2
+theme_type_variation = &"RowList"
 
 [node name="WalkIn" type="VBoxContainer" parent="Scroll/Box"]
 visible = false
 layout_mode = 2
+theme_override_constants/separation = 22
 
-[node name="List" type="VBoxContainer" parent="Scroll/Box"]
-layout_mode = 2
-theme_override_constants/separation = 24
-
-[node name="CandidatesSection" type="Label" parent="Scroll/Box"]
+[node name="Section" type="Label" parent="Scroll/Box/WalkIn"]
 layout_mode = 2
 theme_type_variation = &"Section"
+text = "WALK-IN"
+
+[node name="CandidatesHeader" type="HBoxContainer" parent="Scroll/Box"]
+layout_mode = 2
+
+[node name="Section" type="Label" parent="Scroll/Box/CandidatesHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Section"
 text = "CANDIDATES"
+
+[node name="Countdown" type="Label" parent="Scroll/Box/CandidatesHeader"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "next in 4m"
+vertical_alignment = 1
 
 [node name="Candidates" type="VBoxContainer" parent="Scroll/Box"]
 layout_mode = 2

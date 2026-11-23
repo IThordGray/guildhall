@@ -90,9 +90,13 @@ func _assert_drag_scrolls_and_does_not_fire(scroll: ScrollContainer, button: Bas
 	assert_eq(_fired, 1)
 
 
+# The roster of a full guild, every bed taken: compact rows, so it takes that many to scroll.
 func _roster() -> Roster:
 	var roster := _screen("res://screens/roster.tscn") as Roster
-	roster.show_dispatch(Dispatch.new(1_000), 1_000)
+	var dispatch := Dispatch.new(1_000)
+	for i: int in Hall.MAX_ROSTER - dispatch.adventurers.roster.size():
+		dispatch.adventurers.add("recruit_%d" % i, {"name": "Recruit %d" % i, "rank": "F"}, Adventurers.STARTING_STATS["bram"], Adventurers.GROWTH["bram"])
+	roster.show_dispatch(dispatch, 1_000)
 	roster.adventurer_pressed.connect(func(_adventurer: String) -> void: _fire())
 	return roster
 

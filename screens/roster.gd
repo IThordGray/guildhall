@@ -14,8 +14,26 @@ signal turn_away_pressed
 ## The player asked to swap the walk-in for someone in the guild, every bed being taken.
 signal swap_pressed
 
-## The space above and below the figure in an adventurer's row.
-const ROW_PADDING_PX: int = 22
+## How tall an adventurer's row is: the design's 52 dp, so the whole guild fits on a small phone.
+const ROW_HEIGHT_PX: int = 144
+## The space between a row's left and right edges and what it shows: the design's 8 and 12 dp.
+const ROW_INSET_LEFT_PX: int = 22
+const ROW_INSET_RIGHT_PX: int = 33
+## The space between a row's face, words and buttons.
+const ROW_GAP_PX: int = 28
+## How tall a row's health bar is: the design's 4 dp.
+const HEALTH_BAR_PX: int = 11
+## The small text of a row's status and its small buttons, and of its health numbers.
+const SMALL_FONT_PX: int = 33
+const NUMBERS_FONT_PX: int = 30
+## How tall a row's small buttons are: the design's 32 dp.
+const SMALL_BUTTON_PX: int = 88
+## What a disabled row's contents are tinted, so it reads as not pickable.
+const DISABLED_ROW_TINT: Color = Color(1, 1, 1, 0.4)
+## How tall the free-beds line under the rows is: the design's 40 dp.
+const FREE_ROW_HEIGHT_PX: int = 110
+## As wide as QuestBoard's face token, so the free-beds "+" sits under the faces.
+const FACE_COLUMN_PX: int = 80
 
 ## The adventurers the rows were built for, in roster order, so they are rebuilt only when someone
 ## joins or leaves.
@@ -23,13 +41,16 @@ var _built: Array = []
 var _statuses: Dictionary[String, Label] = {}
 var _details: Dictionary[String, Label] = {}
 var _healths: Dictionary[String, HBoxContainer] = {}
+var _level_ups: Dictionary[String, Label] = {}
+## The quiet last line in the rows' card while beds outnumber the roster, and its words.
+var _free: Control
+var _free_beds: Label
 ## The candidates the candidate rows were built for, so they are rebuilt only when one is hired or
 ## arrives; the parts that change without that: by slot, each candidate's hire button and why it
-## can't be pressed, and the one line under them for the empty slots, the soonest refill.
+## can't be pressed.
 var _candidates_shown: Array[Dictionary] = []
 var _hires: Dictionary[int, Button] = {}
 var _hire_reasons: Dictionary[int, Label] = {}
-var _countdown: Label
 ## The walk-in the card was built for, so it is rebuilt only when one arrives or goes; its Accept,
 ## shown while a bed is free, and its Swap, shown while none is.
 var _walk_in_shown: Dictionary = {}
@@ -39,11 +60,15 @@ var _swap: Button
 @onready var _list: VBoxContainer = $Scroll/Box/List
 @onready var _beds: Label = $Scroll/Box/Header/Beds
 @onready var _candidates: VBoxContainer = $Scroll/Box/Candidates
+## The soonest refill, beside the candidates' section label, while a slot is empty.
+@onready var _countdown: Label = $Scroll/Box/CandidatesHeader/Countdown
 @onready var _walk_in: VBoxContainer = $Scroll/Box/WalkIn
 
 
 func _ready() -> void:
 	($Scroll/Box/Header/Armory as Button).pressed.connect(armory_pressed.emit)
+	_list.draw.connect(_draw_card)
+	_build_free_row()
 
 
 func show_dispatch(dispatch: Dispatch, now: int) -> void:
@@ -52,6 +77,7 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 		_build(dispatch.adventurers)
 	for adventurer: String in _statuses:
 		_details[adventurer].text = details_line(dispatch.adventurers, adventurer)
+		_level_ups[adventurer].visible = dispatch.adventurers.level_up_ready(adventurer)
 		var status := _statuses[adventurer]
 		status.text = dispatch.status(adventurer, now)
 		status.theme_type_variation = status_look(dispatch, adventurer, now)
@@ -59,10 +85,13 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 
 
 ## Shows how many beds `adventurers` fill of `beds`, and `recruits`' candidates at `now`: each with
-## a hire button, disabled with the reason when `gold` or a bed is short; then, while a slot is
-## empty, the soonest refill. `hall` is what a reason may suggest building.
+## a hire button, disabled with the reason when `gold` or a bed is short; and, while a slot is empty,
+## the soonest refill. `hall` is what a reason may suggest building.
 func show_recruits(recruits: Recruits, adventurers: Adventurers, gold: Gold, beds: int, hall: Hall, now: int) -> void:
-	_beds.text = "%d adventurers · %d beds" % [adventurers.roster.size(), beds]
+	var filled := adventurers.roster.size()
+	_beds.text = "%d / %d beds" % [filled, beds]
+	_free.visible = beds > filled
+	_free_beds.text = "%d bed free" % (beds - filled) if beds - filled == 1 else "%d beds free" % (beds - filled)
 	if recruits.candidates != _candidates_shown:
 		_build_candidates(recruits.candidates)
 	for slot: int in _hires:
@@ -72,11 +101,11 @@ func show_recruits(recruits: Recruits, adventurers: Adventurers, gold: Gold, bed
 		_hire_reasons[slot].visible = not reason.is_empty()
 	var left := recruits.seconds_to_next_refill(now)
 	_countdown.visible = left >= 0
-	_countdown.text = "New candidate in " + Duration.label(left)
+	_countdown.text = "next in " + Duration.label(left)
 
 
-## Shows `walk_in`, as WalkIns keeps them, at the top: Accept while `free_bed`, else Swap; nothing
-## while nobody waits.
+## Shows `walk_in`, as WalkIns keeps them, under the roster: Accept while `free_bed`, else Swap;
+## nothing while nobody waits.
 func show_walk_in(walk_in: Dictionary, free_bed: bool) -> void:
 	if walk_in != _walk_in_shown:
 		_build_walk_in(walk_in)
@@ -106,8 +135,7 @@ static func status_look(dispatch: Dispatch, adventurer: String, now: int) -> Str
 	return &"Secondary"
 
 
-# One row per adventurer in `adventurers`' roster: their figure in their gear, name, status, details
-# and health.
+# One row per adventurer in `adventurers`' roster: their face, name, details, health and status.
 func _build(adventurers: Adventurers) -> void:
 	var roster := adventurers.roster
 	_built = roster.keys()
@@ -117,62 +145,115 @@ func _build(adventurers: Adventurers) -> void:
 	_statuses.clear()
 	_details.clear()
 	_healths.clear()
+	_level_ups.clear()
 	for adventurer: String in roster:
 		var row := adventurer_row(adventurer, adventurers)
 		_statuses[adventurer] = row.find_child("Status", true, false)
 		_details[adventurer] = row.find_child("Details", true, false)
 		_healths[adventurer] = row.find_child("Health", true, false)
+		_level_ups[adventurer] = row.find_child("LevelUp", true, false)
 		row.pressed.connect(adventurer_pressed.emit.bind(adventurer))
 		_list.add_child(row)
 
 
-## A roster row for `adventurer` of `adventurers`: their figure in their gear, their name, and the
-## empty labels "Status" and "Details" and the `Adventurer.health_row` "Health" for whoever shows it
-## to fill.
+# The quiet line kept after the rows, whatever the roster: "+  N beds free", not tappable. Internal,
+# so the rows stay the list's only children.
+func _build_free_row() -> void:
+	var plus := _label("+", &"Caption")
+	plus.custom_minimum_size.x = FACE_COLUMN_PX
+	plus.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	plus.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_free_beds = _label("", &"Caption")
+	_free_beds.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_free_beds.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var line := HBoxContainer.new()
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.add_theme_constant_override("separation", ROW_GAP_PX)
+	line.add_child(plus)
+	line.add_child(_free_beds)
+	_free = Control.new()
+	_free.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_free.custom_minimum_size.y = FREE_ROW_HEIGHT_PX
+	_free.visible = false
+	_free.add_child(line)
+	line.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	line.offset_left = ROW_INSET_LEFT_PX
+	_list.add_child(_free, false, Node.INTERNAL_MODE_BACK)
+
+
+# The rows' one card, behind them, with a thin line in each gap between two shown rows.
+func _draw_card() -> void:
+	_list.draw_style_box(_list.get_theme_stylebox(&"panel"), Rect2(Vector2.ZERO, _list.size))
+	var gap := _list.get_theme_constant(&"separation")
+	var divider := _list.get_theme_color(&"divider")
+	var first := true
+	for row: Node in _list.get_children(true):
+		var shown := row as Control
+		if not shown.visible:
+			continue
+		if not first:
+			_list.draw_rect(Rect2(0, shown.position.y - gap, _list.size.x, gap), divider)
+		first = false
+
+
+## A compact roster row for `adventurer` of `adventurers`, one tap target: their face; their name,
+## the hidden "LevelUp" pill and the empty "Details" label over the `Adventurer.health_row`
+## "Health"; and the empty "Status" label, for whoever shows it to fill.
 static func adventurer_row(adventurer: String, adventurers: Adventurers) -> Button:
 	var who: Dictionary = adventurers.roster[adventurer]
-	var name_line := HBoxContainer.new()
-	name_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var name_label := _label(who["name"], &"RowTitle")
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_line.add_child(name_label)
+	name_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var level_up := _label("LV UP", &"LevelUp")
+	level_up.name = "LevelUp"
+	level_up.autowrap_mode = TextServer.AUTOWRAP_OFF
+	level_up.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	level_up.visible = false
+	var details := _one_line("", &"Caption")
+	details.name = "Details"
 	var status := _label("", &"Secondary")
 	status.name = "Status"
 	status.autowrap_mode = TextServer.AUTOWRAP_OFF
-	name_line.add_child(status)
-	var details := _label("", &"Secondary")
-	details.name = "Details"
+	status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	status.add_theme_font_size_override(&"font_size", SMALL_FONT_PX)
+	var top := HBoxContainer.new()
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_theme_constant_override("separation", 16)
+	for part: Label in [name_label, level_up, details, status]:
+		top.add_child(part)
+	var health := Adventurer.health_row()
+	health.name = "Health"
+	(health.get_child(0) as Control).custom_minimum_size.y = HEALTH_BAR_PX
+	var numbers := health.get_child(1) as Label
+	numbers.custom_minimum_size.x = 0.0
+	numbers.add_theme_font_size_override(&"font_size", NUMBERS_FONT_PX)
 	var words := VBoxContainer.new()
 	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	words.alignment = BoxContainer.ALIGNMENT_CENTER
-	words.add_child(name_line)
-	words.add_child(details)
-	var health := Adventurer.health_row()
-	health.name = "Health"
+	words.add_child(top)
 	words.add_child(health)
 	var line := HBoxContainer.new()
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	line.add_theme_constant_override("separation", 32)
-	var figure := TextureRect.new()
-	figure.texture = QuestBoard.figure(Faces.seed_of(adventurer, who), adventurers.gear.worn[adventurer])
-	figure.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	figure.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	figure.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	line.add_child(figure)
+	line.add_theme_constant_override("separation", ROW_GAP_PX)
+	line.add_child(QuestBoard.face_token(Faces.seed_of(adventurer, who), adventurers.gear.worn[adventurer]))
 	line.add_child(words)
 	var row := Button.new()
-	# A button does not fit its children, so the row is made tall enough for the figure.
-	row.custom_minimum_size = Vector2(0, figure.texture.get_height() + 2 * ROW_PADDING_PX)
+	row.theme_type_variation = &"ListRow"
+	# A button does not fit its children, so the row is given its height.
+	row.custom_minimum_size = Vector2(0, ROW_HEIGHT_PX)
 	row.add_child(line)
 	line.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	line.offset_left = 36
-	line.offset_right = -36
+	line.offset_left = ROW_INSET_LEFT_PX
+	line.offset_right = -ROW_INSET_RIGHT_PX
+	# A disabled row, such as someone who can't leave, shows everything in it dimmed. A button
+	# redraws whenever it is disabled or enabled.
+	row.draw.connect(func() -> void: line.modulate = DISABLED_ROW_TINT if row.disabled else Color.WHITE)
 	return row
 
 
-# One row per filled slot of `candidates`, in slot order: the candidate, what they show of
-# themselves and a hire button, which a tap anywhere on the row presses. Then the refill line.
+# One compact card per filled slot of `candidates`, in slot order: the candidate's face, name, title
+# and rank over what they show of themselves, and a hire button, which a tap anywhere on the card
+# presses; the reason a hire is refused under them.
 func _build_candidates(candidates: Array[Dictionary]) -> void:
 	_candidates_shown = candidates.duplicate()
 	for row: Node in _candidates.get_children():
@@ -185,101 +266,92 @@ func _build_candidates(candidates: Array[Dictionary]) -> void:
 		if candidate.is_empty():
 			continue
 		var who: Dictionary = candidate["who"]
-		var words := VBoxContainer.new()
-		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		words.alignment = BoxContainer.ALIGNMENT_CENTER
-		words.add_child(_label(who["name"], &"RowTitle"))
-		words.add_child(_label("%s · rank %s" % [Recruits.title(candidate), who["rank"]], &"Secondary"))
-		var hire := Button.new()
-		hire.text = "Hire · %dg" % Recruits.hire_gold(candidate)
-		hire.theme_type_variation = &"GoldButton"
-		hire.custom_minimum_size = Vector2(0, 122)
-		hire.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var hire := _small_button("Hire · %dg" % Recruits.hire_gold(candidate), &"GoldButton")
 		hire.pressed.connect(hire_pressed.emit.bind(slot))
 		_hires[slot] = hire
-		var line := HBoxContainer.new()
-		line.add_theme_constant_override("separation", 32)
-		line.add_child(QuestBoard.face_token(who["face_seed"]))
-		line.add_child(words)
+		var line := _compact_line(QuestBoard.face_token(who["face_seed"]), who["name"],
+				"%s · rank %s" % [Recruits.title(candidate), who["rank"]], Recruits.stats_line(candidate))
 		line.add_child(hire)
-		# The stats and the reason a hire is refused take the row's full width, beside nothing.
 		var box := VBoxContainer.new()
 		box.add_theme_constant_override("separation", 16)
 		box.add_child(line)
-		box.add_child(_label(Recruits.stats_line(candidate), &"Secondary"))
 		_hire_reasons[slot] = _label("", &"Alert")
 		box.add_child(_hire_reasons[slot])
 		var row := PanelContainer.new()
 		row.add_child(box)
 		_candidates.add_child(Touch.whole_card(row, hire))
-	_countdown = _label("", &"Secondary")
-	_candidates.add_child(_countdown)
 
 
-# The walk-in's card, like a candidate's: a Walk-in tag, their face, title, level, what they show of
-# their stats and their weapon, with Turn away and Accept or Swap. Two actions, so no whole-card tap.
+# The walk-in's compact card under its section label, like a candidate's: their face in their gear,
+# name, title, rank and level over what they show of their stats, with Turn away and Accept or Swap.
+# Two actions, so no whole-card tap.
 func _build_walk_in(walk_in: Dictionary) -> void:
 	_walk_in_shown = walk_in.duplicate()
-	for card: Node in _walk_in.get_children():
+	# Everything after the section label.
+	for card: Node in _walk_in.get_children().slice(1):
 		_walk_in.remove_child(card)
 		card.queue_free()
 	_walk_in.visible = not walk_in.is_empty()
 	if walk_in.is_empty():
 		return
 	var who: Dictionary = walk_in["who"]
-	var name_line := HBoxContainer.new()
-	name_line.add_theme_constant_override("separation", 22)
-	var name_label := _label(who["name"], &"RowTitle")
+	var line := _compact_line(QuestBoard.face_token(who["face_seed"], walk_in["worn"]), who["name"],
+			"%s · rank %s · level %d" % [Recruits.title(walk_in), who["rank"], walk_in.get("level", 1)], Recruits.stats_line(walk_in))
+	var turn_away := _small_button("Turn away", &"OutlineButton")
+	turn_away.pressed.connect(turn_away_pressed.emit)
+	_accept = _small_button("Accept", &"GoldButton")
+	_accept.pressed.connect(accept_pressed.emit)
+	_swap = _small_button("Swap", &"GoldButton")
+	_swap.pressed.connect(swap_pressed.emit)
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 16)
+	for button: Button in [turn_away, _accept, _swap]:
+		buttons.add_child(button)
+	line.add_child(buttons)
+	var card := PanelContainer.new()
+	card.add_child(line)
+	_walk_in.add_child(card)
+
+
+# A candidate's or walk-in's row, short of its buttons: `face`, then `name_text` with `details` on
+# its line, over `stats`, each line cut short rather than wrapped.
+static func _compact_line(face: Control, name_text: String, details: String, stats: String) -> HBoxContainer:
+	var name_label := _label(name_text, &"RowTitle")
 	name_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var name_line := HBoxContainer.new()
+	name_line.add_theme_constant_override("separation", 16)
 	name_line.add_child(name_label)
-	var tag := _label("Walk-in", &"Chip")
-	tag.autowrap_mode = TextServer.AUTOWRAP_OFF
-	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	name_line.add_child(tag)
+	name_line.add_child(_one_line(details, &"Caption"))
 	var words := VBoxContainer.new()
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	words.alignment = BoxContainer.ALIGNMENT_CENTER
 	words.add_child(name_line)
-	words.add_child(_label("%s · rank %s · level %d" % [Recruits.title(walk_in), who["rank"], walk_in.get("level", 1)], &"Secondary"))
+	words.add_child(_one_line(stats, &"Caption"))
 	var line := HBoxContainer.new()
-	line.add_theme_constant_override("separation", 32)
-	line.add_child(QuestBoard.face_token(who["face_seed"], walk_in["worn"]))
+	line.add_theme_constant_override("separation", ROW_GAP_PX)
+	line.add_child(face)
 	line.add_child(words)
-	var weapon := HBoxContainer.new()
-	weapon.add_theme_constant_override("separation", 16)
-	var item: String = walk_in["worn"]["weapon"]
-	weapon.add_child(Adventurer.item_icon(item, 3))
-	var item_name := Adventurer.item_name(item)
-	item_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	item_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	weapon.add_child(item_name)
-	var turn_away := Button.new()
-	turn_away.text = "Turn away"
-	turn_away.theme_type_variation = &"OutlineButton"
-	turn_away.pressed.connect(turn_away_pressed.emit)
-	_accept = Button.new()
-	_accept.text = "Accept"
-	_accept.pressed.connect(accept_pressed.emit)
-	_swap = Button.new()
-	_swap.text = "Swap"
-	_swap.pressed.connect(swap_pressed.emit)
-	var buttons := HBoxContainer.new()
-	buttons.add_theme_constant_override("separation", 28)
-	for button: Button in [turn_away, _accept, _swap]:
-		button.custom_minimum_size = Vector2(0, 122)
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		buttons.add_child(button)
-	_accept.theme_type_variation = &"GoldButton"
-	_swap.theme_type_variation = &"GoldButton"
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 16)
-	box.add_child(line)
-	box.add_child(_label(Recruits.stats_line(walk_in), &"Secondary"))
-	box.add_child(weapon)
-	box.add_child(buttons)
-	var card := PanelContainer.new()
-	card.add_child(box)
-	_walk_in.add_child(card)
+	return line
+
+
+static func _small_button(text: String, variation: StringName) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.theme_type_variation = variation
+	button.custom_minimum_size = Vector2(0, SMALL_BUTTON_PX)
+	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	button.add_theme_font_size_override(&"font_size", SMALL_FONT_PX)
+	return button
+
+
+# A label on one line that takes the room left and cuts its text short with "…" when it runs out.
+static func _one_line(text: String, variation: StringName) -> Label:
+	var label := _label(text, variation)
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return label
 
 
 static func _label(text: String, variation: StringName) -> Label:

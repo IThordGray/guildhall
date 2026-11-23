@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=56 format=3]
+[gd_resource type="Theme" load_steps=59 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -526,6 +526,23 @@ corner_radius_bottom_right = 16
 corner_radius_bottom_left = 16
 bg_color = Color(0, 0, 0, 0)
 
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_list_row"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_list_row_pressed"]
+bg_color = Color(0.1647, 0.1451, 0.2, 1)
+border_width_left = 3
+border_width_right = 3
+border_color = Color(0.2275, 0.2039, 0.2745, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_level_up"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.949, 0.7569, 0.3059, 1)
+corner_radius_top_left = 11
+corner_radius_top_right = 11
+corner_radius_bottom_right = 11
+corner_radius_bottom_left = 11
+
 [resource]
 default_font = ExtResource("1_sans")
 default_font_size = 42
@@ -660,6 +677,16 @@ OwnBarOverlay/base_type = &"ProgressBar"
 OwnBarOverlay/styles/background = SubResource("StyleBoxEmpty_bar_overlay")
 OwnBarOverlay/styles/fill = SubResource("StyleBoxFlat_bar_own")
 Label/colors/font_color = Color(0.9451, 0.9216, 0.9569, 1)
+LevelUp/base_type = &"Badge"
+LevelUp/font_sizes/font_size = 28
+LevelUp/styles/normal = SubResource("StyleBoxFlat_level_up")
+ListRow/base_type = &"Button"
+ListRow/styles/disabled = SubResource("StyleBoxEmpty_list_row")
+ListRow/styles/focus = SubResource("StyleBoxEmpty_list_row")
+ListRow/styles/hover = SubResource("StyleBoxEmpty_list_row")
+ListRow/styles/hover_pressed = SubResource("StyleBoxFlat_list_row_pressed")
+ListRow/styles/normal = SubResource("StyleBoxEmpty_list_row")
+ListRow/styles/pressed = SubResource("StyleBoxFlat_list_row_pressed")
 Meta/base_type = &"Numbers"
 Meta/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 Meta/font_sizes/font_size = 36
@@ -698,6 +725,10 @@ RoomName/base_type = &"Label"
 RoomName/colors/font_color = Color(0.6627, 0.6314, 0.7137, 0.55)
 RoomName/font_sizes/font_size = 26
 RoomName/fonts/font = SubResource("FontVariation_mono_spaced")
+RowList/base_type = &"VBoxContainer"
+RowList/colors/divider = Color(0.2275, 0.2039, 0.2745, 1)
+RowList/constants/separation = 3
+RowList/styles/panel = SubResource("StyleBoxFlat_row")
 RowTitle/base_type = &"Heading"
 RowTitle/font_sizes/font_size = 39
 Secondary/base_type = &"Label"
