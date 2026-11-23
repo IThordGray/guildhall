@@ -19,9 +19,9 @@ it merges. Screens and wording live in the code.
 - Portrait 9:16 and landscape, picked by the window's shape. Gold and how many parties are out are
   always on screen: in portrait in the top bar, in landscape in the left rail and screen headers.
 - No dialogs or overlay panels: everything opens as a full screen with Back (the landscape party
-  picker docks beside the board). The one exception: an action that spends (restore, extend) or lets an
-  adventurer go (dismiss, swap) confirms in a small centred card showing only its cost and time, or
-  what leaves with them, with Cancel and the action. Any scroll scrolls by dragging anywhere on it, and a control fires
+  picker docks beside the board). The one exception: an action that spends (restore, extend), lets an
+  adventurer go (dismiss, swap) or gives up an item (sell, swap loot in) confirms in a small centred
+  card showing only its cost and time, what leaves, or the gold it brings, with Cancel and the action. Any scroll scrolls by dragging anywhere on it, and a control fires
   only on a tap that stayed within about 10 dp; a press that turns into a drag never fires. A card
   with only one action does it from a tap anywhere on it.
 - A list of slots shows what can be acted on first, then at most one line for the soonest refill.
@@ -31,14 +31,15 @@ it merges. Screens and wording live in the code.
 
 - The roster never holds more adventurers than the guild has beds. A hire is refused with nothing
   changed when gold is short or every bed is taken.
-- Walk-ins arrive one at a time, a hidden 3–7 minutes apart, from saved timestamps and seeds only;
-  each waits until the next arrives. Accepting is free and needs a bed; with every bed taken, a
+- Walk-ins arrive one at a time, the first a hidden 3–7 minutes into a game and each later one a
+  hidden 20–28 hours after the one before, from saved timestamps and seeds only; each waits until
+  the next arrives. Accepting is free and needs a bed; with every bed taken, a
   walk-in can be swapped for a current adventurer. Dismissing returns gear to the stash where it
   fits; nobody out, training or waiting on a debrief, and never the last adventurer, can go.
 - Candidate slots refill from saved timestamps only, like the quest board: being away gives the same
   candidates as watching.
 - Taverns and training fill from saved timestamps only, up to their cap. Gold held changes only by
-  rewards (paid when their debrief is read), spending and collecting.
+  rewards (paid when their debrief is read), spending, collecting and selling.
 
 ## Hall
 
@@ -64,7 +65,10 @@ it merges. Screens and wording live in the code.
   while it is out changes how the quest ends. Nobody heals while out.
 - A returning party's damage, injuries, healing and XP count from its return, so members can level
   up from the debrief; its gold and loot are paid, and its members free for new quests, only when
-  its debrief is read. A debrief pays once.
+  its debrief is read. A debrief pays once. Loot that finds the stash full can be swapped in for a
+  stash item, which is discarded; what isn't swapped in is lost when the debrief is read.
+- Any stash item sells from the Armory, by quality: Standard 3, Fine 15, Legendary 60 gold. Worn
+  items don't sell.
 - A quest's XP is the party's total: each member gains the total ÷ party size, rounded down, but at least 1. A
   failed quest pays no gold and a quarter of the XP, at least 1.
 - Anyone can be anything: there are no classes. A challenge tests the party's weighted stats, gear
