@@ -145,6 +145,21 @@ func max_health(adventurer: String) -> int:
 	return BASE_HEALTH + HEALTH_PER_DEFENCE * stat_total(adventurer, "defence") + HEALTH_PER_LEVEL * (levels[adventurer] - 1)
 
 
+## What `adventurer` wearing `item` instead of what they wear in its slot would change:
+## {"stats": {stat: points it rises or falls by}, in STATS order, only the stats that change;
+## "health": what their maximum health rises or falls by}.
+func wear_change(adventurer: String, item: String) -> Dictionary:
+	var gains: Dictionary = Gear.ITEMS[item]["bonus"]
+	var worn: String = gear.worn[adventurer].get(Gear.ITEMS[item]["slot"], "")
+	var losses: Dictionary = {} if worn.is_empty() else Gear.ITEMS[worn]["bonus"]
+	var change := {}
+	for stat: String in STATS:
+		var points: int = int(gains.get(stat, 0)) - int(losses.get(stat, 0))
+		if points != 0:
+			change[stat] = points
+	return {"stats": change, "health": HEALTH_PER_DEFENCE * int(change.get("defence", 0))}
+
+
 ## `adventurer`'s title, from their two highest stats, gear included: see `title_of`.
 func title(adventurer: String) -> String:
 	return title_of(_totals(adventurer))

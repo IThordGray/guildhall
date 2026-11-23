@@ -462,6 +462,45 @@ func test_changing_gear_can_change_a_title_and_back() -> void:
 	assert_eq(adventurers.title("ilse"), "Envoy")
 
 
+func test_wearing_a_stash_item_instead_of_the_worn_one_shows_what_it_gains_and_loses_and_nothing_it_keeps() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	# Tobin's Scout's hood, Perception +1, for a Goblin-bone helm, Defence +2, Strength +1.
+	assert_eq(adventurers.wear_change("tobin", "goblin_bone_helm")["stats"], {"strength": 1, "perception": -1, "defence": 2})
+	# Bram's Iron cap, Defence +1, for the helm: the Defence point both add is no change.
+	assert_eq(adventurers.wear_change("bram", "goblin_bone_helm")["stats"], {"strength": 1, "defence": 1})
+	# His Round shield, Defence +1, for a Chapel shield, Defence +2, Spirit +1.
+	assert_eq(adventurers.wear_change("bram", "chapel_shield")["stats"], {"spirit": 1, "defence": 1})
+	# Nothing is worn or moved by asking.
+	assert_eq(adventurers.gear.worn["tobin"]["head"], "scouts_hood")
+
+
+func test_wearing_a_stash_item_in_an_empty_slot_gains_all_it_adds() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	# Maren wears nothing on her head.
+	assert_eq(adventurers.wear_change("maren", "goblin_bone_helm")["stats"], {"strength": 1, "defence": 2})
+	assert_eq(adventurers.wear_change("maren", "goblin_bone_helm")["health"], 4)
+
+
+func test_the_maximum_health_a_swap_shows_follows_defence_as_wearing_it_does() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	for item: String in ["chapel_plate", "rangers_vest"]:
+		adventurers.gear.stow(item)
+	# Bram's Leather vest for Chapel plate: Defence +4.
+	var change := adventurers.wear_change("bram", "chapel_plate")
+	assert_eq(change["health"], 8)
+	var before := adventurers.max_health("bram")
+	adventurers.gear.wear("bram", 0)
+	assert_eq(adventurers.max_health("bram") - before, change["health"])
+	# Chapel plate for a Ranger's vest, Agility +1, Endurance +1: Defence -4.
+	change = adventurers.wear_change("bram", "rangers_vest")
+	assert_eq(change["health"], -8)
+	before = adventurers.max_health("bram")
+	adventurers.gear.wear("bram", adventurers.gear.stash.find("rangers_vest"))
+	assert_eq(adventurers.max_health("bram") - before, change["health"])
+	# Tobin wears no armour: a Ranger's vest moves his Agility and Endurance, not his health.
+	assert_eq(adventurers.wear_change("tobin", "rangers_vest"), {"stats": {"agility": 1, "endurance": 1}, "health": 0})
+
+
 func test_growth_leans_toward_what_worn_items_add_a_twentieth_a_point_up_to_nine_tenths() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	_add_wren(adventurers)

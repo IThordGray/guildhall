@@ -8,8 +8,8 @@ const RAIL_WIDTH_PX: float = 200.0
 const SIDE_MARGIN_PX: float = 44.0
 ## In landscape, the space between the screens and the window's top and bottom.
 const END_MARGIN_PX: float = 32.0
-## In landscape, Roster, Debrief, Level up, the gear slot, the Armory, the swap pick and the stash
-## pick are a centred column at most this wide.
+## In landscape, Roster, Debrief, Level up, the Armory, the swap pick and the stash pick are a
+## centred column at most this wide.
 const COLUMN_WIDTH_PX: float = 1100.0
 ## In landscape, the share of the body's width the quest board takes; the party picker has the rest.
 const BOARD_SHARE: float = 0.42
@@ -52,8 +52,6 @@ var _open_debrief: int = -1
 var _shown_adventurer: String = ""
 ## The screen the Adventurer screen's Back returns to: the Roster or the Debrief it was opened from.
 var _adventurer_from: Control
-## The gear slot, a key of Gear.SLOTS, the gear slot screen is open for.
-var _shown_slot: String = ""
 ## Whether the window is wider than tall, so the landscape layout shows.
 var _landscape: bool = false
 ## Each part that moves with the orientation: its portrait anchors and offsets as main.tscn has
@@ -77,7 +75,6 @@ var _portrait_places: Dictionary[Control, Array] = {}
 @onready var _roster: Roster = $Body/Roster
 @onready var _adventurer: Adventurer = $Body/Adventurer
 @onready var _level_up: LevelUp = $Body/LevelUp
-@onready var _gear_slot: GearSlot = $Body/GearSlot
 @onready var _armory: Armory = $Body/Armory
 @onready var _swap_pick: SwapPick = $Body/SwapPick
 @onready var _stash_pick: StashPick = $Body/StashPick
@@ -124,10 +121,8 @@ func _ready() -> void:
 	_adventurer.back_pressed.connect(_on_adventurer_back)
 	_adventurer.level_up_pressed.connect(_on_level_up_pressed)
 	_adventurer.promote_pressed.connect(_on_promote_pressed)
-	_adventurer.slot_pressed.connect(_on_slot_pressed)
-	_gear_slot.wear_pressed.connect(_on_wear_pressed)
-	_gear_slot.take_off_pressed.connect(_on_take_off_pressed)
-	_gear_slot.back_pressed.connect(_close_gear_slot)
+	_adventurer.wear_pressed.connect(_on_wear_pressed)
+	_adventurer.take_off_pressed.connect(_on_take_off_pressed)
 	_adventurer.train_pressed.connect(_on_train_pressed)
 	_adventurer.stop_training_pressed.connect(_on_stop_training_pressed)
 	_adventurer.swiped.connect(_on_adventurer_swiped)
@@ -136,7 +131,7 @@ func _ready() -> void:
 	_test_speed.pressed.connect(_on_test_speed_pressed)
 	_start.continue_pressed.connect(_open_game)
 	_start.new_game_pressed.connect(_on_new_game)
-	for part: Control in [_tab_bar, _body, _board, _debrief, _roster, _adventurer, _level_up, _gear_slot, _armory, _swap_pick, _stash_pick, _convert_panel, _picker]:
+	for part: Control in [_tab_bar, _body, _board, _debrief, _roster, _adventurer, _level_up, _armory, _swap_pick, _stash_pick, _convert_panel, _picker]:
 		_portrait_places[part] = [
 			Vector4(part.anchor_left, part.anchor_top, part.anchor_right, part.anchor_bottom),
 			Vector4(part.offset_left, part.offset_top, part.offset_right, part.offset_bottom),
@@ -240,8 +235,6 @@ func _checkpoint(now: int) -> void:
 	_roster.show_walk_in(_walk_ins.walk_in, _dispatch.adventurers.roster.size() < _hall.beds(now))
 	if _adventurer.visible:
 		_show_adventurer(now)
-	if _gear_slot.visible:
-		_gear_slot.show_slot(_shown_adventurer, _shown_slot, _dispatch)
 	if _armory.visible:
 		_armory.show_gear(_dispatch.adventurers)
 	if _swap_pick.visible:
@@ -528,29 +521,15 @@ func _on_promote_pressed(adventurer: String) -> void:
 	_checkpoint(now)
 
 
-func _on_slot_pressed(adventurer: String, slot: String) -> void:
-	_shown_slot = slot
-	_gear_slot.show_slot(adventurer, slot, _dispatch)
-	_adventurer.hide()
-	_gear_slot.show()
-
-
+# The checkpoint shows the change on the Adventurer screen, which keeps its tray open.
 func _on_wear_pressed(adventurer: String, index: int) -> void:
 	_dispatch.wear(adventurer, index)
-	_close_gear_slot()
 	_checkpoint(_now())
 
 
 func _on_take_off_pressed(adventurer: String, slot: String) -> void:
 	_dispatch.take_off(adventurer, slot)
-	_close_gear_slot()
 	_checkpoint(_now())
-
-
-func _close_gear_slot() -> void:
-	_gear_slot.hide()
-	_show_adventurer(_now())
-	_adventurer.show()
 
 
 func _on_train_pressed(adventurer: String) -> void:
@@ -589,7 +568,6 @@ func _on_tab_pressed(tab: BaseButton) -> void:
 	_roster.visible = tab == $TabBar/Tabs/Roster
 	_adventurer.hide()
 	_level_up.hide()
-	_gear_slot.hide()
 	_armory.hide()
 	_swap_pick.hide()
 	_stash_pick.hide()
@@ -628,7 +606,7 @@ func _lay_out() -> void:
 		_place(_body, full, Vector4(RAIL_WIDTH_PX + SIDE_MARGIN_PX, END_MARGIN_PX, -SIDE_MARGIN_PX, -END_MARGIN_PX))
 		_place(_board, Vector4(0, 0, BOARD_SHARE, 1), Vector4(0, 0, -SIDE_MARGIN_PX / 2, 0))
 		_place(_adventurer, full, Vector4.ZERO)
-		for column: Control in [_debrief, _roster, _level_up, _gear_slot, _armory, _swap_pick, _stash_pick, _convert_panel]:
+		for column: Control in [_debrief, _roster, _level_up, _armory, _swap_pick, _stash_pick, _convert_panel]:
 			_place(column, Vector4(0.5, 0, 0.5, 1), Vector4(-COLUMN_WIDTH_PX / 2, 0, COLUMN_WIDTH_PX / 2, 0))
 		_place(_picker, Vector4(BOARD_SHARE, 0, 1, 1), Vector4(SIDE_MARGIN_PX / 2, 0, 0, 0))
 	_show_quests(_board.visible or _picker.visible)

@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=64 format=3]
+[gd_resource type="Theme" load_steps=70 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -486,8 +486,6 @@ content_margin_top = 6.0
 content_margin_right = 25.0
 content_margin_bottom = 6.0
 
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_bar_overlay"]
-
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_item_box"]
 content_margin_left = 16.0
 content_margin_top = 16.0
@@ -608,6 +606,110 @@ corner_radius_top_right = 22
 corner_radius_bottom_right = 22
 corner_radius_bottom_left = 22
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card_gold"]
+content_margin_left = 28.0
+content_margin_top = 22.0
+content_margin_right = 28.0
+content_margin_bottom = 22.0
+bg_color = Color(0.1294, 0.1137, 0.1569, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.949, 0.7569, 0.3059, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tray_row"]
+content_margin_left = 6.0
+content_margin_top = 0.0
+content_margin_right = 22.0
+content_margin_bottom = 0.0
+bg_color = Color(0.102, 0.0902, 0.1255, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.2275, 0.2039, 0.2745, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tray_row_worn"]
+content_margin_left = 6.0
+content_margin_top = 0.0
+content_margin_right = 22.0
+content_margin_bottom = 0.0
+bg_color = Color(0.1647, 0.1451, 0.2, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.2275, 0.2039, 0.2745, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tray_row_picked"]
+content_margin_left = 6.0
+content_margin_top = 0.0
+content_margin_right = 22.0
+content_margin_bottom = 0.0
+bg_color = Color(0.1647, 0.1451, 0.2, 1)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0.949, 0.7569, 0.3059, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_item_box_on"]
+content_margin_left = 16.0
+content_margin_top = 16.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(0.1647, 0.1451, 0.2, 1)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0.949, 0.7569, 0.3059, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stat_chip_changed"]
+content_margin_left = 19.0
+content_margin_top = 8.0
+content_margin_right = 19.0
+content_margin_bottom = 8.0
+bg_color = Color(0.4353, 0.8118, 0.5569, 0.14)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stat_chip_title_changed"]
+content_margin_left = 19.0
+content_margin_top = 8.0
+content_margin_right = 19.0
+content_margin_bottom = 8.0
+bg_color = Color(0.4353, 0.8118, 0.5569, 0.14)
+border_width_left = 6
+border_color = Color(0.651, 0.5333, 0.8784, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
 [resource]
 default_font = ExtResource("1_sans")
 default_font_size = 42
@@ -636,6 +738,8 @@ Button/styles/pressed = SubResource("StyleBoxFlat_button_pressed")
 Caption/base_type = &"Label"
 Caption/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 Caption/font_sizes/font_size = 28
+CardGold/base_type = &"PanelContainer"
+CardGold/styles/panel = SubResource("StyleBoxFlat_card_gold")
 Chip/base_type = &"Label"
 Chip/colors/font_color = Color(0.8118, 0.7765, 0.8392, 1)
 Chip/font_sizes/font_size = 33
@@ -684,6 +788,9 @@ Floor/styles/normal = SubResource("StyleBoxEmpty_floor")
 Floor/styles/pressed = SubResource("StyleBoxFlat_floor_current")
 FloorBar/base_type = &"PanelContainer"
 FloorBar/styles/panel = SubResource("StyleBoxFlat_floor_bar")
+Gain/base_type = &"Numbers"
+Gain/colors/font_color = Color(0.4353, 0.8118, 0.5569, 1)
+Gain/font_sizes/font_size = 30
 GoldBar/base_type = &"ProgressBar"
 GoldBar/styles/background = SubResource("StyleBoxFlat_bar_track")
 GoldBar/styles/fill = SubResource("StyleBoxFlat_bar_gold")
@@ -735,6 +842,8 @@ ItemBoxEmptyFit/base_type = &"ItemBoxEmpty"
 ItemBoxEmptyFit/colors/border_color = Color(0.949, 0.7569, 0.3059, 0.75)
 ItemBoxFit/base_type = &"ItemBox"
 ItemBoxFit/styles/panel = SubResource("StyleBoxFlat_item_box_fit")
+ItemBoxOn/base_type = &"ItemBox"
+ItemBoxOn/styles/panel = SubResource("StyleBoxFlat_item_box_on")
 ItemFine/base_type = &"Secondary"
 ItemFine/colors/font_color = Color(0.498, 0.7216, 0.902, 1)
 ItemLegendary/base_type = &"Secondary"
@@ -744,12 +853,12 @@ ItemStandard/colors/font_color = Color(0.9451, 0.9216, 0.9569, 1)
 InjuryBar/base_type = &"ProgressBar"
 InjuryBar/styles/background = SubResource("StyleBoxFlat_bar_track")
 InjuryBar/styles/fill = SubResource("StyleBoxFlat_bar_injury")
+Loss/base_type = &"Numbers"
+Loss/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
+Loss/font_sizes/font_size = 30
 OwnBar/base_type = &"ProgressBar"
 OwnBar/styles/background = SubResource("StyleBoxFlat_bar_track")
 OwnBar/styles/fill = SubResource("StyleBoxFlat_bar_own")
-OwnBarOverlay/base_type = &"ProgressBar"
-OwnBarOverlay/styles/background = SubResource("StyleBoxEmpty_bar_overlay")
-OwnBarOverlay/styles/fill = SubResource("StyleBoxFlat_bar_own")
 Label/colors/font_color = Color(0.9451, 0.9216, 0.9569, 1)
 LevelUp/base_type = &"Badge"
 LevelUp/font_sizes/font_size = 28
@@ -808,10 +917,14 @@ RowTitle/font_sizes/font_size = 39
 Secondary/base_type = &"Label"
 Secondary/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 Secondary/font_sizes/font_size = 36
+SectionGold/base_type = &"Section"
+SectionGold/colors/font_color = Color(0.949, 0.7569, 0.3059, 1)
 Sheet/base_type = &"PanelContainer"
 Sheet/styles/panel = SubResource("StyleBoxFlat_sheet")
 StatChip/base_type = &"PanelContainer"
 StatChip/styles/panel = SubResource("StyleBoxFlat_stat_chip")
+StatChipChanged/base_type = &"StatChip"
+StatChipChanged/styles/panel = SubResource("StyleBoxFlat_stat_chip_changed")
 StatChipTitle/base_type = &"StatChip"
 StatChipTitle/styles/panel = SubResource("StyleBoxFlat_stat_chip_title")
 Section/base_type = &"Secondary"
@@ -819,6 +932,8 @@ Section/font_sizes/font_size = 33
 Section/fonts/font = SubResource("FontVariation_sans_semibold")
 SectionAlert/base_type = &"Section"
 SectionAlert/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
+StatChipTitleChanged/base_type = &"StatChipTitle"
+StatChipTitleChanged/styles/panel = SubResource("StyleBoxFlat_stat_chip_title_changed")
 SuccessChip/base_type = &"Label"
 SuccessChip/colors/font_color = Color(0.4353, 0.8118, 0.5569, 1)
 SuccessChip/font_sizes/font_size = 36
@@ -866,6 +981,12 @@ TokenStack/base_type = &"HBoxContainer"
 TokenStack/constants/separation = -24
 TopBar/base_type = &"PanelContainer"
 TopBar/styles/panel = SubResource("StyleBoxFlat_top_bar")
+TrayRow/base_type = &"PanelContainer"
+TrayRow/styles/panel = SubResource("StyleBoxFlat_tray_row")
+TrayRowPicked/base_type = &"TrayRow"
+TrayRowPicked/styles/panel = SubResource("StyleBoxFlat_tray_row_picked")
+TrayRowWorn/base_type = &"TrayRow"
+TrayRowWorn/styles/panel = SubResource("StyleBoxFlat_tray_row_worn")
 XpText/base_type = &"Numbers"
 XpText/colors/font_color = Color(0.651, 0.5333, 0.8784, 1)
 XpText/font_sizes/font_size = 33

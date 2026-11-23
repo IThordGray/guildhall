@@ -259,3 +259,82 @@ columns = 4
 custom_minimum_size = Vector2(0, 144)
 layout_mode = 2
 text = "Back"
+
+[node name="Stash" type="PanelContainer" parent="Box/Scroll/Content"]
+layout_mode = 2
+
+[node name="Rows" type="VBoxContainer" parent="Box/Scroll/Content/Stash"]
+layout_mode = 2
+theme_override_constants/separation = 17
+
+[node name="Line" type="HBoxContainer" parent="Box/Scroll/Content/Stash/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 11
+
+[node name="Title" type="Label" parent="Box/Scroll/Content/Stash/Rows/Line"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Section"
+text = "STASH"
+
+[node name="Hint" type="Label" parent="Box/Scroll/Content/Stash/Rows/Line"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "tap an item to wear it"
+vertical_alignment = 1
+
+[node name="Tiles" type="HFlowContainer" parent="Box/Scroll/Content/Stash/Rows"]
+layout_mode = 2
+theme_override_constants/h_separation = 17
+theme_override_constants/v_separation = 17
+
+[node name="Empty" type="Label" parent="Box/Scroll/Content/Stash/Rows"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "Nothing in the stash"
+autowrap_mode = 3
+
+[node name="Tray" type="PanelContainer" parent="Box/Scroll/Content"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"CardGold"
+
+[node name="Rows" type="VBoxContainer" parent="Box/Scroll/Content/Tray"]
+layout_mode = 2
+theme_override_constants/separation = 17
+
+[node name="Line" type="HBoxContainer" parent="Box/Scroll/Content/Tray/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 11
+
+[node name="Title" type="Label" parent="Box/Scroll/Content/Tray/Rows/Line"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SectionGold"
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="Done" type="Button" parent="Box/Scroll/Content/Tray/Rows/Line"]
+layout_mode = 2
+theme_type_variation = &"GoldLink"
+text = "Done"
+
+[node name="List" type="VBoxContainer" parent="Box/Scroll/Content/Tray/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 17
+
+[node name="Side" type="ScrollContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_scroll_mode = 0
+
+[node name="Content" type="VBoxContainer" parent="Side"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
