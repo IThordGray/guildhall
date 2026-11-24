@@ -104,6 +104,19 @@ func _ready() -> void:
 	_board.swap_pressed.connect(_on_loot_swap_pressed)
 	_board.let_go_pressed.connect(_on_let_go_pressed)
 	_board.level_up_pressed.connect(_on_quests_level_up_pressed)
+	# The checkpoint before brings the party up to now as it was set; the one after sends it at once
+	# when it is ready.
+	_board.auto_toggled.connect(func(party: String, on: bool) -> void:
+		var now := _now()
+		_checkpoint(now)
+		_dispatch.adventurers.parties.set_auto(party, on)
+		_checkpoint(now))
+	_board.mode_toggled.connect(func(party: String) -> void:
+		var now := _now()
+		_checkpoint(now)
+		var parties := _dispatch.adventurers.parties
+		parties.set_mode(party, Parties.BOLD if parties.mode(party) == Parties.SAFE else Parties.SAFE)
+		_checkpoint(now))
 	_picker.send_pressed.connect(_on_party_sent)
 	_picker.back_pressed.connect(_close_picker)
 	_picker.quest_left.connect(_close_picker)
@@ -227,9 +240,8 @@ func _on_tick() -> void:
 
 
 func _checkpoint(now: int) -> void:
-	_dispatch.checkpoint(now, _hall.first_done_at("infirmary"))
 	_hall.checkpoint(now)
-	_quest_board.refill(_dispatch, now, _rooms_done("quest_hall"), _hall.first_done_at("map_room"), _hall.rank)
+	Auto.checkpoint(_dispatch, _quest_board, now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank)
 	_recruits.refill(_dispatch.adventurers, now, _rooms_done("common_room"), _walk_ins.waiting_name())
 	_walk_ins.refill(_dispatch.adventurers, _recruits, now)
 	var file := ConfigFile.new()
@@ -402,8 +414,8 @@ func _on_send_pressed(quest: String) -> void:
 # The seed comes from the global generator; the outcome it fixes is rolled from the seed alone.
 func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
-	# A Quest hall finished since the last tick adds its slot before the send.
-	_hall.checkpoint(now)
+	# Auto sends due by now go first, and a Quest hall finished since the last tick adds its slot.
+	_checkpoint(now)
 	if _quest_board.send(_dispatch, quest, party, randi(), now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank):
 		_close_picker()
 	_checkpoint(now)

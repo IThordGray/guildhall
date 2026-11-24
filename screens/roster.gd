@@ -101,7 +101,7 @@ func _ready() -> void:
 ## Shows `dispatch` at `now`: each party's name and rank, and each adventurer's row.
 func show_dispatch(dispatch: Dispatch, now: int) -> void:
 	var adventurers := dispatch.adventurers
-	var built := [adventurers.roster.keys(), _groups(adventurers.parties)]
+	var built := [adventurers.roster.keys(), adventurers.parties.groups()]
 	if built != _built:
 		_build(adventurers)
 		_built = built
@@ -185,14 +185,6 @@ static func status_look(dispatch: Dispatch, adventurer: String, now: int) -> Str
 	if dispatch.can_go(adventurer, now):
 		return &"Ok"
 	return &"Secondary"
-
-
-# Each party's id and members, in the order the parties were made: what the cards are built from.
-static func _groups(parties: Parties) -> Array:
-	var groups := []
-	for party: Dictionary in parties.parties:
-		groups.append([party["id"], party["members"].duplicate()])
-	return groups
 
 
 # One card per party of `adventurers`, its header over a row per member; then the reserves' card,

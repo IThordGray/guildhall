@@ -288,3 +288,35 @@ func test_opening_the_party_tray_closes_a_gear_tray_and_a_gear_slot_closes_the_p
 	_tap(_middle_of(_change(sheet)))
 	_tap(_middle_of(_tray(sheet).get_node("Rows/Line/Done") as Control))
 	assert_eq(_tray_title(sheet), "")
+
+
+func test_a_tap_on_a_partys_auto_switch_turns_it_on_or_off_at_once_and_its_mode_shows_only_while_on() -> void:
+	var parties := _dispatch.adventurers.parties
+	assert_true(parties.move("ilse", Parties.NEW_PARTY, _dispatch))
+	var second := parties.party_of("ilse")
+	var board := _screen("res://screens/quest_board.tscn") as QuestBoard
+	board.show_board(Board.new(), _dispatch, 1_000)
+	var asked: Array = []
+	board.auto_toggled.connect(func(party: String, on: bool) -> void:
+		asked.append([party, on])
+		parties.set_auto(party, on)
+		board.show_board(Board.new(), _dispatch, 1_000))
+	board.mode_toggled.connect(func(party: String) -> void: asked.append([party]))
+	await wait_process_frames(1)
+	var row := board.get_node("Scroll/Box/PartyList").get_child(1)
+	var switch := row.find_children("*", "Button", true, false).filter(func(button: Button) -> bool: return button.toggle_mode)[0] as Button
+	var mode := row.find_children("*", "Button", true, false).filter(func(button: Button) -> bool: return not button.toggle_mode)[0] as Button
+	assert_false(mode.is_visible_in_tree())
+	_tap(_middle_of(switch))
+	assert_eq(asked, [[second, true]])
+	assert_true(switch.button_pressed)
+	assert_true(mode.is_visible_in_tree())
+	await wait_process_frames(1)
+	_tap(_middle_of(mode))
+	assert_eq(asked, [[second, true], [second]])
+	_tap(_middle_of(switch))
+	assert_eq(asked, [[second, true], [second], [second, false]])
+	assert_false(switch.button_pressed)
+	assert_false(mode.is_visible_in_tree())
+	# The first party's switch was never touched.
+	assert_false(parties.auto(parties.party_of("bram")))

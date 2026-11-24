@@ -72,18 +72,10 @@ func set_landscape(landscape: bool) -> void:
 	_back.text = "Cancel" if landscape else "Back"
 
 
-# Each party's id and members in `parties`, in the order the parties were made.
-static func _groups(parties: Parties) -> Array:
-	var groups := []
-	for party: Dictionary in parties.parties:
-		groups.append([party["id"], party["members"].duplicate()])
-	return groups
-
-
 # One row per party of `adventurers`, a tap on which picks it; the party picked stays picked while
 # it lasts.
 func _build(adventurers: Adventurers) -> void:
-	_built = _groups(adventurers.parties)
+	_built = adventurers.parties.groups()
 	_order = PackedStringArray()
 	for row: Node in _list.get_children():
 		_list.remove_child(row)
@@ -205,7 +197,7 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 	var adventurers := dispatch.adventurers
 	var parties := adventurers.parties
 	var party_changed := false
-	if _groups(parties) != _built:
+	if parties.groups() != _built:
 		_build(adventurers)
 		party_changed = true
 	if dispatch.unknown_challenges(_quest) != _forecast_unknown:

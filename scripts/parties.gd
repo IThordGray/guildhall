@@ -19,9 +19,13 @@ const NAME_MOST_CHARS: int = 24
 ## Where `move` sends someone instead of a party's id: the reserves, or a new party of their own.
 const RESERVES: String = ""
 const NEW_PARTY: String = "new"
+## How boldly a party with Auto on picks its quests (Auto.LOWEST_LOW_END).
+const SAFE: String = "safe"
+const BOLD: String = "bold"
 
 ## The parties, in the order they were made. Each is {"id", "name": drawn or typed, "seed": what the
-## name was last drawn from, "members": adventurer ids in the order they joined}.
+## name was last drawn from, "members": adventurer ids in the order they joined, and once set,
+## "auto": whether it goes questing by itself (see Auto), "mode": SAFE or BOLD}.
 var parties: Array[Dictionary] = []
 ## The number in the next new party's id, so no id is ever used twice.
 var next_id: int = 1
@@ -41,6 +45,35 @@ func party(id: String) -> Dictionary:
 		if each["id"] == id:
 			return each
 	return {}
+
+
+## Each party's id and members, in the order the parties were made: what a screen showing a row or
+## card per party is built from, so it rebuilds only when a party is made, goes or changes members.
+func groups() -> Array:
+	var found := []
+	for each: Dictionary in parties:
+		found.append([each["id"], each["members"].duplicate()])
+	return found
+
+
+## Whether the party with `id` goes questing by itself (Auto); off until turned on, as in a save
+## from before Auto.
+func auto(id: String) -> bool:
+	return party(id).get("auto", false)
+
+
+func set_auto(id: String, on: bool) -> void:
+	party(id)["auto"] = on
+
+
+## How boldly the party with `id` picks its quests with Auto on: SAFE until set, as in a save from
+## before Auto.
+func mode(id: String) -> String:
+	return party(id).get("mode", SAFE)
+
+
+func set_mode(id: String, picked: String) -> void:
+	party(id)["mode"] = picked
 
 
 ## Everyone in `roster` (Adventurers.roster) in no party, in roster order.

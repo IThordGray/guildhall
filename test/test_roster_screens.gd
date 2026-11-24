@@ -541,36 +541,84 @@ func test_each_board_row_shows_its_time_left_which_a_tick_updates_without_rebuil
 	assert_eq(_visible_rows(board), rows.slice(1))
 
 
-func test_each_party_out_shows_its_name_quest_and_time_left_which_a_tick_updates_without_rebuilding_the_row() -> void:
+func test_each_party_shows_a_row_with_where_it_is_in_its_cycle_which_a_tick_updates_without_rebuilding_the_row() -> void:
 	var board := _quests()
 	var parties := _dispatch.adventurers.parties
 	assert_true(parties.move("tobin", Parties.NEW_PARTY, _dispatch))
 	assert_true(parties.move("maren", parties.party_of("tobin"), _dispatch))
+	var home := parties.party_of("tobin")
 	parties.rename(parties.party_of("bram"), "The Iron Wolves")
+	parties.rename(home, "The Grey Owls")
 	assert_true(_dispatch.send("wolves", PackedStringArray(["bram", "ilse"]), 1, 1_000))
 	board.show_board(Board.new(), _dispatch, 1_003)
-	var rows := board.get_node("Scroll/Box/Out")
-	assert_eq(rows.get_child_count(), 1)
+	var rows := board.get_node("Scroll/Box/PartyList")
+	assert_eq(rows.get_child_count(), 2)
 	var row := rows.get_child(0)
-	# The quest, the party under it, and the time left.
-	assert_eq(_words_shown(row), ["Wolves at the mill", "The Iron Wolves", "0:07"] as Array[String])
-	assert_does_not_have(_texts(row), "22 gold")
+	var other := rows.get_child(1)
+	# Its rank and name, the quest it is on, and the time left; under the switch, Auto.
+	assert_eq(_words_shown(row), ["F", "The Iron Wolves", "Wolves at the mill", "0:07", "Auto"] as Array[String])
+	assert_eq(_words_shown(other), ["F", "The Grey Owls", "Home", "Auto"] as Array[String])
 	var bar := row.find_children("*", "ProgressBar", true, false)[0] as ProgressBar
 	assert_eq(bar.value, 3.0)
-	# A tick: the same row, its time and bar a second on, and the party's new name.
+	# A tick: the same rows, the time and bar a second on, and the party's new name.
 	parties.rename(parties.party_of("bram"), "The Last Oaths")
 	board.show_board(Board.new(), _dispatch, 1_004)
 	assert_same(rows.get_child(0), row)
-	assert_eq(_words_shown(row), ["Wolves at the mill", "The Last Oaths", "0:06"] as Array[String])
+	assert_same(rows.get_child(1), other)
+	assert_eq(_words_shown(row), ["F", "The Last Oaths", "Wolves at the mill", "0:06", "Auto"] as Array[String])
 	assert_eq(bar.value, 4.0)
-	# A party sent before only whole parties went shows its quest alone, with no party line.
-	_dispatch.outings.append({"quest": "rats", "since": 1_000, "party": PackedStringArray(["tobin"]), "seed": 1})
+	# With Auto on and nothing to wait on, it waits for a quest; under the switch, its mode.
+	parties.set_auto(home, true)
 	board.show_board(Board.new(), _dispatch, 1_004)
-	assert_eq(_words_shown(rows.get_child(1)), ["Rats in the cellar", "0:00"] as Array[String])
-	var party_lines := func(out_row: Node) -> int:
-		return out_row.find_children("*", "Label", true, false).filter(func(label: Label) -> bool: return label.theme_type_variation == &"Caption" and label.is_visible_in_tree()).size()
-	assert_eq(party_lines.call(rows.get_child(0)), 1)
-	assert_eq(party_lines.call(rows.get_child(1)), 0)
+	assert_eq(_words_shown(other), ["F", "The Grey Owls", "Waiting for a quest"] as Array[String])
+	assert_eq(_shown_buttons(other), ["Auto · Safe"] as Array[String])
+	# Tobin came home 9 short of full at 1_004: healing, out again in 6 seconds, a bar filling.
+	_dispatch.wounds["tobin"] = {"health": _dispatch.adventurers.max_health("tobin") - 9, "at": 1_004}
+	board.show_board(Board.new(), _dispatch, 1_007)
+	assert_eq(_words_shown(other), ["F", "The Grey Owls", "Healing · out again in", "0:03"] as Array[String])
+	var healing := other.find_children("*", "ProgressBar", true, false)[0] as ProgressBar
+	assert_eq([healing.value, healing.max_value], [3.0, 6.0])
+	board.show_board(Board.new(), _dispatch, 1_010)
+	assert_eq(_words_shown(other), ["F", "The Grey Owls", "Waiting for a quest"] as Array[String])
+	# Loot waiting stops it, in coral; someone training stops it too; with Auto off, it is home.
+	_dispatch.waiting_loot.append({"quest": "rats", "party": PackedStringArray(["tobin", "maren"]), "item": "belt"})
+	board.show_board(Board.new(), _dispatch, 1_010)
+	var stopped := other.find_children("*", "Label", true, false).filter(func(label: Label) -> bool: return label.text.begins_with("Stopped"))
+	assert_eq((stopped[0] as Label).text, "Stopped · loot waiting")
+	assert_eq((stopped[0] as Label).theme_type_variation, &"AlertSmall")
+	_dispatch.waiting_loot.clear()
+	_dispatch.training["maren"] = 1_010
+	board.show_board(Board.new(), _dispatch, 1_010)
+	assert_has(_words_shown(other), "Stopped · training")
+	parties.set_auto(home, false)
+	board.show_board(Board.new(), _dispatch, 1_010)
+	assert_eq(_words_shown(other), ["F", "The Grey Owls", "Home", "Auto"] as Array[String])
+	assert_same(rows.get_child(1), other)
+	# A reserve gets no row; a party changing members rebuilds the rows.
+	_dispatch.training.clear()
+	assert_true(parties.move("maren", Parties.RESERVES, _dispatch))
+	board.show_board(Board.new(), _dispatch, 1_010)
+	assert_eq(rows.get_child_count(), 2)
+	assert_ne(rows.get_child(1), other)
+
+
+func test_the_parties_section_shows_while_there_are_parties_and_hides_when_there_are_none() -> void:
+	var board := _quests()
+	assert_true((board.get_node("Scroll/Box/PartiesSection") as Control).visible)
+	assert_eq(board.get_node("Scroll/Box/PartyList").get_child_count(), 1)
+	_dispatch.adventurers.parties.parties.clear()
+	board.show_board(Board.new(), _dispatch, 1_001)
+	assert_false((board.get_node("Scroll/Box/PartiesSection") as Control).visible)
+	assert_false((board.get_node("Scroll/Box/PartyList") as Control).visible)
+
+
+# The text of every visible button in `node` that has any, in tree order.
+func _shown_buttons(node: Node) -> Array[String]:
+	var texts: Array[String] = []
+	for button: Node in node.find_children("*", "Button", true, false):
+		if (button as Button).is_visible_in_tree() and not (button as Button).text.is_empty():
+			texts.append((button as Button).text)
+	return texts
 
 
 # The words shown in `node`, in tree order: every visible label's text but the empty ones under

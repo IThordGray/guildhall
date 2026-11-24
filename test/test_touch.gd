@@ -209,6 +209,8 @@ func test_a_tap_anywhere_on_a_board_quest_opens_that_quest_and_a_drag_starting_o
 	# A short screen, so three quests are more than it shows without scrolling.
 	board_view.size.y = 550
 	var dispatch := Dispatch.new(1_000)
+	# No parties, so no Parties rows push the board's rows down.
+	dispatch.adventurers = Adventurers.new(PackedStringArray())
 	var board := Board.new()
 	board.reception_slots = 3
 	board.refill(dispatch, 1_000, PackedInt64Array())

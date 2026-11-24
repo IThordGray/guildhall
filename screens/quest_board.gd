@@ -10,6 +10,10 @@ signal swap_pressed(index: int, stash_item: String)
 signal let_go_pressed(index: int)
 ## The player asked to level up `adventurer`, the first with a level-up ready.
 signal level_up_pressed(adventurer: String)
+## The player turned Auto on or off for the party with `party`, its id (Parties).
+signal auto_toggled(party: String, on: bool)
+## The player asked to switch the Auto mode of the party with `party` between Safe and Bold.
+signal mode_toggled(party: String)
 
 ## The length of each dash in an unknown challenge's chip border.
 const DASH_LENGTH: float = 12.0
@@ -18,8 +22,14 @@ const FACE_SCALE: int = 3
 ## How many times larger than its pixels a figure shows: the design's 80 × 108 on its 390-wide
 ## phone, on the 1080-wide screen, to a whole number.
 const FIGURE_SCALE: int = 7
-## How tall a party-out row's progress bar is: the design's 4 dp.
-const OUT_BAR_PX: int = 11
+## How tall a party row's progress bar is: the design's 4 dp.
+const PARTY_BAR_PX: int = 11
+## The Auto switch's size, and how far its knob sits inside its track.
+const SWITCH_SIZE_PX: Vector2 = Vector2(100, 56)
+const KNOB_INSET_PX: float = 7.0
+## In portrait, how wide the column of the Auto switch and what is under it is, so the faces line up
+## from row to row whether it reads Auto or the mode.
+const AUTO_COLUMN_PX: float = 150.0
 ## The space between a row's faces or icon, its words and what is on its right.
 const ROW_GAP_PX: int = 28
 
@@ -46,17 +56,20 @@ var _loot_shown: Array[Dictionary] = []
 var _deciding: int = -1
 ## The dispatch last shown, so opening or closing a decision shows at once.
 var _dispatch: Dispatch
-## The parties out the rows were built for, so they are rebuilt only when those change;
-## `_out_rows` are their parts that change with time, in the same order.
-var _outings_shown: Array[Dictionary] = []
-var _out_rows: Array[OutRow] = []
+## The parties the Parties rows were built for (Parties.groups), so they are rebuilt only when a
+## party is made, goes or changes members; and each row's parts that change, by the party's id.
+var _parties_shown: Array = []
+var _party_rows: Dictionary[String, PartyRow] = {}
+## Whether the window is wider than tall, which moves each party row's faces and Auto onto a line of
+## their own, so the narrow board column keeps room for the name and where the party is.
+var _landscape: bool = false
 
 @onready var _needs_you_header: Control = $Scroll/Box/NeedsYouHeader
 @onready var _needs_you_count: Label = $Scroll/Box/NeedsYouHeader/Count
 @onready var _done: Button = $Scroll/Box/NeedsYouHeader/Done
 @onready var _needs_you: VBoxContainer = $Scroll/Box/NeedsYou
-@onready var _out_section: Control = $Scroll/Box/OutSection
-@onready var _out: VBoxContainer = $Scroll/Box/Out
+@onready var _parties_section: Control = $Scroll/Box/PartiesSection
+@onready var _party_list: VBoxContainer = $Scroll/Box/PartyList
 @onready var _list: VBoxContainer = $Scroll/Box/List
 ## The one line for the empty slots, beside the board's section label: the soonest refill.
 @onready var _refill: Label = $Scroll/Box/BoardHeader/Refill
@@ -64,11 +77,23 @@ var _out_rows: Array[OutRow] = []
 @onready var _parties_count: Label = $Scroll/Box/Header/Parties/Count
 
 
-## A party-out row's parts that change each second, or when its party is renamed.
-class OutRow extends RefCounted:
-	var party: Label
+## A party row's parts that change: its name and rank, where it is in its cycle, and its Auto; and
+## the parts that move with the orientation, and the places they move between.
+class PartyRow extends RefCounted:
+	var faces: Control
+	var right: BoxContainer
+	var top: HBoxContainer
+	var middle: HBoxContainer
+	var line: HBoxContainer
+	var name: Label
+	var rank: Label
+	var status: Label
 	var bar: ProgressBar
 	var time: Label
+	var auto: Button
+	## Under the switch: "Auto" while it is off; the Safe/Bold toggle while it is on.
+	var off: Label
+	var mode: Button
 
 
 ## Someone's figure and face as they look in `items`, what they wore when the textures were drawn.
@@ -83,7 +108,7 @@ class Look extends RefCounted:
 
 
 func _ready() -> void:
-	for list: VBoxContainer in [_needs_you, _out, _list]:
+	for list: VBoxContainer in [_needs_you, _party_list, _list]:
 		list.draw.connect(draw_card.bind(list))
 		# Rows moving inside the list move the lines between them.
 		list.sort_children.connect(list.queue_redraw)
@@ -117,20 +142,24 @@ func _ready() -> void:
 	_done.pressed.connect(_decide.bind(-1))
 
 
-## Landscape shows how many parties are out beside the title.
+## Landscape shows how many parties are out beside the title, and puts each party row's faces and
+## Auto on a line under its name.
 func set_landscape(landscape: bool) -> void:
 	_parties.visible = landscape
+	_landscape = landscape
+	for id: String in _party_rows:
+		_place_parts(_party_rows[id])
 
 
 ## Shows what needs the player in `dispatch` (loot that found the stash full, and level-ups ready)
-## and the parties out at `now`, then the quests in `board`'s slots in order, each with the time
-## until it leaves the board, and beside the board's label, while a slot is empty, the soonest
-## refill. An unknown challenge shows the time to its reveal while the Map room is revealing it.
+## and every party with where it is at `now` and its Auto, then the quests in `board`'s slots in
+## order, each with the time until it leaves the board, and beside the board's label, while a slot
+## is empty, the soonest refill. An unknown challenge shows the time to its reveal while the Map room is revealing it.
 func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 	_dispatch = dispatch
 	_parties_count.text = str(dispatch.outings.size())
 	_show_needs_you(dispatch)
-	_show_out(dispatch, now)
+	_show_parties(dispatch, now)
 	_show_challenges(dispatch)
 	if board.slots != _shown:
 		_shown = board.slots.duplicate()
@@ -433,53 +462,173 @@ static func _names(party: PackedStringArray, roster: Dictionary) -> String:
 	return ", ".join(names)
 
 
-func _show_out(dispatch: Dispatch, now: int) -> void:
-	if dispatch.outings != _outings_shown:
-		_outings_shown = dispatch.outings.duplicate()
-		for row: Node in _out.get_children():
-			_out.remove_child(row)
+# A row per party, rebuilt only when a party is made, goes or changes members; each tick changes only
+# its words, bar and switch.
+func _show_parties(dispatch: Dispatch, now: int) -> void:
+	var parties := dispatch.adventurers.parties
+	var groups := parties.groups()
+	if groups != _parties_shown:
+		_parties_shown = groups
+		for row: Node in _party_list.get_children():
+			_party_list.remove_child(row)
 			row.queue_free()
-		_out_rows.clear()
-		for outing: Dictionary in _outings_shown:
-			var quest: Dictionary = Dispatch.QUESTS[outing["quest"]]
-			var out := OutRow.new()
-			out.bar = ProgressBar.new()
-			out.bar.theme_type_variation = &"GoldBar"
-			out.bar.show_percentage = false
-			out.bar.step = 1.0
-			out.bar.max_value = quest["seconds"]
-			out.bar.custom_minimum_size = Vector2(0, OUT_BAR_PX)
-			out.time = _label("", &"Numbers")
-			out.time.autowrap_mode = TextServer.AUTOWRAP_OFF
-			out.time.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			_out_rows.append(out)
-			var words := VBoxContainer.new()
-			words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			words.alignment = BoxContainer.ALIGNMENT_CENTER
-			words.add_child(one_line(quest["name"], &"RowTitle"))
-			out.party = one_line("", &"Caption")
-			words.add_child(out.party)
-			words.add_child(out.bar)
-			var line := HBoxContainer.new()
-			line.add_theme_constant_override("separation", ROW_GAP_PX)
-			line.add_child(_tokens(outing["party"], dispatch.adventurers.roster))
-			line.add_child(words)
-			line.add_child(out.time)
-			var row := PanelContainer.new()
-			row.theme_type_variation = &"CardRow"
-			row.add_child(line)
-			_out.add_child(row)
-		_out_section.visible = not _outings_shown.is_empty()
-		_out.visible = not _outings_shown.is_empty()
-	for i: int in _out_rows.size():
-		# The party's name under the quest's, as it is now: it may be renamed while out. One sent
-		# before only whole parties went has none, and no line for it.
-		var party := dispatch.adventurers.parties.party(_outings_shown[i].get("party_id", ""))
-		_out_rows[i].party.text = "" if party.is_empty() else party["name"]
-		_out_rows[i].party.visible = not party.is_empty()
-		var left := dispatch.seconds_left(_outings_shown[i], now)
-		_out_rows[i].bar.value = _out_rows[i].bar.max_value - left
-		_out_rows[i].time.text = Duration.label(left)
+		_party_rows.clear()
+		for party: Dictionary in parties.parties:
+			_party_list.add_child(_party_row(party["id"], party["members"], dispatch.adventurers.roster))
+		_parties_section.visible = not groups.is_empty()
+		_party_list.visible = _parties_section.visible
+	for id: String in _party_rows:
+		_show_party(_party_rows[id], id, dispatch, now)
+
+
+# The row of party `id` of `members` in `roster`: its rank pill, name and faces over where it is in
+# its cycle, and at the right its Auto switch over its mode.
+func _party_row(id: String, members: PackedStringArray, roster: Dictionary) -> PanelContainer:
+	var parts := PartyRow.new()
+	parts.rank = chip("", &"Pill")
+	parts.rank.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	parts.name = one_line("", &"RowTitle")
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 16)
+	# The pill first, so it lines up from row to row, as in the party picker.
+	top.add_child(parts.rank)
+	top.add_child(parts.name)
+	parts.top = top
+	parts.faces = _tokens(members, roster)
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parts.middle = HBoxContainer.new()
+	parts.middle.add_theme_constant_override("separation", ROW_GAP_PX)
+	parts.middle.add_child(gap)
+	parts.status = one_line("", &"Caption")
+	# Most of the line for the words, so "Healing · out again in" fits beside its bar.
+	parts.status.size_flags_stretch_ratio = 2.0
+	parts.bar = ProgressBar.new()
+	parts.bar.show_percentage = false
+	parts.bar.step = 1.0
+	parts.bar.custom_minimum_size = Vector2(0, PARTY_BAR_PX)
+	parts.bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parts.bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	parts.time = _label("", &"Numbers")
+	parts.time.autowrap_mode = TextServer.AUTOWRAP_OFF
+	parts.time.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var status := HBoxContainer.new()
+	status.add_theme_constant_override("separation", 16)
+	status.add_child(parts.status)
+	status.add_child(parts.bar)
+	status.add_child(parts.time)
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.alignment = BoxContainer.ALIGNMENT_CENTER
+	words.add_child(top)
+	words.add_child(parts.middle)
+	words.add_child(status)
+	parts.auto = Button.new()
+	parts.auto.theme_type_variation = &"Switch"
+	parts.auto.toggle_mode = true
+	parts.auto.custom_minimum_size = SWITCH_SIZE_PX
+	parts.auto.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	parts.auto.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	parts.auto.draw.connect(_draw_knob.bind(parts.auto))
+	parts.auto.toggled.connect(func(on: bool) -> void: auto_toggled.emit(id, on))
+	parts.off = _label("Auto", &"Caption")
+	parts.off.autowrap_mode = TextServer.AUTOWRAP_OFF
+	parts.off.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	parts.mode = Button.new()
+	parts.mode.theme_type_variation = &"SmallLink"
+	parts.mode.pressed.connect(mode_toggled.emit.bind(id))
+	parts.right = BoxContainer.new()
+	parts.right.alignment = BoxContainer.ALIGNMENT_CENTER
+	parts.right.add_theme_constant_override("separation", 16)
+	parts.right.add_child(parts.auto)
+	parts.right.add_child(parts.off)
+	parts.right.add_child(parts.mode)
+	parts.line = HBoxContainer.new()
+	parts.line.add_theme_constant_override("separation", ROW_GAP_PX)
+	parts.line.add_child(words)
+	var row := PanelContainer.new()
+	row.theme_type_variation = &"CardRow"
+	row.add_child(parts.line)
+	_party_rows[id] = parts
+	_place_parts(parts)
+	return row
+
+
+# In portrait, the faces follow the name and the Auto switch is a column at the right of the row, as
+# in the design; in landscape both go on the line between the name and where the party is.
+func _place_parts(parts: PartyRow) -> void:
+	var faces_in := parts.middle if _landscape else parts.top
+	var right_in := parts.middle if _landscape else parts.line
+	for part: Control in [parts.faces, parts.right]:
+		if part.get_parent() != null:
+			part.get_parent().remove_child(part)
+	faces_in.add_child(parts.faces)
+	faces_in.move_child(parts.faces, 0 if _landscape else -1)
+	right_in.add_child(parts.right)
+	parts.right.vertical = not _landscape
+	parts.right.custom_minimum_size.x = 0.0 if _landscape else AUTO_COLUMN_PX
+	parts.middle.visible = _landscape
+
+
+# A Switch's knob, at its right while on, drawn over the track its style draws.
+static func _draw_knob(switch: Button) -> void:
+	var radius := switch.size.y / 2.0 - KNOB_INSET_PX
+	var x := switch.size.x - switch.size.y / 2.0 if switch.button_pressed else switch.size.y / 2.0
+	switch.draw_circle(Vector2(x, switch.size.y / 2.0), radius, switch.get_theme_color(&"knob_color"))
+
+
+# Shows party `id` in `parts` as it is at `now`: its name and rank, its Auto, and where it is: its
+# quest with a bar and the time left while out; else stopped on loot waiting for the player; home
+# with Auto off; and with Auto on, stopped on someone training, healing with a bar and the time
+# until it is ready, or waiting for a quest that suits it.
+func _show_party(parts: PartyRow, id: String, dispatch: Dispatch, now: int) -> void:
+	var parties := dispatch.adventurers.parties
+	var members: PackedStringArray = parties.party(id)["members"]
+	var on := parties.auto(id)
+	parts.name.text = parties.party(id)["name"]
+	parts.rank.text = parties.rank(id, dispatch.adventurers.roster)
+	parts.auto.set_pressed_no_signal(on)
+	parts.off.visible = not on
+	parts.mode.visible = on
+	parts.mode.text = "Auto · Bold" if parties.mode(id) == Parties.BOLD else "Auto · Safe"
+	var outing := {}
+	for each: Dictionary in dispatch.outings:
+		if members[0] in each["party"]:
+			outing = each
+	var look := &"Caption"
+	var from := 0
+	var to := 0
+	if not outing.is_empty():
+		parts.status.text = Dispatch.QUESTS[outing["quest"]]["name"]
+		from = outing["since"]
+		to = dispatch.back_at(outing)
+	elif Array(members).any(dispatch.loot_waiting):
+		parts.status.text = "Stopped · loot waiting"
+		look = &"AlertSmall"
+	elif not on:
+		parts.status.text = "Home"
+	else:
+		var ready_in := Auto.seconds_to_ready(dispatch, id, now)
+		if ready_in < 0:
+			parts.status.text = "Stopped · training"
+			look = &"AlertSmall"
+		elif ready_in > 0:
+			parts.status.text = "Healing · out again in"
+			# Healing started when they came home.
+			for adventurer: String in members:
+				from = maxi(from, int(dispatch.wounds.get(adventurer, {}).get("at", 0)))
+			to = maxi(now, dispatch.checked_at) + ready_in
+		else:
+			parts.status.text = "Waiting for a quest"
+	parts.status.theme_type_variation = look
+	parts.bar.visible = to > 0
+	parts.time.visible = parts.bar.visible
+	if parts.bar.visible:
+		var left := maxi(0, to - maxi(now, dispatch.checked_at))
+		parts.bar.theme_type_variation = &"HealthBar" if outing.is_empty() else &"GoldBar"
+		parts.bar.max_value = to - from
+		parts.bar.value = to - from - left
+		parts.time.text = Duration.label(left)
 
 
 func _tokens(party: PackedStringArray, roster: Dictionary) -> HBoxContainer:

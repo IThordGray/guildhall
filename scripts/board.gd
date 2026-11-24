@@ -160,6 +160,25 @@ func seconds_to_reveal(quest: String, dispatch: Dispatch, now: int) -> int:
 	return maxi(0, _reveal_time(slot) - at)
 
 
+## The soonest unix seconds after `now` at which the board may change by time alone, as the last
+## refill left it: a quest leaving, a slot's countdown ending or the Map room revealing a quest; -1
+## when none is coming. A slot due with no quest free fills at a party's return instead, which
+## whoever asks knows of.
+func next_change(dispatch: Dispatch, now: int) -> int:
+	var at := maxi(maxi(now, dispatch.checked_at), checked_at)
+	var soonest := -1
+	for slot: int in slots.size():
+		var times: Array[int] = [refill_at[slot]]
+		if slots[slot] != "":
+			times = [_leave_time(slot)]
+			if not dispatch.unknown_challenges(slots[slot]).is_empty():
+				times.append(_reveal_time(slot))
+		for time: int in times:
+			if time > at and (soonest == -1 or time < soonest):
+				soonest = time
+	return soonest
+
+
 ## Puts the board into `file`, which other state shares, so one save holds the whole game.
 func write(file: ConfigFile) -> void:
 	file.set_value("board", "slots", slots)

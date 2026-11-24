@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=74 format=3]
+[gd_resource type="Theme" load_steps=76 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -751,6 +751,20 @@ corner_radius_top_right = 14
 corner_radius_bottom_right = 14
 corner_radius_bottom_left = 14
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_switch_off"]
+bg_color = Color(0.2902, 0.2588, 0.3451, 1)
+corner_radius_top_left = 28
+corner_radius_top_right = 28
+corner_radius_bottom_right = 28
+corner_radius_bottom_left = 28
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_switch_on"]
+bg_color = Color(0.949, 0.7569, 0.3059, 1)
+corner_radius_top_left = 28
+corner_radius_top_right = 28
+corner_radius_bottom_right = 28
+corner_radius_bottom_left = 28
+
 [resource]
 default_font = ExtResource("1_sans")
 default_font_size = 42
@@ -985,6 +999,8 @@ RowTitle/font_sizes/font_size = 39
 Secondary/base_type = &"Label"
 Secondary/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 Secondary/font_sizes/font_size = 36
+SmallLink/base_type = &"GoldLink"
+SmallLink/font_sizes/font_size = 28
 SmallButton/base_type = &"Button"
 SmallButton/font_sizes/font_size = 33
 SmallButton/styles/hover = SubResource("StyleBoxFlat_small_button")
@@ -1016,6 +1032,13 @@ SuccessChip/styles/normal = SubResource("StyleBoxFlat_success_chip")
 Title/base_type = &"Label"
 Title/font_sizes/font_size = 66
 Title/fonts/font = SubResource("FontVariation_pixel_semibold")
+Switch/base_type = &"Button"
+Switch/colors/knob_color = Color(0.9451, 0.9216, 0.9569, 1)
+Switch/styles/focus = SubResource("StyleBoxEmpty_focus")
+Switch/styles/hover = SubResource("StyleBoxFlat_switch_off")
+Switch/styles/hover_pressed = SubResource("StyleBoxFlat_switch_on")
+Switch/styles/normal = SubResource("StyleBoxFlat_switch_off")
+Switch/styles/pressed = SubResource("StyleBoxFlat_switch_on")
 Tab/base_type = &"Button"
 Tab/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 Tab/colors/font_disabled_color = Color(0.4196, 0.3922, 0.4706, 1)
