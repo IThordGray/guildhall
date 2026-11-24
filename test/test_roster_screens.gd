@@ -144,18 +144,126 @@ func test_a_newcomer_shows_their_face_not_their_initial_in_a_token_and_on_the_la
 	assert_eq(card.icon.get_size(), Vector2(224, 308))
 
 
-func test_a_debrief_naming_someone_who_has_left_shows_the_rest_of_its_party_and_its_reward() -> void:
-	assert_true(_dispatch.send("rats", PackedStringArray(["bram", "ilse"]), 1, 1_000))
-	_dispatch.checkpoint(1_100)
-	_dispatch.adventurers.remove("ilse")
-	var debrief := _screen("res://screens/debrief.tscn") as Debrief
-	debrief.show_debrief(_dispatch.debriefs[0], _dispatch)
-	var members := debrief.get_node("Scroll/Box/Who/Members")
-	assert_eq(members.get_child_count(), 1)
-	assert_has(_texts(members), "Bram")
-	assert_does_not_have(_texts(members), "Ilse")
-	assert_has(_texts(debrief), "+%d" % _dispatch.debriefs[0]["gold"])
-	await wait_process_frames(1)
+# The Quests screen showing `_dispatch` at 1_000, with an empty board.
+func _quests() -> QuestBoard:
+	var board := _screen("res://screens/quest_board.tscn") as QuestBoard
+	board.show_board(Board.new(), _dispatch, 1_000)
+	return board
+
+
+# The button in `node` reading `text`, or null.
+func _button(node: Node, text: String) -> Button:
+	for button: Node in node.find_children("*", "Button", true, false):
+		if (button as Button).text == text:
+			return button
+	return null
+
+
+# The text of every button in `node` that has any, in tree order.
+func _button_texts(node: Node) -> Array[String]:
+	var texts: Array[String] = []
+	for button: Node in node.find_children("*", "Button", true, false):
+		if not (button as Button).text.is_empty():
+			texts.append((button as Button).text)
+	return texts
+
+
+# Goblin camp's Goblin-bone helm waits for a full stash whose items sell for 60, 3, 15, 3, 3 and 15.
+func _helm_waiting() -> void:
+	_dispatch.adventurers.gear.stash = PackedStringArray(["moonweave_robe", "belt", "night_cloak", "sash", "quiver", "chapel_shield"])
+	_dispatch.waiting_loot.append({"quest": "goblins", "party": PackedStringArray(["bram", "ilse"]), "item": "goblin_bone_helm"})
+
+
+func test_needs_you_shows_a_row_per_loot_waiting_and_one_for_every_level_up_ready_and_hides_once_nothing_waits() -> void:
+	var board := _quests()
+	var header := board.get_node("Scroll/Box/NeedsYouHeader") as Control
+	var rows := board.get_node("Scroll/Box/NeedsYou")
+	assert_false(header.visible)
+	_helm_waiting()
+	_dispatch.adventurers.gain_xp("tobin", 10)
+	_dispatch.adventurers.gain_xp("maren", 10)
+	board.show_board(Board.new(), _dispatch, 1_000)
+	assert_true(header.visible)
+	assert_eq((header.get_node("Count") as Label).text, "2")
+	assert_eq(rows.get_child_count(), 2)
+	assert_eq(_texts(rows.get_child(0)), ["Stash full", "Goblin camp brought Goblin-bone helm"] as Array[String])
+	assert_has(_texts(rows.get_child(1)), "Level up ready")
+	assert_has(_texts(rows.get_child(1)), "Tobin, Maren")
+	# Nothing changed: the rows are the same ones.
+	var first := rows.get_child(0)
+	board.show_board(Board.new(), _dispatch, 1_001)
+	assert_same(rows.get_child(0), first)
+	# Decided, and a level-up taken: one row left.
+	_dispatch.let_loot_go(0)
+	_dispatch.adventurers.level_up("tobin")
+	board.show_board(Board.new(), _dispatch, 1_002)
+	assert_eq((header.get_node("Count") as Label).text, "1")
+	assert_eq(rows.get_child_count(), 1)
+	assert_has(_texts(rows.get_child(0)), "Maren")
+	assert_does_not_have(_texts(rows.get_child(0)), "Tobin, Maren")
+	_dispatch.adventurers.level_up("maren")
+	board.show_board(Board.new(), _dispatch, 1_003)
+	assert_false(header.visible)
+	assert_eq(rows.get_child_count(), 0)
+
+
+func test_decide_opens_the_loot_then_the_stash_cheapest_first_in_place_and_done_closes_it() -> void:
+	_helm_waiting()
+	var board := _quests()
+	var rows := board.get_node("Scroll/Box/NeedsYou")
+	var done := board.get_node("Scroll/Box/NeedsYouHeader/Done") as Button
+	assert_false(done.visible)
+	_button(rows, "Decide ›").pressed.emit()
+	assert_true(done.visible)
+	assert_null(_button(rows, "Decide ›"))
+	var texts := _texts(rows)
+	assert_eq(texts.slice(0, 5), ["Stash full · 6 / 6", "Goblin camp · Bram, Ilse", "Goblin-bone helm", "Fine ·", "Strength +1 · Defence +2"] as Array[String])
+	# Cheapest first, items of one price in the order they came into the stash.
+	var names: Array[String] = []
+	for item: String in ["belt", "sash", "quiver", "night_cloak", "chapel_shield", "moonweave_robe"]:
+		names.append(Gear.ITEMS[item]["name"])
+	var shown: Array[String] = []
+	for text: String in texts:
+		if text in names:
+			shown.append(text)
+	assert_eq(shown, names)
+	assert_eq(_button_texts(rows), ["Swap · +3g", "Swap · +3g", "Swap · +3g", "Swap · +15g", "Swap · +15g", "Swap · +60g", "Let the Goblin-bone helm go"] as Array[String])
+	watch_signals(board)
+	_button(rows, "Swap · +15g").pressed.emit()
+	assert_signal_emitted_with_parameters(board, "swap_pressed", [0, "night_cloak"])
+	_button(rows, "Let the Goblin-bone helm go").pressed.emit()
+	assert_signal_emitted_with_parameters(board, "let_go_pressed", [0])
+	done.pressed.emit()
+	assert_false(done.visible)
+	assert_not_null(_button(rows, "Decide ›"))
+	assert_null(_button(rows, "Let the Goblin-bone helm go"))
+
+
+func test_an_open_decision_stays_on_its_loot_when_other_loot_comes_and_closes_once_it_is_decided() -> void:
+	_helm_waiting()
+	var board := _quests()
+	var rows := board.get_node("Scroll/Box/NeedsYou")
+	_button(rows, "Decide ›").pressed.emit()
+	# Other loot comes in after it: the helm's stays open.
+	_dispatch.waiting_loot.append({"quest": "rats", "party": PackedStringArray(["tobin"]), "item": "sash"})
+	board.show_board(Board.new(), _dispatch, 1_001)
+	assert_not_null(_button(rows, "Let the Goblin-bone helm go"))
+	assert_null(_button(rows, "Let the Sash go"))
+	# The helm swapped in, the rats' loot waits closed.
+	assert_true(_dispatch.swap_loot(0, "belt"))
+	board.show_board(Board.new(), _dispatch, 1_002)
+	assert_eq(rows.get_child_count(), 1)
+	assert_not_null(_button(rows, "Decide ›"))
+	assert_false((board.get_node("Scroll/Box/NeedsYouHeader/Done") as Button).visible)
+
+
+func test_open_on_the_level_up_row_asks_to_level_up_the_first_with_one_ready() -> void:
+	_dispatch.adventurers.gain_xp("maren", 10)
+	_dispatch.adventurers.gain_xp("ilse", 10)
+	var board := _quests()
+	watch_signals(board)
+	_button(board.get_node("Scroll/Box/NeedsYou"), "Open ›").pressed.emit()
+	assert_signal_emitted_with_parameters(board, "level_up_pressed", ["ilse"])
 
 
 # A candidate's or the walk-in's card in `section` of `roster`, Candidates or WalkIn, at `index`:

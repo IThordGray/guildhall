@@ -52,8 +52,8 @@ const NO_TRAINING_PLACE: String = "No free training place — convert a Training
 
 ## Parties out, in the order they left. Each is {"quest": quest id, "since": unix seconds it left,
 ## "party": adventurer ids, "seed": the seed that fixes how it ends, "chance": its whole-percent
-## chance of success when it left, "lucky_break": whether a lucky break raised that chance,
-## "spirit" and "luck": the party's totals when it left, "health" and "max_health": {adventurer
+## chance of success when it left, a lucky break counted, "spirit" and "luck": the party's totals
+## when it left, "health" and "max_health": {adventurer
 ## id: points} each member left with}. A party counts as out until the checkpoint after its return
 ## brings it home.
 var outings: Array[Dictionary] = []
@@ -62,18 +62,13 @@ var outings: Array[Dictionary] = []
 var injured_until: Dictionary[String, int] = {}
 ## How many seconds each adventurer's latest injury lasts in all, fixed when it was decided.
 var injury_lengths: Dictionary[String, int] = {}
-## Returns the player has not read yet, in the order they came back. Each is {"quest": quest id,
-## "returned_at": unix seconds it came back, "success": bool, "party": adventurer ids,
-## "damage": {adventurer id: damage taken}, "injured": {adventurer id: seconds the injury lasts},
-## "gold": gold it brought, "xp": XP each member gained, "revealed": the quest's challenges it
-## made known, "loot": item ids it brought, "paid": false, "xp_given": true}, "lucky_break":
-## true when a lucky break raised its chance, and "kept": the loot already swapped into the stash
-## (`swap_loot`), once there is any. Damage, injuries, XP and the reveal were applied when
-## the party came home, so a member can level up from the debrief; its gold and loot are paid when
-## it is read. One saved without "xp_given" still owes its XP, paid
-## when read. One saved before reading paid has no "paid": it was paid on coming home, its "loot"
-## the items put in the stash and "lost" those brought to a full stash.
-var debriefs: Array[Dictionary] = []
+## Loot that found the stash full when its party came home, in the order it came, waiting for the
+## player to swap it in (`swap_loot`) or let it go (`let_loot_go`). Each is {"quest": quest id,
+## "party": adventurer ids, "item": item id}. Until it is decided, its party stays home.
+var waiting_loot: Array[Dictionary] = []
+## The guild's gold, which a returning party's reward goes into. Whoever loads the game sets it to
+## the guild's own Gold before the first checkpoint.
+var gold: Gold = Gold.new(0)
 ## Who is in the guild, and each one's stats, level, XP and gear: their stats decide quests, and
 ## returns grow them.
 var adventurers: Adventurers = Adventurers.new()
@@ -95,6 +90,11 @@ var tries: Dictionary[String, int] = {}
 var checked_at: int
 ## The unix seconds the first Infirmary is finished at, as the last checkpoint was told; -1 for none.
 var _infirmary_from: int = -1
+## Debriefs a save from before returns paid at once still held unread: the next checkpoint pays
+## them as if their parties had just come home. Each is as that save wrote it, with "quest",
+## "party", "gold", "xp", "loot" (item ids), "xp_given" (whether coming home gave the XP) and
+## "kept" (the loot already swapped into the stash).
+var _unpaid: Array[Dictionary] = []
 
 
 func _init(at: int) -> void:
@@ -284,19 +284,33 @@ func take_off(adventurer: String, slot: String) -> bool:
 	return take_off_refusal(adventurer, slot).is_empty() and adventurers.gear.take_off(adventurer, slot)
 
 
-## True when `adventurer` can join a party at `now`: home, their debriefs read, not injured and not
-## training.
+## True when `adventurer` can join a party at `now`: home, no loot of theirs waiting, not injured
+## and not training.
 func can_go(adventurer: String, now: int) -> bool:
-	return quest_of(adventurer).is_empty() and not debrief_waiting(adventurer) and injury_left(adventurer, now) == 0 and not training.has(adventurer)
+	return quest_of(adventurer).is_empty() and not loot_waiting(adventurer) and injury_left(adventurer, now) == 0 and not training.has(adventurer)
 
 
-## True when a debrief of a party `adventurer` was in waits unread: until every one is read, they
-## are not available.
-func debrief_waiting(adventurer: String) -> bool:
-	for debrief: Dictionary in debriefs:
-		if adventurer in debrief["party"]:
+## True when loot a party `adventurer` was in brought to a full stash waits for the player: until
+## all of it is decided, they are not available.
+func loot_waiting(adventurer: String) -> bool:
+	for waiting: Dictionary in waiting_loot:
+		if adventurer in waiting["party"]:
 			return true
 	return false
+
+
+## Who has a level-up ready, in roster order.
+func ready_to_level() -> PackedStringArray:
+	var ready := PackedStringArray()
+	for adventurer: String in adventurers.roster:
+		if adventurers.level_up_ready(adventurer):
+			ready.append(adventurer)
+	return ready
+
+
+## How many things wait for the player: each loot waiting, and every level-up ready together as one.
+func needs_you_count() -> int:
+	return waiting_loot.size() + (0 if ready_to_level().is_empty() else 1)
 
 
 ## What `adventurer` is doing at `now`, in words for the player.
@@ -304,8 +318,8 @@ func status(adventurer: String, now: int) -> String:
 	var quest := quest_of(adventurer)
 	if not quest.is_empty():
 		return "On quest: " + QUESTS[quest]["name"]
-	if debrief_waiting(adventurer):
-		return "Debrief waiting"
+	if loot_waiting(adventurer):
+		return "Waiting on loot"
 	var injured := injury_left(adventurer, now)
 	if injured > 0:
 		return "Injured · " + Duration.label(injured)
@@ -321,8 +335,8 @@ func training_refusal(adventurer: String, places: int, now: int) -> String:
 		return "Already training"
 	if not quest_of(adventurer).is_empty():
 		return "Out on a quest"
-	if debrief_waiting(adventurer):
-		return "Debrief waiting"
+	if loot_waiting(adventurer):
+		return "Waiting on loot"
 	if injury_left(adventurer, now) > 0:
 		return "Injured"
 	if training.size() >= places:
@@ -394,8 +408,8 @@ func _seconds_trained(adventurer: String, now: int) -> int:
 func dismiss_refusal(adventurer: String) -> String:
 	if not quest_of(adventurer).is_empty():
 		return "Out on a quest"
-	if debrief_waiting(adventurer):
-		return "Debrief waiting"
+	if loot_waiting(adventurer):
+		return "Waiting on loot"
 	if training.has(adventurer):
 		return "Training"
 	if adventurers.roster.size() <= 1:
@@ -405,7 +419,7 @@ func dismiss_refusal(adventurer: String) -> String:
 
 ## Dismisses `adventurer` for good: the guild forgets them as if they had never joined, their gear
 ## going to the stash (Adventurers.remove); false, with nothing changed, when `dismiss_refusal`
-## gives a reason. A debrief naming them still loads, and screens show nothing of them. A rank lost
+## gives a reason. A rank lost
 ## with them changes which quests the board draws, so whoever calls this brings the board up to date
 ## first.
 func dismiss(adventurer: String) -> bool:
@@ -452,7 +466,7 @@ func send(quest_id: String, party: PackedStringArray, roll_seed: int, now: int, 
 	# A lucky break is decided by the seed now, and only counts when it lifts the weakest challenge.
 	var luck := party_stat(party, "luck")
 	var lucky: bool = Outcome.lucky_break(roll_seed, luck) and challenge_chances(quest_id, party).min() < Outcome.EVEN_CHANCE
-	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "seed": roll_seed, "chance": success_chance(quest_id, party, lucky), "lucky_break": lucky, "spirit": party_stat(party, "spirit"), "luck": luck, "health": health_left_with, "max_health": max_left_with})
+	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "seed": roll_seed, "chance": success_chance(quest_id, party, lucky), "spirit": party_stat(party, "spirit"), "luck": luck, "health": health_left_with, "max_health": max_left_with})
 	return true
 
 
@@ -466,13 +480,26 @@ func returned_since_checkpoint(now: int) -> bool:
 
 
 ## Brings every returned party home, once, in the order they returned: gives each member damage and
-## XP, injures those it leaves under a quarter of their health, reveals the quest's challenges, and
-## adds its debrief holding the gold and loot it earned, paid when read. `infirmary_from` is the unix
-## seconds the first Infirmary is finished at, -1 for none: from then on healing is faster, and an
-## injury from a return at or after it is shorter. Records the time seen.
+## XP, injures those it leaves under a quarter of their health, reveals the quest's challenges, puts
+## the gold it earned into `gold` and its loot into the stash, where loot that finds it full waits
+## (`waiting_loot`). Debriefs a save from before held unread are paid first, the same way.
+## `infirmary_from` is the unix seconds the first Infirmary is finished at, -1 for none: from then
+## on healing is faster, and an injury from a return at or after it is shorter. Records the time
+## seen.
 func checkpoint(now: int, infirmary_from: int = -1) -> void:
 	checked_at = maxi(checked_at, now)
 	_infirmary_from = infirmary_from
+	for debrief: Dictionary in _unpaid:
+		gold.amount += int(debrief["gold"])
+		if not debrief.get("xp_given", false):
+			for adventurer: String in debrief["party"]:
+				adventurers.gain_xp(adventurer, int(debrief["xp"]))
+		var items: PackedStringArray = debrief["loot"].duplicate()
+		for kept: String in debrief.get("kept", PackedStringArray()):
+			items.remove_at(items.find(kept))
+		for item: String in items:
+			_stow_or_wait(debrief["quest"], debrief["party"], item)
+	_unpaid.clear()
 	var returned: Array[Dictionary] = []
 	for outing: Dictionary in outings:
 		if seconds_left(outing, checked_at) == 0:
@@ -489,8 +516,6 @@ func _bring_home(outing: Dictionary) -> void:
 	var returns_at := back_at(outing)
 	var reward: int = quest["gold"]
 	var success := true
-	var damage: Dictionary = {}
-	var injured: Dictionary = {}
 	# Spirit and Luck are the party's when it left, so a level-up while out changes nothing. One sent
 	# before they were kept counts the party's now.
 	var luck: int = outing.get("luck", party_stat(party, "luck"))
@@ -505,7 +530,7 @@ func _bring_home(outing: Dictionary) -> void:
 		success = outcome.success
 		if not success:
 			reward = failure_gold(outing["quest"])
-		damage = outcome.damage
+		var damage := outcome.damage
 		var healed_in := INFIRMARY_INJURY_SECONDS if _infirmary_from >= 0 and _infirmary_from <= returns_at else INJURY_SECONDS
 		for adventurer: String in party:
 			# One sent before health was kept left with what they have now.
@@ -520,96 +545,43 @@ func _bring_home(outing: Dictionary) -> void:
 			if under_a_quarter(back_with, most):
 				injured_until[adventurer] = returns_at + healed_in
 				injury_lengths[adventurer] = healed_in
-				injured[adventurer] = healed_in
-	var revealing := unknown_challenges(outing["quest"])
-	if not revealing.is_empty():
+	if not unknown_challenges(outing["quest"]).is_empty():
 		revealed.append(outing["quest"])
 	tries[outing["quest"]] = int(tries.get(outing["quest"], 0)) + 1
 	# The party shares the quest's XP, each member gaining an equal part, rounded down, but at least 1,
-	# so nobody comes back from a quest with nothing. A party with no members gains nothing, and its
-	# debrief keeps the whole.
-	var whole := Adventurers.quest_xp(quest["xp"], success)
-	var xp := whole if party.is_empty() else maxi(1, floori(whole / float(party.size())))
-	for adventurer: String in party:
-		adventurers.gain_xp(adventurer, xp)
+	# so nobody comes back from a quest with nothing. A party with no members gains nothing.
+	if not party.is_empty():
+		var xp := maxi(1, floori(Adventurers.quest_xp(quest["xp"], success) / float(party.size())))
+		for adventurer: String in party:
+			adventurers.gain_xp(adventurer, xp)
+	gold.amount += reward
 	# Loot comes whatever the outcome, from the seed the party left with.
-	var loot := PackedStringArray()
 	var item := Gear.loot(outing["seed"], quest["rank"], luck)
 	if not item.is_empty():
-		loot.append(item)
-	debriefs.append({"quest": outing["quest"], "returned_at": returns_at, "success": success, "party": party, "damage": damage, "injured": injured, "gold": reward, "xp": xp, "revealed": revealing, "loot": loot, "paid": false, "xp_given": true})
-	if outing.get("lucky_break", false):
-		debriefs[-1]["lucky_break"] = true
+		_stow_or_wait(outing["quest"], party, item)
 
 
-## Files the debrief at `index` away once the player has read it, and pays what its party earned:
-## its gold into `gold` and its loot into the stash, where an item that finds the stash full is
-## lost, and its XP to each member if coming home did not give it already. An item already swapped
-## into the stash (`swap_loot`) is not stowed again. One saved before reading paid was paid already,
-## so it is only filed away.
-func read_debrief(index: int, gold: Gold) -> void:
-	var debrief := debriefs[index]
-	debriefs.remove_at(index)
-	if debrief.get("paid", true):
-		return
-	gold.amount += int(debrief["gold"])
-	if not debrief.get("xp_given", false):
-		for adventurer: String in debrief["party"]:
-			adventurers.gain_xp(adventurer, int(debrief["xp"]))
-	for item: String in _unkept(debrief):
-		adventurers.gear.stow(item)
+# Puts `item`, which `party` brought back from `quest`, into the stash; when the stash is full, it
+# waits for the player instead.
+func _stow_or_wait(quest: String, party: PackedStringArray, item: String) -> void:
+	if not adventurers.gear.stow(item):
+		waiting_loot.append({"quest": quest, "party": party, "item": item})
 
 
-## The items `debrief` brings, split as reading it now would: {"loot": item ids that go into the
-## stash, those swapped in already first, "lost": those that find it full}. One saved before reading
-## paid keeps the split it was paid with.
-func debrief_loot(debrief: Dictionary) -> Dictionary:
-	if debrief.get("paid", true):
-		return {"loot": debrief.get("loot", PackedStringArray()), "lost": debrief.get("lost", PackedStringArray())}
-	var kept: PackedStringArray = debrief.get("kept", PackedStringArray())
-	var items := _unkept(debrief)
-	var room := maxi(0, adventurers.gear.stash_cap - adventurers.gear.stash.size())
-	return {"loot": kept + items.slice(0, room), "lost": items.slice(room)}
-
-
-## Why `item`, which `debrief` would lose to a full stash, can't be swapped for `stash_item`, in
-## words for the player; "" when it can. With `stash_item` "", whether `item` can be swapped in for
-## anything, as the debrief's Swap button asks.
-func swap_loot_refusal(debrief: Dictionary, item: String, stash_item: String = "") -> String:
-	if debrief.get("paid", true):
-		return "Already paid"
-	if item not in debrief_loot(debrief)["lost"]:
-		return "Not lost"
-	if not stash_item.is_empty() and stash_item not in adventurers.gear.stash:
-		return "No longer in the stash"
-	return ""
-
-
-## Discards `stash_item` for good to put `item`, which `debrief` would lose, into the stash now, and
-## marks it kept so reading the debrief does not stow it again; false, with nothing changed, when
-## swap_loot_refusal gives a reason. The debrief still lists it among its loot.
-func swap_loot(debrief: Dictionary, item: String, stash_item: String) -> bool:
-	if not swap_loot_refusal(debrief, item, stash_item).is_empty() or not adventurers.gear.swap(stash_item, item):
+## Sells `stash_item` from the stash at its price (Gear.price) into `gold` and stows the loot waiting
+## at `index` in its place, freeing its party; false, with nothing changed, when the stash holds no
+## `stash_item`.
+func swap_loot(index: int, stash_item: String) -> bool:
+	if not adventurers.gear.sell(stash_item, gold):
 		return false
-	var kept: PackedStringArray = debrief.get("kept", PackedStringArray())
-	kept.append(item)
-	debrief["kept"] = kept
+	adventurers.gear.stow(waiting_loot[index]["item"])
+	waiting_loot.remove_at(index)
 	return true
 
 
-# `debrief`'s loot without the items already swapped into the stash, one of each kept.
-func _unkept(debrief: Dictionary) -> PackedStringArray:
-	var items: PackedStringArray = debrief["loot"].duplicate()
-	for item: String in debrief.get("kept", PackedStringArray()):
-		items.remove_at(items.find(item))
-	return items
-
-
-## How long ago `debrief` came back at `now`, in words for the player: whole minutes, or "just
-## now" under one.
-func back_label(debrief: Dictionary, now: int) -> String:
-	var minutes := floori((maxi(now, checked_at) - int(debrief["returned_at"])) / 60.0)
-	return "Back just now" if minutes == 0 else "Back %d min ago" % minutes
+## Discards the loot waiting at `index` for good, freeing its party.
+func let_loot_go(index: int) -> void:
+	waiting_loot.remove_at(index)
 
 
 ## Unix seconds `outing`'s party is back, fixed when it leaves.
@@ -622,7 +594,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("dispatch", "outings", outings)
 	file.set_value("dispatch", "injured_until", injured_until)
 	file.set_value("dispatch", "injury_lengths", injury_lengths)
-	file.set_value("dispatch", "debriefs", debriefs)
+	file.set_value("dispatch", "waiting_loot", waiting_loot)
 	file.set_value("dispatch", "wounds", wounds)
 	file.set_value("dispatch", "revealed", revealed)
 	file.set_value("dispatch", "training", training)
@@ -652,7 +624,12 @@ static func load_or_start(path: String, now: int) -> Dispatch:
 			dispatch.outings.erase(outing)
 	dispatch.injured_until.assign(file.get_value("dispatch", "injured_until", {}))
 	dispatch.injury_lengths.assign(file.get_value("dispatch", "injury_lengths", {}))
-	dispatch.debriefs.assign(file.get_value("dispatch", "debriefs", []))
+	dispatch.waiting_loot.assign(file.get_value("dispatch", "waiting_loot", []))
+	# A save from before returns paid at once holds those it had not paid yet as debriefs with "paid"
+	# false; the next checkpoint pays them. Older debriefs were paid when their party came home.
+	for debrief: Dictionary in file.get_value("dispatch", "debriefs", []):
+		if not debrief.get("paid", true):
+			dispatch._unpaid.append(debrief)
 	# A save from before health has nobody hurt: everyone loads at full health.
 	dispatch.wounds.assign(file.get_value("dispatch", "wounds", {}))
 	# A save from before challenges were known knows what every new guild knows.

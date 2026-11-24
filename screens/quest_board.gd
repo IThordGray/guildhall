@@ -3,8 +3,13 @@ extends Control
 
 ## The player asked to send a party on `quest`, a key of Dispatch.QUESTS.
 signal send_pressed(quest: String)
-## The player asked to read the debrief at `index` in Dispatch.debriefs.
-signal debrief_pressed(index: int)
+## The player chose to sell `stash_item`, an item id in the stash, to make room for the loot waiting
+## at `index` in Dispatch.waiting_loot.
+signal swap_pressed(index: int, stash_item: String)
+## The player chose to let the loot waiting at `index` in Dispatch.waiting_loot go.
+signal let_go_pressed(index: int)
+## The player asked to level up `adventurer`, the first with a level-up ready.
+signal level_up_pressed(adventurer: String)
 
 ## The length of each dash in an unknown challenge's chip border.
 const DASH_LENGTH: float = 12.0
@@ -28,16 +33,23 @@ var _unknown_shown: Dictionary[String, int] = {}
 var _shown: PackedStringArray = PackedStringArray()
 ## The one line under the quests for the empty slots: the soonest refill.
 var _refill: Label
-## The debriefs and parties out the rows were built for, so they are rebuilt only when those
-## change; `_back_labels` and `_out_rows` are their parts that change with time, in the same order.
-var _debriefs_shown: Array[Dictionary] = []
-var _back_labels: Array[Label] = []
+## What the Needs you rows were built from: the loot waiting, who has a level-up ready, the decision
+## open and, while one is, the stash. They are rebuilt only when one of those changes.
+var _needs_you_shown: Array = []
+## The loot waiting as last shown, and where in it the loot whose decision is open is; -1 for none.
+var _loot_shown: Array[Dictionary] = []
+var _deciding: int = -1
+## The dispatch last shown, so opening or closing a decision shows at once.
+var _dispatch: Dispatch
+## The parties out the rows were built for, so they are rebuilt only when those change;
+## `_out_rows` are their parts that change with time, in the same order.
 var _outings_shown: Array[Dictionary] = []
 var _out_rows: Array[OutRow] = []
 
-@onready var _debriefs_header: Control = $Scroll/Box/DebriefsHeader
-@onready var _debrief_count: Label = $Scroll/Box/DebriefsHeader/Count
-@onready var _debriefs: VBoxContainer = $Scroll/Box/Debriefs
+@onready var _needs_you_header: Control = $Scroll/Box/NeedsYouHeader
+@onready var _needs_you_count: Label = $Scroll/Box/NeedsYouHeader/Count
+@onready var _done: Button = $Scroll/Box/NeedsYouHeader/Done
+@onready var _needs_you: VBoxContainer = $Scroll/Box/NeedsYou
 @onready var _out_section: Control = $Scroll/Box/OutSection
 @onready var _out: VBoxContainer = $Scroll/Box/Out
 @onready var _list: VBoxContainer = $Scroll/Box/List
@@ -91,6 +103,7 @@ func _ready() -> void:
 		_list.add_child(_rows[quest])
 	_refill = _label("", &"Secondary")
 	_list.add_child(_refill)
+	_done.pressed.connect(_decide.bind(-1))
 
 
 ## Landscape shows how many parties are out beside the title.
@@ -98,12 +111,14 @@ func set_landscape(landscape: bool) -> void:
 	_parties.visible = landscape
 
 
-## Shows the debriefs waiting and the parties out in `dispatch` at `now`, then the quests in
-## `board`'s slots in order, and under them, while a slot is empty, the soonest refill. An unknown
-## challenge shows the time to its reveal while the Map room is revealing it.
+## Shows what needs the player in `dispatch` (loot that found the stash full, and level-ups ready)
+## and the parties out at `now`, then the quests in `board`'s slots in order, and under them, while
+## a slot is empty, the soonest refill. An unknown challenge shows the time to its reveal while the
+## Map room is revealing it.
 func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
+	_dispatch = dispatch
 	_parties_count.text = str(dispatch.outings.size())
-	_show_debriefs(dispatch, now)
+	_show_needs_you(dispatch)
 	_show_out(dispatch, now)
 	_show_challenges(dispatch)
 	if board.slots != _shown:
@@ -241,39 +256,171 @@ func _show_challenges(dispatch: Dispatch) -> void:
 			_chips[quest].add_child(chip("?", &"ChipUnknown") if challenge in unknown else chip(challenge, &"Chip"))
 
 
-func _show_debriefs(dispatch: Dispatch, now: int) -> void:
-	if dispatch.debriefs != _debriefs_shown:
-		_debriefs_shown = dispatch.debriefs.duplicate()
-		for row: Node in _debriefs.get_children():
-			row.queue_free()
-		_back_labels.clear()
-		for i: int in _debriefs_shown.size():
-			var debrief := _debriefs_shown[i]
-			var words := VBoxContainer.new()
-			words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			words.alignment = BoxContainer.ALIGNMENT_CENTER
-			words.add_child(_label(Dispatch.QUESTS[debrief["quest"]]["name"], &"RowTitle"))
-			var back := _label("", &"Secondary")
-			words.add_child(back)
-			_back_labels.append(back)
-			var open := Button.new()
-			open.text = "Debrief ›"
-			open.theme_type_variation = &"GoldLink"
-			open.pressed.connect(debrief_pressed.emit.bind(i))
-			var line := HBoxContainer.new()
-			line.add_theme_constant_override("separation", 32)
-			line.add_child(_tokens(debrief["party"], dispatch.adventurers.roster))
-			line.add_child(words)
-			line.add_child(open)
-			var row := PanelContainer.new()
-			row.theme_type_variation = &"DebriefRow"
-			row.add_child(line)
-			_debriefs.add_child(Touch.whole_card(row, open))
-		_debrief_count.text = str(_debriefs_shown.size())
-		_debriefs_header.visible = not _debriefs_shown.is_empty()
-		_debriefs.visible = not _debriefs_shown.is_empty()
-	for i: int in _back_labels.size():
-		_back_labels[i].text = dispatch.back_label(_debriefs_shown[i], now)
+func _show_needs_you(dispatch: Dispatch) -> void:
+	var waiting := dispatch.waiting_loot
+	# The decision open stays open on the same loot when other loot comes or goes.
+	if _deciding >= 0 and waiting != _loot_shown:
+		_deciding = waiting.find(_loot_shown[_deciding])
+	var ready := dispatch.ready_to_level()
+	var stash := dispatch.adventurers.gear.stash if _deciding >= 0 else PackedStringArray()
+	var shown := [waiting.duplicate(), ready, _deciding, stash.duplicate()]
+	if shown == _needs_you_shown:
+		return
+	_needs_you_shown = shown
+	_loot_shown = waiting.duplicate()
+	for row: Node in _needs_you.get_children():
+		_needs_you.remove_child(row)
+		row.queue_free()
+	for i: int in waiting.size():
+		_needs_you.add_child(_decision(i, dispatch) if i == _deciding else _loot_row(i, waiting[i]))
+	if not ready.is_empty():
+		_needs_you.add_child(_level_up_row(ready, dispatch.adventurers.roster))
+	_needs_you_count.text = str(dispatch.needs_you_count())
+	_needs_you_header.visible = _needs_you.get_child_count() > 0
+	_needs_you.visible = _needs_you_header.visible
+	_done.visible = _deciding >= 0
+
+
+# Opens the decision on the loot waiting at `index`, or closes it for -1, at once.
+func _decide(index: int) -> void:
+	_deciding = index
+	_show_needs_you(_dispatch)
+
+
+# The row for `waiting`, the loot at `index` that found the stash full, with Decide.
+func _loot_row(index: int, waiting: Dictionary) -> Control:
+	var item: String = waiting["item"]
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.alignment = BoxContainer.ALIGNMENT_CENTER
+	words.add_child(_label("Stash full", &"AlertTitle"))
+	words.add_child(_label("%s brought %s" % [Dispatch.QUESTS[waiting["quest"]]["name"], Gear.ITEMS[item]["name"]], &"Secondary"))
+	var decide := Button.new()
+	decide.text = "Decide ›"
+	decide.theme_type_variation = &"GoldLink"
+	decide.pressed.connect(_decide.bind(index))
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 32)
+	line.add_child(Adventurer.item_icon(item, 3))
+	line.add_child(words)
+	line.add_child(decide)
+	var row := PanelContainer.new()
+	row.theme_type_variation = &"NeedsYouRow"
+	row.add_child(line)
+	return Touch.whole_card(row, decide)
+
+
+# The decision on the loot waiting at `index` in `dispatch`: the loot, then every stash item, the
+# cheapest first, each with Swap at the gold it sells for, then Let it go.
+func _decision(index: int, dispatch: Dispatch) -> Control:
+	var waiting := dispatch.waiting_loot[index]
+	var gear := dispatch.adventurers.gear
+	var item: String = waiting["item"]
+	var title := _label("Stash full · %d / %d" % [gear.stash.size(), gear.stash_cap], &"AlertTitle")
+	title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var who := _label("%s · %s" % [Dispatch.QUESTS[waiting["quest"]]["name"], _names(waiting["party"], dispatch.adventurers.roster)], &"Secondary")
+	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	who.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 24)
+	top.add_child(title)
+	top.add_child(who)
+	var loot := PanelContainer.new()
+	loot.theme_type_variation = &"CardGold"
+	var quality: String = Gear.ITEMS[item]["quality"]
+	var quality_label := _label(quality + " ·", StringName("Item" + quality))
+	quality_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var bonus := Adventurer.bonus_label(item)
+	bonus.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var quality_and_bonus := HBoxContainer.new()
+	quality_and_bonus.add_theme_constant_override("separation", 16)
+	quality_and_bonus.add_child(quality_label)
+	quality_and_bonus.add_child(bonus)
+	loot.add_child(_item_line(item, 3, _label(Gear.ITEMS[item]["name"], &"RowTitle"), quality_and_bonus))
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 24)
+	box.add_child(top)
+	box.add_child(loot)
+	box.add_child(_label("Make room: one of these goes, sold at its Armory price.", &"Secondary"))
+	var order: Array = range(gear.stash.size())
+	order.sort_custom(func(a: int, b: int) -> bool:
+		var price_a := Gear.price(gear.stash[a])
+		var price_b := Gear.price(gear.stash[b])
+		return price_a < price_b or (price_a == price_b and a < b))
+	var stash_list := VBoxContainer.new()
+	stash_list.add_theme_constant_override("separation", 0)
+	for at: int in order:
+		var stash_item := gear.stash[at]
+		var swap := Button.new()
+		swap.text = "Swap · +%dg" % Gear.price(stash_item)
+		swap.theme_type_variation = &"SmallButton"
+		swap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		swap.pressed.connect(swap_pressed.emit.bind(index, stash_item))
+		var kind := _label("%s · %s" % [Gear.ITEMS[stash_item]["quality"], Gear.SLOTS[Gear.ITEMS[stash_item]["slot"]]], &"Caption")
+		kind.autowrap_mode = TextServer.AUTOWRAP_OFF
+		kind.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		var line := _item_line(stash_item, 2, Adventurer.item_name(stash_item), kind)
+		line.add_child(swap)
+		var row := PanelContainer.new()
+		row.theme_type_variation = &"ProgressRow"
+		row.add_child(line)
+		stash_list.add_child(Touch.whole_card(row, swap))
+	box.add_child(stash_list)
+	var let_go := Button.new()
+	let_go.text = "Let the %s go" % Gear.ITEMS[item]["name"]
+	let_go.theme_type_variation = &"AlertLink"
+	let_go.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	let_go.pressed.connect(let_go_pressed.emit.bind(index))
+	box.add_child(let_go)
+	var row := PanelContainer.new()
+	row.theme_type_variation = &"NeedsYouRow"
+	row.add_child(box)
+	return row
+
+
+# `item`'s icon at `icon_scale` beside `name_label` with `details` under it.
+static func _item_line(item: String, icon_scale: int, name_label: Label, details: Control) -> HBoxContainer:
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.alignment = BoxContainer.ALIGNMENT_CENTER
+	words.add_child(name_label)
+	words.add_child(details)
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 24)
+	line.add_child(Adventurer.item_icon(item, icon_scale))
+	line.add_child(words)
+	return line
+
+
+# The row naming everyone in `ready` with a level-up ready, whose Open levels up the first.
+func _level_up_row(ready: PackedStringArray, roster: Dictionary) -> Control:
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.alignment = BoxContainer.ALIGNMENT_CENTER
+	words.add_child(_label("Level up ready", &"RowTitle"))
+	words.add_child(_label(_names(ready, roster), &"Secondary"))
+	var open := Button.new()
+	open.text = "Open ›"
+	open.theme_type_variation = &"GoldLink"
+	open.pressed.connect(level_up_pressed.emit.bind(ready[0]))
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 32)
+	line.add_child(_tokens(ready, roster))
+	line.add_child(words)
+	line.add_child(open)
+	var row := PanelContainer.new()
+	row.theme_type_variation = &"NeedsYouRow"
+	row.add_child(line)
+	return Touch.whole_card(row, open)
+
+
+# The names of those in `party` still in `roster`, comma-separated.
+static func _names(party: PackedStringArray, roster: Dictionary) -> String:
+	var names := PackedStringArray()
+	for adventurer: String in party:
+		if adventurer in roster:
+			names.append(roster[adventurer]["name"])
+	return ", ".join(names)
 
 
 func _show_out(dispatch: Dispatch, now: int) -> void:

@@ -215,10 +215,10 @@ func test_a_save_from_the_previous_build_loads_with_starter_stats_and_nothing_el
 	assert_eq(Gold.load_or_start(SAVE_PATH).amount, 300)
 	assert_eq(loaded.status("bram", 1_100), "On quest: Goblin camp")
 	loaded.checkpoint(1_600)
-	assert_eq(loaded.debriefs.size(), 1)
-	var xp: int = loaded.debriefs[0]["xp"]
-	loaded.read_debrief(0, gold)
-	assert_eq(loaded.adventurers.xp["bram"], xp)
+	# Goblin camp's 30 XP shared by two on a success, or a quarter of it on a failure.
+	assert_true(loaded.outings.is_empty())
+	assert_has([15, 3], loaded.adventurers.xp["bram"])
+	assert_eq(loaded.adventurers.xp["ilse"], loaded.adventurers.xp["bram"])
 
 
 func test_a_save_from_the_current_build_loads_with_starter_gear_an_empty_stash_and_nothing_else_lost() -> void:

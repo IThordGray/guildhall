@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
@@ -10,7 +10,6 @@
 [ext_resource type="Texture2D" path="res://theme/icons/roster.svg" id="8_roster"]
 [ext_resource type="Texture2D" path="res://theme/icons/labyrinth.svg" id="9_labyrinth"]
 [ext_resource type="PackedScene" path="res://screens/hall_view.tscn" id="10_hall_view"]
-[ext_resource type="PackedScene" path="res://screens/debrief.tscn" id="11_debrief"]
 [ext_resource type="PackedScene" path="res://screens/adventurer.tscn" id="12_adventurer"]
 [ext_resource type="PackedScene" path="res://screens/level_up.tscn" id="13_level_up"]
 [ext_resource type="PackedScene" path="res://screens/start.tscn" id="14_start"]
@@ -18,7 +17,6 @@
 [ext_resource type="PackedScene" path="res://screens/armory.tscn" id="17_armory"]
 [ext_resource type="PackedScene" path="res://screens/confirm_sheet.tscn" id="18_confirm_sheet"]
 [ext_resource type="PackedScene" path="res://screens/swap_pick.tscn" id="19_swap_pick"]
-[ext_resource type="PackedScene" path="res://screens/stash_pick.tscn" id="20_stash_pick"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -102,11 +100,6 @@ visible = false
 layout_mode = 1
 offset_bottom = -24.0
 
-[node name="Debrief" parent="Body" instance=ExtResource("11_debrief")]
-visible = false
-layout_mode = 1
-offset_bottom = -24.0
-
 [node name="Roster" parent="Body" instance=ExtResource("3_roster")]
 visible = false
 layout_mode = 1
@@ -128,11 +121,6 @@ layout_mode = 1
 offset_bottom = -24.0
 
 [node name="SwapPick" parent="Body" instance=ExtResource("19_swap_pick")]
-visible = false
-layout_mode = 1
-offset_bottom = -24.0
-
-[node name="StashPick" parent="Body" instance=ExtResource("20_stash_pick")]
 visible = false
 layout_mode = 1
 offset_bottom = -24.0

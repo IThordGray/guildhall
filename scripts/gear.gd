@@ -124,17 +124,6 @@ func stow(item: String) -> bool:
 	return true
 
 
-## Discards one `out` from the stash for good and puts `item` in, at the end; false, with nothing
-## changed, when the stash holds no `out`.
-func swap(out: String, item: String) -> bool:
-	var index := stash.find(out)
-	if index < 0:
-		return false
-	stash.remove_at(index)
-	stash.append(item)
-	return true
-
-
 ## The gold `item` sells for, by its quality.
 static func price(item: String) -> int:
 	return SELL_GOLD[ITEMS[item]["quality"]]

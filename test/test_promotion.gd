@@ -144,7 +144,7 @@ func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_
 		assert_true(board.send(dispatch, board.slots[i % 3], ["maren"], 1, now, NO_HALLS, -1, -1, GUILD), str(i))
 		now += 3_600
 		dispatch.checkpoint(now)
-		while not dispatch.debriefs.is_empty(): dispatch.read_debrief(0, gold)
+		while not dispatch.waiting_loot.is_empty(): dispatch.let_loot_go(0)
 		board.refill(dispatch, now, NO_HALLS, -1, GUILD)
 		for quest: String in board.slots:
 			ranks[Dispatch.QUESTS[quest]["rank"]] = true

@@ -532,7 +532,7 @@ func test_an_m4_save_loads_with_no_converted_rooms_and_everything_else_as_it_was
 	assert_eq(dispatch.outings[0]["quest"], "rats")
 	assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_050), 1)
 	assert_eq(dispatch.injury_left("tobin", 1_050), 150)
-	assert_true(dispatch.debriefs.is_empty())
+	assert_true(dispatch.waiting_loot.is_empty())
 	assert_eq(hall.convert_refusal("back_left", "bunk_room", gold, 1_050), "Builder busy")
 	assert_true(hall.convert_room("back_left", "bunk_room", gold, 1_052))
 	assert_eq(gold.amount, 340)

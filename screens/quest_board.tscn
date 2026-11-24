@@ -55,22 +55,29 @@ theme_type_variation = &"Numbers"
 text = "0"
 vertical_alignment = 1
 
-[node name="DebriefsHeader" type="HBoxContainer" parent="Scroll/Box"]
+[node name="NeedsYouHeader" type="HBoxContainer" parent="Scroll/Box"]
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Section" type="Label" parent="Scroll/Box/DebriefsHeader"]
+[node name="Section" type="Label" parent="Scroll/Box/NeedsYouHeader"]
 layout_mode = 2
 theme_type_variation = &"Section"
-text = "DEBRIEFS WAITING"
+text = "NEEDS YOU"
 
-[node name="Count" type="Label" parent="Scroll/Box/DebriefsHeader"]
+[node name="Count" type="Label" parent="Scroll/Box/NeedsYouHeader"]
 layout_mode = 2
+size_flags_horizontal = 3
 theme_type_variation = &"SectionAlert"
 text = "0"
 
-[node name="Debriefs" type="VBoxContainer" parent="Scroll/Box"]
+[node name="Done" type="Button" parent="Scroll/Box/NeedsYouHeader"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"GoldLink"
+text = "Done"
+
+[node name="NeedsYou" type="VBoxContainer" parent="Scroll/Box"]
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 24

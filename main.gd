@@ -8,8 +8,7 @@ const RAIL_WIDTH_PX: float = 200.0
 const SIDE_MARGIN_PX: float = 44.0
 ## In landscape, the space between the screens and the window's top and bottom.
 const END_MARGIN_PX: float = 32.0
-## In landscape, Debrief, Level up, the Armory, the swap pick and the stash pick are a centred
-## column at most this wide.
+## In landscape, Level up, the Armory and the swap pick are a centred column at most this wide.
 const COLUMN_WIDTH_PX: float = 1100.0
 ## In landscape, the share of the body's width the quest board takes; the party picker has the rest.
 const BOARD_SHARE: float = 0.42
@@ -21,9 +20,10 @@ const COLLECT_PULSE_SCALE: float = 1.3
 ## or swapping them for the walk-in.
 const DISMISS: String = "dismiss"
 const SWAP: String = "swap"
-## What the confirmation sheet asks about when it confirms discarding `_item` from the stash for
-## `_swapping_in`, or selling `_item`.
+## What the confirmation sheet asks about when it confirms selling `_item` from the stash to make
+## room for the loot waiting at `_loot`, letting that loot go, or selling `_item`.
 const SWAP_LOOT: String = "swap_loot"
+const LET_GO: String = "let_go"
 const SELL: String = "sell"
 ## Play-testing only: the speeds the Test speed control cycles through.
 const TEST_SPEEDS: Array[int] = [1, 10, 60]
@@ -38,16 +38,14 @@ var _walk_ins: WalkIns
 ## The slot the Give it a job screen is open for.
 var _chosen_slot: String = ""
 ## What the confirmation sheet asks about: the damaged slot to restore, Hall.EXTENSION, DISMISS,
-## SWAP, SWAP_LOOT or SELL.
+## SWAP, SWAP_LOOT, LET_GO or SELL.
 var _confirming: String = ""
 ## The adventurer DISMISS or SWAP sends away.
 var _leaving: String = ""
-## The loot of the open debrief that SWAP_LOOT puts into the stash.
-var _swapping_in: String = ""
-## The stash item SWAP_LOOT discards or SELL sells.
+## Where the loot SWAP_LOOT stows or LET_GO lets go is in Dispatch.waiting_loot.
+var _loot: int = -1
+## The stash item SWAP_LOOT or SELL sells.
 var _item: String = ""
-## Where the debrief the Debrief screen shows is in Dispatch.debriefs.
-var _open_debrief: int = -1
 ## The adventurer the Adventurer screen shows, or last showed.
 var _shown_adventurer: String = ""
 ## The candidate's slot, or Roster.WALK_IN, the Adventurer screen shows instead; Roster.NO_VISITOR
@@ -55,7 +53,8 @@ var _shown_adventurer: String = ""
 ## someone new takes their place.
 var _shown_visitor: int = Roster.NO_VISITOR
 var _visitor_who: Dictionary = {}
-## The screen the Adventurer screen's Back returns to: the Roster or the Debrief it was opened from.
+## The screen the Adventurer screen's Back returns to, the Roster; or the Quests screen while Level
+## up is open from it, which Continue then returns to.
 var _adventurer_from: Control
 ## Whether the window is wider than tall, so the landscape layout shows.
 var _landscape: bool = false
@@ -70,19 +69,17 @@ var _portrait_places: Dictionary[Control, Array] = {}
 @onready var _body: Control = $Body
 @onready var _hall_view: HallView = $Body/HallView
 @onready var _board: QuestBoard = $Body/QuestBoard
-@onready var _debrief: Debrief = $Body/Debrief
 @onready var _tab_bar: PanelContainer = $TabBar
 @onready var _tabs: BoxContainer = $TabBar/Tabs
 @onready var _rail_gold: Control = $TabBar/Tabs/Gold
 @onready var _rail_gold_label: Label = $TabBar/Tabs/Gold/Label
-@onready var _debrief_badge: Label = $TabBar/Tabs/Quests/Badge
+@onready var _needs_you_badge: Label = $TabBar/Tabs/Quests/Badge
 @onready var _walk_in_badge: Label = $TabBar/Tabs/Roster/Badge
 @onready var _roster: Roster = $Body/Roster
 @onready var _adventurer: Adventurer = $Body/Adventurer
 @onready var _level_up: LevelUp = $Body/LevelUp
 @onready var _armory: Armory = $Body/Armory
 @onready var _swap_pick: SwapPick = $Body/SwapPick
-@onready var _stash_pick: StashPick = $Body/StashPick
 @onready var _picker: PartyPicker = $Body/PartyPicker
 @onready var _convert_panel: ConvertPanel = $Body/ConvertPanel
 @onready var _confirm_sheet: ConfirmSheet = $ConfirmSheet
@@ -104,12 +101,9 @@ func _ready() -> void:
 	_convert_panel.back_pressed.connect(_close_convert)
 	($TabBar/Tabs/Hall as Button).button_group.pressed.connect(_on_tab_pressed)
 	_board.send_pressed.connect(_on_send_pressed)
-	_board.debrief_pressed.connect(_on_debrief_pressed)
-	_debrief.done_pressed.connect(_on_debrief_done)
-	_debrief.adventurer_pressed.connect(_open_adventurer.bind(_debrief))
-	_debrief.swap_pressed.connect(_on_loot_swap_pressed)
-	_stash_pick.picked.connect(_on_stash_picked)
-	_stash_pick.back_pressed.connect(_close_stash_pick)
+	_board.swap_pressed.connect(_on_loot_swap_pressed)
+	_board.let_go_pressed.connect(_on_let_go_pressed)
+	_board.level_up_pressed.connect(_on_quests_level_up_pressed)
 	_picker.send_pressed.connect(_on_party_sent)
 	_picker.back_pressed.connect(_close_picker)
 	_roster.adventurer_pressed.connect(_open_adventurer.bind(_roster))
@@ -142,7 +136,7 @@ func _ready() -> void:
 	_test_speed.pressed.connect(_on_test_speed_pressed)
 	_start.continue_pressed.connect(_open_game)
 	_start.new_game_pressed.connect(_on_new_game)
-	for part: Control in [_tab_bar, _body, _board, _debrief, _roster, _adventurer, _level_up, _armory, _swap_pick, _stash_pick, _convert_panel, _picker]:
+	for part: Control in [_tab_bar, _body, _board, _roster, _adventurer, _level_up, _armory, _swap_pick, _convert_panel, _picker]:
 		_portrait_places[part] = [
 			Vector4(part.anchor_left, part.anchor_top, part.anchor_right, part.anchor_bottom),
 			Vector4(part.offset_left, part.offset_top, part.offset_right, part.offset_bottom),
@@ -165,6 +159,7 @@ func _open_game() -> void:
 	_gold = Gold.load_or_start(SAVE_PATH)
 	_hall = Hall.load_or_start(SAVE_PATH, now)
 	_dispatch = Dispatch.load_or_start(SAVE_PATH, now)
+	_dispatch.gold = _gold
 	QuestBoard.worn = _dispatch.adventurers.gear.worn
 	_quest_board = Board.load_or_start(SAVE_PATH)
 	_recruits = Recruits.load_or_start(SAVE_PATH)
@@ -196,8 +191,8 @@ func _arrive() -> void:
 	_clock.arrive(Time.get_unix_time_from_system())
 	var now := _now()
 	# A party back from its quest while the app was away needs nothing here: the checkpoint applies
-	# its outcome and adds its debrief, and the debriefs waiting on the Quests screen are the return
-	# summary. A summary of a room restored or converted while away
+	# its outcome and pays it, and only loot that found the stash full waits on the Quests screen. A
+	# summary of a room restored or converted while away
 	# (Hall.finished_since_checkpoint(now)) goes here, before _checkpoint folds the absence in.
 	_checkpoint(now)
 	_tick.start()
@@ -236,8 +231,9 @@ func _checkpoint(now: int) -> void:
 	_gold_label.text = str(_gold.amount)
 	_rail_gold_label.text = _gold_label.text
 	_parties_label.text = str(_dispatch.outings.size())
-	_debrief_badge.text = str(_dispatch.debriefs.size())
-	_debrief_badge.visible = not _dispatch.debriefs.is_empty()
+	var needs_you := _dispatch.needs_you_count()
+	_needs_you_badge.text = str(needs_you)
+	_needs_you_badge.visible = needs_you > 0
 	_walk_in_badge.visible = not _walk_ins.walk_in.is_empty()
 	_hall_view.show_state(_hall, _dispatch, _quest_board.filled(), now)
 	_board.show_board(_quest_board, _dispatch, now)
@@ -281,9 +277,10 @@ func _offer(now: int) -> void:
 		else:
 			_confirm_sheet.ask("Swap %s for %s" % [leaving, _walk_ins.waiting_name()], note, "Swap", _dispatch.dismiss_refusal(_leaving))
 	elif _confirming == SWAP_LOOT:
-		var out: String = Gear.ITEMS[_item]["name"]
-		var refusal := _dispatch.swap_loot_refusal(_dispatch.debriefs[_open_debrief], _swapping_in, _item)
-		_confirm_sheet.ask("Swap %s for %s" % [out, Gear.ITEMS[_swapping_in]["name"]], out + " is discarded", "Swap", refusal)
+		var swapping_in: String = Gear.ITEMS[_dispatch.waiting_loot[_loot]["item"]]["name"]
+		_confirm_sheet.ask("Swap %s for %s" % [Gear.ITEMS[_item]["name"], swapping_in], "+%d gold" % Gear.price(_item), "Swap", _dispatch.adventurers.gear.sell_refusal(_item))
+	elif _confirming == LET_GO:
+		_confirm_sheet.ask("Let the %s go" % Gear.ITEMS[_dispatch.waiting_loot[_loot]["item"]]["name"], "", "Let it go", "")
 	elif _confirming == SELL:
 		_confirm_sheet.ask("Sell " + Gear.ITEMS[_item]["name"], "+%d gold" % Gear.price(_item), "Sell", _dispatch.adventurers.gear.sell_refusal(_item))
 	elif _confirming == Hall.EXTENSION:
@@ -299,8 +296,9 @@ func _on_confirmed() -> void:
 		_send_away(now)
 		return
 	if _confirming == SWAP_LOOT:
-		if _dispatch.swap_loot(_dispatch.debriefs[_open_debrief], _swapping_in, _item):
-			_close_stash_pick()
+		_dispatch.swap_loot(_loot, _item)
+	elif _confirming == LET_GO:
+		_dispatch.let_loot_go(_loot)
 	elif _confirming == SELL:
 		_dispatch.adventurers.gear.sell(_item, _gold)
 	elif _confirming == Hall.EXTENSION:
@@ -401,22 +399,8 @@ func _close_picker() -> void:
 	_show_quests(true)
 
 
-func _on_debrief_pressed(index: int) -> void:
-	_open_debrief = index
-	_debrief.show_debrief(_dispatch.debriefs[index], _dispatch)
-	_show_quests(false)
-	_debrief.show()
-
-
-func _on_debrief_done() -> void:
-	_dispatch.read_debrief(_open_debrief, _gold)
-	_debrief.hide()
-	_show_quests(true)
-	_checkpoint(_now())
-
-
-# Opens `adventurer` from `from`, the Roster or a Debrief, which Back returns to. A debrief stays
-# unread. In landscape the roster stays beside them, without Back, unless their tray is open.
+# Opens `adventurer` from `from`, the Roster, which Back returns to. In landscape the roster stays
+# beside them, without Back, unless their tray is open.
 func _open_adventurer(adventurer: String, from: Control) -> void:
 	_shown_visitor = Roster.NO_VISITOR
 	_shown_adventurer = adventurer
@@ -473,23 +457,15 @@ func _on_adventurer_tray_toggled(open: bool) -> void:
 		_roster.visible = not open
 
 
-func _on_loot_swap_pressed(item: String) -> void:
-	_swapping_in = item
-	_stash_pick.show_stash(item, _dispatch.adventurers.gear)
-	_debrief.hide()
-	_stash_pick.show()
-
-
-func _on_stash_picked(stash_item: String) -> void:
+func _on_loot_swap_pressed(index: int, stash_item: String) -> void:
+	_loot = index
 	_item = stash_item
 	_confirm(SWAP_LOOT)
 
 
-# Back to the debrief the stash pick was opened from, showing the stash as it is now.
-func _close_stash_pick() -> void:
-	_stash_pick.hide()
-	_debrief.show_debrief(_dispatch.debriefs[_open_debrief], _dispatch)
-	_debrief.show()
+func _on_let_go_pressed(index: int) -> void:
+	_loot = index
+	_confirm(LET_GO)
 
 
 func _on_sell_pressed(item: String) -> void:
@@ -565,12 +541,7 @@ func _on_adventurer_swiped(step: int) -> void:
 
 func _on_adventurer_back() -> void:
 	_adventurer.hide()
-	# A level-up taken meanwhile no longer waits, and gear taken off may have filled the stash.
-	if _adventurer_from == _debrief:
-		_debrief.show_debrief(_dispatch.debriefs[_open_debrief], _dispatch)
-		_debrief.show()
-	else:
-		_show_roster()
+	_show_roster()
 
 
 func _on_level_up_pressed(adventurer: String) -> void:
@@ -580,8 +551,15 @@ func _on_level_up_pressed(adventurer: String) -> void:
 	_level_up.show_level_up(adventurer, gains, _dispatch.adventurers)
 	_roster.hide()
 	_adventurer.hide()
+	_show_quests(false)
 	_level_up.show()
 	_checkpoint(_now())
+
+
+# Level up from the Quests screen, whose Continue returns there.
+func _on_quests_level_up_pressed(adventurer: String) -> void:
+	_adventurer_from = _board
+	_on_level_up_pressed(adventurer)
 
 
 # The checkpoint before the promotion fills the board's slots due by now at the rank before it, so
@@ -642,7 +620,10 @@ func _show_visitor(now: int) -> void:
 
 func _on_level_up_continue() -> void:
 	_level_up.hide()
-	_open_adventurer(_shown_adventurer, _adventurer_from)
+	if _adventurer_from == _board:
+		_show_quests(true)
+	else:
+		_open_adventurer(_shown_adventurer, _adventurer_from)
 
 
 # A tab pressed in code does not signal its group, so the tab is shown here.
@@ -654,13 +635,11 @@ func _on_go_send() -> void:
 
 func _on_tab_pressed(tab: BaseButton) -> void:
 	_hall_view.visible = tab == $TabBar/Tabs/Hall
-	_debrief.hide()
 	_roster.hide()
 	_adventurer.hide()
 	_level_up.hide()
 	_armory.hide()
 	_swap_pick.hide()
-	_stash_pick.hide()
 	_convert_panel.hide()
 	_picker.close()
 	_show_quests(tab == $TabBar/Tabs/Quests)
@@ -701,7 +680,7 @@ func _lay_out() -> void:
 		_place(_adventurer, full, Vector4.ZERO)
 		# Where the Adventurer screen keeps its left column.
 		_place(_roster, Vector4(0, 0, Adventurer.SIDE_SHARE, 1), Vector4(0, 0, -Adventurer.SIDE_GAP_PX / 2, 0))
-		for column: Control in [_debrief, _level_up, _armory, _swap_pick, _stash_pick, _convert_panel]:
+		for column: Control in [_level_up, _armory, _swap_pick, _convert_panel]:
 			_place(column, Vector4(0.5, 0, 0.5, 1), Vector4(-COLUMN_WIDTH_PX / 2, 0, COLUMN_WIDTH_PX / 2, 0))
 		_place(_picker, Vector4(BOARD_SHARE, 0, 1, 1), Vector4(SIDE_MARGIN_PX / 2, 0, 0, 0))
 	_show_quests(_board.visible or _picker.visible)

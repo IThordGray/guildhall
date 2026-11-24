@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=72 format=3]
+[gd_resource type="Theme" load_steps=73 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -394,7 +394,39 @@ corner_radius_top_right = 22
 corner_radius_bottom_right = 22
 corner_radius_bottom_left = 22
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_debrief_row"]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_small_button"]
+content_margin_left = 24.0
+content_margin_top = 14.0
+content_margin_right = 24.0
+content_margin_bottom = 14.0
+bg_color = Color(0.1294, 0.1137, 0.1569, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.2275, 0.2039, 0.2745, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_small_button_pressed"]
+content_margin_left = 24.0
+content_margin_top = 14.0
+content_margin_right = 24.0
+content_margin_bottom = 14.0
+bg_color = Color(0.1647, 0.1451, 0.2, 1)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0.949, 0.7569, 0.3059, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_needs_you_row"]
 content_margin_left = 33.0
 content_margin_top = 28.0
 content_margin_right = 33.0
@@ -416,17 +448,6 @@ content_margin_top = 8.0
 content_margin_right = 28.0
 content_margin_bottom = 8.0
 bg_color = Color(0.4353, 0.8118, 0.5569, 0.12)
-corner_radius_top_left = 33
-corner_radius_top_right = 33
-corner_radius_bottom_right = 33
-corner_radius_bottom_left = 33
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_failed_chip"]
-content_margin_left = 28.0
-content_margin_top = 8.0
-content_margin_right = 28.0
-content_margin_bottom = 8.0
-bg_color = Color(0.9373, 0.4784, 0.3843, 0.12)
 corner_radius_top_left = 33
 corner_radius_top_right = 33
 corner_radius_bottom_right = 33
@@ -733,6 +754,14 @@ default_font = ExtResource("1_sans")
 default_font_size = 42
 Alert/base_type = &"Label"
 Alert/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
+AlertLink/base_type = &"GoldLink"
+AlertLink/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
+AlertLink/colors/font_focus_color = Color(0.9373, 0.4784, 0.3843, 1)
+AlertLink/colors/font_hover_color = Color(0.9373, 0.4784, 0.3843, 1)
+AlertLink/colors/font_hover_pressed_color = Color(0.9373, 0.4784, 0.3843, 1)
+AlertLink/colors/font_pressed_color = Color(0.9373, 0.4784, 0.3843, 1)
+AlertTitle/base_type = &"RowTitle"
+AlertTitle/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
 Badge/base_type = &"Label"
 Badge/colors/font_color = Color(0.08627, 0.07451, 0.1059, 1)
 Badge/font_sizes/font_size = 30
@@ -782,8 +811,8 @@ Coin/base_type = &"Panel"
 Coin/styles/panel = SubResource("StyleBoxFlat_coin")
 CardTight/base_type = &"PanelContainer"
 CardTight/styles/panel = SubResource("StyleBoxFlat_card_tight")
-DebriefRow/base_type = &"PanelContainer"
-DebriefRow/styles/panel = SubResource("StyleBoxFlat_debrief_row")
+NeedsYouRow/base_type = &"PanelContainer"
+NeedsYouRow/styles/panel = SubResource("StyleBoxFlat_needs_you_row")
 Dim/base_type = &"Button"
 Dim/styles/hover = SubResource("StyleBoxFlat_dim")
 Dim/styles/hover_pressed = SubResource("StyleBoxFlat_dim")
@@ -792,11 +821,6 @@ Dim/styles/pressed = SubResource("StyleBoxFlat_dim")
 FitBadge/base_type = &"Badge"
 FitBadge/font_sizes/font_size = 28
 FitBadge/styles/normal = SubResource("StyleBoxFlat_fit_badge")
-FailedChip/base_type = &"Label"
-FailedChip/colors/font_color = Color(0.9373, 0.4784, 0.3843, 1)
-FailedChip/font_sizes/font_size = 36
-FailedChip/fonts/font = SubResource("FontVariation_sans_semibold")
-FailedChip/styles/normal = SubResource("StyleBoxFlat_failed_chip")
 Floor/base_type = &"Button"
 Floor/colors/font_color = Color(0.9451, 0.9216, 0.9569, 1)
 Floor/colors/font_disabled_color = Color(0.4196, 0.3922, 0.4706, 1)
@@ -945,6 +969,12 @@ RowTitle/font_sizes/font_size = 39
 Secondary/base_type = &"Label"
 Secondary/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 Secondary/font_sizes/font_size = 36
+SmallButton/base_type = &"Button"
+SmallButton/font_sizes/font_size = 33
+SmallButton/styles/hover = SubResource("StyleBoxFlat_small_button")
+SmallButton/styles/hover_pressed = SubResource("StyleBoxFlat_small_button_pressed")
+SmallButton/styles/normal = SubResource("StyleBoxFlat_small_button")
+SmallButton/styles/pressed = SubResource("StyleBoxFlat_small_button_pressed")
 SectionGold/base_type = &"Section"
 SectionGold/colors/font_color = Color(0.949, 0.7569, 0.3059, 1)
 Sheet/base_type = &"PanelContainer"
@@ -1015,6 +1045,3 @@ TrayRowPicked/base_type = &"TrayRow"
 TrayRowPicked/styles/panel = SubResource("StyleBoxFlat_tray_row_picked")
 TrayRowWorn/base_type = &"TrayRow"
 TrayRowWorn/styles/panel = SubResource("StyleBoxFlat_tray_row_worn")
-XpText/base_type = &"Numbers"
-XpText/colors/font_color = Color(0.651, 0.5333, 0.8784, 1)
-XpText/font_sizes/font_size = 33

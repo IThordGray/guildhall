@@ -182,11 +182,11 @@ func test_a_refused_action_reads_its_reason_and_cannot_be_confirmed() -> void:
 func test_the_swap_card_says_what_leaves_with_them_costs_nothing_and_swaps_only_on_a_tap_while_allowed() -> void:
 	var sheet := _screen("res://screens/confirm_sheet.tscn") as ConfirmSheet
 	sheet.confirmed.connect(_fire)
-	sheet.ask("Swap Bram for Aldric", "2 items leave with them", "Swap", "Debrief waiting")
+	sheet.ask("Swap Bram for Aldric", "2 items leave with them", "Swap", "Waiting on loot")
 	await wait_process_frames(1)
 	assert_true((sheet.get_node("Sheet/Box/Note") as Label).is_visible_in_tree())
 	assert_false((sheet.get_node("Sheet/Box/Price") as Control).visible)
-	assert_eq(_action(sheet).text, "Debrief waiting")
+	assert_eq(_action(sheet).text, "Waiting on loot")
 	await _touch_drag(_middle(_action(sheet)), _middle(_action(sheet)))
 	assert_eq(_fired, 0)
 	sheet.ask("Swap Bram for Aldric", "", "Swap", "")

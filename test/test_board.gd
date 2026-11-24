@@ -84,7 +84,6 @@ func _seed(quest: String, party: PackedStringArray, success: bool) -> int:
 ## open; with 0, only at the sends and at `end`, as when the player is away in between. The first
 ## Map room finishes at `map_room`, -1 for none. The board at `end`.
 func _play(sends: Array, halls: PackedInt64Array, end: int, step: int, rank: String = "F", map_room: int = -1) -> Board:
-	var gold := Gold.new(0)
 	var dispatch := _guild(rank)
 	var board := _old_board()
 	board.refill(dispatch, START, _done_by(halls, START), map_room, rank)
@@ -98,7 +97,7 @@ func _play(sends: Array, halls: PackedInt64Array, end: int, step: int, rank: Str
 		if send[1] >= 0:
 			# The board the player picks from.
 			dispatch.checkpoint(now)
-			while not dispatch.debriefs.is_empty(): dispatch.read_debrief(0, gold)
+			while not dispatch.waiting_loot.is_empty(): dispatch.let_loot_go(0)
 			board.refill(dispatch, now, _done_by(halls, now), map_room, rank)
 			var party: PackedStringArray = send[2]
 			var quest := board.slots[send[1]]
@@ -255,7 +254,6 @@ func test_a_quest_out_is_not_offered_and_an_empty_slot_takes_it_once_its_party_i
 
 
 func test_a_rank_f_guild_is_offered_every_rank_f_and_e_quest_in_turn_never_one_twice_and_never_rank_d() -> void:
-	var gold := Gold.new(0)
 	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
 	var seen := {}
@@ -265,7 +263,7 @@ func test_a_rank_f_guild_is_offered_every_rank_f_and_e_quest_in_turn_never_one_t
 		assert_true(board.send(dispatch, board.slots[i % 3], ["bram"], 1, now, NO_HALLS))
 		now += 3_600
 		dispatch.checkpoint(now)
-		while not dispatch.debriefs.is_empty(): dispatch.read_debrief(0, gold)
+		while not dispatch.waiting_loot.is_empty(): dispatch.let_loot_go(0)
 		board.refill(dispatch, now, NO_HALLS)
 		assert_false(board.slots.has(""), str(i))
 		for quest: String in board.slots:
@@ -278,7 +276,6 @@ func test_a_rank_f_guild_is_offered_every_rank_f_and_e_quest_in_turn_never_one_t
 
 
 func test_with_one_rank_e_adventurer_rank_d_quests_reach_a_rank_e_guilds_board() -> void:
-	var gold := Gold.new(0)
 	var dispatch := _four(START)
 	dispatch.adventurers.roster["maren"]["rank"] = "E"
 	var board := _board(dispatch, 0, "E")
@@ -291,7 +288,7 @@ func test_with_one_rank_e_adventurer_rank_d_quests_reach_a_rank_e_guilds_board()
 		assert_true(board.send(dispatch, board.slots[i % 3], ["maren"], 1, now, NO_HALLS, -1, -1, "E"), str(i))
 		now += 3_600
 		dispatch.checkpoint(now)
-		while not dispatch.debriefs.is_empty(): dispatch.read_debrief(0, gold)
+		while not dispatch.waiting_loot.is_empty(): dispatch.let_loot_go(0)
 		board.refill(dispatch, now, NO_HALLS, -1, "E")
 	assert_eq(seen_ranks, {"F": true, "E": true, "D": true})
 
@@ -454,6 +451,7 @@ func test_a_save_from_before_ranked_countdowns_with_old_quests_on_the_board_and_
 	var gold := Gold.new(40)
 	var dispatch := _four(START)
 	assert_true(dispatch.send("goblins", ["bram", "ilse"], 1, START))
+	var success := Outcome.roll(1, dispatch.outings[0]["chance"], 0, PackedStringArray(["bram", "ilse"])).success
 	var file := ConfigFile.new()
 	gold.write(file)
 	dispatch.write(file)
@@ -466,14 +464,13 @@ func test_a_save_from_before_ranked_countdowns_with_old_quests_on_the_board_and_
 
 	var loaded_gold := Gold.load_or_start(SAVE_PATH)
 	var loaded := Dispatch.load_or_start(SAVE_PATH, START + 3_599)
+	loaded.gold = loaded_gold
 	var board := _load_old_board()
 	loaded.checkpoint(START + 3_599)
 	board.refill(loaded, START + 3_599, NO_HALLS)
 	assert_eq(board.slots, PackedStringArray(["letters", "", "rats"]))
-	assert_eq(loaded.debriefs.size(), 1)
-	var reward: int = loaded.debriefs[0]["gold"]
-	loaded.read_debrief(0, loaded_gold)
-	assert_eq(loaded_gold.amount, 40 + reward)
+	assert_true(loaded.outings.is_empty())
+	assert_eq(loaded_gold.amount, 82 if success else 40)
 	# The saved countdown runs out when it said; an old quest sends, and its slot counts down by rank.
 	loaded.checkpoint(START + 3_600)
 	board.refill(loaded, START + 3_600, NO_HALLS)
@@ -558,8 +555,8 @@ func test_a_quest_the_map_room_revealed_stays_revealed_while_out_and_back_on_the
 	assert_true(dispatch.unknown_challenges("sealed_door").is_empty())
 	assert_eq(board.seconds_to_reveal("sealed_door", dispatch, START + 412), -1)
 	# Its return had nothing left to reveal.
-	assert_eq(dispatch.debriefs.size(), 1)
-	assert_eq(dispatch.debriefs[0]["revealed"], PackedStringArray())
+	assert_true(dispatch.outings.is_empty())
+	assert_eq(dispatch.revealed.count("sealed_door"), 1)
 
 
 func test_a_quest_sent_before_its_reveal_is_not_revealed_by_the_map_room_but_by_its_return() -> void:
@@ -574,7 +571,6 @@ func test_a_quest_sent_before_its_reveal_is_not_revealed_by_the_map_room_but_by_
 	assert_eq(dispatch.unknown_challenges("moonherbs"), PackedStringArray(["Attrition"]))
 	assert_eq(board.seconds_to_reveal("moonherbs", dispatch, START + 14), -1)
 	dispatch.checkpoint(START + 15)
-	assert_eq(dispatch.debriefs[0]["revealed"], PackedStringArray(["Attrition"]))
 	assert_true(dispatch.unknown_challenges("moonherbs").is_empty())
 
 
