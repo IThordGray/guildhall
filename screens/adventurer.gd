@@ -140,7 +140,7 @@ var _press_at: Vector2 = Vector2.ZERO
 @onready var _xp_bar: ProgressBar = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Bar
 @onready var _xp_text: Label = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Text
 @onready var _promote: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Promote
-## Why Promote, or a candidate's Hire, can't be pressed.
+## Why a candidate's Hire can't be pressed.
 @onready var _promote_reason: Label = $Box/Scroll/Content/Card/Header/Row/Words/PromoteReason
 @onready var _training_xp: Label = $Box/Scroll/Content/Card/Header/Row/Words/Actions/TrainingXp
 @onready var _stop: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Stop
@@ -207,7 +207,7 @@ func _ready() -> void:
 	($Box/Scroll/Content/Card/Header/Row/Words/Hp as HBoxContainer).add_child(_health)
 	_xp_text.custom_minimum_size.x = HEALTH_TEXT_WIDTH_PX
 	_level_up.pressed.connect(func() -> void: level_up_pressed.emit(_adventurer))
-	_promote.pressed.connect(func() -> void: promote_pressed.emit(_adventurer))
+	_promote.pressed.connect(_on_promote)
 	_train.pressed.connect(func() -> void: train_pressed.emit(_adventurer))
 	_stop.pressed.connect(func() -> void: stop_training_pressed.emit(_adventurer))
 	_dismiss.pressed.connect(func() -> void: dismiss_pressed.emit(_adventurer))
@@ -254,7 +254,7 @@ func _input(event: InputEvent) -> void:
 ## The header and stats sit over the gear either way. Portrait sets the gear four to a row with the
 ## stash strip or the tray under it. Landscape puts the stash or the tray in a column on the left and
 ## fits the rest and Back beside it on one screen: all eight gear slots in one row, tighter cards
-## and gaps, Promote's refusal beside the buttons, and no section label lines, notes under the stats
+## and gaps, Hire's refusal beside the buttons, and no section label lines, notes under the stats
 ## or hint in the stash's header.
 ## `beside_roster`, in landscape, leaves the left column to the roster except while the tray is open
 ## there, and puts the stash on one line under the gear, and no Back.
@@ -319,12 +319,12 @@ func _by_layout(values: Vector2i) -> int:
 	return values.y if _landscape else values.x
 
 
-## Shows `adventurer` as `dispatch` has them at `now`: Promote once they reach the level their next
-## rank needs, disabled with the reason when `gold` is short or they are out; Train only when one of
-## `training_places` would take them now; Dismiss while they are home and not the last, disabled with
-## the reason while something else keeps them.
+## Shows `adventurer` as `dispatch` has them at `now`: Promote only when promoting them would
+## succeed; Train only when one of `training_places` would take them now; Dismiss while they are
+## home and not the last, disabled with the reason while something else keeps them. `_gold` is
+## unused: nothing shown here costs gold.
 ## Another adventurer closes the tray; the same one keeps it as it is.
-func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, training_places: int, now: int) -> void:
+func show_adventurer(adventurer: String, dispatch: Dispatch, _gold: Gold, training_places: int, now: int) -> void:
 	if adventurer != _adventurer:
 		_set_tray("", -1)
 	_adventurer = adventurer
@@ -345,14 +345,9 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	_xp_bar.max_value = needed
 	_xp_bar.value = xp
 	_xp_text.text = "%d / %d" % [xp, needed]
-	var next_rank := adventurers.next_rank(adventurer)
-	var reason := adventurers.promotion_refusal(adventurer, gold, not dispatch.quest_of(adventurer).is_empty())
-	# Promote shows from the level the next rank needs; short of gold or out on a quest, it says why.
-	_promote.visible = adventurers.reached_promotion_level(adventurer)
-	_promote.text = "" if next_rank.is_empty() else "Promote to %s · %dg" % [next_rank, Adventurers.PROMOTIONS[next_rank]["gold"]]
-	_promote.disabled = not reason.is_empty()
-	_promote_reason.text = reason
-	_promote_reason.visible = _promote.visible and not reason.is_empty()
+	_promote.visible = adventurers.can_promote(adventurer, not dispatch.quest_of(adventurer).is_empty())
+	_promote.text = "Promote to %s" % adventurers.next_rank(adventurer)
+	_promote_reason.visible = false
 	var training := dispatch.training.has(adventurer)
 	_training_xp.visible = training
 	_training_xp.text = "Training · +%d XP" % dispatch.training_xp(adventurer, now)
@@ -547,6 +542,13 @@ func _wear_picked() -> void:
 	_picked = -1
 	_changed = PackedStringArray(change["stats"].keys())
 	wear_pressed.emit(_adventurer, index)
+
+
+# Asks to promote the adventurer shown, lighting the stats a promotion raises (Adventurers.promote),
+# as Wear lights what it changes.
+func _on_promote() -> void:
+	_changed = _dispatch.adventurers.title_stats(_adventurer)
+	promote_pressed.emit(_adventurer)
 
 
 # The notes under the stats, the latest level-up and the training hint, each while it has words;
@@ -962,9 +964,10 @@ static func xp_line(xp: int, needed: int, next_level: int) -> String:
 	return "XP %d / %d to level %d" % [xp, needed, next_level]
 
 
-# "Level 3 · Strength +1 · Defence +2", naming only the stats that rose.
+# "Level 3 · Strength +1 · Defence +2", or "Promoted to E · Strength +1 · Agility +1", naming only
+# the stats that rose.
 func _history_line(entry: Dictionary) -> String:
-	var parts := PackedStringArray(["Level %d" % entry["level"]])
+	var parts := PackedStringArray(["Promoted to %s" % entry["rank"] if entry.has("rank") else "Level %d" % entry["level"]])
 	for stat: String in Adventurers.STATS:
 		var gain: int = entry["gains"].get(stat, 0)
 		if gain > 0:

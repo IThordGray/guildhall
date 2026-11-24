@@ -81,9 +81,10 @@ const XP_TO_NEXT: PackedInt32Array = [10, 20, 40, 60, 100, 140, 200, 270, 350, 4
 const BASE_HEALTH: int = 10
 const HEALTH_PER_DEFENCE: int = 2
 const HEALTH_PER_LEVEL: int = 3
-## Each rank an adventurer can be promoted to, one rank at a time, with the level it needs and the
-## gold it costs (stand-ins). No promotion reaches a rank missing here.
-const PROMOTIONS: Dictionary[String, Dictionary] = {"E": {"level": 3, "gold": 150}, "D": {"level": 6, "gold": 400}}
+## Each rank an adventurer can be promoted to, one rank at a time, with the level it needs and how
+## many quests of that rank they must have come home from successful. Promotion is earned, never
+## bought. No promotion reaches a rank missing here.
+const PROMOTIONS: Dictionary[String, Dictionary] = {"E": {"level": 3, "quests": 5}, "D": {"level": 6, "quests": 5}}
 
 ## Who is in the guild, in roster order: each one's {"name", "rank"} and, for a recruit,
 ## "face_seed", their face's (Faces.seed_of). The save refers to an adventurer by their id here.
@@ -97,9 +98,13 @@ var levels: Dictionary[String, int] = {}
 ## XP banked toward the next level. It keeps building past what the next level needs, so several
 ## level-ups can wait.
 var xp: Dictionary[String, int] = {}
-## Each adventurer's level-ups, oldest first. Each is {"level": the level reached, "gains":
-## {stat: points it rose by}}.
+## Each adventurer's level-ups and promotions, oldest first. A level-up is {"level": the level
+## reached, "gains": {stat: points it rose by}}; a promotion is {"rank": the rank reached, "gains":
+## the same}.
 var history: Dictionary[String, Array] = {}
+## How many quests each adventurer has come home from successful, by quest rank: {rank: count}. A
+## rank missing is 0.
+var successes: Dictionary[String, Dictionary] = {}
 ## What everyone wears and the guild's stash; worn items add to stats.
 var gear: Gear = Gear.new()
 ## Who adventures together; anyone in no party is a reserve.
@@ -125,6 +130,7 @@ func add(adventurer: String, who: Dictionary, starting_stats: Dictionary, grows:
 	levels[adventurer] = level
 	xp[adventurer] = 0
 	history[adventurer] = []
+	successes[adventurer] = {}
 	gear.worn[adventurer] = {}
 
 
@@ -140,6 +146,12 @@ func remove(adventurer: String) -> void:
 	levels.erase(adventurer)
 	xp.erase(adventurer)
 	history.erase(adventurer)
+	successes.erase(adventurer)
+
+
+## Counts `count` more successful quests of `rank` for `adventurer`.
+func add_successes(adventurer: String, rank: String, count: int) -> void:
+	successes[adventurer][rank] = int(successes[adventurer].get(rank, 0)) + count
 
 
 ## `adventurer`'s `stat` as it counts: their own plus what their gear adds.
@@ -284,36 +296,30 @@ func next_rank(adventurer: String) -> String:
 	return ""
 
 
-## True when `adventurer`'s level is at least what their next rank needs; false at the highest rank.
-func reached_promotion_level(adventurer: String) -> bool:
+## True when promoting `adventurer` would succeed: they are home (not `out_on_quest`), below the
+## highest rank PROMOTIONS has, at the level their next rank needs and with its count of successful
+## quests of that rank. Nobody is ever promoted for meeting it.
+func can_promote(adventurer: String, out_on_quest: bool) -> bool:
 	var next := next_rank(adventurer)
-	return not next.is_empty() and levels[adventurer] >= PROMOTIONS[next]["level"]
+	if next.is_empty() or out_on_quest:
+		return false
+	return levels[adventurer] >= PROMOTIONS[next]["level"] and int(successes[adventurer].get(next, 0)) >= PROMOTIONS[next]["quests"]
 
 
-## Why `adventurer` can't be promoted with `gold`, `out_on_quest` or not, in words for the player;
-## "" when they can. Promotion needs a minimum level, but nobody is ever promoted for reaching it.
-func promotion_refusal(adventurer: String, gold: Gold, out_on_quest: bool) -> String:
-	var next := next_rank(adventurer)
-	if next.is_empty():
-		return "Highest rank"
-	if out_on_quest:
-		return "Out on a quest"
-	if levels[adventurer] < PROMOTIONS[next]["level"]:
-		return "Needs level %d" % PROMOTIONS[next]["level"]
-	if gold.amount < PROMOTIONS[next]["gold"]:
-		return "Not enough gold"
-	return ""
-
-
-## Pays for and promotes `adventurer` to `next_rank`; false, with nothing paid or changed, when
-## `promotion_refusal` gives a reason. A new rank changes which quests the board draws, so whoever
-## calls this brings the board up to date first.
-func promote(adventurer: String, gold: Gold, out_on_quest: bool) -> bool:
-	if not promotion_refusal(adventurer, gold, out_on_quest).is_empty():
+## Promotes `adventurer` to `next_rank`, free, raising each stat behind their title before it
+## (`title_stats`) by 1, and records it in `history`; false, with nothing changed, unless
+## `can_promote`. A new rank changes which quests the board draws, so whoever calls this brings the
+## board up to date first.
+func promote(adventurer: String, out_on_quest: bool) -> bool:
+	if not can_promote(adventurer, out_on_quest):
 		return false
 	var next := next_rank(adventurer)
-	gold.spend(PROMOTIONS[next]["gold"])
+	var gains := {}
+	for stat: String in title_stats(adventurer):
+		gains[stat] = 1
+		stats[adventurer][stat] += 1
 	roster[adventurer]["rank"] = next
+	history[adventurer].append({"rank": next, "gains": gains})
 	return true
 
 
@@ -351,6 +357,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("adventurers", "levels", levels)
 	file.set_value("adventurers", "xp", xp)
 	file.set_value("adventurers", "history", history)
+	file.set_value("adventurers", "successes", successes)
 	gear.write(file)
 	parties.write(file)
 
@@ -378,6 +385,11 @@ static func load_or_start(path: String) -> Adventurers:
 	adventurers.levels.assign(file.get_value("adventurers", "levels"))
 	adventurers.xp.assign(file.get_value("adventurers", "xp"))
 	adventurers.history.assign(file.get_value("adventurers", "history"))
+	adventurers.successes.assign(file.get_value("adventurers", "successes", {}))
+	# A save from before successes were counted has counted none.
+	for adventurer: String in adventurers.roster:
+		if not adventurers.successes.has(adventurer):
+			adventurers.successes[adventurer] = {}
 	for adventurer: String in adventurers.roster:
 		if adventurers.stats[adventurer].has("might"):
 			adventurers._to_nine_stats(adventurer)

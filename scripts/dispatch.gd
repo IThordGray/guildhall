@@ -502,9 +502,9 @@ func returned_since_checkpoint(now: int) -> bool:
 
 
 ## Brings every returned party home, once, in the order they returned: gives each member damage and
-## XP, injures those it leaves under a quarter of their health, reveals the quest's challenges, puts
-## the gold it earned into `gold` and its loot into the stash, where loot that finds it full waits
-## (`waiting_loot`). Debriefs a save from before held unread are paid first, the same way.
+## XP and, on a success, counts it for them (Adventurers.successes), injures those it leaves under a
+## quarter of their health, reveals the quest's challenges, puts the gold it earned into `gold` and
+## its loot into the stash, where loot that finds it full waits (`waiting_loot`). Debriefs a save from before held unread are paid first, the same way.
 ## `infirmary_from` is the unix seconds the first Infirmary is finished at, -1 for none: from then
 ## on healing is faster, and an injury from a return at or after it is shorter. Records the time
 ## seen.
@@ -575,6 +575,8 @@ func _bring_home(outing: Dictionary) -> void:
 		var xp := xp_share(quest["xp"], success, party.size())
 		for adventurer: String in party:
 			adventurers.gain_xp(adventurer, xp)
+			if success:
+				adventurers.add_successes(adventurer, quest["rank"], 1)
 	gold.amount += reward
 	# Loot comes whatever the outcome, from the seed the party left with.
 	var item := Gear.loot(outing["seed"], quest["rank"], luck)

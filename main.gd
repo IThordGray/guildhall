@@ -596,7 +596,7 @@ func _on_quests_level_up_pressed(adventurer: String) -> void:
 func _on_promote_pressed(adventurer: String) -> void:
 	var now := _now()
 	_checkpoint(now)
-	_dispatch.adventurers.promote(adventurer, _gold, not _dispatch.quest_of(adventurer).is_empty())
+	_dispatch.adventurers.promote(adventurer, not _dispatch.quest_of(adventurer).is_empty())
 	_checkpoint(now)
 
 
