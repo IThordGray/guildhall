@@ -8,8 +8,12 @@ it merges. Screens and wording live in the code.
 
 ## Time
 
-- Progress runs on wall-clock time, open or closed: an hour away gives the same result as an hour
-  watching.
+- Progress runs on wall-clock time, open or closed. Up to 3 hours away gives the same result as
+  watching. A longer absence settles everything before its last 3 hours at once: parties out come
+  home, each Auto party earns the expected gold, XP, tries and loot of the quests the board would
+  offer it and its mode takes (loot stops it when the stash is full, as a return would), everyone
+  ends that part home and healed with no level-ups, and the board is drawn fresh from saved state.
+  The last 3 hours then play out as watching.
 - Every timer and outcome is computed from saved state and timestamps, never accumulated frame by
   frame, so a server could recompute it later.
 - A device clock set backwards never removes progress.
