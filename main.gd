@@ -629,7 +629,7 @@ func _show_adventurer(now: int) -> void:
 	if _shown_visitor != Roster.NO_VISITOR:
 		_show_visitor(now)
 		return
-	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _gold, _hall.rooms_done("training_room", now), now)
+	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _hall.rooms_done("training_room", now), now)
 	_roster.mark(_shown_adventurer if _landscape and _adventurer_from == _roster else "")
 
 

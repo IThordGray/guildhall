@@ -121,7 +121,6 @@ func test_a_promoted_adventurer_can_join_a_rank_d_quest_and_keeps_the_rank_throu
 func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_can_draw_rank_d() -> void:
 	# A rank-E guild weighs rank D quests, so only the parties' ranks keep them off its board.
 	const GUILD: String = "E"
-	var gold := Gold.new(0)
 	var dispatch := _guild(START)
 	dispatch.adventurers.levels["maren"] = 3
 	# Each a party of their own, so Maren's promotion is her party's.
@@ -257,15 +256,16 @@ func test_a_dismissed_adventurers_count_goes_with_them() -> void:
 	assert_eq(dispatch.adventurers.successes["bram"], {"E": 2})
 
 
-func test_a_promotion_raises_each_stat_behind_the_title_it_had_by_1_and_records_it() -> void:
+func test_a_promotion_raises_the_two_highest_stats_it_had_by_1_each_and_records_it() -> void:
 	var adventurers := Adventurers.new(PackedStringArray())
 	var low := {}
 	for stat: String in Adventurers.STATS:
 		low[stat] = 2
-	# Wren's Strength and Agility make her a Duellist; Ash's Strength and Mind are no pair, so his
-	# title, a Brawler's, is his Strength's alone.
+	# Wren's Strength and Agility make her a Duellist. Ash's Strength and Mind are no pair, so his
+	# title, a Brawler's, is his Strength's alone; both still rise, Mind winning its tie with
+	# Presence as a title's tie goes, to the stat earlier in STATS.
 	var wren := low.merged({"strength": 8, "agility": 7, "mind": 6}, true)
-	var ash := low.merged({"strength": 8, "mind": 7}, true)
+	var ash := low.merged({"strength": 8, "mind": 7, "presence": 7}, true)
 	adventurers.add("wren", {"name": "Wren", "rank": "F"}, wren, low)
 	adventurers.add("ash", {"name": "Ash", "rank": "F"}, ash, low)
 	for adventurer: String in ["wren", "ash"]:
@@ -274,15 +274,15 @@ func test_a_promotion_raises_each_stat_behind_the_title_it_had_by_1_and_records_
 		assert_true(adventurers.promote(adventurer, false), adventurer)
 	assert_eq(adventurers.stats["wren"], low.merged({"strength": 9, "agility": 8, "mind": 6}, true))
 	assert_eq(adventurers.history["wren"], [{"rank": "E", "gains": {"strength": 1, "agility": 1}}])
-	assert_eq(adventurers.stats["ash"], low.merged({"strength": 9, "mind": 7}, true))
-	assert_eq(adventurers.history["ash"], [{"rank": "E", "gains": {"strength": 1}}])
+	assert_eq(adventurers.stats["ash"], low.merged({"strength": 9, "mind": 8, "presence": 7}, true))
+	assert_eq(adventurers.history["ash"], [{"rank": "E", "gains": {"strength": 1, "mind": 1}}])
 
 
 # The Adventurer screen, in the tree, showing `adventurer` of `dispatch`.
 func _sheet(dispatch: Dispatch, adventurer: String) -> Adventurer:
 	var sheet := (load("res://screens/adventurer.tscn") as PackedScene).instantiate() as Adventurer
 	add_child_autofree(sheet)
-	sheet.show_adventurer(adventurer, dispatch, Gold.new(0), 0, START)
+	sheet.show_adventurer(adventurer, dispatch, 0, START)
 	return sheet
 
 
@@ -300,17 +300,17 @@ func test_promote_shows_only_once_earned_and_home_and_changes_only_when_the_adve
 	# Nothing is read per frame: frames pass and Promote stays as it was shown.
 	await wait_process_frames(2)
 	assert_false(promote.visible)
-	sheet.show_adventurer("bram", dispatch, Gold.new(0), 0, START)
+	sheet.show_adventurer("bram", dispatch, 0, START)
 	assert_true(promote.visible)
 	assert_eq(promote.text, "Promote to E")
 	# Out on a quest it hides, and shows again once home.
 	Fixtures.party(dispatch, ["bram"])
 	assert_true(dispatch.send("rats", ["bram"], 1, START))
-	sheet.show_adventurer("bram", dispatch, Gold.new(0), 0, START)
+	sheet.show_adventurer("bram", dispatch, 0, START)
 	assert_false(promote.visible)
 	assert_eq((sheet.get_node("Box/Scroll/Content/Card/Header/Row/Words/NameLine/Name") as Label).text, "Bram")
 	dispatch.checkpoint(START + 60)
-	sheet.show_adventurer("bram", dispatch, Gold.new(0), 0, START + 60)
+	sheet.show_adventurer("bram", dispatch, 0, START + 60)
 	assert_true(promote.visible)
 
 
@@ -325,7 +325,7 @@ func test_promoting_lights_the_stats_it_raised_and_the_note_under_them_says_so()
 	# As main.gd does it.
 	sheet.promote_pressed.connect(func(adventurer: String) -> void:
 		adventurers.promote(adventurer, false)
-		sheet.show_adventurer(adventurer, dispatch, Gold.new(0), 0, START))
+		sheet.show_adventurer(adventurer, dispatch, 0, START))
 	var promote := sheet.get_node("Box/Scroll/Content/Card/Header/Row/Words/Actions/Promote") as Button
 	var note := sheet.get_node("Box/Scroll/Content/Card/Stats/Rows/LastLevelUp") as Label
 	var grid := sheet.get_node("Box/Scroll/Content/Card/Stats/Rows/Grid")

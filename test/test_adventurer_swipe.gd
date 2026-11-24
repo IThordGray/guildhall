@@ -27,11 +27,11 @@ func before_each() -> void:
 	# As in main.tscn, which keeps a press that turns into a drag from firing a button.
 	layer.add_child(Touch.new())
 	layer.add_child(_screen)
-	_screen.show_adventurer(_shown, _dispatch, Gold.new(0), 0, 1_000)
+	_screen.show_adventurer(_shown, _dispatch, 0, 1_000)
 	# The same as main.gd does with the signals.
 	_screen.swiped.connect(func(step: int) -> void:
 		_shown = Roster.adventurer_after(_shown, step, _dispatch.adventurers.roster)
-		_screen.show_adventurer(_shown, _dispatch, Gold.new(0), 0, 1_000))
+		_screen.show_adventurer(_shown, _dispatch, 0, 1_000))
 	_screen.back_pressed.connect(func() -> void: _backs += 1)
 	# Containers lay out their children on the next frame.
 	await wait_process_frames(1)
@@ -259,7 +259,7 @@ func test_a_swipe_on_a_candidates_sheet_pages_nowhere_and_a_tap_on_their_gear_op
 	_mouse_drag(_middle_of(weapon), _middle_of(weapon))
 	assert_eq(_open_tray(), "")
 	# Bram's sheet pages, and his slots open their trays, again.
-	_screen.show_adventurer("bram", _dispatch, Gold.new(0), 0, 1_000)
+	_screen.show_adventurer("bram", _dispatch, 0, 1_000)
 	await wait_process_frames(1)
 	weapon = _screen.get_node("Box/Scroll/Content/GearColumn/Gear").get_child(4) as Control
 	_mouse_drag(_middle_of(weapon), _middle_of(weapon))

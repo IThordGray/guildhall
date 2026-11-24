@@ -306,8 +306,14 @@ func can_promote(adventurer: String, out_on_quest: bool) -> bool:
 	return levels[adventurer] >= PROMOTIONS[next]["level"] and int(successes[adventurer].get(next, 0)) >= PROMOTIONS[next]["quests"]
 
 
-## Promotes `adventurer` to `next_rank`, free, raising each stat behind their title before it
-## (`title_stats`) by 1, and records it in `history`; false, with nothing changed, unless
+## The two stats a promotion of `adventurer` raises: their two highest, gear included, highest
+## first, a tie going as for their title, whether or not they make a pair title.
+func promotion_stats(adventurer: String) -> PackedStringArray:
+	return _top_two(_totals(adventurer))
+
+
+## Promotes `adventurer` to `next_rank`, free, raising each of `promotion_stats` before it by 1,
+## and records it in `history`; false, with nothing changed, unless
 ## `can_promote`. A new rank changes which quests the board draws, so whoever calls this brings the
 ## board up to date first.
 func promote(adventurer: String, out_on_quest: bool) -> bool:
@@ -315,7 +321,7 @@ func promote(adventurer: String, out_on_quest: bool) -> bool:
 		return false
 	var next := next_rank(adventurer)
 	var gains := {}
-	for stat: String in title_stats(adventurer):
+	for stat: String in promotion_stats(adventurer):
 		gains[stat] = 1
 		stats[adventurer][stat] += 1
 	roster[adventurer]["rank"] = next

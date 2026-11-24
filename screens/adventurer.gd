@@ -141,7 +141,7 @@ var _press_at: Vector2 = Vector2.ZERO
 @onready var _xp_text: Label = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Text
 @onready var _promote: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Promote
 ## Why a candidate's Hire can't be pressed.
-@onready var _promote_reason: Label = $Box/Scroll/Content/Card/Header/Row/Words/PromoteReason
+@onready var _hire_reason: Label = $Box/Scroll/Content/Card/Header/Row/Words/HireReason
 @onready var _training_xp: Label = $Box/Scroll/Content/Card/Header/Row/Words/Actions/TrainingXp
 @onready var _stop: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Stop
 @onready var _train: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Train
@@ -302,10 +302,10 @@ func set_landscape(landscape: bool, beside_roster: bool = false) -> void:
 		back.remove_theme_font_size_override(&"font_size")
 	# The wide landscape header has room for the refusal on the buttons' row, on one line.
 	var actions := $Box/Scroll/Content/Card/Header/Row/Words/Actions as Control
-	_promote_reason.reparent(actions if landscape else words, false)
+	_hire_reason.reparent(actions if landscape else words, false)
 	if not landscape:
-		words.move_child(_promote_reason, actions.get_index() + 1)
-	_promote_reason.autowrap_mode = TextServer.AUTOWRAP_OFF if landscape else TextServer.AUTOWRAP_WORD_SMART
+		words.move_child(_hire_reason, actions.get_index() + 1)
+	_hire_reason.autowrap_mode = TextServer.AUTOWRAP_OFF if landscape else TextServer.AUTOWRAP_WORD_SMART
 	# The gear, the stash and the tray are sized by the layout, so each is built again.
 	_gear_shown = []
 	_stash_shown = []
@@ -321,10 +321,9 @@ func _by_layout(values: Vector2i) -> int:
 
 ## Shows `adventurer` as `dispatch` has them at `now`: Promote only when promoting them would
 ## succeed; Train only when one of `training_places` would take them now; Dismiss while they are
-## home and not the last, disabled with the reason while something else keeps them. `_gold` is
-## unused: nothing shown here costs gold.
+## home and not the last, disabled with the reason while something else keeps them.
 ## Another adventurer closes the tray; the same one keeps it as it is.
-func show_adventurer(adventurer: String, dispatch: Dispatch, _gold: Gold, training_places: int, now: int) -> void:
+func show_adventurer(adventurer: String, dispatch: Dispatch, training_places: int, now: int) -> void:
 	if adventurer != _adventurer:
 		_set_tray("", -1)
 	_adventurer = adventurer
@@ -347,7 +346,7 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, _gold: Gold, traini
 	_xp_text.text = "%d / %d" % [xp, needed]
 	_promote.visible = adventurers.can_promote(adventurer, not dispatch.quest_of(adventurer).is_empty())
 	_promote.text = "Promote to %s" % adventurers.next_rank(adventurer)
-	_promote_reason.visible = false
+	_hire_reason.visible = false
 	var training := dispatch.training.has(adventurer)
 	_training_xp.visible = training
 	_training_xp.text = "Training · +%d XP" % dispatch.training_xp(adventurer, now)
@@ -397,8 +396,8 @@ func show_visitor(visitor: Dictionary, walk_in: bool, refusal: String, free_bed:
 	_hire.visible = not walk_in
 	_hire.text = "Hire · %dg" % Recruits.hire_gold(visitor)
 	_hire.disabled = not refusal.is_empty()
-	_promote_reason.text = refusal
-	_promote_reason.visible = not walk_in and not refusal.is_empty()
+	_hire_reason.text = refusal
+	_hire_reason.visible = not walk_in and not refusal.is_empty()
 	_turn_away.visible = walk_in
 	_accept.visible = walk_in and free_bed
 	_swap.visible = walk_in and not free_bed
@@ -547,7 +546,7 @@ func _wear_picked() -> void:
 # Asks to promote the adventurer shown, lighting the stats a promotion raises (Adventurers.promote),
 # as Wear lights what it changes.
 func _on_promote() -> void:
-	_changed = _dispatch.adventurers.title_stats(_adventurer)
+	_changed = _dispatch.adventurers.promotion_stats(_adventurer)
 	promote_pressed.emit(_adventurer)
 
 

@@ -154,7 +154,7 @@ func test_a_tap_on_a_partys_name_swaps_it_for_a_field_whose_enter_asks_to_keep_w
 func _sheet(adventurer: String, landscape: bool = false) -> Adventurer:
 	var sheet := _screen("res://screens/adventurer.tscn") as Adventurer
 	sheet.set_landscape(landscape)
-	sheet.show_adventurer(adventurer, _dispatch, Gold.new(0), 0, 1_000)
+	sheet.show_adventurer(adventurer, _dispatch, 0, 1_000)
 	return sheet
 
 
@@ -225,7 +225,7 @@ func test_the_sheet_names_their_party_and_change_opens_a_tray_of_every_party_the
 	assert_eq(_tray_title(sheet), "")
 	# In reserve, the line says so and Reserve is marked.
 	assert_true(parties.move("ilse", Parties.RESERVES, _dispatch))
-	sheet.show_adventurer("ilse", _dispatch, Gold.new(0), 0, 1_000)
+	sheet.show_adventurer("ilse", _dispatch, 0, 1_000)
 	assert_eq((line.get_node("Name") as Label).text, "Reserve")
 	_tap(_middle_of(_change(sheet)))
 	assert_eq(_row_titles(sheet), [parties.parties[0]["name"], "Reserve", "+ New party"] as Array[String])
@@ -234,7 +234,7 @@ func test_the_sheet_names_their_party_and_change_opens_a_tray_of_every_party_the
 	sheet.show_visitor(Recruits.candidate_for(0, 1_000_000, PackedStringArray()), false, "", true)
 	assert_false(line.visible)
 	assert_eq(_tray_title(sheet), "")
-	sheet.show_adventurer("bram", _dispatch, Gold.new(0), 0, 1_000)
+	sheet.show_adventurer("bram", _dispatch, 0, 1_000)
 	assert_true(line.visible)
 	await wait_process_frames(1)
 

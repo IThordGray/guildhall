@@ -197,7 +197,7 @@ theme_type_variation = &"GoldButton"
 theme_override_font_sizes/font_size = 33
 text = "Swap"
 
-[node name="PromoteReason" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words"]
+[node name="HireReason" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words"]
 layout_mode = 2
 theme_type_variation = &"Alert"
 theme_override_font_sizes/font_size = 33
