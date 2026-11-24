@@ -32,7 +32,7 @@ it merges. Screens and wording live in the code.
   with only one action does it from a tap anywhere on it; a candidate's or the walk-in's card opens
   their sheet instead, and only its buttons act.
 - A list of slots shows what can be acted on first, and at most one line for the soonest refill.
-- A button shows only when its action applies (Train, Promote from the level the rank needs).
+- A button shows only when its action applies (Train, Promote once earned).
 
 ## Roster
 
@@ -43,6 +43,11 @@ it merges. Screens and wording live in the code.
 - A party's name is drawn as "The <Adjective> <Noun>" from a saved seed; the dice draws another and
   the player can type over it (blank keeps the old name, at most 24 characters).
 - A party's rank is its members' ranks averaged, rounded down (F=0 … S=6).
+- Promotion is earned and free: rank E after 5 successful rank-E quests at level 3 or higher, rank
+  D after 5 successful rank-D quests at level 6 or higher; the player presses Promote, never
+  automatic, and not while out. Each member counts the quests they succeeded on by rank (averaged
+  absences count their expected successes, rounded down). A promotion raises the adventurer's two
+  highest stats by 1, shown like a level-up.
 - A save from before parties groups its adventurers into parties of up to 4 in roster order.
 - The roster never holds more adventurers than the guild has beds. A hire is refused with nothing
   changed when gold is short or every bed is taken.
