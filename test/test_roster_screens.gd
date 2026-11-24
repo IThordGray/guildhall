@@ -651,3 +651,52 @@ func test_the_picker_drops_a_quest_that_left_the_board_and_keeps_one_still_on_it
 	assert_eq(left, [true] as Array[bool])
 	picker.show_board(quests)
 	assert_eq(left, [true] as Array[bool])
+
+
+func test_in_landscape_a_board_row_gives_its_time_left_alone_and_in_portrait_after_leaves() -> void:
+	var board := _quests()
+	# Filled at 1_000_000: moonherbs (F) leaves at 1_000_060.
+	var quests := Board.new()
+	quests.reception_slots = 3
+	quests.refill(_dispatch, 1_000_000, PackedInt64Array())
+	board.show_board(quests, _dispatch, 1_000_018)
+	var meta := _visible_rows(board)[0].find_child("Meta", true, false) as Label
+	assert_eq(meta.text, "F · 0:06 · 10g · leaves 0:42")
+	# Turning the window changes it at once, and a tick keeps it.
+	board.set_landscape(true)
+	assert_eq(meta.text, "F · 0:06 · 10g · 0:42")
+	board.show_board(quests, _dispatch, 1_000_019)
+	assert_eq(meta.text, "F · 0:06 · 10g · 0:41")
+	board.set_landscape(false)
+	assert_eq(meta.text, "F · 0:06 · 10g · leaves 0:41")
+
+
+# The rows of `pick`'s list, in order.
+func _pick_rows(pick: SwapPick) -> Array[Node]:
+	return pick.get_node("Box/Scroll/List").get_children()
+
+
+func test_the_swap_pick_lists_everyone_on_one_card_and_rebuilds_it_when_someone_joins() -> void:
+	var pick := _screen("res://screens/swap_pick.tscn") as SwapPick
+	var list := pick.get_node("Box/Scroll/List") as VBoxContainer
+	pick.show_dispatch("Wren", _dispatch, 1_000)
+	var rows := _pick_rows(pick)
+	assert_eq(rows.size(), 4)
+	# The card is drawn behind the rows, and redrawn when they move, as the roster's lists are.
+	for wired: Array in [["draw", "draw_card"], ["sort_children", "queue_redraw"]]:
+		var methods: Array[String] = []
+		for connection: Dictionary in list.get_signal_connection_list(wired[0]):
+			methods.append((connection["callable"] as Callable).get_method())
+		assert_has(methods, wired[1], wired[0])
+	pick.show_dispatch("Wren", _dispatch, 1_001)
+	assert_eq(_pick_rows(pick), rows)
+	_add_wren()
+	pick.show_dispatch("Ash", _dispatch, 1_002)
+	assert_eq(_pick_rows(pick).size(), 5)
+	assert_ne(_pick_rows(pick)[0], rows[0])
+	assert_has(_texts(_pick_rows(pick)[4]), "Wren")
+	var picked: Array[String] = []
+	pick.picked.connect(func(adventurer: String) -> void: picked.append(adventurer))
+	(_pick_rows(pick)[4] as Button).pressed.emit()
+	assert_eq(picked, ["wren"] as Array[String])
+	await wait_process_frames(1)

@@ -64,8 +64,9 @@ var injured_until: Dictionary[String, int] = {}
 ## How many seconds each adventurer's latest injury lasts in all, fixed when it was decided.
 var injury_lengths: Dictionary[String, int] = {}
 ## Loot that found the stash full when its party came home, in the order it came, waiting for the
-## player to swap it in (`swap_loot`) or let it go (`let_loot_go`). Each is {"quest": quest id,
-## "party": adventurer ids, "item": item id}. Until it is decided, its party stays home.
+## player to swap it in (`swap_loot`) or let it go (`let_loot_go`), or for the stash to have room at
+## a checkpoint, which stows it. Each is {"quest": quest id, "party": adventurer ids, "item": item
+## id}. Until it is stowed or decided, its party stays home.
 var waiting_loot: Array[Dictionary] = []
 ## The guild's gold, which a returning party's reward goes into. Whoever loads the game sets it to
 ## the guild's own Gold before the first checkpoint.
@@ -501,7 +502,8 @@ func returned_since_checkpoint(now: int) -> bool:
 	return false
 
 
-## Brings every returned party home, once, in the order they returned: gives each member damage and
+## Stows the loot waiting, oldest first, as far as the stash has room, freeing its parties. Then
+## brings every returned party home, once, in the order they returned: gives each member damage and
 ## XP and, on a success, counts it for them (Adventurers.successes), injures those it leaves under a
 ## quarter of their health, reveals the quest's challenges, puts the gold it earned into `gold` and
 ## its loot into the stash, where loot that finds it full waits (`waiting_loot`). Debriefs a save from before held unread are paid first, the same way.
@@ -511,6 +513,9 @@ func returned_since_checkpoint(now: int) -> bool:
 func checkpoint(now: int, infirmary_from: int = -1) -> void:
 	checked_at = maxi(checked_at, now)
 	_infirmary_from = infirmary_from
+	# Before any return, so loot that has waited longest takes the room first.
+	while not waiting_loot.is_empty() and adventurers.gear.stow(waiting_loot[0]["item"]):
+		waiting_loot.remove_at(0)
 	for debrief: Dictionary in _unpaid:
 		gold.amount += int(debrief["gold"])
 		if not debrief.get("xp_given", false):

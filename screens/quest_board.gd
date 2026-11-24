@@ -43,8 +43,9 @@ var _rows: Dictionary[String, Control] = {}
 ## last shown, so the pills change only when a return or the Map room reveals one.
 var _chips: Dictionary[String, HFlowContainer] = {}
 var _unknown_shown: Dictionary[String, int] = {}
-## Each quest's rank, time and gold line, which ends with its time left on the board, so it
-## changes each second without rebuilding the row. It is the first of the quest's `_chips`.
+## Each quest's rank, time and gold line, which ends with its time left on the board ("leaves m:ss",
+## in landscape the time alone), so it changes each second without rebuilding the row. It is the
+## first of the quest's `_chips`.
 var _meta: Dictionary[String, Label] = {}
 ## The board's slots shown, so the rows change only when the board does.
 var _shown: PackedStringArray = PackedStringArray()
@@ -54,8 +55,11 @@ var _needs_you_shown: Array = []
 ## The loot waiting as last shown, and where in it the loot whose decision is open is; -1 for none.
 var _loot_shown: Array[Dictionary] = []
 var _deciding: int = -1
-## The dispatch last shown, so opening or closing a decision shows at once.
+## The dispatch last shown, so opening or closing a decision shows at once; and the board and time
+## last shown with it, so turning the window shows each row's time left in the new layout at once.
 var _dispatch: Dispatch
+var _board: Board
+var _now: int = 0
 ## The parties the Parties rows were built for (Parties.groups), so they are rebuilt only when a
 ## party is made, goes or changes members; and each row's parts that change, by the party's id.
 var _parties_shown: Array = []
@@ -142,13 +146,15 @@ func _ready() -> void:
 	_done.pressed.connect(_decide.bind(-1))
 
 
-## Landscape shows how many parties are out beside the title, and puts each party row's faces and
-## Auto on a line under its name.
+## Landscape shows how many parties are out beside the title, puts each party row's faces and Auto
+## on a line under its name, and gives each board row's time left without "leaves".
 func set_landscape(landscape: bool) -> void:
 	_parties.visible = landscape
 	_landscape = landscape
 	for id: String in _party_rows:
 		_place_parts(_party_rows[id])
+	if _board != null:
+		show_board(_board, _dispatch, _now)
 
 
 ## Shows what needs the player in `dispatch` (loot that found the stash full, and level-ups ready)
@@ -157,6 +163,8 @@ func set_landscape(landscape: bool) -> void:
 ## is empty, the soonest refill. An unknown challenge shows the time to its reveal while the Map room is revealing it.
 func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 	_dispatch = dispatch
+	_board = board
+	_now = now
 	_parties_count.text = str(dispatch.outings.size())
 	_show_needs_you(dispatch)
 	_show_parties(dispatch, now)
@@ -179,7 +187,9 @@ func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 		if quest == "":
 			continue
 		var info: Dictionary = Dispatch.QUESTS[quest]
-		_meta[quest].text = "%s · %s · %dg · leaves %s" % [info["rank"], Duration.label(info["seconds"]), info["gold"], Duration.label(board.seconds_to_leave(quest, dispatch, now))]
+		# The narrow landscape column has room for the time left alone.
+		var leaves := Duration.label(board.seconds_to_leave(quest, dispatch, now))
+		_meta[quest].text = "%s · %s · %dg · %s" % [info["rank"], Duration.label(info["seconds"]), info["gold"], leaves if _landscape else "leaves " + leaves]
 		var reveal := board.seconds_to_reveal(quest, dispatch, now)
 		for chip_shown: Label in _chips[quest].get_children():
 			if chip_shown.theme_type_variation == &"PillUnknown":

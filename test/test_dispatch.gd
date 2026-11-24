@@ -2244,3 +2244,34 @@ func test_needs_you_counts_each_loot_waiting_and_every_level_up_ready_together_a
 	dispatch.adventurers.gain_xp("tobin", 10)
 	assert_eq(dispatch.ready_to_level(), PackedStringArray(["tobin"]))
 	assert_eq(dispatch.needs_you_count(), 1)
+
+
+func test_loot_waiting_stows_itself_oldest_first_once_the_stash_has_room_at_a_checkpoint_freeing_its_party() -> void:
+	var dispatch := _guild(1_000)
+	for item: String in FULL_STASH:
+		assert_true(dispatch.adventurers.gear.stow(item))
+	var goblins_seed := _seed_with_loot("goblins", ["bram", "ilse"], true)
+	var rats_seed := _seed_with_loot("rats", ["tobin"], true)
+	assert_true(dispatch.send("goblins", Fixtures.party(dispatch, ["bram", "ilse"]), goblins_seed, 1_000))
+	assert_true(dispatch.send("rats", Fixtures.party(dispatch, ["tobin"]), rats_seed, 1_000))
+	dispatch.checkpoint(1_020)
+	var rats_loot := Gear.loot(rats_seed, "F", dispatch.party_stat(["tobin"], "luck"))
+	var goblins_loot := Gear.loot(goblins_seed, "E", dispatch.party_stat(["bram", "ilse"], "luck"))
+	# A full stash keeps both waiting, checkpoint after checkpoint.
+	dispatch.checkpoint(1_021)
+	assert_eq(dispatch.waiting_loot.size(), 2)
+	assert_eq(dispatch.adventurers.gear.stash, FULL_STASH)
+	# One sold: room for one, which the rats' loot, back first, takes; the goblins' still waits.
+	assert_true(dispatch.adventurers.gear.sell("belt", dispatch.gold))
+	dispatch.checkpoint(1_022)
+	assert_eq(dispatch.adventurers.gear.stash, PackedStringArray(["sash", "green_sash", "quiver", "red_cloak", "iron_cap", rats_loot]))
+	assert_eq(dispatch.waiting_loot, [{"quest": "goblins", "party": PackedStringArray(["bram", "ilse"]), "item": goblins_loot}])
+	assert_eq(_statuses(dispatch, 1_022), ["Waiting on loot", "Waiting on loot", "Resting", "Resting"])
+	assert_true(dispatch.send("rats", Fixtures.party(dispatch, ["tobin"]), rats_seed, 1_022))
+	# Another sold: the goblins' loot goes in too, and Bram and Ilse are free.
+	assert_true(dispatch.adventurers.gear.sell("sash", dispatch.gold))
+	dispatch.checkpoint(1_023)
+	assert_eq(dispatch.adventurers.gear.stash[-1], goblins_loot)
+	assert_true(dispatch.waiting_loot.is_empty())
+	assert_false(dispatch.loot_waiting("bram"))
+	assert_false(dispatch.loot_waiting("ilse"))

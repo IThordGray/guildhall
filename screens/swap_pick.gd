@@ -1,8 +1,8 @@
 class_name SwapPick
 extends Control
 
-## Who leaves the guild to make room for the walk-in, every bed being taken: the roster's rows, those
-## who can't be dismissed showing why and not pickable.
+## Who leaves the guild to make room for the walk-in, every bed being taken: the roster's rows on one
+## card, as the roster lists them, those who can't be dismissed showing why and not pickable.
 
 ## The player picked `adventurer`, a key of Adventurers.roster, to leave for the walk-in.
 signal picked(adventurer: String)
@@ -22,6 +22,9 @@ var _healths: Dictionary[String, HBoxContainer] = {}
 
 func _ready() -> void:
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
+	_list.draw.connect(QuestBoard.draw_card.bind(_list))
+	# Rows laid out after the first draw move the lines between them.
+	_list.sort_children.connect(_list.queue_redraw)
 
 
 ## Shows who in `dispatch` can leave at `now` for the walk-in `walk_in_name`: everyone, with the
