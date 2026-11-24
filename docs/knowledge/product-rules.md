@@ -32,6 +32,14 @@ it merges. Screens and wording live in the code.
 
 ## Roster
 
+- Adventurers quest in parties of 1–4; an adventurer is in at most one party, and anyone in none
+  is a reserve. Reserves can't go on quests; they can train, change gear, level up, be promoted and
+  be dismissed. New hires and walk-ins join the reserves. A party whose last member leaves is gone.
+- Moving someone between parties or the reserves needs them and everyone in both parties home.
+- A party's name is drawn as "The <Adjective> <Noun>" from a saved seed; the dice draws another and
+  the player can type over it (blank keeps the old name, at most 24 characters).
+- A party's rank is its members' ranks averaged, rounded down (F=0 … S=6).
+- A save from before parties groups its adventurers into parties of up to 4 in roster order.
 - The roster never holds more adventurers than the guild has beds. A hire is refused with nothing
   changed when gold is short or every bed is taken.
 - Walk-ins arrive one at a time, the first a hidden 3–7 minutes into a game and each later one a
