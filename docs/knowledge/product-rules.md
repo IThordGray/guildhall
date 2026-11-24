@@ -22,7 +22,7 @@ it merges. Screens and wording live in the code.
   picker docks beside the board, and the chosen adventurer beside the roster list). Gear changes in
   place on the Adventurer screen: tapping a slot or a stash item swaps the stash strip (in landscape
   the left column) for that slot's tray; nothing slides over the screen. The one exception: an action that spends (restore, extend), lets an
-  adventurer go (dismiss, swap) or gives up an item (sell, swap loot in) confirms in a small centred
+  adventurer go (dismiss, swap) or gives up an item (sell, swap loot in, let loot go) confirms in a small centred
   card showing only its cost and time, what leaves, or the gold it brings, with Cancel and the action. Any scroll scrolls by dragging anywhere on it, and a control fires
   only on a tap that stayed within about 10 dp; a press that turns into a drag never fires. A card
   with only one action does it from a tap anywhere on it; a candidate's or the walk-in's card opens
@@ -38,11 +38,11 @@ it merges. Screens and wording live in the code.
   hidden 20–28 hours after the one before, from saved timestamps and seeds only; each waits until
   the next arrives. Accepting is free and needs a bed; with every bed taken, a
   walk-in can be swapped for a current adventurer. Dismissing returns gear to the stash where it
-  fits; nobody out, training or waiting on a debrief, and never the last adventurer, can go.
+  fits; nobody out, training or waiting on loot to be decided, and never the last adventurer, can go.
 - Candidate slots refill from saved timestamps only, like the quest board: being away gives the same
   candidates as watching.
 - Taverns and training fill from saved timestamps only, up to their cap. Gold held changes only by
-  rewards (paid when their debrief is read), spending, collecting and selling.
+  rewards (paid when the party is back), spending, collecting and selling.
 
 ## Hall
 
@@ -66,10 +66,12 @@ it merges. Screens and wording live in the code.
   R+1 20%). A player action that changes a rank brings the board up to date first.
 - A party's chance of success and each member's health are fixed when it leaves; nothing done
   while it is out changes how the quest ends. Nobody heals while out.
-- A returning party's damage, injuries, healing and XP count from its return, so members can level
-  up from the debrief; its gold and loot are paid, and its members free for new quests, only when
-  its debrief is read. A debrief pays once. Loot that finds the stash full can be swapped in for a
-  stash item, which is discarded; what isn't swapped in is lost when the debrief is read.
+- There is no debrief: everything a returning party brings (gold, XP, damage, injuries, healing,
+  loot) applies at its return, once, and its members are free for new quests. Loot that finds the
+  stash full waits in Needs you on the Quests screen until the player swaps it in for a stash item,
+  which is sold at its Armory price, or lets it go; until then that party's members can't go out,
+  train or be dismissed. Needs you also has one row for level-ups ready; the Quests tab counts its
+  rows.
 - Any stash item sells from the Armory, by quality: Standard 3, Fine 15, Legendary 60 gold. Worn
   items don't sell.
 - A quest's XP is the party's total: each member gains the total ÷ party size, rounded down, but at least 1. A
@@ -79,7 +81,7 @@ it merges. Screens and wording live in the code.
   shapes growth: the stats worn items add grow faster. A title comes from the two highest stats.
 - Spirit and Luck help the whole party: Spirit cuts everyone's damage; Luck brings more and better
   loot, softens a failure and may give a lucky break (the weakest challenge counts as just met),
-  all fixed at send. What Luck does is never explained on screen; a lucky break shows in its debrief.
+  all fixed at send. What Luck does is never explained on screen, and a lucky break is never shown.
 - Every recruit arrives wearing at least a weapon.
 - The picker shows the chance as a range: ±10 around what the known challenges give, an unknown
   challenge counted as an even match and a lucky break left out. Until every challenge is known the
