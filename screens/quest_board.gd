@@ -18,6 +18,10 @@ const FACE_SCALE: int = 3
 ## How many times larger than its pixels a figure shows: the design's 80 × 108 on its 390-wide
 ## phone, on the 1080-wide screen, to a whole number.
 const FIGURE_SCALE: int = 7
+## How tall a party-out row's progress bar is: the design's 4 dp.
+const OUT_BAR_PX: int = 11
+## The space between a row's faces or icon, its words and what is on its right.
+const ROW_GAP_PX: int = 28
 
 ## What each adventurer wears, Gear.worn itself, so a token shows it; main sets it when a game opens.
 static var worn: Dictionary[String, Dictionary] = {}
@@ -25,17 +29,15 @@ static var worn: Dictionary[String, Dictionary] = {}
 static var _looks: Dictionary[int, Look] = {}
 
 var _rows: Dictionary[String, Control] = {}
-## Each quest's challenge chips, and how many of them were unknown when last shown, so they change
-## only when a return or the Map room reveals one.
+## Each quest's meta line followed by its challenge pills, and how many of them were unknown when
+## last shown, so the pills change only when a return or the Map room reveals one.
 var _chips: Dictionary[String, HFlowContainer] = {}
 var _unknown_shown: Dictionary[String, int] = {}
 ## Each quest's rank, time and gold line, which ends with its time left on the board, so it
-## changes each second without rebuilding the row.
+## changes each second without rebuilding the row. It is the first of the quest's `_chips`.
 var _meta: Dictionary[String, Label] = {}
 ## The board's slots shown, so the rows change only when the board does.
 var _shown: PackedStringArray = PackedStringArray()
-## The one line under the quests for the empty slots: the soonest refill.
-var _refill: Label
 ## What the Needs you rows were built from: the loot waiting, who has a level-up ready, the decision
 ## open and, while one is, the stash. They are rebuilt only when one of those changes.
 var _needs_you_shown: Array = []
@@ -56,6 +58,8 @@ var _out_rows: Array[OutRow] = []
 @onready var _out_section: Control = $Scroll/Box/OutSection
 @onready var _out: VBoxContainer = $Scroll/Box/Out
 @onready var _list: VBoxContainer = $Scroll/Box/List
+## The one line for the empty slots, beside the board's section label: the soonest refill.
+@onready var _refill: Label = $Scroll/Box/BoardHeader/Refill
 @onready var _parties: Control = $Scroll/Box/Header/Parties
 @onready var _parties_count: Label = $Scroll/Box/Header/Parties/Count
 
@@ -78,36 +82,37 @@ class Look extends RefCounted:
 
 
 func _ready() -> void:
+	for list: VBoxContainer in [_needs_you, _out, _list]:
+		list.draw.connect(_draw_card.bind(list))
+		# Rows moving inside the list move the lines between them.
+		list.sort_children.connect(list.queue_redraw)
 	for quest: String in Dispatch.QUESTS:
-		var info: Dictionary = Dispatch.QUESTS[quest]
-		var words := VBoxContainer.new()
-		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		words.alignment = BoxContainer.ALIGNMENT_CENTER
-		words.add_child(_label(info["name"], &"Heading"))
-		_meta[quest] = _label("", &"Meta")
+		_meta[quest] = _label("", &"MetaSmall")
 		_meta[quest].name = "Meta"
-		words.add_child(_meta[quest])
+		_meta[quest].autowrap_mode = TextServer.AUTOWRAP_OFF
+		_meta[quest].vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		# The pills follow the meta line, and go under it where the row is too narrow for them.
 		var chips := HFlowContainer.new()
 		chips.theme_type_variation = &"Chips"
-		words.add_child(chips)
+		chips.add_child(_meta[quest])
 		_chips[quest] = chips
-		var send := Button.new()
-		send.text = "Send party"
-		send.theme_type_variation = &"GoldButton"
-		send.custom_minimum_size = Vector2(0, 122)
-		send.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		send.pressed.connect(send_pressed.emit.bind(quest))
+		var words := VBoxContainer.new()
+		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		words.add_child(_one_line(Dispatch.QUESTS[quest]["name"], &"RowTitle"))
+		words.add_child(chips)
+		var more := _label("›", &"Secondary")
+		more.autowrap_mode = TextServer.AUTOWRAP_OFF
+		more.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		var line := HBoxContainer.new()
-		line.add_theme_constant_override("separation", 32)
+		line.add_theme_constant_override("separation", ROW_GAP_PX)
 		line.add_child(words)
-		line.add_child(send)
+		line.add_child(more)
 		var row := PanelContainer.new()
+		row.theme_type_variation = &"CardRow"
 		row.add_child(line)
-		_rows[quest] = Touch.whole_card(row, send)
+		_rows[quest] = _tap_row(row, send_pressed.emit.bind(quest))
 		_rows[quest].visible = false
 		_list.add_child(_rows[quest])
-	_refill = _label("", &"Secondary")
-	_list.add_child(_refill)
 	_done.pressed.connect(_decide.bind(-1))
 
 
@@ -118,8 +123,8 @@ func set_landscape(landscape: bool) -> void:
 
 ## Shows what needs the player in `dispatch` (loot that found the stash full, and level-ups ready)
 ## and the parties out at `now`, then the quests in `board`'s slots in order, each with the time
-## until it leaves the board, and under them, while a slot is empty, the soonest refill. An unknown
-## challenge shows the time to its reveal while the Map room is revealing it.
+## until it leaves the board, and beside the board's label, while a slot is empty, the soonest
+## refill. An unknown challenge shows the time to its reveal while the Map room is revealing it.
 func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 	_dispatch = dispatch
 	_parties_count.text = str(dispatch.outings.size())
@@ -130,24 +135,24 @@ func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 		_shown = board.slots.duplicate()
 		for quest: String in _rows:
 			_rows[quest].visible = quest in _shown
-		# The quests first, in slot order, before the hidden rows and the refill line.
+		# The quests first, in slot order, before the hidden rows.
 		var at := 0
 		for quest: String in _shown:
 			if quest != "":
 				_list.move_child(_rows[quest], at)
 				at += 1
+		_list.visible = at > 0
 	var left := board.seconds_to_next_refill(dispatch, now)
 	_refill.visible = left >= 0
-	_refill.text = "New quest in " + Duration.label(left) if left > 0 else "New quest when one is free"
+	_refill.text = "new quest in " + Duration.label(left) if left > 0 else "new quest when one is free"
 	for quest: String in _shown:
 		if quest == "":
 			continue
 		var info: Dictionary = Dispatch.QUESTS[quest]
-		# A no-break space keeps the time left with "leaves" where the line wraps.
-		_meta[quest].text = "Rank %s · %s · %d gold · leaves%s%s" % [info["rank"], Duration.label(info["seconds"]), info["gold"], String.chr(0xA0), Duration.label(board.seconds_to_leave(quest, dispatch, now))]
+		_meta[quest].text = "%s · %s · %dg · leaves %s" % [info["rank"], Duration.label(info["seconds"]), info["gold"], Duration.label(board.seconds_to_leave(quest, dispatch, now))]
 		var reveal := board.seconds_to_reveal(quest, dispatch, now)
 		for chip_shown: Label in _chips[quest].get_children():
-			if chip_shown.theme_type_variation == &"ChipUnknown":
+			if chip_shown.theme_type_variation == &"PillUnknown":
 				chip_shown.text = "? · " + Duration.label(reveal) if reveal > 0 else "?"
 
 
@@ -224,11 +229,11 @@ static func _scaled(image: Image, scale: int) -> Image:
 
 
 ## A challenge chip in `variation`: Chip, ChipCovered, ChipUncovered or ChipUnknown, the last with
-## a dashed border.
+## a dashed border; or the board's smaller Pill and PillUnknown, the last dashed.
 static func chip(text: String, variation: StringName) -> Label:
 	var label := _label(text, variation)
 	label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	if variation == &"ChipUnknown":
+	if variation in [&"ChipUnknown", &"PillUnknown"]:
 		label.draw.connect(func() -> void: _draw_dashed_border(label))
 	return label
 
@@ -258,10 +263,12 @@ func _show_challenges(dispatch: Dispatch) -> void:
 		if _unknown_shown.get(quest, -1) == unknown.size():
 			continue
 		_unknown_shown[quest] = unknown.size()
-		for old: Node in _chips[quest].get_children():
+		# Every pill, after the meta line.
+		for old: Node in _chips[quest].get_children().slice(1):
+			_chips[quest].remove_child(old)
 			old.queue_free()
 		for challenge: String in Dispatch.QUESTS[quest]["challenges"]:
-			_chips[quest].add_child(chip("?", &"ChipUnknown") if challenge in unknown else chip(challenge, &"Chip"))
+			_chips[quest].add_child(chip("?", &"PillUnknown") if challenge in unknown else chip(challenge, &"Pill"))
 
 
 func _show_needs_you(dispatch: Dispatch) -> void:
@@ -298,24 +305,31 @@ func _decide(index: int) -> void:
 # The row for `waiting`, the loot at `index` that found the stash full, with Decide.
 func _loot_row(index: int, waiting: Dictionary) -> Control:
 	var item: String = waiting["item"]
-	var words := VBoxContainer.new()
-	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	words.alignment = BoxContainer.ALIGNMENT_CENTER
-	words.add_child(_label("Stash full", &"AlertTitle"))
-	words.add_child(_label("%s brought %s" % [Dispatch.QUESTS[waiting["quest"]]["name"], Gear.ITEMS[item]["name"]], &"Secondary"))
 	var decide := Button.new()
 	decide.text = "Decide ›"
 	decide.theme_type_variation = &"GoldLink"
 	decide.pressed.connect(_decide.bind(index))
+	var sub := "%s brought %s" % [Dispatch.QUESTS[waiting["quest"]]["name"], Gear.ITEMS[item]["name"]]
+	return Touch.whole_card(_needs_you_row(Adventurer.item_icon(item, 3), _label("Stash full", &"AlertTitle"), sub, decide), decide)
+
+
+# A closed Needs you row: `picture`, then `title` over `sub` on one line, then `action`.
+static func _needs_you_row(picture: Control, title: Label, sub: String, action: Button) -> PanelContainer:
+	title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.alignment = BoxContainer.ALIGNMENT_CENTER
+	words.add_child(title)
+	words.add_child(_one_line(sub, &"Caption"))
 	var line := HBoxContainer.new()
-	line.add_theme_constant_override("separation", 32)
-	line.add_child(Adventurer.item_icon(item, 3))
+	line.add_theme_constant_override("separation", ROW_GAP_PX)
+	line.add_child(picture)
 	line.add_child(words)
-	line.add_child(decide)
+	line.add_child(action)
 	var row := PanelContainer.new()
-	row.theme_type_variation = &"NeedsYouRow"
+	row.theme_type_variation = &"CardRow"
 	row.add_child(line)
-	return Touch.whole_card(row, decide)
+	return row
 
 
 # The decision on the loot waiting at `index` in `dispatch`: the loot, then every stash item, the
@@ -381,7 +395,7 @@ func _decision(index: int, dispatch: Dispatch) -> Control:
 	let_go.pressed.connect(let_go_pressed.emit.bind(index))
 	box.add_child(let_go)
 	var row := PanelContainer.new()
-	row.theme_type_variation = &"NeedsYouRow"
+	row.theme_type_variation = &"CardRow"
 	row.add_child(box)
 	return row
 
@@ -402,24 +416,11 @@ static func _item_line(item: String, icon_scale: int, name_label: Label, details
 
 # The row naming everyone in `ready` with a level-up ready, whose Open levels up the first.
 func _level_up_row(ready: PackedStringArray, roster: Dictionary) -> Control:
-	var words := VBoxContainer.new()
-	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	words.alignment = BoxContainer.ALIGNMENT_CENTER
-	words.add_child(_label("Level up ready", &"RowTitle"))
-	words.add_child(_label(_names(ready, roster), &"Secondary"))
 	var open := Button.new()
 	open.text = "Open ›"
 	open.theme_type_variation = &"GoldLink"
 	open.pressed.connect(level_up_pressed.emit.bind(ready[0]))
-	var line := HBoxContainer.new()
-	line.add_theme_constant_override("separation", 32)
-	line.add_child(_tokens(ready, roster))
-	line.add_child(words)
-	line.add_child(open)
-	var row := PanelContainer.new()
-	row.theme_type_variation = &"NeedsYouRow"
-	row.add_child(line)
-	return Touch.whole_card(row, open)
+	return Touch.whole_card(_needs_you_row(_tokens(ready, roster), _label("Level up ready", &"RowTitle"), _names(ready, roster), open), open)
 
 
 # The names of those in `party` still in `roster`, comma-separated.
@@ -435,40 +436,35 @@ func _show_out(dispatch: Dispatch, now: int) -> void:
 	if dispatch.outings != _outings_shown:
 		_outings_shown = dispatch.outings.duplicate()
 		for row: Node in _out.get_children():
+			_out.remove_child(row)
 			row.queue_free()
 		_out_rows.clear()
 		for outing: Dictionary in _outings_shown:
 			var quest: Dictionary = Dispatch.QUESTS[outing["quest"]]
-			var title := _label(quest["name"], &"RowTitle")
-			title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			var reward := _label("%d gold" % quest["gold"], &"Meta")
-			reward.autowrap_mode = TextServer.AUTOWRAP_OFF
-			var heading := HBoxContainer.new()
-			heading.add_child(title)
-			heading.add_child(reward)
 			var out := OutRow.new()
 			out.bar = ProgressBar.new()
 			out.bar.theme_type_variation = &"GoldBar"
 			out.bar.show_percentage = false
 			out.bar.step = 1.0
 			out.bar.max_value = quest["seconds"]
-			out.bar.custom_minimum_size = Vector2(0, 16)
-			out.bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			out.bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			out.bar.custom_minimum_size = Vector2(0, OUT_BAR_PX)
 			out.time = _label("", &"Numbers")
 			out.time.autowrap_mode = TextServer.AUTOWRAP_OFF
+			out.time.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			_out_rows.append(out)
-			var progress := HBoxContainer.new()
-			progress.add_theme_constant_override("separation", 32)
-			progress.add_child(_tokens(outing["party"], dispatch.adventurers.roster))
-			progress.add_child(out.bar)
-			progress.add_child(out.time)
-			var box := VBoxContainer.new()
-			box.add_theme_constant_override("separation", 24)
-			box.add_child(heading)
-			box.add_child(progress)
+			var words := VBoxContainer.new()
+			words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			words.alignment = BoxContainer.ALIGNMENT_CENTER
+			words.add_child(_one_line(quest["name"], &"RowTitle"))
+			words.add_child(out.bar)
+			var line := HBoxContainer.new()
+			line.add_theme_constant_override("separation", ROW_GAP_PX)
+			line.add_child(_tokens(outing["party"], dispatch.adventurers.roster))
+			line.add_child(words)
+			line.add_child(out.time)
 			var row := PanelContainer.new()
-			row.add_child(box)
+			row.theme_type_variation = &"CardRow"
+			row.add_child(line)
 			_out.add_child(row)
 		_out_section.visible = not _outings_shown.is_empty()
 		_out.visible = not _outings_shown.is_empty()
@@ -484,6 +480,50 @@ func _tokens(party: PackedStringArray, roster: Dictionary) -> HBoxContainer:
 	for adventurer: String in party:
 		stack.add_child(token(adventurer, roster))
 	return stack
+
+
+# `card` over a ListRow button its size, so a tap anywhere on it calls `on_tap` and the row lights
+# while pressed: nothing on the card takes the press.
+static func _tap_row(card: Control, on_tap: Callable) -> MarginContainer:
+	var tap := Button.new()
+	tap.theme_type_variation = &"ListRow"
+	tap.pressed.connect(on_tap)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for part: Node in card.find_children("*", "Control", true, false):
+		(part as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# A MarginContainer stacks its children, so the button is the card's size, under it.
+	var stack := MarginContainer.new()
+	stack.add_child(tap)
+	stack.add_child(card)
+	return stack
+
+
+# `list`'s one card, behind its rows, with a thin line in each gap between two shown rows.
+static func _draw_card(list: VBoxContainer) -> void:
+	var card := list.get_theme_stylebox(&"panel") as StyleBoxFlat
+	list.draw_style_box(card, Rect2(Vector2.ZERO, list.size))
+	var gap := list.get_theme_constant(&"separation")
+	var divider := list.get_theme_color(&"divider")
+	# Between the card's side borders, so a coloured border stays whole.
+	var width := list.size.x - card.border_width_left - card.border_width_right
+	var first := true
+	for row: Node in list.get_children():
+		var shown := row as Control
+		if not shown.visible:
+			continue
+		if not first:
+			list.draw_rect(Rect2(card.border_width_left, shown.position.y - gap, width, gap), divider)
+		first = false
+
+
+# A label on one line that takes the room left and cuts its text short with "…" when it runs out.
+static func _one_line(text: String, variation: StringName) -> Label:
+	var label := _label(text, variation)
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return label
 
 
 static func _label(text: String, variation: StringName) -> Label:

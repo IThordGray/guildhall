@@ -204,19 +204,35 @@ func test_the_swap_card_says_what_leaves_with_them_costs_nothing_and_swaps_only_
 	assert_false((sheet.get_node("Sheet/Box/Note") as Label).visible)
 
 
-func test_a_drag_starting_on_a_board_quest_scrolls_the_board_and_does_not_send_it() -> void:
+func test_a_tap_anywhere_on_a_board_quest_opens_that_quest_and_a_drag_starting_on_it_scrolls_instead() -> void:
 	var board_view := _screen("res://screens/quest_board.tscn") as QuestBoard
+	# A short screen, so three quests are more than it shows without scrolling.
+	board_view.size.y = 550
 	var dispatch := Dispatch.new(1_000)
 	var board := Board.new()
-	# Three quests are more than the board shows without scrolling.
 	board.reception_slots = 3
 	board.refill(dispatch, 1_000, PackedInt64Array())
 	board_view.show_board(board, dispatch, 1_000)
-	board_view.send_pressed.connect(func(_quest: String) -> void: _fire())
+	var asked: Array[String] = []
+	board_view.send_pressed.connect(func(quest: String) -> void:
+		asked.append(quest)
+		_fire())
 	await wait_process_frames(1)
-	var sends := board_view.get_node("Scroll/Box/List").find_children("*", "Button", true, false).filter(
-			func(button: Button) -> bool: return button.is_visible_in_tree())
-	await _assert_drag_scrolls_and_does_not_fire(board_view.get_node("Scroll"), sends[1])
+	var rows := board_view.get_node("Scroll/Box/List").get_children().filter(
+			func(row: Control) -> bool: return row.visible)
+	assert_eq(rows.size(), 3)
+	var second := (rows[1] as Node).find_children("*", "Button", true, false)[0] as Button
+	await _assert_drag_scrolls_and_does_not_fire(board_view.get_node("Scroll"), second)
+	assert_eq(asked, [board.slots[1]] as Array[String])
+	# Its name at the left and the › at the right open it too.
+	var labels := (rows[1] as Node).find_children("*", "Label", true, false)
+	var title := labels[0] as Label
+	var more := labels[labels.size() - 1] as Label
+	assert_eq(title.text, Dispatch.QUESTS[board.slots[1]]["name"])
+	assert_eq(more.text, "›")
+	await _touch_drag(_middle(title), _middle(title))
+	await _touch_drag(_middle(more), _middle(more))
+	assert_eq(asked, [board.slots[1], board.slots[1], board.slots[1]] as Array[String])
 
 
 func test_a_tap_fires_even_when_the_finger_moves_a_little() -> void:

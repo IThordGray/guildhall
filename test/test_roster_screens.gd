@@ -376,18 +376,37 @@ func test_each_board_row_shows_its_time_left_which_a_tick_updates_without_rebuil
 	var rows := _visible_rows(board)
 	assert_eq(rows.size(), 3)
 	var meta := rows[0].find_child("Meta", true, false) as Label
-	assert_eq(meta.text, "Rank F · 0:06 · 10 gold · leaves" + String.chr(0xA0) + "0:42")
-	assert_eq((rows[1].find_child("Meta", true, false) as Label).text, "Rank E · 0:10 · 22 gold · leaves" + String.chr(0xA0) + "1:42")
+	assert_eq(meta.text, "F · 0:06 · 10g · leaves 0:42")
+	assert_eq((rows[1].find_child("Meta", true, false) as Label).text, "E · 0:10 · 22g · leaves 1:42")
 	# A tick: the same rows, in the same order, the time left one second less.
 	quests.refill(_dispatch, 1_000_019, PackedInt64Array())
 	board.show_board(quests, _dispatch, 1_000_019)
 	assert_eq(_visible_rows(board), rows)
 	assert_same(rows[0].find_child("Meta", true, false), meta)
-	assert_eq(meta.text, "Rank F · 0:06 · 10 gold · leaves" + String.chr(0xA0) + "0:41")
+	assert_eq(meta.text, "F · 0:06 · 10g · leaves 0:41")
 	# Moonherbs leaves: its row goes.
 	quests.refill(_dispatch, 1_000_060, PackedInt64Array())
 	board.show_board(quests, _dispatch, 1_000_060)
 	assert_eq(_visible_rows(board), rows.slice(1))
+
+
+func test_each_party_out_shows_its_quest_and_time_left_which_a_tick_updates_without_rebuilding_the_row() -> void:
+	var board := _quests()
+	assert_true(_dispatch.send("wolves", PackedStringArray(["bram", "ilse"]), 1, 1_000))
+	board.show_board(Board.new(), _dispatch, 1_003)
+	var rows := board.get_node("Scroll/Box/Out")
+	assert_eq(rows.get_child_count(), 1)
+	var row := rows.get_child(0)
+	assert_has(_texts(row), "Wolves at the mill")
+	assert_has(_texts(row), "0:07")
+	assert_does_not_have(_texts(row), "22 gold")
+	var bar := row.find_children("*", "ProgressBar", true, false)[0] as ProgressBar
+	assert_eq(bar.value, 3.0)
+	# A tick: the same row, its time and bar a second on.
+	board.show_board(Board.new(), _dispatch, 1_004)
+	assert_same(rows.get_child(0), row)
+	assert_has(_texts(row), "0:06")
+	assert_eq(bar.value, 4.0)
 
 
 func test_the_picker_drops_a_quest_that_left_the_board_and_keeps_one_still_on_it() -> void:

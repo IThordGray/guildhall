@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=73 format=3]
+[gd_resource type="Theme" load_steps=74 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexsans/IBMPlexSans.ttf" id="1_sans"]
 [ext_resource type="FontFile" path="res://assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf" id="2_mono"]
@@ -426,11 +426,7 @@ corner_radius_top_right = 22
 corner_radius_bottom_right = 22
 corner_radius_bottom_left = 22
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_needs_you_row"]
-content_margin_left = 33.0
-content_margin_top = 28.0
-content_margin_right = 33.0
-content_margin_bottom = 28.0
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_needs_you_list"]
 bg_color = Color(0.1294, 0.1137, 0.1569, 1)
 border_width_left = 3
 border_width_top = 3
@@ -546,6 +542,12 @@ corner_radius_bottom_left = 16
 bg_color = Color(0, 0, 0, 0)
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_list_row"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_card_row"]
+content_margin_left = 33.0
+content_margin_top = 26.0
+content_margin_right = 33.0
+content_margin_bottom = 26.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_list_row_pressed"]
 bg_color = Color(0.1647, 0.1451, 0.2, 1)
@@ -804,6 +806,10 @@ ChipUnknown/colors/border_color = Color(0.2902, 0.2588, 0.3451, 1)
 ChipUnknown/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 ChipUnknown/constants/border_width = 3
 ChipUnknown/styles/normal = SubResource("StyleBoxEmpty_chip_unknown")
+Pill/base_type = &"Chip"
+Pill/font_sizes/font_size = 25
+PillUnknown/base_type = &"ChipUnknown"
+PillUnknown/font_sizes/font_size = 25
 Chips/base_type = &"HFlowContainer"
 Chips/constants/h_separation = 14
 Chips/constants/v_separation = 14
@@ -811,8 +817,10 @@ Coin/base_type = &"Panel"
 Coin/styles/panel = SubResource("StyleBoxFlat_coin")
 CardTight/base_type = &"PanelContainer"
 CardTight/styles/panel = SubResource("StyleBoxFlat_card_tight")
-NeedsYouRow/base_type = &"PanelContainer"
-NeedsYouRow/styles/panel = SubResource("StyleBoxFlat_needs_you_row")
+CardRow/base_type = &"PanelContainer"
+CardRow/styles/panel = SubResource("StyleBoxEmpty_card_row")
+NeedsYouList/base_type = &"RowList"
+NeedsYouList/styles/panel = SubResource("StyleBoxFlat_needs_you_list")
 Dim/base_type = &"Button"
 Dim/styles/hover = SubResource("StyleBoxFlat_dim")
 Dim/styles/hover_pressed = SubResource("StyleBoxFlat_dim")
@@ -923,6 +931,8 @@ ListRowChosen/styles/pressed = SubResource("StyleBoxFlat_list_row_chosen")
 Meta/base_type = &"Numbers"
 Meta/colors/font_color = Color(0.6627, 0.6314, 0.7137, 1)
 Meta/font_sizes/font_size = 36
+MetaSmall/base_type = &"Meta"
+MetaSmall/font_sizes/font_size = 28
 Numbers/base_type = &"Label"
 Numbers/fonts/font = ExtResource("2_mono")
 Ok/base_type = &"Label"
