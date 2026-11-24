@@ -67,6 +67,16 @@ it merges. Screens and wording live in the code.
 
 - Only a whole party goes out, never part of one or a mix; how many are out is limited only by
   ready parties. A party takes quests at most one rank above its own rank.
+- Auto (per party, off by default, saved, with Safe or Bold): a party with Auto on is ready the
+  moment every member is home, at full health, not injured, not training and has no loot waiting.
+  It then takes the board quest its rank allows with the most gold among those whose shown chance's
+  low end is at least 70% (Safe) or 40% (Bold); ties go to the higher low end, then board order;
+  with none it waits and tries again whenever the board changes or it is ready again. Parties ready
+  together pick in party order. An Auto send's seed comes from saved state (party, quest, send
+  time). Turning Auto off lets the current quest finish; the party then stays home. Any party can
+  still be sent by hand.
+- Auto sends, returns, healing, refills and quests leaving all happen in time order from saved
+  timestamps, so one check after an absence gives the same as checking every second.
 - The board has a fixed number of slots. Sending a quest empties its slot, which refills after its
   own countdown with a quest not on the board and not out, whatever the outcome. A quest left on the
   board leaves after a time by its rank, and its slot refills the same way; each row shows its time
