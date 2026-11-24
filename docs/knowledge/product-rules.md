@@ -65,13 +65,14 @@ it merges. Screens and wording live in the code.
 
 ## Quests
 
-- How many parties are out is limited only by ready adventurers. A party has 1–4 members.
+- Only a whole party goes out, never part of one or a mix; how many are out is limited only by
+  ready parties. A party takes quests at most one rank above its own rank.
 - The board has a fixed number of slots. Sending a quest empties its slot, which refills after its
   own countdown with a quest not on the board and not out, whatever the outcome. A quest left on the
   board leaves after a time by its rank, and its slot refills the same way; each row shows its time
   left. Refills and leaving depend only on saved timestamps, so being away gives the same board as
   watching.
-- The board offers only quests at most one rank above the guild's highest-ranked adventurer, and
+- The board offers only quests at most one rank above the guild's highest-ranked party, and
   only of the guild's rank or one either side, weighted toward the guild's own (R−1 10%, R 70%,
   R+1 20%). A player action that changes a rank brings the board up to date first.
 - A party's chance of success and each member's health are fixed when it leaves; nothing done
