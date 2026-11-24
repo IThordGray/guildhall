@@ -76,7 +76,10 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   the adventurer; candidates and walk-ins open a character sheet). · Needs you and compact Quests (no
   debrief: returns pay at once; only full-stash loot and ready level-ups wait in Needs you; board
   quests leave after a time by rank; compact Quests rows and a picker of one quest card over compact
-  rows).
+  rows). · Parties (everyone who quests is in a named party of 1–4, the rest are reserves; only
+  whole parties go out, gated by party rank; Auto per party, Safe or Bold, replayed while away;
+  absences past 3 hours settled by averages; promotion earned by 5 successful quests at the next
+  rank and free, +1 to the two highest stats; waiting loot stows itself once there is room).
 
 ## Stack
 

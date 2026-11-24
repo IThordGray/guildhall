@@ -99,7 +99,8 @@ it merges. Screens and wording live in the code.
 - There is no debrief: everything a returning party brings (gold, XP, damage, injuries, healing,
   loot) applies at its return, once, and its members are free for new quests. Loot that finds the
   stash full waits in Needs you on the Quests screen until the player swaps it in for a stash item,
-  which is sold at its Armory price, or lets it go; until then that party's members can't go out,
+  which is sold at its Armory price, or lets it go, or until the stash has room at a check, when it
+  goes in by itself, oldest first; until then that party's members can't go out,
   train or be dismissed. Needs you also has one row for level-ups ready; the Quests tab counts its
   rows.
 - Any stash item sells from the Armory, by quality: Standard 3, Fine 15, Legendary 60 gold. Worn
