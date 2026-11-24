@@ -143,6 +143,7 @@ func test_a_party_with_someone_training_or_loot_waiting_stays_home_until_that_en
 	Auto.checkpoint(_dispatch, board, 1_005, PackedInt64Array())
 	assert_eq(_out(_first), [])
 	_dispatch.stop_training("tobin", 1_005)
+	_dispatch.adventurers.gear.stash_cap = 0
 	_dispatch.waiting_loot.append({"quest": "rats", "party": PackedStringArray(["bram", "tobin"]), "item": "belt"})
 	Auto.checkpoint(_dispatch, board, 1_010, PackedInt64Array())
 	assert_eq(_out(_first), [])

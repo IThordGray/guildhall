@@ -378,7 +378,7 @@ func _decision(index: int, dispatch: Dispatch) -> Control:
 	var waiting := dispatch.waiting_loot[index]
 	var gear := dispatch.adventurers.gear
 	var item: String = waiting["item"]
-	var title := _label("Stash full · %d / %d" % [gear.stash.size(), gear.stash_cap], &"AlertTitle")
+	var title := _label("Stash full", &"AlertTitle")
 	title.autowrap_mode = TextServer.AUTOWRAP_OFF
 	var who := _label("%s · %s" % [Dispatch.QUESTS[waiting["quest"]]["name"], _names(waiting["party"], dispatch.adventurers.roster)], &"Secondary")
 	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL

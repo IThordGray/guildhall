@@ -368,7 +368,7 @@ func test_decide_opens_the_loot_then_the_stash_cheapest_first_in_place_and_done_
 	assert_true(done.visible)
 	assert_null(_button(rows, "Decide ›"))
 	var texts := _texts(rows)
-	assert_eq(texts.slice(0, 5), ["Stash full · 6 / 6", "Goblin camp · Bram, Ilse", "Goblin-bone helm", "Fine ·", "Strength +1 · Defence +2"] as Array[String])
+	assert_eq(texts.slice(0, 5), ["Stash full", "Goblin camp · Bram, Ilse", "Goblin-bone helm", "Fine ·", "Strength +1 · Defence +2"] as Array[String])
 	# Cheapest first, items of one price in the order they came into the stash.
 	var names: Array[String] = []
 	for item: String in ["belt", "sash", "quiver", "night_cloak", "chapel_shield", "moonweave_robe"]:
