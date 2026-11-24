@@ -262,14 +262,6 @@ func test_the_same_save_plays_out_the_same_whatever_the_global_generator_gives()
 	assert_gt(_dispatch.tries.size(), 0)
 
 
-# A board with no slots: nothing can be sent once the averages are done, so what a long absence
-# brings is the averages' alone.
-func _no_board() -> Board:
-	var board := Board.new()
-	board.reception_slots = 0
-	return board
-
-
 # The quests tried, sorted.
 func _tried() -> Array:
 	var quests := _dispatch.tries.keys()
@@ -277,27 +269,39 @@ func _tried() -> Array:
 	return quests
 
 
-func test_a_long_absence_settles_all_but_its_last_three_hours_by_averages_then_plays_those_exactly_as_watching() -> void:
-	# Ten minutes settled, then three hours played out: once, or as one watching those three hours.
+# A board of three slots, as a guild of `guild_rank` first fills it at `at`.
+func _new_board(at: int, guild_rank: String = "F") -> Board:
+	var board := Board.new()
+	board.reception_slots = 3
+	board.refill(_dispatch, at, PackedInt64Array(), -1, guild_rank)
+	return board
+
+
+func test_a_long_absence_draws_the_board_afresh_three_hours_before_now_then_plays_those_hours_exactly_as_watching() -> void:
+	# Nobody with Auto, Bram and Tobin sent by hand at first: ten minutes settled, then three hours
+	# played out, once or as one watching those hours from the board drawn afresh.
 	var halls := PackedInt64Array([4_600])
 	var end := 1_000 + 600 + Auto.REPLAY_SECONDS
 	var away := _two_auto_parties()
-	_dispatch.adventurers.gear.stash_cap = 1_000
+	_parties.set_auto(_first, false)
+	_parties.set_auto(_second, false)
+	assert_true(away.send(_dispatch, away.slots[0], PackedStringArray(["bram", "tobin"]), 3, 1_000, halls, 2_800, 1_600))
 	Auto.checkpoint(_dispatch, away, end, halls, 2_800, 1_600)
 	var once := _saved(away)
 	var watched := _two_auto_parties()
-	_dispatch.adventurers.gear.stash_cap = 1_000
-	Auto._settle(_dispatch, watched, 1_600, halls, 2_800, 1_600, Hall.STARTING_RANK)
-	# The averages sent nobody out, and tried quests.
-	assert_true(_dispatch.outings.is_empty())
-	var settled_tries := _quests_done()
-	assert_gt(settled_tries, 0)
+	_parties.set_auto(_first, false)
+	_parties.set_auto(_second, false)
+	assert_true(watched.send(_dispatch, watched.slots[0], PackedStringArray(["bram", "tobin"]), 3, 1_000, halls, 2_800, 1_600))
+	_dispatch.checkpoint(1_600, 2_800)
+	watched.redraw(_dispatch, 1_600, halls, 1_600)
+	var drawn := watched.slots.duplicate()
 	for second: int in range(1_600, end + 1, 5):
 		Auto.checkpoint(_dispatch, watched, second, halls, 2_800, 1_600)
 	assert_eq(_saved(watched), once)
-	# The three hours were played: parties went out after the averages.
-	assert_gt(_quests_done(), settled_tries + 100)
-	# Three hours and a second away settle that first second, which playing it doesn't.
+	# The board changed through those hours, and the quest sent came back.
+	assert_ne(watched.slots, drawn)
+	assert_eq(_quests_done(), 1)
+	# With Auto, three hours and a second away settle that first second, which playing it doesn't.
 	var averaged := _two_auto_parties()
 	Auto.checkpoint(_dispatch, averaged, 1_001 + Auto.REPLAY_SECONDS, halls, 2_800, 1_600)
 	var stepped := _two_auto_parties()
@@ -306,57 +310,124 @@ func test_a_long_absence_settles_all_but_its_last_three_hours_by_averages_then_p
 	assert_ne(_saved(stepped), _saved(averaged))
 
 
-func test_a_long_absence_pays_an_auto_party_the_expected_gold_xp_and_tries_of_cycles_of_quest_and_healing() -> void:
+# The guild's gold and quests done, as [gold, quests].
+func _gold_and_quests() -> Vector2:
+	return Vector2(_dispatch.gold.amount, _quests_done())
+
+
+# A fresh guild set up as `scenario` from `start`, with room for any loot; its guild rank.
+func _scenario(scenario: String, start: int) -> String:
+	before_each()
+	_dispatch.checked_at = start
+	_dispatch.adventurers.gear.stash_cap = 100_000
+	match scenario:
+		"one Safe party, guild F":
+			_auto(_first)
+		"two Bold parties, guild E":
+			_auto(_first, Parties.BOLD)
+			_auto(_second, Parties.BOLD)
+			return "E"
+		"three parties of both modes":
+			assert_true(_parties.move("maren", Parties.NEW_PARTY, _dispatch))
+			_auto(_first)
+			_auto(_second, Parties.BOLD)
+			_auto(_parties.party_of("maren"), Parties.BOLD)
+	return "F"
+
+
+# What `scenario` brings from `start` in 12 hours, as [gold, quests]: [played out, averaged]. Played:
+# checkpointed every three hours, so exactly. Averaged: checkpointed once 15 hours on, so 12 hours
+# settled and three played, those three taken off as playing them out brought them.
+func _twelve_hours(scenario: String, start: int) -> Array[Vector2]:
+	var guild_rank := _scenario(scenario, start)
+	var board := _new_board(start, guild_rank)
+	var played: Array[Vector2] = []
+	for hours: int in [3, 6, 9, 12, 15]:
+		Auto.checkpoint(_dispatch, board, start + hours * 3_600, PackedInt64Array(), -1, -1, guild_rank)
+		played.append(_gold_and_quests())
+	guild_rank = _scenario(scenario, start)
+	Auto.checkpoint(_dispatch, _new_board(start, guild_rank), start + 15 * 3_600, PackedInt64Array(), -1, -1, guild_rank)
+	return [played[3], _gold_and_quests() - (played[4] - played[3])]
+
+
+func test_averaged_gold_and_quests_come_within_a_quarter_of_playing_the_same_twelve_hours() -> void:
+	for scenario: String in ["one Safe party, guild F", "two Bold parties, guild E", "three parties of both modes"]:
+		var played := Vector2()
+		var averaged := Vector2()
+		# Three saves, each played and averaged, added up, as one alone is noisy.
+		for start: int in [1_000, 100_003, 200_017]:
+			var both := _twelve_hours(scenario, start)
+			played += both[0]
+			averaged += both[1]
+		var ratio := averaged / played
+		gut.p("%s: gold %.2f, quests %.2f of playing (%s against %s)" % [scenario, ratio.x, ratio.y, averaged, played])
+		assert_gt(played.y, 200.0, scenario)
+		assert_between(ratio.x, 0.75, 1.25, scenario + ": gold")
+		assert_between(ratio.y, 0.75, 1.25, scenario + ": quests")
+
+
+func test_a_long_absence_pays_an_auto_party_the_expected_gold_xp_and_tries_of_the_quests_the_board_offers_it() -> void:
 	# Ilse and Maren on Safe take only the town well (shown 85–95): 3 seconds, a true 95%, 5 gold, 5 XP
 	# shared (2 each on a success, 1 on a failure). With Spirit 12 and Luck 4 a member can expect
-	# 0.95 × 4 × 0.76 + 0.05 × 12 × 0.76 × 0.92 = 3.30752 damage, healed in 2.20501 seconds: a cycle
-	# of 5.20501 seconds, so 52_050 seconds hold 9_999.97 of them.
+	# 0.95 × 4 × 0.76 + 0.05 × 12 × 0.76 × 0.92 = 3.30752 damage, healed in 2.20501 seconds.
+	# Three slots draw a quest of rank F 7 in 9 times, E otherwise. Those nobody takes sit for 60 or
+	# 120 seconds, on 0.837 of the other two slots at rank F, so a slot draws the well from 6.163 rank
+	# F quests: 0.12621 of draws, a draw every 94.650 seconds, the well every 249.989 seconds across
+	# the board. A cycle of 255.194 seconds, so 2_551_939 seconds hold 10_000 of them.
 	_auto(_second)
 	_dispatch.adventurers.gear.stash_cap = 5_000
-	Auto.checkpoint(_dispatch, _no_board(), 1_000 + 52_050 + Auto.REPLAY_SECONDS, PackedInt64Array())
-	assert_eq(_dispatch.tries, {"well": 10_000})
-	assert_eq(_dispatch.gold.amount, 47_500)
+	Auto.checkpoint(_dispatch, _new_board(1_000), 1_000 + 2_551_939 + Auto.REPLAY_SECONDS, PackedInt64Array())
+	assert_eq(_tried(), ["well"])
+	# The three hours played out add a well every four minutes or so.
+	assert_between(_dispatch.tries["well"], 10_000, 10_080)
+	assert_between(_dispatch.gold.amount, 47_500, 47_900)
 	for member: String in ["ilse", "maren"]:
-		assert_eq(_dispatch.adventurers.xp[member], 19_500, member)
+		assert_between(_dispatch.adventurers.xp[member], 19_500, 19_660, member)
 	# 29% of returns bring an item, Luck 4 counted.
-	assert_eq(_dispatch.adventurers.gear.stash.size(), 2_900)
+	assert_between(_dispatch.adventurers.gear.stash.size(), 2_900, 2_925)
 	var qualities := {}
 	for item: String in _dispatch.adventurers.gear.stash:
 		qualities[Gear.ITEMS[item]["quality"]] = true
 	# Drawn as any loot is: of every quality.
 	assert_eq(qualities.size(), Gear.QUALITY_PERCENT.size())
-	# With the Infirmary finished halfway, healing takes 1.10251 seconds from then on: 5_000 cycles
-	# before it and 6_343.67 after.
-	before_each()
-	_auto(_second)
-	_dispatch.adventurers.gear.stash_cap = 5_000
-	Auto.checkpoint(_dispatch, _no_board(), 1_000 + 52_050 + Auto.REPLAY_SECONDS, PackedInt64Array(), 1_000 + 26_025)
-	assert_eq(_dispatch.tries, {"well": 11_344})
 
 
-func test_a_party_averages_over_the_quests_its_rank_allows_the_board_offers_and_its_mode_takes_weighted_as_the_board_draws_ranks() -> void:
-	var end := 1_000 + 20_000 + Auto.REPLAY_SECONDS
-	# Bram and Tobin on Safe: the rats (82) and the well (72), each as likely.
+func test_healing_twice_as_fast_from_the_infirmary_on_fits_more_averaged_quests() -> void:
+	# Bram and Tobin on Bold take every rank F quest, one coming up every half minute or so, and heal
+	# for a few seconds after each.
+	var done: Array[int] = []
+	for infirmary_from: int in [-1, 1_000]:
+		before_each()
+		_auto(_first, Parties.BOLD)
+		_dispatch.adventurers.gear.stash_cap = 100_000
+		Auto.checkpoint(_dispatch, _new_board(1_000), 1_000 + 10 * 86_400, PackedInt64Array(), infirmary_from)
+		done.append(_quests_done())
+	assert_gt(done[0], 15_000)
+	assert_gt(done[1], done[0] + 400)
+
+
+func test_a_party_averages_over_the_quests_its_rank_allows_the_board_offers_and_its_mode_takes() -> void:
+	var end := 1_000 + 86_400
+	# Bram and Tobin on Safe: the rats (82) and the well (72).
 	_auto(_first)
 	_dispatch.adventurers.gear.stash_cap = 100_000
-	Auto.checkpoint(_dispatch, _no_board(), end, PackedInt64Array())
+	Auto.checkpoint(_dispatch, _new_board(1_000), end, PackedInt64Array())
 	assert_eq(_tried(), ["rats", "well"])
-	assert_gt(_dispatch.tries["rats"], 1_000)
-	assert_eq(_dispatch.tries["rats"], _dispatch.tries["well"])
-	# On Bold, every rank F quest, each as likely, but not the wolves (29).
+	assert_gt(_dispatch.tries["rats"], 100)
+	# On Bold, every rank F quest, but not the wolves (29).
 	before_each()
 	_auto(_first, Parties.BOLD)
 	_dispatch.adventurers.gear.stash_cap = 100_000
-	Auto.checkpoint(_dispatch, _no_board(), end, PackedInt64Array())
+	Auto.checkpoint(_dispatch, _new_board(1_000), end, PackedInt64Array())
 	var rank_f := ["cartographer", "letters", "moonherbs", "mouth", "rats", "spiders", "well"]
 	assert_eq(_tried(), rank_f)
 	for quest: String in rank_f:
-		assert_eq(_dispatch.tries[quest], _dispatch.tries["rats"], quest)
+		assert_gt(_dispatch.tries[quest], 100, quest)
 		# Tried, as a party back from it would have, so its challenges are known.
 		assert_true(_dispatch.unknown_challenges(quest).is_empty(), quest)
 	assert_eq(_dispatch.unknown_challenges("wolves"), PackedStringArray(["Attrition"]))
-	# Rank E and strong enough for anything: each rank E quest too, a third as likely as each rank F
-	# one (20 ÷ 6 against 70 ÷ 7), and no rank D quest, which a rank F guild's board never offers.
+	# Rank E and strong enough for anything: each rank E quest too, and no rank D quest, which a rank
+	# F guild's board never offers.
 	before_each()
 	for adventurer: String in ["bram", "tobin"]:
 		_dispatch.adventurers.roster[adventurer]["rank"] = "E"
@@ -364,18 +435,18 @@ func test_a_party_averages_over_the_quests_its_rank_allows_the_board_offers_and_
 			_dispatch.adventurers.stats[adventurer][stat] = 60
 	_auto(_first, Parties.BOLD)
 	_dispatch.adventurers.gear.stash_cap = 100_000
-	Auto.checkpoint(_dispatch, _no_board(), end, PackedInt64Array())
+	Auto.checkpoint(_dispatch, _new_board(1_000), end, PackedInt64Array())
 	var rank_e := ["crypt", "goblins", "lurker", "pilgrims", "sealed_door", "wolves"]
 	assert_eq(_tried().size(), rank_f.size() + rank_e.size())
 	for quest: String in rank_e:
-		assert_almost_eq(_dispatch.tries[quest] * 3.0, float(_dispatch.tries["rats"]), 3.0, quest)
+		assert_gt(_dispatch.tries[quest], 10, quest)
 
 
 func test_loot_from_the_averages_fills_the_stash_and_the_first_item_that_does_not_fit_waits_and_stops_its_party() -> void:
 	# Ilse and Maren on the well bring an item in 29% of cycles: the 1st in cycle 4, then 7, 11 and 14.
 	_auto(_second)
 	_dispatch.adventurers.gear.stash_cap = 3
-	Auto.checkpoint(_dispatch, _no_board(), 1_000 + 52_050 + Auto.REPLAY_SECONDS, PackedInt64Array())
+	Auto.checkpoint(_dispatch, _new_board(1_000), 1_000 + 52_050 + Auto.REPLAY_SECONDS, PackedInt64Array())
 	assert_eq(_dispatch.adventurers.gear.stash.size(), 3)
 	assert_eq(_dispatch.waiting_loot.size(), 1)
 	assert_eq(_dispatch.waiting_loot[0]["party"], PackedStringArray(["ilse", "maren"]))
@@ -390,18 +461,19 @@ func test_loot_from_the_averages_fills_the_stash_and_the_first_item_that_does_no
 
 
 func test_averaged_members_end_home_at_full_health_uninjured_with_their_xp_banked_and_no_level_up() -> void:
-	# Bram and Tobin on Bold, Bram hurt and injured at first: averaged once he is well.
+	# Bram and Tobin on Bold, Bram hurt and injured at first: averaged once he is well, until loot
+	# finds the stash full, then home through the rest.
 	_auto(_first, Parties.BOLD)
-	_dispatch.adventurers.gear.stash_cap = 100_000
+	_dispatch.adventurers.gear.stash_cap = 40
 	_dispatch.wounds["bram"] = {"health": 2, "at": 1_000}
 	_dispatch.injured_until["bram"] = 1_010
-	var board := _no_board()
-	Auto._settle(_dispatch, board, 1_000 + 20_000, PackedInt64Array(), -1, -1, Hall.STARTING_RANK)
-	assert_gt(_quests_done(), 1_000)
+	var end := 1_000 + 86_400
+	Auto.checkpoint(_dispatch, _new_board(1_000), end, PackedInt64Array())
+	assert_gt(_quests_done(), 100)
 	for member: String in ["bram", "tobin"]:
-		assert_eq(_dispatch.health(member, 21_000), _dispatch.adventurers.max_health(member), member)
-		assert_eq(_dispatch.injury_left(member, 21_000), 0, member)
-		assert_eq(_dispatch.status(member, 21_000), "Resting", member)
+		assert_eq(_dispatch.health(member, end), _dispatch.adventurers.max_health(member), member)
+		assert_eq(_dispatch.injury_left(member, end), 0, member)
+		assert_eq(_dispatch.status(member, end), "Waiting on loot", member)
 		assert_eq(_dispatch.adventurers.levels[member], 1, member)
 		assert_true(_dispatch.adventurers.level_up_ready(member), member)
 
@@ -416,7 +488,7 @@ func test_a_party_with_auto_off_just_sits_home_and_heals_through_a_long_absence(
 	var end := 1_000 + 86_400
 	Auto.checkpoint(_dispatch, board, end, PackedInt64Array())
 	assert_eq(_tried(), ["well"])
-	assert_gt(_dispatch.adventurers.xp["ilse"], 1_000)
+	assert_gt(_dispatch.adventurers.xp["ilse"], 100)
 	for member: String in ["bram", "tobin"]:
 		assert_eq(_dispatch.adventurers.xp[member], 0, member)
 		assert_eq(_dispatch.health(member, end), _dispatch.adventurers.max_health(member), member)
@@ -432,12 +504,13 @@ func test_a_party_out_when_a_long_absence_starts_comes_home_as_its_quest_decides
 	var roll_seed := 0
 	while Gear.loot(roll_seed, "E", luck).is_empty():
 		roll_seed += 1
+	var board := _new_board(1_000)
 	assert_true(_dispatch.send("wolves", PackedStringArray(["bram", "tobin"]), roll_seed, 1_000))
-	Auto.checkpoint(_dispatch, _no_board(), 1_000 + 20_000 + Auto.REPLAY_SECONDS, PackedInt64Array())
+	Auto.checkpoint(_dispatch, board, 1_000 + 86_400, PackedInt64Array())
 	# Back from the wolves once, its item first in the stash; then the rats and the well, averaged.
 	assert_eq(_tried(), ["rats", "well", "wolves"])
 	assert_eq(_dispatch.tries["wolves"], 1)
-	assert_gt(_dispatch.tries["rats"], 1_000)
+	assert_gt(_dispatch.tries["rats"], 100)
 	assert_eq(_dispatch.adventurers.gear.stash[0], Gear.loot(roll_seed, "E", luck))
 	assert_gt(_dispatch.adventurers.gear.stash.size(), 1)
 
@@ -464,36 +537,3 @@ func test_a_clock_set_back_after_a_long_absence_never_removes_progress_nor_settl
 	for back: int in [end - 1, end - Auto.REPLAY_SECONDS - 1, 1_000]:
 		Auto.checkpoint(_dispatch, board, back, PackedInt64Array(), 2_800, 1_600)
 		assert_eq(_saved(board), after, str(back))
-
-
-func test_without_auto_sends_a_long_span_leaves_the_board_refilling_every_step_with_nothing_sent_leaves() -> void:
-	var end := 1_000 + 86_400
-	var halls := PackedInt64Array([4_600])
-	# Watched: refilled every 37 seconds, nothing sent.
-	var watched := _two_auto_parties()
-	for second: int in range(1_000, end, 37) + [end]:
-		_dispatch.checkpoint(second, 2_800)
-		watched.refill(_dispatch, second, halls, 1_600)
-	var revealed := _dispatch.revealed.duplicate()
-	revealed.sort()
-	# No Auto party: one checkpoint after a day.
-	var away := _two_auto_parties()
-	for id: String in [_first, _second]:
-		_parties.set_auto(id, false)
-	Auto.checkpoint(_dispatch, away, end, halls, 2_800, 1_600)
-	for board: Board in [away, watched]:
-		assert_eq(board.slots.size(), 4)
-	assert_eq(away.slots, watched.slots)
-	assert_eq(away.filled_at, watched.filled_at)
-	assert_eq(away.refill_at, watched.refill_at)
-	var away_revealed := _dispatch.revealed.duplicate()
-	away_revealed.sort()
-	assert_eq(away_revealed, revealed)
-	# Auto parties settled by averages up to the day's end: the board sends nothing either.
-	var settled := _two_auto_parties()
-	_dispatch.adventurers.gear.stash_cap = 1_000
-	Auto._settle(_dispatch, settled, end, halls, 2_800, 1_600, Hall.STARTING_RANK)
-	assert_gt(_quests_done(), 1_000)
-	assert_eq(settled.slots, watched.slots)
-	assert_eq(settled.filled_at, watched.filled_at)
-	assert_eq(settled.refill_at, watched.refill_at)

@@ -8,7 +8,8 @@ extends RefCounted
 ## end, then the earlier slot. With none, it waits and tries again whenever the board changes or it
 ## is ready again. It all happens in `checkpoint`, from saved timestamps alone: the last
 ## REPLAY_SECONDS of an absence give the same as watching, and anything before them is settled by
-## averages, so a long absence stays quick.
+## averages that track what playing gives, and the board drawn afresh, so a long absence stays
+## quick.
 
 ## The lowest low end of a quest's shown chance, in whole percent, a party with Auto on takes, by its
 ## mode (Parties.mode).
@@ -19,7 +20,8 @@ const REPLAY_SECONDS: int = 3 * 3_600
 
 
 ## Brings `dispatch` and `board` up to `now`. An absence longer than REPLAY_SECONDS is first settled
-## up to REPLAY_SECONDS before `now` (`_settle`). The rest is played out in time order: each party's
+## up to REPLAY_SECONDS before `now` (`_settle`), with or without Auto parties. The rest is played
+## out in time order: each party's
 ## return (Dispatch.checkpoint), each refill, quest leaving and reveal (Board.refill), and at each of
 ## those moments and each moment an Auto party becomes ready, the sends of the Auto parties ready
 ## then, in party order, a quest taken by one gone for the next. Each Auto send's outcome is fixed by
@@ -45,8 +47,7 @@ static func checkpoint(dispatch: Dispatch, board: Board, now: int, quest_halls_d
 				board.send(dispatch, quest, party["members"], hash([id, quest, time]), time, quest_halls_done, infirmary_from, map_room_from, guild_rank)
 		if time >= at:
 			return
-		# With no Auto party left to go, nothing more is sent, and the board refills to `at` at once.
-		var next := _next_change(dispatch, board, time) if _may_send(dispatch, time) else at
+		var next := _next_change(dispatch, board, time)
 		time = at if next == -1 or next > at else next
 
 
@@ -101,26 +102,14 @@ static func _next_change(dispatch: Dispatch, board: Board, now: int) -> int:
 	return soonest
 
 
-# Whether an Auto party may still go by time alone: one home that only heals, or one out.
-static func _may_send(dispatch: Dispatch, now: int) -> bool:
-	var parties := dispatch.adventurers.parties
-	for party: Dictionary in parties.parties:
-		var out := not dispatch.quest_of(party["members"][0]).is_empty()
-		if parties.auto(party["id"]) and (out or seconds_to_ready(dispatch, party["id"], now) >= 0):
-			return true
-	return false
-
-
 # Brings `dispatch` and `board` up to `to` with no Auto send: parties out come home as their quests
 # decide, at their own time; each Auto party's questing from its first ready moment on is settled by
-# `_average`; and the board, with nothing sent, refills to `to` at once. The other arguments are as
-# for `checkpoint`.
+# `_average`; and the board is drawn afresh at `to` (Board.redraw). The other arguments are as for
+# `checkpoint`.
 static func _settle(dispatch: Dispatch, board: Board, to: int, quest_halls_done: PackedInt64Array, infirmary_from: int, map_room_from: int, guild_rank: String) -> void:
 	var parties := dispatch.adventurers.parties
 	var ready_at: Dictionary[String, int] = {}
 	var time := dispatch.checked_at
-	# The board learns when the quests out come back before their parties are home.
-	board.refill(dispatch, time, quest_halls_done, map_room_from, guild_rank)
 	while true:
 		dispatch.checkpoint(time, infirmary_from)
 		for party: Dictionary in parties.parties:
@@ -139,30 +128,73 @@ static func _settle(dispatch: Dispatch, board: Board, to: int, quest_halls_done:
 			break
 		time = next
 	dispatch.checkpoint(to, infirmary_from)
-	_average(dispatch, ready_at, to, infirmary_from, guild_rank)
-	board.refill(dispatch, to, quest_halls_done, map_room_from, guild_rank)
+	_average(dispatch, board.reception_slots + quest_halls_done.size(), ready_at, to, infirmary_from, guild_rank)
+	board.redraw(dispatch, to, quest_halls_done, map_room_from, guild_rank)
 
 
 # Settles, by expected values, the questing of each party in `ready_at`, from the unix seconds it is
-# first ready there up to `to`, in a guild of `guild_rank` whose first Infirmary is finished at
-# `infirmary_from` (-1 for none). Each party takes as many average cycles (`_cycle`) as fit, healing
-# twice as fast from the Infirmary on; it earns their gold and each member their XP, and adds their
-# tries, revealing the quests tried. Its loot is the expected number of items, each drawn by a seed
-# of the party, its first ready moment and the cycle, put into the stash in time order across parties
-# until it is full; the first that doesn't fit waits for the player and ends that party's questing
-# from that cycle on. The averages deal no damage, so its members, ready when they began, end home,
-# at full health and uninjured; nobody is injured, dies or levels up in them.
-static func _average(dispatch: Dispatch, ready_at: Dictionary[String, int], to: int, infirmary_from: int, guild_rank: String) -> void:
+# first ready there up to `to`, with a board of `slots` slots, in a guild of `guild_rank` whose first
+# Infirmary is finished at `infirmary_from` (-1 for none). In party order, each party takes its part
+# of what the board offers (`_offered`) of the quests it would take (`_takes`): a cycle is a quest
+# and the healing after it (twice as fast from the Infirmary on), then a wait for the next such quest
+# to come up. It takes each quest as often as it comes up, and what it takes is gone for the parties
+# after it. Quests taken count as learned (`_takes`). It earns the cycles' gold and each member
+# their XP, and adds their tries, revealing the quests tried. Its loot is the expected number of
+# items, each drawn by a seed of the party, its first ready moment and the cycle, put into the
+# stash in time order across parties until it is full; the first that doesn't fit waits for the
+# player and ends that party's questing from that cycle on. The averages deal no damage, so its
+# members, ready when they began, end home, at full health and uninjured; nobody is injured, dies or
+# levels up in them.
+static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String, int], to: int, infirmary_from: int, guild_rank: String) -> void:
+	var parties := dispatch.adventurers.parties
+	var takes := {}
+	var taken := {}
+	# A quest some party takes is soon learned, its challenges known and its tries counted in full,
+	# which can change what the parties take: worked out again a few times over.
+	for again: int in 3:
+		var learned := taken
+		taken = {}
+		for id: String in ready_at:
+			takes[id] = _takes(dispatch, id, guild_rank, learned)
+			taken.merge(takes[id])
+	var offered := _offered(dispatch, slots, taken, guild_rank)
 	var plans: Array[Dictionary] = []
-	for id: String in ready_at:
-		var plan := _cycle(dispatch, id, guild_rank)
-		if plan.is_empty():
+	for party: Dictionary in parties.parties:
+		var id: String = party["id"]
+		if not takes.has(id):
 			continue
+		var take: Dictionary = takes[id]
 		var start: int = ready_at[id]
+		# How many quests it would take come up a second, and the seconds a try takes on average, as
+		# they come up.
+		var rate := 0.0
+		var seconds := 0.0
+		var fast_seconds := 0.0
+		for quest: String in take:
+			var each: float = offered.get(quest, 0.0)
+			rate += each
+			seconds += each * take[quest]["seconds"]
+			fast_seconds += each * take[quest]["fast_seconds"]
+		if rate == 0.0 or start >= to:
+			continue
+		# A cycle is a try, then a wait for the next quest it would take to come up.
 		var fast_from := to if infirmary_from < 0 else clampi(infirmary_from, start, to)
-		plan["id"] = id
-		plan["start"] = start
-		plan["cycles"] = (fast_from - start) / plan["seconds"] + (to - fast_from) / plan["fast_seconds"]
+		var cycles := (fast_from - start) / (seconds / rate + 1.0 / rate) + (to - fast_from) / (fast_seconds / rate + 1.0 / rate)
+		var plan := {"id": id, "start": start, "members": party["members"], "luck": dispatch.party_stat(party["members"], "luck"), "cycles": cycles, "share": {}, "quest": "", "gold": 0.0, "xp": 0.0, "drops": 0.0}
+		var share: Dictionary = plan["share"]
+		# It takes each quest as often as it comes up, and what it takes is gone for the parties
+		# after it.
+		var used := cycles / (to - start) / rate
+		for quest: String in take:
+			var each: float = offered.get(quest, 0.0)
+			if each == 0.0:
+				continue
+			offered[quest] = each * (1.0 - used)
+			share[quest] = each / rate
+			for key: String in ["gold", "xp", "drops"]:
+				plan[key] += share[quest] * take[quest][key]
+			if plan["quest"] == "" or share[quest] > share[plan["quest"]]:
+				plan["quest"] = quest
 		plans.append(plan)
 	var gear := dispatch.adventurers.gear
 	# However the drops fall, no party's drop after the stash's room plus one is ever reached.
@@ -200,44 +232,87 @@ static func _average(dispatch: Dispatch, ready_at: Dictionary[String, int], to: 
 					dispatch.revealed.append(quest)
 
 
-# The average cycle of the party with `id` with Auto on, in a guild of `guild_rank`: it takes one of
-# the quests its rank allows that the board offers (Board.offered_quests), among those whose shown
-# chance's low end its mode takes, each as likely as the board draws it, then heals back to full from
-# that quest's expected damage. {} when no quest will do; else {"members", "luck": the party's,
-# "seconds": the cycle's expected length, "fast_seconds": the same with the Infirmary's healing,
-# "gold", "xp": each member's, "drops": items, all expected per cycle, "share": {quest: its part of
-# the cycles}, "quest": the likeliest}.
-static func _cycle(dispatch: Dispatch, id: String, guild_rank: String) -> Dictionary:
+# The quests the party with `id` would take with Auto in a guild of `guild_rank`: those the board
+# offers that its rank allows and whose shown chance's low end its mode takes, each quest in
+# `learned` counted with its challenges known and the most try points (Dispatch.MOST_TRY_POINTS).
+# Each with what a try at it can be expected to bring: {"seconds": the quest and the healing back to
+# full from its expected damage, "fast_seconds": the same with the Infirmary's healing, "gold",
+# "xp": each member's, "drops": items}.
+static func _takes(dispatch: Dispatch, id: String, guild_rank: String, learned: Dictionary) -> Dictionary:
 	var parties := dispatch.adventurers.parties
 	var members: PackedStringArray = parties.party(id)["members"]
-	var offered := Board.offered_quests(parties.rank(id, dispatch.adventurers.roster), guild_rank)
-	var share := {}
-	var total := 0.0
-	for index: int in offered.size():
-		for quest: String in offered[index]:
-			if dispatch.chance_range(quest, members).x >= LOWEST_LOW_END[parties.mode(id)]:
-				# A rank is drawn by its weight, then each of its quests as likely.
-				share[quest] = Board.RANK_WEIGHTS[index] / float(offered[index].size())
-				total += share[quest]
-	if share.is_empty():
-		return {}
+	var party_rank := parties.rank(id, dispatch.adventurers.roster)
 	var spirit := dispatch.party_stat(members, "spirit")
 	var luck := dispatch.party_stat(members, "luck")
-	var cycle := {"members": members, "luck": luck, "seconds": 0.0, "fast_seconds": 0.0, "gold": 0.0, "xp": 0.0, "drops": 0.0, "share": share, "quest": ""}
-	for quest: String in share:
-		share[quest] /= total
-		var part: float = share[quest]
+	var takes := {}
+	for quest: String in Dispatch.QUESTS:
 		var info: Dictionary = Dispatch.QUESTS[quest]
-		var chance := dispatch.success_chance(quest, members) / 100.0
+		if Board.draw_chance(quest, dispatch.adventurers, guild_rank) == 0.0 or not Challenges.can_join(party_rank, info["rank"]):
+			continue
+		var low := dispatch.chance_range(quest, members).x
+		var percent := dispatch.success_chance(quest, members)
+		if learned.has(quest):
+			var challenges := dispatch.challenge_chances(quest, members)
+			low = Outcome.chance_range(challenges, 0, Dispatch.MOST_TRY_POINTS).x
+			percent = Outcome.chance_percent(challenges, Dispatch.MOST_TRY_POINTS)
+		if low < LOWEST_LOW_END[parties.mode(id)]:
+			continue
+		var chance := percent / 100.0
 		var heal := _expected_damage(chance, Outcome.MOST_DAMAGE[info["rank"]], spirit, luck) * Dispatch.HEAL_SECONDS / Dispatch.HEAL_POINTS
-		cycle["seconds"] += part * (info["seconds"] + heal)
-		cycle["fast_seconds"] += part * (info["seconds"] + heal / 2.0)
-		cycle["gold"] += part * (chance * info["gold"] + (1.0 - chance) * Dispatch.failure_gold(quest))
-		cycle["xp"] += part * (chance * Dispatch.xp_share(info["xp"], true, members.size()) + (1.0 - chance) * Dispatch.xp_share(info["xp"], false, members.size()))
-		cycle["drops"] += part * Gear.loot_percent(info["rank"], luck) / 100.0
-		if cycle["quest"] == "" or part > share[cycle["quest"]]:
-			cycle["quest"] = quest
-	return cycle
+		takes[quest] = {
+			"seconds": info["seconds"] + heal,
+			"fast_seconds": info["seconds"] + heal / 2.0,
+			"gold": chance * info["gold"] + (1.0 - chance) * Dispatch.failure_gold(quest),
+			"xp": chance * Dispatch.xp_share(info["xp"], true, members.size()) + (1.0 - chance) * Dispatch.xp_share(info["xp"], false, members.size()),
+			"drops": Gear.loot_percent(info["rank"], luck) / 100.0,
+		}
+	return takes
+
+
+# Each quest the board offers a guild of `guild_rank` with `slots` slots, by how many come up a
+# second. A slot draws each with its Board.draw_chance; one in `taken`, which some party takes, goes
+# at once and its slot refills after REFILL_SECONDS, while any other sits until it leaves, after
+# EXPIRE_SECONDS, then refills. A slot draws only among quests not on the other slots, which mostly
+# hold quests nobody takes, sitting there: so within a rank, the quests taken come up more often.
+static func _offered(dispatch: Dispatch, slots: int, taken: Dictionary, guild_rank: String) -> Dictionary:
+	var chances := {}
+	# Each rank's quests offered and, of them, taken.
+	var ranks := {}
+	for quest: String in Dispatch.QUESTS:
+		var chance := Board.draw_chance(quest, dispatch.adventurers, guild_rank)
+		if chance == 0.0:
+			continue
+		var rank: String = Dispatch.QUESTS[quest]["rank"]
+		chances[quest] = chance
+		ranks[rank] = ranks.get(rank, Vector2i()) + Vector2i(1, 1 if taken.has(quest) else 0)
+	# How many of the other slots hold a quest of each rank that nobody takes, on average.
+	var sitting := {}
+	var slot_seconds := _slot_seconds(chances, taken)
+	for quest: String in chances:
+		var rank: String = Dispatch.QUESTS[quest]["rank"]
+		if not taken.has(quest):
+			sitting[rank] = sitting.get(rank, 0.0) + (slots - 1) * chances[quest] * Board.EXPIRE_SECONDS[rank] / slot_seconds
+	var offered := {}
+	for quest: String in chances:
+		var rank: String = Dispatch.QUESTS[quest]["rank"]
+		var count: Vector2i = ranks[rank]
+		var rank_chance: float = chances[quest] * count.x
+		var free := maxf(count.x - sitting.get(rank, 0.0), maxf(count.y, 1.0))
+		offered[quest] = rank_chance / free if taken.has(quest) else rank_chance * (1.0 - count.y / free) / (count.x - count.y)
+	slot_seconds = _slot_seconds(offered, taken)
+	for quest: String in offered:
+		offered[quest] *= slots / slot_seconds
+	return offered
+
+
+# The seconds a slot takes on average from one draw to the next, drawing each quest with its
+# chance in `chances`, those in `taken` going at once.
+static func _slot_seconds(chances: Dictionary, taken: Dictionary) -> float:
+	var seconds := 0.0
+	for quest: String in chances:
+		var rank: String = Dispatch.QUESTS[quest]["rank"]
+		seconds += chances[quest] * (Board.REFILL_SECONDS[rank] + (0 if taken.has(quest) else Board.EXPIRE_SECONDS[rank]))
+	return seconds
 
 
 # The damage each member of a party with `spirit` and `luck` in all can expect from a quest that

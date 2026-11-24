@@ -856,27 +856,78 @@ func test_the_boards_next_change_is_the_map_rooms_reveal_when_that_comes_first()
 	assert_eq(unmapped.next_change(_four(START), START), START + 60)
 
 
-func test_one_refill_after_days_with_nothing_sent_gives_the_board_refilling_every_step_gives() -> void:
-	# Two days: each slot's quest leaves and refills over a thousand times. A party out at first, a
-	# Quest hall finished on the first day, and a Map room revealing quests as they come.
-	var end := START + 2 * 86_400
-	var halls := PackedInt64Array([START + 40_000])
-	var sends: Array = [[START + 5, 1, ["bram"]]]
-	var away := _play(sends, halls, end, 0, "F", START + 100)
-	var revealed := _revealed.duplicate()
-	var watched := _play(sends, halls, end, 41, "F", START + 100)
-	assert_eq(away.slots.size(), 4)
-	assert_eq(away.slots, watched.slots)
-	assert_eq(away.filled_at, watched.filled_at)
-	assert_eq(away.refill_at, watched.refill_at)
-	assert_eq(revealed, _revealed)
-	assert_gt(revealed.size(), 5)
-	for slot: int in away.slots.size():
-		# Each slot's latest quest came in the last few minutes.
-		assert_gt(maxi(away.filled_at[slot], away.refill_at[slot]), end - 400, str(slot))
-	# A rank-E guild, drawing rank D quests too.
-	away = _play([], NO_HALLS, end, 0, "E")
-	watched = _play([], NO_HALLS, end, 41, "E")
-	assert_eq(away.slots, watched.slots)
-	assert_eq(away.filled_at, watched.filled_at)
-	assert_eq(away.refill_at, watched.refill_at)
+func test_a_redrawn_board_is_the_same_for_the_same_save_and_time_whatever_the_board_held() -> void:
+	var at := START + 50_000
+	var drawn: Array[PackedStringArray] = []
+	# One board as first filled, one stepped through the day before.
+	for step: int in [0, 997]:
+		var dispatch := _four(START)
+		var board := _board(dispatch, 0)
+		for second: int in range(START, at, step if step > 0 else at - START):
+			board.refill(dispatch, second, NO_HALLS)
+		dispatch.checkpoint(at)
+		board.redraw(dispatch, at, NO_HALLS)
+		assert_eq(board.filled(), 3)
+		assert_eq(board.filled_at, PackedInt64Array([at, at, at]))
+		drawn.append(board.slots)
+	assert_eq(drawn[0], drawn[1])
+	# Drawn at other times, the board comes out otherwise.
+	var boards := {}
+	for seconds: int in 10:
+		var dispatch := _four(START)
+		var board := _board(dispatch, 0)
+		board.redraw(dispatch, at + seconds, NO_HALLS)
+		boards[str(board.slots)] = true
+	assert_gt(boards.size(), 1)
+
+
+func test_a_redrawn_board_fills_every_slot_its_halls_give_with_quests_the_guilds_ranks_allow_never_one_twice() -> void:
+	var ranks_drawn := {}
+	for rank: String in ["F", "E"]:
+		for at: int in range(START + 10_000, START + 30_000, 997):
+			var dispatch := _guild(rank)
+			var board := _board(dispatch, 2, rank)
+			board.redraw(dispatch, at, _halls(2), -1, rank)
+			assert_eq(board.slots.size(), 5)
+			assert_eq(board.filled(), 5)
+			for quest: String in board.slots:
+				assert_eq(board.slots.count(quest), 1, quest)
+				ranks_drawn[rank + Dispatch.QUESTS[quest]["rank"]] = true
+				if rank == "F":
+					assert_has(F_AND_E_QUESTS, quest)
+	# A rank F guild is never offered rank D; a rank E guild of rank E adventurers is, and rank F too.
+	assert_eq(ranks_drawn.keys().filter(func(key: String) -> bool: return key.begins_with("F")).size(), 2)
+	assert_has(ranks_drawn, "ED")
+	assert_has(ranks_drawn, "EF")
+
+
+func test_a_redrawn_board_never_shows_a_quest_that_is_out() -> void:
+	# Fourteen slots, thirteen quests: with the rats and the letters out, eleven are free.
+	var dispatch := _four(START)
+	var board := _board(dispatch, 11)
+	assert_true(board.send(dispatch, "rats", Fixtures.party(dispatch, ["bram"]), 1, START + 1, _halls(11)))
+	assert_true(board.send(dispatch, "letters", Fixtures.party(dispatch, ["ilse"]), 1, START + 1, _halls(11)))
+	dispatch.checkpoint(START + 2)
+	board.redraw(dispatch, START + 2, _halls(11))
+	assert_eq(board.filled(), 11)
+	assert_does_not_have(board.slots, "rats")
+	assert_does_not_have(board.slots, "letters")
+	# Back by START + 5, they go on the board.
+	dispatch.checkpoint(START + 10)
+	board.refill(dispatch, START + 10, _halls(11))
+	assert_eq(board.filled(), 13)
+	assert_has(board.slots, "rats")
+	assert_has(board.slots, "letters")
+
+
+func test_a_slot_draws_each_quest_at_its_ranks_weight_shared_among_that_ranks_quests() -> void:
+	# A rank F guild: rank F 70 and rank E 20 of 90, among 7 and 6 quests; never rank D.
+	var guild := _four(START).adventurers
+	assert_almost_eq(Board.draw_chance("rats", guild, "F"), 70.0 / 90.0 / 7.0, 1e-9)
+	assert_almost_eq(Board.draw_chance("wolves", guild, "F"), 20.0 / 90.0 / 6.0, 1e-9)
+	assert_eq(Board.draw_chance("maze", guild, "F"), 0.0)
+	# A rank E guild of rank E adventurers: F 10, E 70 and D 20 of 100, among 7, 6 and 5 quests.
+	var ranked := _guild("E").adventurers
+	assert_almost_eq(Board.draw_chance("rats", ranked, "E"), 10.0 / 100.0 / 7.0, 1e-9)
+	assert_almost_eq(Board.draw_chance("wolves", ranked, "E"), 70.0 / 100.0 / 6.0, 1e-9)
+	assert_almost_eq(Board.draw_chance("maze", ranked, "E"), 20.0 / 100.0 / 5.0, 1e-9)
