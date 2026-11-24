@@ -317,6 +317,8 @@ func test_a_hired_fighter_can_be_sent_on_a_quest_with_their_sword_counting() -> 
 	assert_eq(dispatch.adventurers.title(id), "Fighter")
 	# The short sword's Strength +1 counts twice in Brute force.
 	assert_eq(Challenges.party_total("Brute force", party, dispatch.adventurers), 2 * (int(stats["strength"]) + 1) + int(stats["defence"]))
+	# A hire joins the reserves, who go out once in a party.
+	assert_true(dispatch.adventurers.parties.move(id, Parties.NEW_PARTY, dispatch))
 	assert_eq(dispatch.party_refusal("rats", party, at), "")
 	assert_true(dispatch.send("rats", party, 7, at))
 	assert_eq(dispatch.quest_of(id), "rats")

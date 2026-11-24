@@ -102,7 +102,7 @@ func _roster() -> Roster:
 
 
 func _roster_row(roster: Roster, index: int) -> Button:
-	return roster.get_node("Scroll/Box/List").get_child(index) as Button
+	return roster.get_node("Scroll/Box/Parties").get_child(0).get_child(index + 1) as Button
 
 
 func test_a_drag_starting_on_an_adventurer_in_the_roster_scrolls_it_and_does_not_open_them() -> void:

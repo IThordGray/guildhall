@@ -54,7 +54,18 @@ theme_type_variation = &"OutlineButton"
 theme_override_font_sizes/font_size = 33
 text = "Armory"
 
-[node name="List" type="VBoxContainer" parent="Scroll/Box"]
+[node name="Parties" type="VBoxContainer" parent="Scroll/Box"]
+layout_mode = 2
+theme_override_constants/separation = 32
+
+[node name="ReservesHeader" type="Label" parent="Scroll/Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "RESERVES"
+
+[node name="Reserves" type="VBoxContainer" parent="Scroll/Box"]
+visible = false
 layout_mode = 2
 theme_type_variation = &"RowList"
 

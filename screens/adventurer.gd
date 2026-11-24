@@ -17,6 +17,9 @@ signal train_pressed(adventurer: String)
 signal stop_training_pressed(adventurer: String)
 ## The player asked to dismiss `adventurer` from the guild.
 signal dismiss_pressed(adventurer: String)
+## The player chose to move `adventurer` to `to`: a party's id, Parties.RESERVES or
+## Parties.NEW_PARTY. Only a move Parties.move_refusal allows is asked for.
+signal party_pressed(adventurer: String, to: String)
 ## The player swiped to the next adventurer in roster order (`step` 1) or the previous (`step` -1).
 signal swiped(step: int)
 ## A slot's tray opened (`open` true) or closed.
@@ -87,6 +90,8 @@ const SLOT_GAP_PX: Vector2i = Vector2i(16, 6)
 ## How tall Back is: as the scene has it in portrait; in landscape a small button, so a header with
 ## Level up in it still fits.
 const BACK_HEIGHT_PX: Vector2i = Vector2i(144, Roster.SMALL_BUTTON_PX)
+## What the tray is open on instead of a gear slot when it lists the parties to move to.
+const PARTY_TRAY: String = "party"
 ## A press-drag-release at least this far sideways, and further sideways than up or down, is a swipe.
 const SWIPE_MIN_PX: float = 120.0
 
@@ -95,7 +100,8 @@ var _adventurer: String = ""
 ## The guild as last shown, and when, so a tap on the gear shows its choice without waiting on it.
 var _dispatch: Dispatch
 var _shown_at: int = 0
-## The slot whose tray is open, a key of Gear.SLOTS; "" while the stash strip shows instead.
+## The slot whose tray is open, a key of Gear.SLOTS, or PARTY_TRAY; "" while the stash strip shows
+## instead.
 var _tray_slot: String = ""
 ## Where in the stash the item picked in the tray is, previewed in the stats; -1 for none.
 var _picked: int = -1
@@ -113,6 +119,8 @@ var _health: HBoxContainer
 var _gear_shown: Array = []
 var _stash_shown: Array = []
 var _tray_shown: Array = []
+## Why the last party row tapped can't move the adventurer shown; "" once anything else happens.
+var _party_refusal: String = ""
 ## Whether the landscape layout shows, which leaves out the notes under the stats.
 var _landscape: bool = false
 ## Whether, in landscape, the roster sits in the left column beside this screen, giving it up only
@@ -143,6 +151,9 @@ var _press_at: Vector2 = Vector2.ZERO
 @onready var _turn_away: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/TurnAway
 @onready var _accept: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Accept
 @onready var _swap: Button = $Box/Scroll/Content/Card/Header/Row/Words/Actions/Swap
+## "Party · <name>", or Reserve, and Change, which opens the party tray.
+@onready var _party_line: HBoxContainer = $Box/Scroll/Content/Card/Header/Row/Words/PartyLine
+@onready var _party_name: Label = $Box/Scroll/Content/Card/Header/Row/Words/PartyLine/Name
 @onready var _last_level_up: Label = $Box/Scroll/Content/Card/Stats/Rows/LastLevelUp
 @onready var _training_notes: Label = $Box/Scroll/Content/Card/Stats/Rows/TrainingNotes
 ## The key to the gear badges, shown while any slot has stash items that fit.
@@ -206,6 +217,7 @@ func _ready() -> void:
 	_swap.pressed.connect(swap_pressed.emit)
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
 	($Box/Scroll/Content/Tray/Rows/Line/Done as Button).pressed.connect(_open_tray.bind("", -1))
+	($Box/Scroll/Content/Card/Header/Row/Words/PartyLine/Change as Button).pressed.connect(_on_slot_tapped.bind(PARTY_TRAY))
 	# Leaving the screen, by Back or anything else, closes the tray.
 	visibility_changed.connect(func() -> void:
 		if not visible:
@@ -264,7 +276,6 @@ func set_landscape(landscape: bool, beside_roster: bool = false) -> void:
 		_tiles.get_parent().move_child(_tiles, stash_line.get_index() + 1)
 	_tiles.size_flags_horizontal = Control.SIZE_EXPAND_FILL if _beside_roster else Control.SIZE_FILL
 	_tiles.alignment = FlowContainer.ALIGNMENT_END if _beside_roster else FlowContainer.ALIGNMENT_BEGIN
-	_tray_title.autowrap_mode = TextServer.AUTOWRAP_OFF if landscape else TextServer.AUTOWRAP_WORD_SMART
 	_gear.columns = GEAR_COLUMNS_LANDSCAPE if landscape else GEAR_COLUMNS_PORTRAIT
 	_gear.add_theme_constant_override(&"h_separation", _by_layout(SLOT_GAP_PX))
 	# Its own width in landscape, from the left, so the last slot's badge has room before the
@@ -358,6 +369,9 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, gold: Gold, trainin
 	_last_level_up.text = "" if history.is_empty() else _history_line(history.back())
 	for button: Button in [_hire, _turn_away, _accept, _swap]:
 		button.visible = false
+	var party := adventurers.parties.party(adventurers.parties.party_of(adventurer))
+	_party_line.visible = true
+	_party_name.text = "Reserve" if party.is_empty() else party["name"]
 	_show_gear_choice()
 
 
@@ -383,7 +397,7 @@ func show_visitor(visitor: Dictionary, walk_in: bool, refusal: String, free_bed:
 	var health_text := _health.get_child(1) as Label
 	health_text.text = "%d / %d" % [most, most]
 	health_text.theme_type_variation = &"Meta"
-	for part: Control in [_level_up, _xp, _promote, _training_xp, _stop, _train, _dismiss, _last_level_up, _training_notes, _stash, _tray, $Side]:
+	for part: Control in [_level_up, _xp, _promote, _training_xp, _stop, _train, _dismiss, _party_line, _last_level_up, _training_notes, _stash, _tray, $Side]:
 		part.visible = false
 	_hire.visible = not walk_in
 	_hire.text = "Hire · %dg" % Recruits.hire_gold(visitor)
@@ -412,7 +426,7 @@ func show_visitor(visitor: Dictionary, walk_in: bool, refusal: String, free_bed:
 func _show_gear_choice() -> void:
 	var adventurers := _dispatch.adventurers
 	var gear := adventurers.gear
-	if _tray_slot.is_empty() or _picked not in gear.fitting(_tray_slot):
+	if not Gear.SLOTS.has(_tray_slot) or _picked not in gear.fitting(_tray_slot):
 		_picked = -1
 	var change: Dictionary = {"stats": {}, "health": 0} if _picked < 0 else adventurers.wear_change(_adventurer, gear.stash[_picked])
 	show_health(_health, _adventurer, _dispatch, _shown_at)
@@ -445,7 +459,16 @@ func _show_gear_choice() -> void:
 		if stash_shown != _stash_shown:
 			_stash_shown = stash_shown
 			_show_stash(gear)
-	if _tray.visible:
+	if _tray_slot == PARTY_TRAY:
+		var parties := adventurers.parties
+		# A party's members are shared with Parties, so the copy is what was shown.
+		var party_shown: Array = [_adventurer, PARTY_TRAY, parties.party_of(_adventurer), parties.reserves(adventurers.roster), _party_refusal]
+		for party: Dictionary in parties.parties:
+			party_shown.append([party["name"], party["members"].duplicate(), parties.rank(party["id"], adventurers.roster)])
+		if party_shown != _tray_shown:
+			_tray_shown = party_shown
+			_show_party_tray()
+	elif _tray.visible:
 		var worn: String = gear.worn[_adventurer].get(_tray_slot, "")
 		var tray_shown := [_adventurer, _tray_slot, worn, gear.stash.duplicate(), _picked, _dispatch.wear_refusal(_adventurer), _dispatch.take_off_refusal(_adventurer, _tray_slot)]
 		if tray_shown != _tray_shown:
@@ -501,6 +524,7 @@ func _set_tray(slot: String, picked: int) -> void:
 	var toggled := slot.is_empty() != _tray_slot.is_empty()
 	_tray_slot = slot
 	_picked = picked
+	_party_refusal = ""
 	_changed = PackedStringArray()
 	if toggled:
 		tray_toggled.emit(not slot.is_empty())
@@ -705,25 +729,92 @@ func _show_tray(worn: String) -> void:
 			_tray_list.add_child(_tappable(_tray_row(item, changes, null, &"TrayRow"), _open_tray.bind(_tray_slot, index)))
 
 
+# "PARTY · <NAME>" over why the last row tapped can't move them, if it can't; then a row per party,
+# its name over its members' faces, with its rank; then Reserve and + New party. The one they are in
+# is bordered gold; a tap anywhere on another asks to move them there, the tray staying open.
+func _show_party_tray() -> void:
+	for row: Node in _tray_list.get_children():
+		row.queue_free()
+	var adventurers := _dispatch.adventurers
+	var parties := adventurers.parties
+	_tray_title.text = "PARTY · " + adventurers.roster[_adventurer]["name"].to_upper()
+	if not _party_refusal.is_empty():
+		var refusal := Label.new()
+		refusal.text = _party_refusal
+		refusal.theme_type_variation = &"Alert"
+		refusal.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_tray_list.add_child(refusal)
+	var current := parties.party_of(_adventurer)
+	for party: Dictionary in parties.parties:
+		var rank := QuestBoard.chip(parties.rank(party["id"], adventurers.roster), &"Pill")
+		rank.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_add_party_row(party["id"], current, party["name"], _faces(party["members"]), rank)
+	var reserves := parties.reserves(adventurers.roster)
+	_add_party_row(Parties.RESERVES, current, "Reserve", _faces(reserves) if not reserves.is_empty() else _caption("Nobody"), null)
+	_add_party_row(Parties.NEW_PARTY, current, "+ New party", _caption("On their own"), null)
+
+
+# A party tray row for `to` (a party's id, Parties.RESERVES or Parties.NEW_PARTY) titled `title`
+# over `under`, with `end`, if any, at its end: bordered gold when it is `current`, else tappable.
+func _add_party_row(to: String, current: String, title: String, under: Control, end: Control) -> void:
+	var title_label := Label.new()
+	title_label.text = title
+	title_label.theme_type_variation = &"RowTitle"
+	# An empty picture, so the row's gap insets the words as an item's icon would.
+	var row := _tray_row_of(Control.new(), title_label, under, end, &"TrayRowPicked" if to == current else &"TrayRow")
+	_tray_list.add_child(row if to == current else _tappable(row, _on_party_row.bind(to)))
+
+
+# A tap on a party row: the move asked for, or why it can't be, shown in the tray.
+func _on_party_row(to: String) -> void:
+	_party_refusal = _dispatch.adventurers.parties.move_refusal(_adventurer, to, _dispatch)
+	_show_gear_choice()
+	if _party_refusal.is_empty():
+		party_pressed.emit(_adventurer, to)
+
+
+# `members`' faces in what they wear, overlapping, as a quest's party shows them.
+func _faces(members: PackedStringArray) -> HBoxContainer:
+	var stack := HBoxContainer.new()
+	stack.theme_type_variation = &"TokenStack"
+	for member: String in members:
+		var who: Dictionary = _dispatch.adventurers.roster[member]
+		stack.add_child(QuestBoard.face_token(Faces.seed_of(member, who), _dispatch.adventurers.gear.worn[member]))
+	return stack
+
+
+static func _caption(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.theme_type_variation = &"Caption"
+	return label
+
+
 # A tray row in `look`, two lines beside `item`'s icon: its name in its quality's colour, cut short
 # with "…" if it must, over `under`; and `button`, if any, at the end.
 func _tray_row(item: String, under: Control, button: Button, look: StringName) -> PanelContainer:
-	var item_label := item_name(item)
-	item_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	item_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	item_label.add_theme_font_size_override(&"font_size", _by_layout(TRAY_NAME_FONT_PX))
+	return _tray_row_of(item_icon(item, _by_layout(TRAY_ICON_SCALE)), item_name(item), under, button, look)
+
+
+# A tray row in `look`: `picture`, if any, beside `title`, cut short with "…" if it must, over
+# `under`; and `end`, if any, at the end.
+func _tray_row_of(picture: Control, title: Label, under: Control, end: Control, look: StringName) -> PanelContainer:
+	title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	title.add_theme_font_size_override(&"font_size", _by_layout(TRAY_NAME_FONT_PX))
 	var words := VBoxContainer.new()
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	words.alignment = BoxContainer.ALIGNMENT_CENTER
 	words.add_theme_constant_override("separation", 0)
-	words.add_child(item_label)
+	words.add_child(title)
 	words.add_child(under)
 	var line := HBoxContainer.new()
 	line.add_theme_constant_override("separation", _by_layout(TRAY_GAP_PX))
-	line.add_child(item_icon(item, _by_layout(TRAY_ICON_SCALE)))
+	if picture != null:
+		line.add_child(picture)
 	line.add_child(words)
-	if button != null:
-		line.add_child(button)
+	if end != null:
+		line.add_child(end)
 	var row := PanelContainer.new()
 	row.theme_type_variation = look
 	row.custom_minimum_size.y = TRAY_ROW_PX

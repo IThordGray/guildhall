@@ -102,17 +102,22 @@ var xp: Dictionary[String, int] = {}
 var history: Dictionary[String, Array] = {}
 ## What everyone wears and the guild's stash; worn items add to stats.
 var gear: Gear = Gear.new()
+## Who adventures together; anyone in no party is a reserve.
+var parties: Parties = Parties.new()
 
 
-## A guild of `starters`, keys of STARTERS, each in their starter gear.
+## A guild of `starters`, keys of STARTERS, each in their starter gear, together in parties of up to
+## Dispatch.MAX_PARTY_SIZE (Parties.place).
 func _init(starters: PackedStringArray = NEW_GAME_STARTERS) -> void:
 	for adventurer: String in starters:
 		add(adventurer, STARTERS[adventurer], STARTING_STATS[adventurer], GROWTH[adventurer])
 		gear.worn[adventurer] = Gear.STARTER_GEAR[adventurer].duplicate()
+		parties.place(adventurer)
 
 
 ## Brings `adventurer` into the guild as `who` (as `roster` keeps them), with
-## `starting_stats` and `grows` as their growth per stat, at `level` with no XP and nothing worn.
+## `starting_stats` and `grows` as their growth per stat, at `level` with no XP and nothing worn, in
+## the reserves.
 func add(adventurer: String, who: Dictionary, starting_stats: Dictionary, grows: Dictionary, level: int = 1) -> void:
 	roster[adventurer] = who.duplicate()
 	growth[adventurer] = grows.duplicate()
@@ -124,9 +129,11 @@ func add(adventurer: String, who: Dictionary, starting_stats: Dictionary, grows:
 
 
 ## Takes `adventurer` out of the guild for good, forgetting everything about them; their gear goes
-## into the stash as Gear.strip puts it. Whether they may leave is Dispatch's rule.
+## into the stash as Gear.strip puts it, and they leave their party. Whether they may leave is
+## Dispatch's rule.
 func remove(adventurer: String) -> void:
 	gear.strip(adventurer)
+	parties.leave(adventurer)
 	roster.erase(adventurer)
 	growth.erase(adventurer)
 	stats.erase(adventurer)
@@ -345,6 +352,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("adventurers", "xp", xp)
 	file.set_value("adventurers", "history", history)
 	gear.write(file)
+	parties.write(file)
 
 
 ## The adventurers saved at `path`, or a new game's starters at their starting stats, level 1 and
@@ -373,6 +381,7 @@ static func load_or_start(path: String) -> Adventurers:
 	for adventurer: String in adventurers.roster:
 		if adventurers.stats[adventurer].has("might"):
 			adventurers._to_nine_stats(adventurer)
+	adventurers.parties = Parties.read(file, adventurers.roster.keys())
 	return adventurers
 
 

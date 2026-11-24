@@ -114,6 +114,15 @@ func _ready() -> void:
 	_roster.accept_pressed.connect(_on_accept_pressed)
 	_roster.turn_away_pressed.connect(_on_turn_away_pressed)
 	_roster.swap_pressed.connect(_on_swap_pressed)
+	_roster.reroll_pressed.connect(func(party: String) -> void:
+		_dispatch.adventurers.parties.reroll(party)
+		_checkpoint(_now()))
+	_roster.name_typed.connect(func(party: String, typed: String) -> void:
+		_dispatch.adventurers.parties.rename(party, typed)
+		_checkpoint(_now()))
+	_adventurer.party_pressed.connect(func(adventurer: String, to: String) -> void:
+		_dispatch.adventurers.parties.move(adventurer, to, _dispatch)
+		_checkpoint(_now()))
 	_swap_pick.picked.connect(_on_swap_picked)
 	_swap_pick.back_pressed.connect(_close_swap_pick)
 	_adventurer.dismiss_pressed.connect(_on_dismiss_pressed)

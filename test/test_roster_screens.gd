@@ -37,49 +37,58 @@ func _texts(node: Node) -> Array[String]:
 
 func test_after_an_adventurer_joins_the_roster_shows_five_rows_the_newcomer_last_with_their_face() -> void:
 	var roster := _screen("res://screens/roster.tscn") as Roster
-	var list := roster.get_node("Scroll/Box/List")
 	roster.show_dispatch(_dispatch, 1_000)
-	assert_eq(list.get_child_count(), 4)
-	var first_row := list.get_child(0)
+	assert_eq(_rows(roster).size(), 4)
+	var first_row := _rows(roster)[0]
 	roster.show_dispatch(_dispatch, 1_001)
 	# Nobody joined, so the rows are the ones already built.
-	assert_same(list.get_child(0), first_row)
+	assert_same(_rows(roster)[0], first_row)
 	_add_wren()
 	roster.show_dispatch(_dispatch, 1_002)
-	assert_eq(list.get_child_count(), 5)
-	assert_has(_texts(list.get_child(4)), "Wren")
-	assert_eq(list.get_child(4).find_children("*", "TextureRect", true, false).size(), 1)
-	assert_has(_texts(list.get_child(0)), "Bram")
-	assert_does_not_have(_texts(list.get_child(0)), "B")
+	assert_eq(_rows(roster).size(), 5)
+	assert_has(_texts(_rows(roster)[4]), "Wren")
+	assert_eq(_rows(roster)[4].find_children("*", "TextureRect", true, false).size(), 1)
+	assert_has(_texts(_rows(roster)[0]), "Bram")
+	assert_does_not_have(_texts(_rows(roster)[0]), "B")
 	await wait_process_frames(1)
 
 
-# Where in `list` the rows marked as the one shown beside the roster are.
-func _marked_rows(list: Node) -> Array[int]:
+# Every adventurer's row on `roster`, in the order shown: each party card's, then the reserves'.
+func _rows(roster: Roster) -> Array[Button]:
+	var rows: Array[Button] = []
+	for card: Node in roster.get_node("Scroll/Box/Parties").get_children() + [roster.get_node("Scroll/Box/Reserves")]:
+		for row: Node in card.get_children():
+			if row is Button:
+				rows.append(row)
+	return rows
+
+
+# Where among `roster`'s rows the ones marked as the one shown beside the roster are.
+func _marked_rows(roster: Roster) -> Array[int]:
 	var marked: Array[int] = []
-	for row: Node in list.get_children():
-		if (row as Button).theme_type_variation == &"ListRowChosen":
-			marked.append(row.get_index())
+	var rows := _rows(roster)
+	for at: int in rows.size():
+		if rows[at].theme_type_variation == &"ListRowChosen":
+			marked.append(at)
 	return marked
 
 
 func test_the_marked_row_stays_marked_when_someone_joins_and_the_mark_moves_to_the_row_marked_next() -> void:
 	var roster := _screen("res://screens/roster.tscn") as Roster
-	var list := roster.get_node("Scroll/Box/List")
 	roster.show_dispatch(_dispatch, 1_000)
 	roster.mark("ilse")
-	assert_eq(_marked_rows(list), [1] as Array[int])
-	var ilse_row := list.get_child(1)
+	assert_eq(_marked_rows(roster), [1] as Array[int])
+	var ilse_row := _rows(roster)[1]
 	_add_wren()
 	roster.show_dispatch(_dispatch, 1_001)
 	# The rows were built again, and Ilse's new row is the one marked.
-	assert_ne(list.get_child(1), ilse_row)
-	assert_eq(_marked_rows(list), [1] as Array[int])
+	assert_ne(_rows(roster)[1], ilse_row)
+	assert_eq(_marked_rows(roster), [1] as Array[int])
 	roster.mark("wren")
-	assert_eq(_marked_rows(list), [4] as Array[int])
+	assert_eq(_marked_rows(roster), [4] as Array[int])
 	roster.mark("")
-	assert_eq(list.get_child_count(), 5)
-	assert_eq(_marked_rows(list), [] as Array[int])
+	assert_eq(_rows(roster).size(), 5)
+	assert_eq(_marked_rows(roster), [] as Array[int])
 	await wait_process_frames(1)
 
 
@@ -90,6 +99,7 @@ func test_after_an_adventurer_joins_the_party_picker_shows_five_the_newcomer_las
 	assert_eq(list.get_child_count(), 4)
 	(list.get_child(1) as Button).button_pressed = true
 	_add_wren()
+	assert_true(_dispatch.adventurers.parties.move("wren", Parties.NEW_PARTY, _dispatch))
 	picker.show_dispatch(_dispatch, 1_001)
 	assert_eq(list.get_child_count(), 5)
 	var wren := list.get_child(4) as Button
@@ -411,7 +421,7 @@ func test_a_marked_candidate_stays_marked_when_the_candidates_are_rebuilt_and_th
 	assert_eq(_visitor_card(roster, "WalkIn", 1).theme_type_variation, &"RowCardChosen")
 	assert_eq(_visitor_card(roster, "Candidates", 0).theme_type_variation, &"")
 	roster.mark("ilse")
-	assert_eq(_marked_rows(roster.get_node("Scroll/Box/List")), [1] as Array[int])
+	assert_eq(_marked_rows(roster), [1] as Array[int])
 	assert_eq(_visitor_card(roster, "WalkIn", 1).theme_type_variation, &"")
 	await wait_process_frames(1)
 

@@ -204,6 +204,7 @@ func test_the_roster_has_two_rank_f_adventurers_bram_and_tobin_both_resting_in_a
 func test_an_added_adventurer_can_be_sent_counts_with_their_own_stats_and_comes_home_with_xp() -> void:
 	var dispatch := _guild(1_000)
 	dispatch.adventurers.add("wren", {"name": "Wren", "rank": "F"}, WREN_STATS, WREN_GROWTH)
+	assert_true(dispatch.adventurers.parties.move("wren", Parties.NEW_PARTY, dispatch))
 	assert_eq(dispatch.status("wren", 1_000), "Resting")
 	# Letters needs 1 for both. Navigation 2 + 1: 54. Negotiation 2 × 5 + 1: 70. (54 + 70 + 54) ÷ 3.
 	assert_eq(dispatch.success_chance("letters", ["wren"]), 59)
@@ -1892,6 +1893,7 @@ func test_a_lucky_break_changes_nothing_when_the_weakest_challenge_is_already_ev
 	for roll_seed: int in 300:
 		var probe := Dispatch.new(1_000)
 		probe.adventurers.add("wren", {"name": "Wren", "rank": "F"}, WREN_STATS, WREN_GROWTH)
+		assert_true(probe.adventurers.parties.move("wren", Parties.NEW_PARTY, probe))
 		assert_true(probe.send("wolves", ["wren"], roll_seed, 1_000))
 		assert_eq(probe.outings[0]["chance"], chance)
 

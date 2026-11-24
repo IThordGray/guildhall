@@ -434,13 +434,16 @@ func dismiss(adventurer: String) -> bool:
 
 
 ## Why `party` can't be sent on `quest_id` at `now`, in words for the player; "" when it can.
-## However many parties are out, anyone home, well and of a rank the quest allows can go.
+## However many parties are out, anyone in a party, home, well and of a rank the quest allows can go;
+## a reserve can't.
 func party_refusal(quest_id: String, party: PackedStringArray, now: int) -> String:
 	if party.is_empty():
 		return "Pick at least one adventurer"
 	if party.size() > MAX_PARTY_SIZE:
 		return "At most %d in a party" % MAX_PARTY_SIZE
 	for adventurer: String in party:
+		if adventurers.parties.party_of(adventurer) == Parties.RESERVES:
+			return "Not in a party"
 		var who: Dictionary = adventurers.roster[adventurer]
 		if not can_go(adventurer, now):
 			return "%s can't go" % who["name"]

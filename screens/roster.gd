@@ -16,6 +16,10 @@ signal accept_pressed
 signal turn_away_pressed
 ## The player asked to swap the walk-in for someone in the guild, every bed being taken.
 signal swap_pressed
+## The player rolled a new name for the party with id `party` (Parties).
+signal reroll_pressed(party: String)
+## The player typed `typed` as the name of the party with id `party`.
+signal name_typed(party: String, typed: String)
 
 ## How tall an adventurer's row is: the design's 52 dp, so the whole guild fits on a small phone.
 const ROW_HEIGHT_PX: int = 144
@@ -35,15 +39,22 @@ const SMALL_BUTTON_PX: int = 88
 const DISABLED_ROW_TINT: Color = Color(1, 1, 1, 0.4)
 ## How tall the free-beds line under the rows is: the design's 40 dp.
 const FREE_ROW_HEIGHT_PX: int = 110
+## The size of a party's name in its card's header, and how much of the dice button the die fills.
+const PARTY_NAME_FONT_PX: int = 39
+const DIE_SHARE: float = 0.5
 ## As wide as QuestBoard's face token, so the free-beds "+" sits under the faces.
 const FACE_COLUMN_PX: int = 80
 ## Who a visitor is, beside the candidates' slots: the walk-in, or nobody.
 const WALK_IN: int = -1
 const NO_VISITOR: int = -2
 
-## The adventurers the rows were built for, in roster order, so they are rebuilt only when someone
-## joins or leaves.
+## The roster and the parties' members the rows were built for, so they are rebuilt only when
+## someone joins, leaves or moves.
 var _built: Array = []
+## Each adventurer's row, and each party's name and rank badge, by the party's id.
+var _rows: Dictionary[String, Button] = {}
+var _names: Dictionary[String, Button] = {}
+var _ranks: Dictionary[String, Label] = {}
 var _statuses: Dictionary[String, Label] = {}
 var _details: Dictionary[String, Label] = {}
 var _healths: Dictionary[String, HBoxContainer] = {}
@@ -52,7 +63,7 @@ var _level_ups: Dictionary[String, Label] = {}
 ## visitor whose card is: a candidate's slot, WALK_IN, or NO_VISITOR.
 var _marked: String = ""
 var _marked_visitor: int = NO_VISITOR
-## The quiet last line in the rows' card while beds outnumber the roster, and its words.
+## The quiet line under the cards while beds outnumber the roster, and its words.
 var _free: Control
 var _free_beds: Label
 ## The candidates the candidate rows were built for, so they are rebuilt only when one is hired or
@@ -69,7 +80,10 @@ var _walk_in_card: PanelContainer
 var _accept: Button
 var _swap: Button
 
-@onready var _list: VBoxContainer = $Scroll/Box/List
+## One card per party, then the reserves' card under its label, shown while anyone is in reserve.
+@onready var _parties: VBoxContainer = $Scroll/Box/Parties
+@onready var _reserves_header: Label = $Scroll/Box/ReservesHeader
+@onready var _reserves: VBoxContainer = $Scroll/Box/Reserves
 @onready var _beds: Label = $Scroll/Box/Header/Beds
 @onready var _candidates: VBoxContainer = $Scroll/Box/Candidates
 ## The soonest refill, beside the candidates' section label, while a slot is empty.
@@ -79,14 +93,21 @@ var _swap: Button
 
 func _ready() -> void:
 	($Scroll/Box/Header/Armory as Button).pressed.connect(armory_pressed.emit)
-	_list.draw.connect(QuestBoard.draw_card.bind(_list))
+	_reserves.draw.connect(QuestBoard.draw_card.bind(_reserves))
+	_reserves.sort_children.connect(_reserves.queue_redraw)
 	_build_free_row()
 
 
+## Shows `dispatch` at `now`: each party's name and rank, and each adventurer's row.
 func show_dispatch(dispatch: Dispatch, now: int) -> void:
-	var roster := dispatch.adventurers.roster
-	if roster.keys() != _built:
-		_build(dispatch.adventurers)
+	var adventurers := dispatch.adventurers
+	var built := [adventurers.roster.keys(), _groups(adventurers.parties)]
+	if built != _built:
+		_build(adventurers)
+		_built = built
+	for party: String in _names:
+		_names[party].text = adventurers.parties.party(party)["name"]
+		_ranks[party].text = adventurers.parties.rank(party, adventurers.roster)
 	for adventurer: String in _statuses:
 		_details[adventurer].text = details_line(dispatch.adventurers, adventurer)
 		_level_ups[adventurer].visible = dispatch.adventurers.level_up_ready(adventurer)
@@ -137,9 +158,8 @@ func mark(adventurer: String, visitor: int = NO_VISITOR) -> void:
 
 
 func _show_mark() -> void:
-	var rows := _list.get_children()
-	for i: int in rows.size():
-		(rows[i] as Button).theme_type_variation = &"ListRowChosen" if _built[i] == _marked else &"ListRow"
+	for adventurer: String in _rows:
+		_rows[adventurer].theme_type_variation = &"ListRowChosen" if adventurer == _marked else &"ListRow"
 	for slot: int in _candidate_cards:
 		_candidate_cards[slot].theme_type_variation = &"RowCardChosen" if slot == _marked_visitor else &""
 	if _walk_in_card != null:
@@ -167,30 +187,114 @@ static func status_look(dispatch: Dispatch, adventurer: String, now: int) -> Str
 	return &"Secondary"
 
 
-# One row per adventurer in `adventurers`' roster: their face, name, details, health and status.
+# Each party's id and members, in the order the parties were made: what the cards are built from.
+static func _groups(parties: Parties) -> Array:
+	var groups := []
+	for party: Dictionary in parties.parties:
+		groups.append([party["id"], party["members"].duplicate()])
+	return groups
+
+
+# One card per party of `adventurers`, its header over a row per member; then the reserves' card,
+# a row per reserve in roster order, shown with its label only while anyone is in reserve. Each row
+# shows the adventurer's face, name, details, health and status.
 func _build(adventurers: Adventurers) -> void:
-	var roster := adventurers.roster
-	_built = roster.keys()
-	for row: Node in _list.get_children():
-		_list.remove_child(row)
-		row.queue_free()
-	_statuses.clear()
-	_details.clear()
-	_healths.clear()
-	_level_ups.clear()
-	for adventurer: String in roster:
-		var row := adventurer_row(adventurer, adventurers)
-		_statuses[adventurer] = row.find_child("Status", true, false)
-		_details[adventurer] = row.find_child("Details", true, false)
-		_healths[adventurer] = row.find_child("Health", true, false)
-		_level_ups[adventurer] = row.find_child("LevelUp", true, false)
-		row.pressed.connect(adventurer_pressed.emit.bind(adventurer))
-		_list.add_child(row)
+	for card: Node in _parties.get_children() + _reserves.get_children():
+		card.get_parent().remove_child(card)
+		card.queue_free()
+	for parts: Dictionary in [_rows, _names, _ranks, _statuses, _details, _healths, _level_ups]:
+		parts.clear()
+	for party: Dictionary in adventurers.parties.parties:
+		var card := VBoxContainer.new()
+		card.theme_type_variation = &"RowList"
+		card.draw.connect(QuestBoard.draw_card.bind(card))
+		# Rows laid out after the first draw move the lines between them.
+		card.sort_children.connect(card.queue_redraw)
+		card.add_child(_party_header(party["id"]))
+		for adventurer: String in party["members"]:
+			card.add_child(_row(adventurer, adventurers))
+		_parties.add_child(card)
+	var reserves := adventurers.parties.reserves(adventurers.roster)
+	for adventurer: String in reserves:
+		_reserves.add_child(_row(adventurer, adventurers))
+	_reserves.visible = not reserves.is_empty()
+	_reserves_header.visible = _reserves.visible
 	_show_mark()
 
 
-# The quiet line kept after the rows, whatever the roster: "+  N beds free", not tappable. Internal,
-# so the rows stay the list's only children.
+# `adventurer`'s row, its parts kept to show them again, a tap on it opening them.
+func _row(adventurer: String, adventurers: Adventurers) -> Button:
+	var row := adventurer_row(adventurer, adventurers)
+	_rows[adventurer] = row
+	_statuses[adventurer] = row.find_child("Status", true, false)
+	_details[adventurer] = row.find_child("Details", true, false)
+	_healths[adventurer] = row.find_child("Health", true, false)
+	_level_ups[adventurer] = row.find_child("LevelUp", true, false)
+	row.pressed.connect(adventurer_pressed.emit.bind(adventurer))
+	return row
+
+
+# A party card's header, its name filled in by show_dispatch: the name, a tap on which swaps it for
+# a field to type a new one in, kept on Enter or once the field loses focus; the dice that roll a
+# new name; and the party's rank badge.
+func _party_header(party: String) -> MarginContainer:
+	var name_button := Button.new()
+	name_button.flat = true
+	name_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	# A long name wraps rather than being cut, in the narrow landscape column.
+	name_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_button.add_theme_font_size_override(&"font_size", PARTY_NAME_FONT_PX)
+	var field := LineEdit.new()
+	field.max_length = Parties.NAME_MOST_CHARS
+	field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	field.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	field.add_theme_font_size_override(&"font_size", PARTY_NAME_FONT_PX)
+	field.visible = false
+	name_button.pressed.connect(func() -> void:
+		field.text = name_button.text
+		name_button.visible = false
+		field.visible = true
+		field.grab_focus()
+		field.select_all())
+	field.text_submitted.connect(func(_typed: String) -> void: field.release_focus())
+	field.focus_exited.connect(func() -> void:
+		field.visible = false
+		name_button.visible = true
+		name_typed.emit(party, field.text))
+	var dice := Button.new()
+	dice.theme_type_variation = &"OutlineButton"
+	dice.custom_minimum_size = Vector2.ONE * SMALL_BUTTON_PX
+	dice.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	dice.draw.connect(_draw_die.bind(dice))
+	dice.pressed.connect(reroll_pressed.emit.bind(party))
+	var rank := QuestBoard.chip("", &"Pill")
+	rank.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_names[party] = name_button
+	_ranks[party] = rank
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 16)
+	for part: Control in [name_button, field, rank, dice]:
+		line.add_child(part)
+	var header := MarginContainer.new()
+	header.custom_minimum_size.y = FREE_ROW_HEIGHT_PX
+	header.add_theme_constant_override("margin_left", ROW_INSET_LEFT_PX)
+	header.add_theme_constant_override("margin_right", ROW_INSET_RIGHT_PX)
+	header.add_child(line)
+	return header
+
+
+# A die's five face on `dice`: a rounded square with a pip in each corner and one in the middle.
+static func _draw_die(dice: Button) -> void:
+	var colour := dice.get_theme_color(&"font_color")
+	var side := dice.size.y * DIE_SHARE
+	var face := Rect2(dice.size / 2 - Vector2.ONE * side / 2, Vector2.ONE * side)
+	dice.draw_rect(face, colour, false, 3.0)
+	for at: Vector2 in [Vector2(0.25, 0.25), Vector2(0.75, 0.25), Vector2(0.5, 0.5), Vector2(0.25, 0.75), Vector2(0.75, 0.75)]:
+		dice.draw_circle(face.position + at * side, side / 11, colour)
+
+
+# The quiet line kept after the cards, whatever the roster: "+  N beds free", not tappable.
 func _build_free_row() -> void:
 	var plus := _label("+", &"Caption")
 	plus.custom_minimum_size.x = FACE_COLUMN_PX
@@ -211,7 +315,7 @@ func _build_free_row() -> void:
 	_free.add_child(line)
 	line.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	line.offset_left = ROW_INSET_LEFT_PX
-	_list.add_child(_free, false, Node.INTERNAL_MODE_BACK)
+	_reserves.add_sibling(_free)
 
 
 ## A compact roster row for `adventurer` of `adventurers`, one tap target: their face; their name,

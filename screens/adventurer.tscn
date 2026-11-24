@@ -204,6 +204,31 @@ theme_override_font_sizes/font_size = 33
 vertical_alignment = 1
 autowrap_mode = 3
 
+[node name="PartyLine" type="HBoxContainer" parent="Box/Scroll/Content/Card/Header/Row/Words"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Label" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/PartyLine"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"Caption"
+text = "Party ·"
+
+[node name="Name" type="Label" parent="Box/Scroll/Content/Card/Header/Row/Words/PartyLine"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_type_variation = &"Secondary"
+theme_override_font_sizes/font_size = 33
+text_overrun_behavior = 3
+
+[node name="Change" type="Button" parent="Box/Scroll/Content/Card/Header/Row/Words/PartyLine"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"GoldLink"
+theme_override_font_sizes/font_size = 33
+text = "Change ›"
+
 [node name="Stats" type="PanelContainer" parent="Box/Scroll/Content/Card"]
 layout_mode = 2
 
@@ -345,7 +370,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"SectionGold"
 vertical_alignment = 1
-autowrap_mode = 3
 text_overrun_behavior = 3
 
 [node name="Done" type="Button" parent="Box/Scroll/Content/Tray/Rows/Line"]
