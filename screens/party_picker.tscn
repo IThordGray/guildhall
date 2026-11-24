@@ -17,71 +17,64 @@ script = ExtResource("1_picker")
 [node name="Root" type="VBoxContainer" parent="."]
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 28
-
-[node name="Scroll" type="ScrollContainer" parent="Root"]
-layout_mode = 2
-size_flags_vertical = 3
-horizontal_scroll_mode = 0
-
-[node name="Box" type="VBoxContainer" parent="Root/Scroll"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 28
-
-[node name="Heading" type="VBoxContainer" parent="Root/Scroll/Box"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="Title" type="Label" parent="Root/Scroll/Box/Heading"]
-layout_mode = 2
-theme_type_variation = &"Title"
-text = "Goblin camp"
-horizontal_alignment = 1
-autowrap_mode = 3
-
-[node name="Meta" type="Label" parent="Root/Scroll/Box/Heading"]
-layout_mode = 2
-theme_type_variation = &"Meta"
-text = "Rank E · 10:00 · 500 gold"
-horizontal_alignment = 1
-
-[node name="List" type="GridContainer" parent="Root/Scroll/Box"]
-layout_mode = 2
-theme_override_constants/h_separation = 16
-theme_override_constants/v_separation = 24
-
-[node name="Forecast" type="PanelContainer" parent="Root/Scroll/Box"]
-layout_mode = 2
-
-[node name="Box" type="VBoxContainer" parent="Root/Scroll/Box/Forecast"]
-layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Coverage" type="HFlowContainer" parent="Root/Scroll/Box/Forecast/Box"]
+[node name="Quest" type="PanelContainer" parent="Root"]
+layout_mode = 2
+
+[node name="Box" type="VBoxContainer" parent="Root/Quest"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Root/Quest/Box"]
+layout_mode = 2
+theme_type_variation = &"Heading"
+text = "Wolves at the mill"
+autowrap_mode = 3
+
+[node name="Meta" type="Label" parent="Root/Quest/Box"]
+layout_mode = 2
+theme_type_variation = &"MetaSmall"
+text = "E · 0:10 · 22g · fail 0g"
+
+[node name="Coverage" type="HFlowContainer" parent="Root/Quest/Box"]
 layout_mode = 2
 theme_type_variation = &"Chips"
 
-[node name="Chance" type="HBoxContainer" parent="Root/Scroll/Box/Forecast/Box"]
+[node name="Party" type="HBoxContainer" parent="Root/Quest/Box"]
 layout_mode = 2
+theme_override_constants/separation = 40
 
-[node name="Label" type="Label" parent="Root/Scroll/Box/Forecast/Box/Chance"]
+[node name="Slots" type="HBoxContainer" parent="Root/Quest/Box/Party"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Chance" type="VBoxContainer" parent="Root/Quest/Box/Party"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_type_variation = &"Secondary"
-text = "Chance of success"
-vertical_alignment = 2
+theme_override_constants/separation = 12
+alignment = 1
 
-[node name="Odds" type="Label" parent="Root/Scroll/Box/Forecast/Box/Chance"]
-layout_mode = 2
-theme_type_variation = &"GoldAmount"
-text = "45–80%"
-
-[node name="Band" type="Control" parent="Root/Scroll/Box/Forecast/Box"]
-custom_minimum_size = Vector2(0, 22)
+[node name="Line" type="HBoxContainer" parent="Root/Quest/Box/Party/Chance"]
 layout_mode = 2
 
-[node name="Track" type="Panel" parent="Root/Scroll/Box/Forecast/Box/Band"]
+[node name="Label" type="Label" parent="Root/Quest/Box/Party/Chance/Line"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Caption"
+text = "Chance"
+vertical_alignment = 1
+
+[node name="Odds" type="Label" parent="Root/Quest/Box/Party/Chance/Line"]
+layout_mode = 2
+theme_type_variation = &"GoldText"
+text = "55–75%"
+
+[node name="Band" type="Control" parent="Root/Quest/Box/Party/Chance"]
+custom_minimum_size = Vector2(0, 11)
+layout_mode = 2
+
+[node name="Track" type="Panel" parent="Root/Quest/Box/Party/Chance/Band"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -90,42 +83,63 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_type_variation = &"RangeTrack"
 
-[node name="Fill" type="Panel" parent="Root/Scroll/Box/Forecast/Box/Band"]
+[node name="Fill" type="Panel" parent="Root/Quest/Box/Party/Chance/Band"]
 layout_mode = 1
-anchor_left = 0.45
-anchor_right = 0.8
+anchor_left = 0.55
+anchor_right = 0.75
 anchor_bottom = 1.0
 grow_vertical = 2
 theme_type_variation = &"RangeBand"
 
-[node name="Note" type="Label" parent="Root/Scroll/Box/Forecast/Box"]
+[node name="WhoGoes" type="HBoxContainer" parent="Root"]
 layout_mode = 2
-theme_type_variation = &"Secondary"
-text = "If it fails: 125 gold."
-autowrap_mode = 3
+
+[node name="Section" type="Label" parent="Root/WhoGoes"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Section"
+text = "WHO GOES"
+
+[node name="Hint" type="Label" parent="Root/WhoGoes"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "tap to add or remove"
+vertical_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="Root"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 3
+
+[node name="List" type="VBoxContainer" parent="Root/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"RowList"
 
 [node name="Reason" type="Label" parent="Root"]
 layout_mode = 2
-theme_type_variation = &"Alert"
+theme_type_variation = &"AlertSmall"
 text = "Pick at least one adventurer"
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="Buttons" type="HBoxContainer" parent="Root"]
 layout_mode = 2
-theme_override_constants/separation = 40
-alignment = 1
-
-[node name="Send" type="Button" parent="Root/Buttons"]
-custom_minimum_size = Vector2(300, 120)
-layout_mode = 2
-theme_type_variation = &"GoldButton"
-text = "Send"
+theme_override_constants/separation = 24
 
 [node name="Cancel" type="Button" parent="Root/Buttons"]
 custom_minimum_size = Vector2(300, 120)
 layout_mode = 2
+theme_type_variation = &"OutlineButton"
 text = "Back"
+
+[node name="Send" type="Button" parent="Root/Buttons"]
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"GoldButton"
+text = "Send"
 
 [node name="Prompt" type="Label" parent="."]
 layout_mode = 2

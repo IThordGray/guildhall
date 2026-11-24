@@ -85,7 +85,7 @@ func test_the_marked_row_stays_marked_when_someone_joins_and_the_mark_moves_to_t
 
 func test_after_an_adventurer_joins_the_party_picker_shows_five_the_newcomer_last_and_sendable() -> void:
 	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
-	var list := picker.get_node("Root/Scroll/Box/List")
+	var list := picker.get_node("Root/Scroll/List")
 	picker.open("letters", _dispatch, 1_000)
 	assert_eq(list.get_child_count(), 4)
 	(list.get_child(1) as Button).button_pressed = true
@@ -93,7 +93,7 @@ func test_after_an_adventurer_joins_the_party_picker_shows_five_the_newcomer_las
 	picker.show_dispatch(_dispatch, 1_001)
 	assert_eq(list.get_child_count(), 5)
 	var wren := list.get_child(4) as Button
-	assert_string_starts_with(wren.text, "Wren")
+	assert_has(_texts(wren), "Wren")
 	# Who was picked stays picked.
 	assert_true((list.get_child(1) as Button).button_pressed)
 	var sent: Array[PackedStringArray] = []
@@ -105,9 +105,70 @@ func test_after_an_adventurer_joins_the_party_picker_shows_five_the_newcomer_las
 	assert_eq(sent, [PackedStringArray(["ilse", "wren"])])
 
 
+func test_picking_someone_keeps_every_row_and_fills_a_slot_and_the_send_button_and_unpicking_empties_them() -> void:
+	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
+	var list := picker.get_node("Root/Scroll/List")
+	var slots := picker.get_node("Root/Quest/Box/Party/Slots")
+	var send := picker.get_node("Root/Buttons/Send") as Button
+	picker.open("letters", _dispatch, 1_000)
+	var rows := list.get_children()
+	assert_eq(slots.get_child(0).find_children("*", "TextureRect", true, false).size(), 0)
+	assert_true(send.disabled)
+	(list.get_child(2) as Button).button_pressed = true
+	# The same rows, in the same order: only Tobin's changed.
+	assert_eq(list.get_children(), rows)
+	assert_eq(slots.get_child(0).find_children("*", "TextureRect", true, false).size(), 1)
+	assert_eq(slots.get_child(1).find_children("*", "TextureRect", true, false).size(), 0)
+	assert_string_starts_with(send.text, "Send 1 · ")
+	assert_false(send.disabled)
+	(list.get_child(2) as Button).button_pressed = false
+	assert_eq(list.get_children(), rows)
+	assert_eq(slots.get_child(0).find_children("*", "TextureRect", true, false).size(), 0)
+	assert_eq(send.text, "Send")
+	assert_true(send.disabled)
+	await wait_process_frames(1)
+
+
+func test_a_tick_with_nothing_changed_keeps_the_party_slots_and_one_that_holds_a_picked_adventurer_holds_send() -> void:
+	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
+	var slots := picker.get_node("Root/Quest/Box/Party/Slots")
+	var send := picker.get_node("Root/Buttons/Send") as Button
+	picker.open("letters", _dispatch, 1_000)
+	(picker.get_node("Root/Scroll/List").get_child(0) as Button).button_pressed = true
+	var shown := slots.get_children()
+	assert_eq(shown.size(), 4)
+	picker.show_dispatch(_dispatch, 1_001)
+	assert_eq(slots.get_children(), shown)
+	assert_false(send.disabled)
+	# Bram, picked, is hurt: the next tick holds Send with the reason.
+	_dispatch.injured_until["bram"] = 1_100
+	picker.show_dispatch(_dispatch, 1_002)
+	assert_true(send.disabled)
+	assert_eq((picker.get_node("Root/Reason") as Label).text, "Bram can't go")
+	await wait_process_frames(1)
+
+
+func test_who_cant_go_sinks_to_the_bottom_of_the_picker_with_the_reason_and_rises_once_they_can() -> void:
+	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
+	var list := picker.get_node("Root/Scroll/List")
+	picker.open("letters", _dispatch, 1_000)
+	var bram := list.get_child(0) as Button
+	_dispatch.injured_until["bram"] = 1_100
+	picker.show_dispatch(_dispatch, 1_001)
+	assert_same(list.get_child(3), bram)
+	assert_true(bram.disabled)
+	assert_has(_texts(bram), "Injured · 1:39")
+	assert_has(_texts(list.get_child(0)), "Ilse")
+	picker.show_dispatch(_dispatch, 1_100)
+	assert_same(list.get_child(0), bram)
+	assert_false(bram.disabled)
+	assert_eq(list.get_child_count(), 4)
+	await wait_process_frames(1)
+
+
 func test_the_party_picker_keeps_its_toggles_while_nobody_joins_or_leaves() -> void:
 	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
-	var list := picker.get_node("Root/Scroll/Box/List")
+	var list := picker.get_node("Root/Scroll/List")
 	picker.open("letters", _dispatch, 1_000)
 	var first := list.get_child(0)
 	picker.show_dispatch(_dispatch, 1_001)
@@ -120,7 +181,7 @@ func test_the_party_picker_keeps_its_toggles_while_nobody_joins_or_leaves() -> v
 	await wait_process_frames(1)
 
 
-func test_a_newcomer_shows_their_face_not_their_initial_in_a_token_and_on_the_landscape_picker_card() -> void:
+func test_a_newcomer_shows_their_face_not_their_initial_in_a_token_and_on_the_landscape_picker_row() -> void:
 	_add_wren()
 	var roster := _dispatch.adventurers.roster
 	var token := autofree(QuestBoard.token("wren", roster)) as Label
@@ -133,15 +194,15 @@ func test_a_newcomer_shows_their_face_not_their_initial_in_a_token_and_on_the_la
 	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
 	picker.set_landscape(true)
 	picker.open("rats", _dispatch, 1_000)
-	var cards := picker.get_node("Root/Scroll/Box/List")
-	var card := cards.get_child(4) as Button
-	assert_eq(card.icon.get_size(), Vector2(160, 220))
-	assert_eq(_texts(card), [] as Array[String])
-	# A starter's card shows their face, with no initial over it.
-	assert_eq(_texts(cards.get_child(0)), [] as Array[String])
+	var rows := picker.get_node("Root/Scroll/List")
+	var row := rows.get_child(4) as Button
+	assert_has(_texts(row), "Wren")
+	assert_does_not_have(_texts(row), "W")
+	assert_eq(row.find_children("*", "TextureRect", true, false).size(), 1)
+	# A starter's row shows their face, with no initial over it.
+	assert_does_not_have(_texts(rows.get_child(0)), "B")
+	assert_eq(rows.get_child(0).find_children("*", "TextureRect", true, false).size(), 1)
 	await wait_process_frames(1)
-	picker.set_landscape(false)
-	assert_eq(card.icon.get_size(), Vector2(224, 308))
 
 
 # The Quests screen showing `_dispatch` at 1_000, with an empty board.

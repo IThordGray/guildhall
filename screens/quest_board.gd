@@ -83,7 +83,7 @@ class Look extends RefCounted:
 
 func _ready() -> void:
 	for list: VBoxContainer in [_needs_you, _out, _list]:
-		list.draw.connect(_draw_card.bind(list))
+		list.draw.connect(draw_card.bind(list))
 		# Rows moving inside the list move the lines between them.
 		list.sort_children.connect(list.queue_redraw)
 	for quest: String in Dispatch.QUESTS:
@@ -98,7 +98,7 @@ func _ready() -> void:
 		_chips[quest] = chips
 		var words := VBoxContainer.new()
 		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		words.add_child(_one_line(Dispatch.QUESTS[quest]["name"], &"RowTitle"))
+		words.add_child(one_line(Dispatch.QUESTS[quest]["name"], &"RowTitle"))
 		words.add_child(chips)
 		var more := _label("›", &"Secondary")
 		more.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -320,7 +320,7 @@ static func _needs_you_row(picture: Control, title: Label, sub: String, action: 
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	words.alignment = BoxContainer.ALIGNMENT_CENTER
 	words.add_child(title)
-	words.add_child(_one_line(sub, &"Caption"))
+	words.add_child(one_line(sub, &"Caption"))
 	var line := HBoxContainer.new()
 	line.add_theme_constant_override("separation", ROW_GAP_PX)
 	line.add_child(picture)
@@ -455,7 +455,7 @@ func _show_out(dispatch: Dispatch, now: int) -> void:
 			var words := VBoxContainer.new()
 			words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			words.alignment = BoxContainer.ALIGNMENT_CENTER
-			words.add_child(_one_line(quest["name"], &"RowTitle"))
+			words.add_child(one_line(quest["name"], &"RowTitle"))
 			words.add_child(out.bar)
 			var line := HBoxContainer.new()
 			line.add_theme_constant_override("separation", ROW_GAP_PX)
@@ -498,8 +498,9 @@ static func _tap_row(card: Control, on_tap: Callable) -> MarginContainer:
 	return stack
 
 
-# `list`'s one card, behind its rows, with a thin line in each gap between two shown rows.
-static func _draw_card(list: VBoxContainer) -> void:
+## Draws `list`'s one card, a RowList's panel, behind its rows, with a thin line in each gap
+## between two shown rows, internal ones included; every compact list connects its draw to this.
+static func draw_card(list: VBoxContainer) -> void:
 	var card := list.get_theme_stylebox(&"panel") as StyleBoxFlat
 	list.draw_style_box(card, Rect2(Vector2.ZERO, list.size))
 	var gap := list.get_theme_constant(&"separation")
@@ -507,7 +508,7 @@ static func _draw_card(list: VBoxContainer) -> void:
 	# Between the card's side borders, so a coloured border stays whole.
 	var width := list.size.x - card.border_width_left - card.border_width_right
 	var first := true
-	for row: Node in list.get_children():
+	for row: Node in list.get_children(true):
 		var shown := row as Control
 		if not shown.visible:
 			continue
@@ -516,8 +517,8 @@ static func _draw_card(list: VBoxContainer) -> void:
 		first = false
 
 
-# A label on one line that takes the room left and cuts its text short with "…" when it runs out.
-static func _one_line(text: String, variation: StringName) -> Label:
+## A label on one line that takes the room left and cuts its text short with "…" when it runs out.
+static func one_line(text: String, variation: StringName) -> Label:
 	var label := _label(text, variation)
 	label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS

@@ -79,7 +79,7 @@ var _swap: Button
 
 func _ready() -> void:
 	($Scroll/Box/Header/Armory as Button).pressed.connect(armory_pressed.emit)
-	_list.draw.connect(_draw_card)
+	_list.draw.connect(QuestBoard.draw_card.bind(_list))
 	_build_free_row()
 
 
@@ -214,21 +214,6 @@ func _build_free_row() -> void:
 	_list.add_child(_free, false, Node.INTERNAL_MODE_BACK)
 
 
-# The rows' one card, behind them, with a thin line in each gap between two shown rows.
-func _draw_card() -> void:
-	_list.draw_style_box(_list.get_theme_stylebox(&"panel"), Rect2(Vector2.ZERO, _list.size))
-	var gap := _list.get_theme_constant(&"separation")
-	var divider := _list.get_theme_color(&"divider")
-	var first := true
-	for row: Node in _list.get_children(true):
-		var shown := row as Control
-		if not shown.visible:
-			continue
-		if not first:
-			_list.draw_rect(Rect2(0, shown.position.y - gap, _list.size.x, gap), divider)
-		first = false
-
-
 ## A compact roster row for `adventurer` of `adventurers`, one tap target: their face; their name,
 ## the hidden "LevelUp" pill and the empty "Details" label over the `Adventurer.health_row`
 ## "Health"; and the empty "Status" label, for whoever shows it to fill.
@@ -241,7 +226,7 @@ static func adventurer_row(adventurer: String, adventurers: Adventurers) -> Butt
 	level_up.autowrap_mode = TextServer.AUTOWRAP_OFF
 	level_up.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	level_up.visible = false
-	var details := _one_line("", &"Caption")
+	var details := QuestBoard.one_line("", &"Caption")
 	details.name = "Details"
 	var status := _label("", &"Secondary")
 	status.name = "Status"
@@ -377,12 +362,12 @@ static func _compact_line(face: Control, name_text: String, details: String, sta
 	var name_line := HBoxContainer.new()
 	name_line.add_theme_constant_override("separation", 16)
 	name_line.add_child(name_label)
-	name_line.add_child(_one_line(details, &"Caption"))
+	name_line.add_child(QuestBoard.one_line(details, &"Caption"))
 	var words := VBoxContainer.new()
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	words.alignment = BoxContainer.ALIGNMENT_CENTER
 	words.add_child(name_line)
-	words.add_child(_one_line(stats, &"Caption"))
+	words.add_child(QuestBoard.one_line(stats, &"Caption"))
 	var line := HFlowContainer.new()
 	line.alignment = FlowContainer.ALIGNMENT_END
 	line.add_theme_constant_override("h_separation", ROW_GAP_PX)
@@ -400,16 +385,6 @@ static func _small_button(text: String, variation: StringName) -> Button:
 	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	button.add_theme_font_size_override(&"font_size", SMALL_FONT_PX)
 	return button
-
-
-# A label on one line that takes the room left and cuts its text short with "…" when it runs out.
-static func _one_line(text: String, variation: StringName) -> Label:
-	var label := _label(text, variation)
-	label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	return label
 
 
 static func _label(text: String, variation: StringName) -> Label:
