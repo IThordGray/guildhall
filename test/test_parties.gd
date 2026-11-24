@@ -73,7 +73,8 @@ func test_a_move_is_refused_with_nothing_changed_unless_the_mover_and_both_parti
 	assert_true(parties.move("maren", Parties.NEW_PARTY, dispatch))
 	var second := parties.party_of("maren")
 	assert_true(parties.move("ilse", Parties.RESERVES, dispatch))
-	assert_true(dispatch.send("rats", PackedStringArray(["bram"]), 1, 1_000))
+	# Bram out without Tobin, as a save from before only whole parties went can hold.
+	dispatch.outings.append({"quest": "rats", "since": 1_000, "party": PackedStringArray(["bram"]), "seed": 1})
 	var before := _groups(parties)
 	# Out themselves: no move at all.
 	for to: String in [second, Parties.RESERVES, Parties.NEW_PARTY]:
@@ -252,12 +253,12 @@ func test_a_reserve_cant_go_on_a_quest_not_in_a_party_and_can_once_back_in_one()
 	var dispatch := _guild(1_000)
 	var parties := dispatch.adventurers.parties
 	assert_true(parties.move("tobin", Parties.RESERVES, dispatch))
-	assert_eq(dispatch.party_refusal("letters", PackedStringArray(["tobin"]), 1_000), "Not in a party")
-	assert_eq(dispatch.party_refusal("letters", PackedStringArray(["bram", "tobin"]), 1_000), "Not in a party")
-	assert_false(dispatch.send("letters", PackedStringArray(["bram", "tobin"]), 1, 1_000))
+	assert_eq(dispatch.party_refusal("letters", PackedStringArray(["tobin"]), 1_000), "Pick a party")
+	assert_eq(dispatch.party_refusal("letters", PackedStringArray(["bram", "ilse", "maren", "tobin"]), 1_000), "Pick a party")
+	assert_false(dispatch.send("letters", PackedStringArray(["bram", "ilse", "maren", "tobin"]), 1, 1_000))
 	assert_true(dispatch.outings.is_empty())
-	# Bram, in a party, still goes.
-	assert_eq(dispatch.party_refusal("letters", PackedStringArray(["bram"]), 1_000), "")
+	# Bram's party, without Tobin, still goes.
+	assert_eq(dispatch.party_refusal("letters", PackedStringArray(["bram", "ilse", "maren"]), 1_000), "")
 	assert_true(parties.move("tobin", Parties.NEW_PARTY, dispatch))
 	assert_true(dispatch.send("letters", PackedStringArray(["tobin"]), 1, 1_000))
 

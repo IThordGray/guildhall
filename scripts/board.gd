@@ -47,7 +47,7 @@ func filled() -> int:
 ## after an absence gives the same board as refilling every second through it: it takes a quest
 ## neither on the board nor out with a party at that moment, or, with none free, the first freed
 ## after it, by a party's return or by leaving the board; only a quest at most one rank above the
-## guild's highest-ranked adventurer; and one whose rank is drawn by RANK_WEIGHTS around
+## guild's highest-ranked party; and one whose rank is drawn by RANK_WEIGHTS around
 ## `guild_rank`, among the ranks with a quest free. Time is read from no earlier than `dispatch` or
 ## the board last saw, so a clock set back never undoes a refill, brings back a quest that left or
 ## restarts a countdown. A new board starts with every slot filled. With the first Map room
@@ -67,7 +67,7 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, ma
 	_map_room_from = map_room_from
 	# The ranks now stand for every refill due up to `at`: a rank changes only by a player action,
 	# and whatever does that refills the board first, so fills due before it use the rank before it.
-	var top := _top_rank(dispatch.adventurers.roster)
+	var top := _top_rank(dispatch.adventurers)
 	while true:
 		var next := -1
 		var next_time := 0
@@ -210,15 +210,16 @@ func _reveal_time(slot: int) -> int:
 	return -1 if _map_room_from < 0 else maxi(filled_at[slot], _map_room_from) + MAP_REVEAL_SECONDS
 
 
-# The highest rank in `roster` (Adventurers.roster); F when it is empty.
-static func _top_rank(roster: Dictionary) -> String:
+# The highest rank of `adventurers`' parties (Parties.rank), only parties going on quests; F with no
+# party.
+static func _top_rank(adventurers: Adventurers) -> String:
 	var top := 0
-	for who: Dictionary in roster.values():
-		top = maxi(top, Challenges.RANKS.find(who["rank"]))
+	for party: Dictionary in adventurers.parties.parties:
+		top = maxi(top, Challenges.RANKS.find(adventurers.parties.rank(party["id"], adventurers.roster)))
 	return Challenges.RANKS[top]
 
 
-# When empty slot `slot` fills, for a guild of `guild_rank` whose highest-ranked adventurer is
+# When empty slot `slot` fills, for a guild of `guild_rank` whose highest-ranked party is
 # `top`: its refill time, or no earlier than the board was last refilled to, as it found nothing
 # free before then; else the first party's return after that frees a quest. -1 when the slot is
 # filled or no return to come frees one. A quest leaving the board frees one too, which `refill`
@@ -239,8 +240,8 @@ func _fill_time(slot: int, top: String, guild_rank: String) -> int:
 
 
 # The quests neither on the board nor out at `time` that a guild of `guild_rank` whose
-# highest-ranked adventurer is `top` can be offered: of a rank RANK_WEIGHTS weighs, and one that
-# adventurer can take (Challenges.can_join). In Dispatch.QUESTS order.
+# highest-ranked party is `top` can be offered: of a rank RANK_WEIGHTS weighs, and one that
+# party can take (Challenges.can_join). In Dispatch.QUESTS order.
 func _free(time: int, top: String, guild_rank: String) -> PackedStringArray:
 	var free := PackedStringArray()
 	for quest: String in Dispatch.QUESTS:

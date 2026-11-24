@@ -1,5 +1,7 @@
 extends GutTest
 
+const Fixtures := preload("res://test/fixtures.gd")
+
 const SAVE_PATH: String = "user://test_adventurers_save.cfg"
 const EVERYONE: Array[String] = ["bram", "ilse", "tobin", "maren"]
 const BRAM_STATS: Dictionary = {"strength": 6, "agility": 3, "perception": 3, "mind": 2, "spirit": 3, "defence": 7, "endurance": 5, "presence": 3, "luck": 1}
@@ -196,7 +198,7 @@ func test_stats_levels_xp_and_history_survive_save_and_load() -> void:
 func test_a_save_from_the_previous_build_loads_with_starter_stats_and_nothing_else_lost() -> void:
 	var gold := Gold.new(300)
 	var dispatch := _guild(1_000)
-	assert_true(dispatch.send("goblins", ["bram", "ilse"], 1, 1_000))
+	assert_true(dispatch.send("goblins", Fixtures.party(dispatch, ["bram", "ilse"]), 1, 1_000))
 	# The previous build kept no chance with a party out, and wrote no adventurers.
 	dispatch.outings[0].erase("chance")
 	var file := ConfigFile.new()

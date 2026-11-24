@@ -64,8 +64,9 @@ var _out_rows: Array[OutRow] = []
 @onready var _parties_count: Label = $Scroll/Box/Header/Parties/Count
 
 
-## A party-out row's parts that change each second.
+## A party-out row's parts that change each second, or when its party is renamed.
 class OutRow extends RefCounted:
+	var party: Label
 	var bar: ProgressBar
 	var time: Label
 
@@ -456,6 +457,8 @@ func _show_out(dispatch: Dispatch, now: int) -> void:
 			words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			words.alignment = BoxContainer.ALIGNMENT_CENTER
 			words.add_child(one_line(quest["name"], &"RowTitle"))
+			out.party = one_line("", &"Caption")
+			words.add_child(out.party)
 			words.add_child(out.bar)
 			var line := HBoxContainer.new()
 			line.add_theme_constant_override("separation", ROW_GAP_PX)
@@ -469,6 +472,11 @@ func _show_out(dispatch: Dispatch, now: int) -> void:
 		_out_section.visible = not _outings_shown.is_empty()
 		_out.visible = not _outings_shown.is_empty()
 	for i: int in _out_rows.size():
+		# The party's name under the quest's, as it is now: it may be renamed while out. One sent
+		# before only whole parties went has none, and no line for it.
+		var party := dispatch.adventurers.parties.party(_outings_shown[i].get("party_id", ""))
+		_out_rows[i].party.text = "" if party.is_empty() else party["name"]
+		_out_rows[i].party.visible = not party.is_empty()
 		var left := dispatch.seconds_left(_outings_shown[i], now)
 		_out_rows[i].bar.value = _out_rows[i].bar.max_value - left
 		_out_rows[i].time.text = Duration.label(left)

@@ -120,9 +120,13 @@ func _ready() -> void:
 	_roster.name_typed.connect(func(party: String, typed: String) -> void:
 		_dispatch.adventurers.parties.rename(party, typed)
 		_checkpoint(_now()))
+	# A move changes the ranks of the parties it touches, so the checkpoint before fills the board's
+	# slots due by now with the parties as they were.
 	_adventurer.party_pressed.connect(func(adventurer: String, to: String) -> void:
+		var now := _now()
+		_checkpoint(now)
 		_dispatch.adventurers.parties.move(adventurer, to, _dispatch)
-		_checkpoint(_now()))
+		_checkpoint(now))
 	_swap_pick.picked.connect(_on_swap_picked)
 	_swap_pick.back_pressed.connect(_close_swap_pick)
 	_adventurer.dismiss_pressed.connect(_on_dismiss_pressed)

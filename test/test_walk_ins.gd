@@ -1,5 +1,7 @@
 extends GutTest
 
+const Fixtures := preload("res://test/fixtures.gd")
+
 const SAVE_PATH: String = "user://test_walk_ins_save.cfg"
 ## Unix seconds the guild in these tests starts at.
 const START: int = 1_000_000
@@ -227,7 +229,7 @@ func test_a_swap_is_refused_with_nothing_changed_when_the_chosen_one_cannot_be_d
 	var walk_ins := _waiting()
 	var walk_in := walk_ins.walk_in.duplicate(true)
 	var at := walk_ins.arrived_at
-	assert_true(_dispatch.send("rats", PackedStringArray(["bram"]), 1, at))
+	assert_true(_dispatch.send("rats", Fixtures.party(_dispatch, PackedStringArray(["bram"])), 1, at))
 	assert_false(walk_ins.swap("bram", _dispatch, 2))
 	assert_eq(_dispatch.adventurers.roster.keys(), ["bram", "tobin"])
 	assert_eq(_dispatch.adventurers.gear.worn["bram"], Gear.STARTER_GEAR["bram"])

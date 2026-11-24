@@ -252,8 +252,8 @@ func test_a_tap_on_a_party_row_asks_to_move_them_there_or_shows_why_not_in_the_t
 	_tap(_middle_of(_tray_rows(sheet)[0]))
 	assert_eq(moves, [["ilse", parties.parties[0]["id"]]])
 	assert_eq(_tray_refusal(sheet), "")
-	# With Bram out, the same tap is refused, saying why, and the tray stays open.
-	assert_true(_dispatch.send("rats", PackedStringArray(["bram"]), 1, 1_000))
+	# With Bram's party out, the same tap is refused, saying why, and the tray stays open.
+	assert_true(_dispatch.send("rats", PackedStringArray(["bram", "tobin", "maren"]), 1, 1_000))
 	_tap(_middle_of(_tray_rows(sheet)[0]))
 	assert_eq(moves.size(), 1)
 	assert_eq(_tray_refusal(sheet), "Bram is out on a quest")

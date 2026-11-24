@@ -267,7 +267,7 @@ func test_moving_just_past_the_slop_fires_nothing_in_a_scroll_or_out_of_one() ->
 	await _touch_drag(new_game, new_game + Vector2(past, 0))
 	assert_eq(_fired, 0)
 	# A toggle is not toggled either.
-	var toggle := picker.get_node("Root/Scroll/List").get_child(0) as Button
+	var toggle := picker.get_node("Root/Scroll/Box/List").get_child(0) as Button
 	await _touch_drag(_middle(toggle), _middle(toggle) + Vector2(past, 0))
 	assert_false(toggle.button_pressed)
 	# The same presses, lifted where they started, fire.
@@ -278,21 +278,21 @@ func test_moving_just_past_the_slop_fires_nothing_in_a_scroll_or_out_of_one() ->
 	assert_true(toggle.button_pressed)
 
 
-func test_a_tap_anywhere_on_a_picker_row_picks_that_adventurer_and_another_unpicks_them() -> void:
+func test_a_tap_anywhere_on_a_picker_row_picks_that_party_and_another_unpicks_it() -> void:
 	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
 	picker.size = Vector2(SCREEN_SIZE.x, SCREEN_SIZE.y * 2)
 	picker.open("rats", Dispatch.new(1_000), 1_000)
 	await wait_process_frames(1)
-	var row := picker.get_node("Root/Scroll/List").get_child(0) as Button
+	var row := picker.get_node("Root/Scroll/Box/List").get_child(0) as Button
 	var send := picker.get_node("Root/Buttons/Send") as Button
-	# On the face, at the row's left.
+	# On a face, at the row's left.
 	var face := _middle(row.find_children("*", "TextureRect", true, false)[0])
 	await _touch_drag(face, face)
 	assert_true(row.button_pressed)
-	assert_string_starts_with(send.text, "Send 1 · ")
-	# On the check circle, at its right.
-	var check := _middle(row.find_child("Check", true, false))
-	await _touch_drag(check, check)
+	assert_string_starts_with(send.text, "Send · ")
+	# On the range, at its right.
+	var shown_range: Control = row.find_children("*", "Label", true, false).filter(func(label: Label) -> bool: return label.text.ends_with("%"))[0]
+	await _touch_drag(_middle(shown_range), _middle(shown_range))
 	assert_false(row.button_pressed)
 	assert_eq(send.text, "Send")
 

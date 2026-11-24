@@ -1,46 +1,41 @@
 class_name PartyPicker
 extends PanelContainer
 
-## The player chose to send `party`, keys of Adventurers.roster, on `quest`.
+## The player chose to send `party`, keys of Adventurers.roster, on `quest`: one party's members.
 signal send_pressed(quest: String, party: PackedStringArray)
 ## The player is done with the quest picked without sending a party.
 signal back_pressed
 ## The quest picked left the board, so the picker dropped it and prompts for one.
 signal quest_left
 
-## The check circle at the right of a row: gold with a dark mark when the adventurer is picked, an
-## empty ring when not.
-const CHECK_SIZE_PX: float = 60.0
-const CHECK_RING_PX: float = 4.0
-const CHECK_GOLD: Color = Color("#f2c14e")
-const CHECK_MARK: Color = Color("#16131b")
-const CHECK_RING: Color = Color("#4a4258")
-## The space above and below a row's lines once they need more than a roster row's height.
+## The space above and below a row's lines.
 const ROW_PADDING_PX: int = 16
 
 var _quest: String = ""
+## The id of the party picked (Parties), "" for none, and its members, whom Send sends.
+var _picked_party: String = ""
 var _picked: PackedStringArray = PackedStringArray()
-## The adventurers the rows were built for, in roster order, so they are rebuilt only when someone
-## joins or leaves; and the order they were last shown in, those who can go first, so they move
-## only when who can go changes.
+## The rows' toggles, so picking one party unpicks the one picked before; a tap on the one picked
+## unpicks it.
+var _toggles: ButtonGroup
+## Each party's id and members the rows were built for, so they are rebuilt only when a party is
+## made, goes or changes members; and the order they were last shown in, those who can go first,
+## so they move only when who can go changes.
 var _built: Array = []
 var _order: PackedStringArray = PackedStringArray()
-## Each adventurer's row and its parts that change: their title, the stats the quest tests, health,
-## the check circle and, in its place, why they can't go.
+## Each party's row, by its id, and its parts that change: its name, rank, the chance range it
+## would have and, in its place, why it can't go.
 var _rows: Dictionary[String, Button] = {}
-var _titles: Dictionary[String, Label] = {}
-var _stats: Dictionary[String, Label] = {}
-var _healths: Dictionary[String, HBoxContainer] = {}
-var _checks: Dictionary[String, Control] = {}
+var _names: Dictionary[String, Label] = {}
+var _ranks: Dictionary[String, Label] = {}
+var _ranges: Dictionary[String, Label] = {}
 var _reasons: Dictionary[String, Label] = {}
-## Each adventurer's level and gear when their title and stats were last shown, so those are shown
-## again only when one of them changes.
+## What each party's rank and range were last shown from: its members' ranks, levels and gear and
+## the guild's tries at the quest, so they are worked out again only when one of those changes.
 var _looks_shown: Dictionary[String, Array] = {}
-## The pill of each known challenge, coloured by whether the picked party meets it, and the stats
-## those challenges test, in the order a row shows them.
+## The pill of each known challenge, coloured by whether the picked party meets it.
 var _pills: Dictionary[String, Label] = {}
-var _tested: PackedStringArray = PackedStringArray()
-## The dispatch and time last shown, so picking someone can update the odds at once.
+## The dispatch and time last shown, so picking a party can update the odds at once.
 var _dispatch: Dispatch
 var _now: int = 0
 ## The quest's unknown challenges the pills were last built with, so a reveal while the picker is
@@ -53,7 +48,9 @@ var _forecast_unknown: PackedStringArray = PackedStringArray()
 @onready var _slots: HBoxContainer = $Root/Quest/Box/Party/Slots
 @onready var _odds: Label = $Root/Quest/Box/Party/Chance/Line/Odds
 @onready var _band_fill: Control = $Root/Quest/Box/Party/Chance/Band/Fill
-@onready var _list: VBoxContainer = $Root/Scroll/List
+@onready var _list: VBoxContainer = $Root/Scroll/Box/List
+## The quiet line under the list saying how many in reserve can't go, while anyone is.
+@onready var _reserves: Label = $Root/Scroll/Box/Reserves
 @onready var _reason: Label = $Root/Reason
 @onready var _send: Button = $Root/Buttons/Send
 @onready var _root: BoxContainer = $Root
@@ -75,68 +72,90 @@ func set_landscape(landscape: bool) -> void:
 	_back.text = "Cancel" if landscape else "Back"
 
 
-# One row per adventurer in `adventurers`' roster, a toggle: their face, name and title, the stats
-# the quest tests, health, and the check circle; those picked stay picked.
+# Each party's id and members in `parties`, in the order the parties were made.
+static func _groups(parties: Parties) -> Array:
+	var groups := []
+	for party: Dictionary in parties.parties:
+		groups.append([party["id"], party["members"].duplicate()])
+	return groups
+
+
+# One row per party of `adventurers`, a tap on which picks it; the party picked stays picked while
+# it lasts.
 func _build(adventurers: Adventurers) -> void:
-	_built = adventurers.roster.keys()
+	_built = _groups(adventurers.parties)
 	_order = PackedStringArray()
 	for row: Node in _list.get_children():
 		_list.remove_child(row)
 		row.queue_free()
-	_rows.clear()
-	_titles.clear()
-	_stats.clear()
-	_healths.clear()
-	_checks.clear()
-	_reasons.clear()
-	_looks_shown.clear()
-	# Whoever left the guild leaves the party.
-	var staying := PackedStringArray()
-	for adventurer: String in _picked:
-		if adventurer in adventurers.roster:
-			staying.append(adventurer)
-	_picked = staying
-	for adventurer: String in adventurers.roster:
-		var row := Roster.adventurer_row(adventurer, adventurers)
-		row.toggle_mode = true
-		row.set_pressed_no_signal(adventurer in _picked)
-		row.toggled.connect(_on_toggled.bind(adventurer))
-		var health := row.find_child("Health", true, false) as HBoxContainer
-		# The bar alone: the row has no room for the numbers.
-		(health.get_child(1) as Control).visible = false
-		# The stats on a line of their own, between the name and the bar, so the name and title are
-		# never cut; they wrap between stats where the row is too narrow for all of them.
-		var stats := row.find_child("Status", true, false) as Label
-		stats.theme_type_variation = &"MetaSmall"
-		stats.remove_theme_font_size_override(&"font_size")
-		stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		var words := health.get_parent()
-		stats.get_parent().remove_child(stats)
-		words.add_child(stats)
-		words.move_child(stats, health.get_index())
-		var check := Control.new()
-		check.name = "Check"
-		check.custom_minimum_size = Vector2.ONE * CHECK_SIZE_PX
-		check.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		check.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		check.draw.connect(_draw_check.bind(check, row))
-		var reason := Label.new()
-		reason.theme_type_variation = &"Caption"
-		reason.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		var line := row.get_child(0) as Control
-		line.add_child(check)
-		line.add_child(reason)
-		# A button does not fit its children, so the row takes the height its lines need with room
-		# above and below, at least a roster row's.
-		line.minimum_size_changed.connect(func() -> void:
-			row.custom_minimum_size.y = maxf(Roster.ROW_HEIGHT_PX, line.get_combined_minimum_size().y + 2 * ROW_PADDING_PX))
-		_rows[adventurer] = row
-		_titles[adventurer] = row.find_child("Details", true, false)
-		_stats[adventurer] = stats
-		_healths[adventurer] = health
-		_checks[adventurer] = check
-		_reasons[adventurer] = reason
-		_list.add_child(row)
+	for parts: Dictionary in [_rows, _names, _ranks, _ranges, _reasons, _looks_shown]:
+		parts.clear()
+	if adventurers.parties.party(_picked_party).is_empty():
+		_picked_party = ""
+	_toggles = ButtonGroup.new()
+	_toggles.allow_unpress = true
+	for party: Dictionary in adventurers.parties.parties:
+		_list.add_child(_party_row(party["id"], party["members"], adventurers.roster))
+	_show_picked()
+
+
+# The row of party `id` of `members` in `roster`: its rank pill and name over its members' faces,
+# and at the right the chance range it would have, or why it can't go.
+func _party_row(id: String, members: PackedStringArray, roster: Dictionary) -> Button:
+	var party_name := QuestBoard.one_line("", &"RowTitle")
+	var rank := QuestBoard.chip("", &"Pill")
+	rank.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var top := HBoxContainer.new()
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_theme_constant_override("separation", 16)
+	# The pill first, so it lines up from row to row whatever is at their right.
+	top.add_child(rank)
+	top.add_child(party_name)
+	var faces := HBoxContainer.new()
+	faces.theme_type_variation = &"TokenStack"
+	faces.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for adventurer: String in members:
+		faces.add_child(QuestBoard.token(adventurer, roster))
+	var words := VBoxContainer.new()
+	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.alignment = BoxContainer.ALIGNMENT_CENTER
+	words.add_child(top)
+	words.add_child(faces)
+	var shown_range := Label.new()
+	shown_range.theme_type_variation = &"GoldText"
+	shown_range.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var reason := Label.new()
+	reason.theme_type_variation = &"Caption"
+	reason.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var line := HBoxContainer.new()
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.add_theme_constant_override("separation", Roster.ROW_GAP_PX)
+	line.add_child(words)
+	line.add_child(shown_range)
+	line.add_child(reason)
+	var row := Button.new()
+	row.theme_type_variation = &"ListRow"
+	row.toggle_mode = true
+	row.button_group = _toggles
+	row.add_child(line)
+	line.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	line.offset_left = Roster.ROW_INSET_LEFT_PX
+	line.offset_right = -Roster.ROW_INSET_RIGHT_PX
+	# A button does not fit its children, so the row takes the height its lines need with room
+	# above and below, at least a roster row's.
+	line.minimum_size_changed.connect(func() -> void:
+		row.custom_minimum_size.y = maxf(Roster.ROW_HEIGHT_PX, line.get_combined_minimum_size().y + 2 * ROW_PADDING_PX))
+	# A party that can't go shows everything in its row dimmed. A button redraws whenever it is
+	# disabled or enabled.
+	row.draw.connect(func() -> void: line.modulate = Roster.DISABLED_ROW_TINT if row.disabled else Color.WHITE)
+	row.toggled.connect(_on_toggled)
+	_rows[id] = row
+	_names[id] = party_name
+	_ranks[id] = rank
+	_ranges[id] = shown_range
+	_reasons[id] = reason
+	return row
 
 
 ## Whether a quest is picked, so the picker has a party to choose.
@@ -158,33 +177,35 @@ func show_board(board: Board) -> void:
 		quest_left.emit()
 
 
-## Opens the picker for `quest` with nobody picked.
+## Opens the picker for `quest` with no party picked.
 func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	_quest = quest
 	_prompt.hide()
 	_root.show()
-	_picked = PackedStringArray()
-	for adventurer: String in _rows:
-		_rows[adventurer].set_pressed_no_signal(false)
-		_checks[adventurer].queue_redraw()
+	_picked_party = ""
+	_show_picked()
 	var info: Dictionary = Dispatch.QUESTS[quest]
 	_title.text = info["name"]
 	_meta.text = "%s · %s · %dg · fail %dg" % [info["rank"], Duration.label(info["seconds"]), info["gold"], Dispatch.failure_gold(quest)]
 	_dispatch = dispatch
+	# Every row's range is the new quest's.
+	_looks_shown.clear()
 	_build_pills()
 	_show_party()
 	show_dispatch(dispatch, now)
 
 
-## Shows `dispatch` at `now`: everyone who can go on the quest first, in roster order, then everyone
-## who can't, dimmed, with the reason in place of the check. The party's slots and forecast change
-## only when the roster, a challenge or a picked adventurer's level or gear does.
+## Shows `dispatch` at `now`: every party that can go on the quest first, in the order the parties
+## were made, then every one that can't, dimmed, with the reason in place of its range; under them
+## how many in reserve can't go. The party's slots and forecast change only when the parties, a
+## challenge or a picked member's level or gear does.
 func show_dispatch(dispatch: Dispatch, now: int) -> void:
 	_dispatch = dispatch
 	_now = now
 	var adventurers := dispatch.adventurers
+	var parties := adventurers.parties
 	var party_changed := false
-	if adventurers.roster.keys() != _built:
+	if _groups(parties) != _built:
 		_build(adventurers)
 		party_changed = true
 	if dispatch.unknown_challenges(_quest) != _forecast_unknown:
@@ -192,64 +213,62 @@ func show_dispatch(dispatch: Dispatch, now: int) -> void:
 		party_changed = true
 	var free := PackedStringArray()
 	var held := PackedStringArray()
-	for adventurer: String in _rows:
-		var reason := _reason_held(adventurer)
-		var row := _rows[adventurer]
+	for id: String in _rows:
+		var party := parties.party(id)
+		var members: PackedStringArray = party["members"]
+		var reason := _reason_held(members)
+		var row := _rows[id]
 		row.disabled = not reason.is_empty()
-		_reasons[adventurer].text = reason
-		_reasons[adventurer].visible = row.disabled
-		_checks[adventurer].visible = not row.disabled
-		var look := [adventurers.levels[adventurer], adventurers.gear.worn[adventurer]]
-		if look != _looks_shown.get(adventurer, []):
-			_looks_shown[adventurer] = look.duplicate(true)
-			_titles[adventurer].text = adventurers.title(adventurer)
-			_stats[adventurer].text = _stats_line(adventurer)
-			party_changed = party_changed or adventurer in _picked
-		_stats[adventurer].visible = not row.disabled
-		Adventurer.show_health(_healths[adventurer], adventurer, dispatch, now)
-		(held if row.disabled else free).append(adventurer)
+		_reasons[id].text = reason
+		_reasons[id].visible = row.disabled
+		_ranges[id].visible = not row.disabled
+		_names[id].text = party["name"]
+		var look := [dispatch.try_points(_quest)]
+		for adventurer: String in members:
+			look.append_array([adventurers.roster[adventurer]["rank"], adventurers.levels[adventurer], adventurers.gear.worn[adventurer]])
+		if look != _looks_shown.get(id, []):
+			_looks_shown[id] = look.duplicate(true)
+			_ranks[id].text = parties.rank(id, adventurers.roster)
+			var shown := dispatch.chance_range(_quest, members)
+			_ranges[id].text = "%d–%d%%" % [shown.x, shown.y]
+			party_changed = party_changed or id == _picked_party
+		(held if row.disabled else free).append(id)
 	var order := free + held
 	if order != _order:
 		_order = order
 		for at: int in order.size():
 			_list.move_child(_rows[order[at]], at)
+	var reserves := parties.reserves(adventurers.roster).size()
+	_reserves.text = "%d in reserve can't go: not in a party" % reserves
+	_reserves.visible = reserves > 0
 	if party_changed:
 		_show_party()
 	_show_refusal()
 
 
-# Why `adventurer` can't go on the quest at `_now`, in words for the player; "" when they can.
-func _reason_held(adventurer: String) -> String:
-	if not _dispatch.can_go(adventurer, _now):
+# Why the party of `members` can't go on the quest at `_now`, in words for the player; "" when it
+# can: while out, the time until it is back; else the first member who can't go and why; else the
+# dispatch's refusal, such as its rank.
+func _reason_held(members: PackedStringArray) -> String:
+	for adventurer: String in members:
+		if _dispatch.can_go(adventurer, _now):
+			continue
 		for outing: Dictionary in _dispatch.outings:
 			if adventurer in outing["party"]:
 				return "Out · " + Duration.label(_dispatch.seconds_left(outing, _now))
-		return _dispatch.status(adventurer, _now)
-	if not Challenges.can_join(_dispatch.adventurers.roster[adventurer]["rank"], Dispatch.QUESTS[_quest]["rank"]):
-		return "Rank too low"
-	return ""
+		return "%s · %s" % [_dispatch.adventurers.roster[adventurer]["name"], _dispatch.status(adventurer, _now)]
+	return _dispatch.party_refusal(_quest, members, _now)
 
 
-# "Str 9 · Def 19": `adventurer`'s stats, gear included, that the quest's known challenges test.
-# The spaces inside a stat and before each dot don't break, so the line wraps only after a dot.
-func _stats_line(adventurer: String) -> String:
-	var parts := PackedStringArray()
-	for stat: String in _tested:
-		parts.append("%s %d" % [Adventurer.SHORT_STATS[stat], _dispatch.adventurers.stat_total(adventurer, stat)])
-	return " · ".join(parts)
-
-
-# A pill for each of the quest's challenges, an unknown one dashed "?", and the stats the known
-# ones test.
+# A pill for each of the quest's challenges, an unknown one dashed "?".
 func _build_pills() -> void:
 	for old: Node in _coverage.get_children():
 		_coverage.remove_child(old)
 		old.queue_free()
 	_pills.clear()
-	_tested = PackedStringArray()
 	var unknown := _dispatch.unknown_challenges(_quest)
 	_forecast_unknown = unknown
-	# The stats the rows show change with the challenges known.
+	# The ranges count only the challenges known.
 	_looks_shown.clear()
 	for challenge: String in Dispatch.QUESTS[_quest]["challenges"]:
 		if challenge in unknown:
@@ -257,14 +276,14 @@ func _build_pills() -> void:
 			continue
 		_pills[challenge] = QuestBoard.chip(challenge, &"Pill")
 		_coverage.add_child(_pills[challenge])
-		for stat: String in Challenges.WEIGHTS[challenge]:
-			if stat not in _tested:
-				_tested.append(stat)
 
 
-# What changes when someone is picked or unpicked: the party's slots, which challenges it meets
-# and the chance range it is shown.
+# What changes when a party is picked: its members in the slots, which challenges it meets and the
+# chance range it is shown.
 func _show_party() -> void:
+	_picked = PackedStringArray()
+	if not _picked_party.is_empty():
+		_picked = _dispatch.adventurers.parties.party(_picked_party)["members"].duplicate()
 	for old: Node in _slots.get_children():
 		_slots.remove_child(old)
 		old.queue_free()
@@ -286,10 +305,10 @@ func _show_party() -> void:
 		_odds.text = "%d–%d%%" % [shown.x, shown.y]
 		_band_fill.anchor_left = shown.x / 100.0
 		_band_fill.anchor_right = shown.y / 100.0
-	_send.text = "Send %d · %s" % [_picked.size(), _odds.text] if picked else "Send"
+	_send.text = "Send · " + _odds.text if picked else "Send"
 
 
-# Why the party can't be sent at `_now`, if it can't, which also holds Send.
+# Why the party picked can't be sent at `_now`, if it can't, which also holds Send.
 func _show_refusal() -> void:
 	var reason := _dispatch.party_refusal(_quest, _picked, _now)
 	_reason.text = reason
@@ -297,25 +316,20 @@ func _show_refusal() -> void:
 	_send.disabled = not reason.is_empty()
 
 
-# The check circle of `row`: a gold disc with a dark check mark while it is picked, else an empty
-# ring.
-func _draw_check(check: Control, row: Button) -> void:
-	var middle := check.size / 2.0
-	if not row.button_pressed:
-		check.draw_arc(middle, (CHECK_SIZE_PX - CHECK_RING_PX) / 2.0, 0.0, TAU, 48, CHECK_RING, CHECK_RING_PX, true)
-		return
-	check.draw_circle(middle, CHECK_SIZE_PX / 2.0, CHECK_GOLD)
-	var points := PackedVector2Array([Vector2(0.28, 0.52), Vector2(0.44, 0.68), Vector2(0.74, 0.36)])
-	for i: int in points.size():
-		points[i] *= CHECK_SIZE_PX
-	check.draw_polyline(points, CHECK_MARK, CHECK_SIZE_PX / 10.0, true)
+# Marks the row of the party picked, and only it.
+func _show_picked() -> void:
+	for id: String in _rows:
+		_rows[id].set_pressed_no_signal(id == _picked_party)
+		_rows[id].theme_type_variation = &"ListRowChosen" if id == _picked_party else &"ListRow"
 
 
-func _on_toggled(picked: bool, adventurer: String) -> void:
-	if picked:
-		_picked.append(adventurer)
-	else:
-		_picked.remove_at(_picked.find(adventurer))
-	_checks[adventurer].queue_redraw()
+# Picking a party unpicks the one before, whose row is told while the new one is already pressed,
+# so the party picked is whichever row is pressed.
+func _on_toggled(_picked_now: bool) -> void:
+	_picked_party = ""
+	for id: String in _rows:
+		if _rows[id].button_pressed:
+			_picked_party = id
+	_show_picked()
 	_show_party()
 	_show_refusal()

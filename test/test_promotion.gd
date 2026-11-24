@@ -1,5 +1,7 @@
 extends GutTest
 
+const Fixtures := preload("res://test/fixtures.gd")
+
 const SAVE_PATH: String = "user://test_promotion_save.cfg"
 const START: int = 1_000_000
 const NO_HALLS: PackedInt64Array = []
@@ -93,7 +95,8 @@ func test_a_promoted_adventurer_can_join_a_rank_d_quest_and_keeps_the_rank_throu
 	var dispatch := _guild(START)
 	var gold := Gold.new(150)
 	dispatch.adventurers.levels["bram"] = 3
-	assert_eq(dispatch.party_refusal("maze", ["bram"], START), "Bram's rank is too low")
+	Fixtures.party(dispatch, ["bram"])
+	assert_eq(dispatch.party_refusal("maze", ["bram"], START), "Party rank too low")
 	assert_true(dispatch.adventurers.promote("bram", gold, false))
 	assert_eq(dispatch.party_refusal("maze", ["bram"], START), "")
 	var file := ConfigFile.new()
@@ -106,11 +109,14 @@ func test_a_promoted_adventurer_can_join_a_rank_d_quest_and_keeps_the_rank_throu
 
 
 func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_can_draw_rank_d() -> void:
-	# A rank-E guild weighs rank D quests, so only the adventurers' ranks keep them off its board.
+	# A rank-E guild weighs rank D quests, so only the parties' ranks keep them off its board.
 	const GUILD: String = "E"
 	var gold := Gold.new(0)
 	var dispatch := _guild(START)
 	dispatch.adventurers.levels["maren"] = 3
+	# Each a party of their own, so Maren's promotion is her party's.
+	Fixtures.party(dispatch, ["bram"])
+	Fixtures.party(dispatch, ["maren"])
 	var board := Board.new()
 	board.reception_slots = 3
 	board.refill(dispatch, START, NO_HALLS, -1, GUILD)
@@ -126,6 +132,8 @@ func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_
 	wrong.reception_slots = 3
 	wrong.refill(_guild(START), START, NO_HALLS, -1, GUILD)
 	var wrong_dispatch := _guild(START)
+	Fixtures.party(wrong_dispatch, ["bram"])
+	Fixtures.party(wrong_dispatch, ["maren"])
 	assert_true(wrong.send(wrong_dispatch, "goblins", ["bram"], 1, sent_at, NO_HALLS, -1, -1, GUILD))
 	wrong_dispatch.adventurers.roster["maren"]["rank"] = "E"
 	wrong.refill(wrong_dispatch, promoted_at, NO_HALLS, -1, GUILD)

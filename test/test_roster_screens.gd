@@ -92,46 +92,84 @@ func test_the_marked_row_stays_marked_when_someone_joins_and_the_mark_moves_to_t
 	await wait_process_frames(1)
 
 
-func test_after_an_adventurer_joins_the_party_picker_shows_five_the_newcomer_last_and_sendable() -> void:
+# The picker for `quest` at 1_000, after Maren leaves Bram, Ilse and Tobin for a party of her own.
+func _picker(quest: String) -> PartyPicker:
+	assert_true(_dispatch.adventurers.parties.move("maren", Parties.NEW_PARTY, _dispatch))
 	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
-	var list := picker.get_node("Root/Scroll/List")
-	picker.open("letters", _dispatch, 1_000)
-	assert_eq(list.get_child_count(), 4)
+	picker.open(quest, _dispatch, 1_000)
+	return picker
+
+
+# The text of every label shown in `node`.
+func _shown_texts(node: Node) -> Array[String]:
+	var texts: Array[String] = []
+	for label: Node in node.find_children("*", "Label", true, false):
+		if (label as Label).is_visible_in_tree():
+			texts.append((label as Label).text)
+	return texts
+
+
+# The name of the party `adventurer` is in.
+func _party_name(adventurer: String) -> String:
+	var parties := _dispatch.adventurers.parties
+	return parties.party(parties.party_of(adventurer))["name"]
+
+
+func test_after_a_party_is_made_the_picker_shows_its_row_last_and_sendable_and_the_party_picked_stays_picked() -> void:
+	var picker := _picker("letters")
+	var list := picker.get_node("Root/Scroll/Box/List")
+	assert_eq(list.get_child_count(), 2)
 	(list.get_child(1) as Button).button_pressed = true
 	_add_wren()
-	assert_true(_dispatch.adventurers.parties.move("wren", Parties.NEW_PARTY, _dispatch))
 	picker.show_dispatch(_dispatch, 1_001)
-	assert_eq(list.get_child_count(), 5)
-	var wren := list.get_child(4) as Button
-	assert_has(_texts(wren), "Wren")
-	# Who was picked stays picked.
+	# A reserve has no row.
+	assert_eq(list.get_child_count(), 2)
+	assert_true(_dispatch.adventurers.parties.move("wren", Parties.NEW_PARTY, _dispatch))
+	picker.show_dispatch(_dispatch, 1_002)
+	assert_eq(list.get_child_count(), 3)
+	var wrens := list.get_child(2) as Button
+	assert_has(_texts(wrens), _party_name("wren"))
+	# Maren's party, picked, stays picked.
 	assert_true((list.get_child(1) as Button).button_pressed)
 	var sent: Array[PackedStringArray] = []
 	picker.send_pressed.connect(func(_quest: String, party: PackedStringArray) -> void: sent.append(party))
-	wren.button_pressed = true
+	wrens.button_pressed = true
+	# One party at a time.
+	assert_false((list.get_child(1) as Button).button_pressed)
 	var send := picker.get_node("Root/Buttons/Send") as Button
 	assert_false(send.disabled)
 	send.pressed.emit()
-	assert_eq(sent, [PackedStringArray(["ilse", "wren"])])
+	assert_eq(sent, [PackedStringArray(["wren"])])
 
 
-func test_picking_someone_keeps_every_row_and_fills_a_slot_and_the_send_button_and_unpicking_empties_them() -> void:
-	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
-	var list := picker.get_node("Root/Scroll/List")
+func test_picking_a_party_keeps_every_row_fills_its_members_slots_and_send_with_its_range_and_unpicking_empties_them() -> void:
+	var picker := _picker("letters")
+	var list := picker.get_node("Root/Scroll/Box/List")
 	var slots := picker.get_node("Root/Quest/Box/Party/Slots")
 	var send := picker.get_node("Root/Buttons/Send") as Button
-	picker.open("letters", _dispatch, 1_000)
+	var odds := picker.get_node("Root/Quest/Box/Party/Chance/Line/Odds") as Label
 	var rows := list.get_children()
 	assert_eq(slots.get_child(0).find_children("*", "TextureRect", true, false).size(), 0)
+	assert_eq(send.text, "Send")
 	assert_true(send.disabled)
-	(list.get_child(2) as Button).button_pressed = true
-	# The same rows, in the same order: only Tobin's changed.
+	(list.get_child(0) as Button).button_pressed = true
+	# The same rows, in the same order.
 	assert_eq(list.get_children(), rows)
+	for at: int in 3:
+		assert_eq(slots.get_child(at).find_children("*", "TextureRect", true, false).size(), 1, str(at))
+	assert_eq(slots.get_child(3).find_children("*", "TextureRect", true, false).size(), 0)
+	# The range the row showed is the forecast, and Send's.
+	assert_string_ends_with(odds.text, "%")
+	assert_has(_shown_texts(list.get_child(0)), odds.text)
+	assert_eq(send.text, "Send · " + odds.text)
+	assert_false(send.disabled)
+	# Maren's party instead: one slot filled.
+	(list.get_child(1) as Button).button_pressed = true
+	assert_false((list.get_child(0) as Button).button_pressed)
 	assert_eq(slots.get_child(0).find_children("*", "TextureRect", true, false).size(), 1)
 	assert_eq(slots.get_child(1).find_children("*", "TextureRect", true, false).size(), 0)
-	assert_string_starts_with(send.text, "Send 1 · ")
-	assert_false(send.disabled)
-	(list.get_child(2) as Button).button_pressed = false
+	assert_has(_shown_texts(list.get_child(1)), odds.text)
+	(list.get_child(1) as Button).button_pressed = false
 	assert_eq(list.get_children(), rows)
 	assert_eq(slots.get_child(0).find_children("*", "TextureRect", true, false).size(), 0)
 	assert_eq(send.text, "Send")
@@ -139,18 +177,17 @@ func test_picking_someone_keeps_every_row_and_fills_a_slot_and_the_send_button_a
 	await wait_process_frames(1)
 
 
-func test_a_tick_with_nothing_changed_keeps_the_party_slots_and_one_that_holds_a_picked_adventurer_holds_send() -> void:
-	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
+func test_a_tick_with_nothing_changed_keeps_the_party_slots_and_one_where_a_picked_member_cant_go_holds_send() -> void:
+	var picker := _picker("letters")
 	var slots := picker.get_node("Root/Quest/Box/Party/Slots")
 	var send := picker.get_node("Root/Buttons/Send") as Button
-	picker.open("letters", _dispatch, 1_000)
-	(picker.get_node("Root/Scroll/List").get_child(0) as Button).button_pressed = true
+	(picker.get_node("Root/Scroll/Box/List").get_child(0) as Button).button_pressed = true
 	var shown := slots.get_children()
 	assert_eq(shown.size(), 4)
 	picker.show_dispatch(_dispatch, 1_001)
 	assert_eq(slots.get_children(), shown)
 	assert_false(send.disabled)
-	# Bram, picked, is hurt: the next tick holds Send with the reason.
+	# Bram, picked with his party, is hurt: the next tick holds Send with the reason.
 	_dispatch.injured_until["bram"] = 1_100
 	picker.show_dispatch(_dispatch, 1_002)
 	assert_true(send.disabled)
@@ -158,36 +195,78 @@ func test_a_tick_with_nothing_changed_keeps_the_party_slots_and_one_that_holds_a
 	await wait_process_frames(1)
 
 
-func test_who_cant_go_sinks_to_the_bottom_of_the_picker_with_the_reason_and_rises_once_they_can() -> void:
-	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
-	var list := picker.get_node("Root/Scroll/List")
-	picker.open("letters", _dispatch, 1_000)
-	var bram := list.get_child(0) as Button
+func test_a_party_that_cant_go_sinks_to_the_bottom_dimmed_with_the_reason_in_place_of_its_range_and_rises_once_it_can() -> void:
+	var picker := _picker("letters")
+	var list := picker.get_node("Root/Scroll/Box/List")
+	var brams := list.get_child(0) as Button
+	var range_shown := _shown_texts(brams).filter(func(text: String) -> bool: return text.ends_with("%"))
+	assert_eq(range_shown.size(), 1)
 	_dispatch.injured_until["bram"] = 1_100
 	picker.show_dispatch(_dispatch, 1_001)
-	assert_same(list.get_child(3), bram)
-	assert_true(bram.disabled)
-	assert_has(_texts(bram), "Injured · 1:39")
-	assert_has(_texts(list.get_child(0)), "Ilse")
+	assert_same(list.get_child(1), brams)
+	assert_true(brams.disabled)
+	assert_has(_shown_texts(brams), "Bram · Injured · 1:39")
+	assert_does_not_have(_shown_texts(brams), range_shown[0])
+	assert_has(_texts(list.get_child(0)), _party_name("maren"))
 	picker.show_dispatch(_dispatch, 1_100)
-	assert_same(list.get_child(0), bram)
-	assert_false(bram.disabled)
-	assert_eq(list.get_child_count(), 4)
+	assert_same(list.get_child(0), brams)
+	assert_false(brams.disabled)
+	assert_has(_shown_texts(brams), range_shown[0])
+	assert_eq(list.get_child_count(), 2)
 	await wait_process_frames(1)
 
 
-func test_the_party_picker_keeps_its_toggles_while_nobody_joins_or_leaves() -> void:
-	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
-	var list := picker.get_node("Root/Scroll/List")
-	picker.open("letters", _dispatch, 1_000)
+func test_a_party_whose_rank_is_too_low_shows_why_until_its_rank_reaches_one_below_the_quests() -> void:
+	# The bone king's vault is rank D; both parties are rank F.
+	var picker := _picker("vault")
+	var list := picker.get_node("Root/Scroll/Box/List")
+	var marens := list.get_child(1) as Button
+	assert_true(marens.disabled)
+	assert_has(_shown_texts(marens), "Party rank too low")
+	assert_has(_shown_texts(marens), "F")
+	_dispatch.adventurers.roster["maren"]["rank"] = "E"
+	picker.show_dispatch(_dispatch, 1_001)
+	assert_same(list.get_child(0), marens)
+	assert_false(marens.disabled)
+	assert_has(_shown_texts(marens), "E")
+	assert_does_not_have(_shown_texts(marens), "Party rank too low")
+	assert_true((list.get_child(1) as Button).disabled)
+	await wait_process_frames(1)
+
+
+func test_the_party_picker_keeps_its_rows_while_no_party_changes_and_builds_them_again_when_one_does() -> void:
+	var picker := _picker("letters")
+	var list := picker.get_node("Root/Scroll/Box/List")
 	var first := list.get_child(0)
 	picker.show_dispatch(_dispatch, 1_001)
 	picker.show_dispatch(_dispatch, 1_002)
 	assert_same(list.get_child(0), first)
-	assert_eq(list.get_child_count(), 4)
-	_add_wren()
+	assert_eq(list.get_child_count(), 2)
+	assert_true(_dispatch.adventurers.parties.move("tobin", Parties.NEW_PARTY, _dispatch))
 	picker.show_dispatch(_dispatch, 1_003)
-	assert_eq(list.get_child_count(), 5)
+	assert_eq(list.get_child_count(), 3)
+	assert_ne(list.get_child(0), first)
+	await wait_process_frames(1)
+
+
+func test_reserves_get_no_row_and_one_quiet_line_says_how_many_cant_go_hidden_while_nobody_is_in_reserve() -> void:
+	var picker := _picker("letters")
+	var list := picker.get_node("Root/Scroll/Box/List")
+	var line := picker.get_node("Root/Scroll/Box/Reserves") as Label
+	assert_false(line.visible)
+	assert_eq(list.get_child_count(), 2)
+	var parties := _dispatch.adventurers.parties
+	assert_true(parties.move("tobin", Parties.RESERVES, _dispatch))
+	assert_true(parties.move("maren", Parties.RESERVES, _dispatch))
+	picker.show_dispatch(_dispatch, 1_001)
+	assert_true(line.visible)
+	assert_eq(line.text, "2 in reserve can't go: not in a party")
+	assert_eq(list.get_child_count(), 1)
+	assert_true(parties.move("tobin", parties.party_of("bram"), _dispatch))
+	assert_true(parties.move("maren", Parties.NEW_PARTY, _dispatch))
+	picker.show_dispatch(_dispatch, 1_002)
+	assert_false(line.visible)
+	assert_eq(list.get_child_count(), 2)
 	await wait_process_frames(1)
 
 
@@ -201,17 +280,18 @@ func test_a_newcomer_shows_their_face_not_their_initial_in_a_token_and_on_the_la
 	assert_eq(starter.text, "")
 	assert_true(starter.get_child(0) is TextureRect)
 
+	assert_true(_dispatch.adventurers.parties.move("wren", Parties.NEW_PARTY, _dispatch))
 	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
 	picker.set_landscape(true)
 	picker.open("rats", _dispatch, 1_000)
-	var rows := picker.get_node("Root/Scroll/List")
-	var row := rows.get_child(4) as Button
-	assert_has(_texts(row), "Wren")
+	var rows := picker.get_node("Root/Scroll/Box/List")
+	var row := rows.get_child(1) as Button
+	assert_has(_texts(row), _party_name("wren"))
 	assert_does_not_have(_texts(row), "W")
 	assert_eq(row.find_children("*", "TextureRect", true, false).size(), 1)
-	# A starter's row shows their face, with no initial over it.
+	# The starters' row shows their four faces, with no initial over them.
 	assert_does_not_have(_texts(rows.get_child(0)), "B")
-	assert_eq(rows.get_child(0).find_children("*", "TextureRect", true, false).size(), 1)
+	assert_eq(rows.get_child(0).find_children("*", "TextureRect", true, false).size(), 4)
 	await wait_process_frames(1)
 
 
@@ -461,23 +541,44 @@ func test_each_board_row_shows_its_time_left_which_a_tick_updates_without_rebuil
 	assert_eq(_visible_rows(board), rows.slice(1))
 
 
-func test_each_party_out_shows_its_quest_and_time_left_which_a_tick_updates_without_rebuilding_the_row() -> void:
+func test_each_party_out_shows_its_name_quest_and_time_left_which_a_tick_updates_without_rebuilding_the_row() -> void:
 	var board := _quests()
+	var parties := _dispatch.adventurers.parties
+	assert_true(parties.move("tobin", Parties.NEW_PARTY, _dispatch))
+	assert_true(parties.move("maren", parties.party_of("tobin"), _dispatch))
+	parties.rename(parties.party_of("bram"), "The Iron Wolves")
 	assert_true(_dispatch.send("wolves", PackedStringArray(["bram", "ilse"]), 1, 1_000))
 	board.show_board(Board.new(), _dispatch, 1_003)
 	var rows := board.get_node("Scroll/Box/Out")
 	assert_eq(rows.get_child_count(), 1)
 	var row := rows.get_child(0)
-	assert_has(_texts(row), "Wolves at the mill")
-	assert_has(_texts(row), "0:07")
+	# The quest, the party under it, and the time left.
+	assert_eq(_words_shown(row), ["Wolves at the mill", "The Iron Wolves", "0:07"] as Array[String])
 	assert_does_not_have(_texts(row), "22 gold")
 	var bar := row.find_children("*", "ProgressBar", true, false)[0] as ProgressBar
 	assert_eq(bar.value, 3.0)
-	# A tick: the same row, its time and bar a second on.
+	# A tick: the same row, its time and bar a second on, and the party's new name.
+	parties.rename(parties.party_of("bram"), "The Last Oaths")
 	board.show_board(Board.new(), _dispatch, 1_004)
 	assert_same(rows.get_child(0), row)
-	assert_has(_texts(row), "0:06")
+	assert_eq(_words_shown(row), ["Wolves at the mill", "The Last Oaths", "0:06"] as Array[String])
 	assert_eq(bar.value, 4.0)
+	# A party sent before only whole parties went shows its quest alone, with no party line.
+	_dispatch.outings.append({"quest": "rats", "since": 1_000, "party": PackedStringArray(["tobin"]), "seed": 1})
+	board.show_board(Board.new(), _dispatch, 1_004)
+	assert_eq(_words_shown(rows.get_child(1)), ["Rats in the cellar", "0:00"] as Array[String])
+	var party_lines := func(out_row: Node) -> int:
+		return out_row.find_children("*", "Label", true, false).filter(func(label: Label) -> bool: return label.theme_type_variation == &"Caption" and label.is_visible_in_tree()).size()
+	assert_eq(party_lines.call(rows.get_child(0)), 1)
+	assert_eq(party_lines.call(rows.get_child(1)), 0)
+
+
+# The words shown in `node`, in tree order: every visible label's text but the empty ones under
+# faces.
+func _words_shown(node: Node) -> Array[String]:
+	var words: Array[String] = []
+	words.assign(_shown_texts(node).filter(func(text: String) -> bool: return not text.is_empty()))
+	return words
 
 
 func test_the_picker_drops_a_quest_that_left_the_board_and_keeps_one_still_on_it() -> void:

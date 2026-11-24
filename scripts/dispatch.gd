@@ -51,7 +51,8 @@ const MOST_TRY_POINTS: int = 15
 const NO_TRAINING_PLACE: String = "No free training place — convert a Training room"
 
 ## Parties out, in the order they left. Each is {"quest": quest id, "since": unix seconds it left,
-## "party": adventurer ids, "seed": the seed that fixes how it ends, "chance": its whole-percent
+## "party": adventurer ids, "party_id": the id of the party they are (Parties), missing from one
+## sent before only whole parties went, "seed": the seed that fixes how it ends, "chance": its whole-percent
 ## chance of success when it left, a lucky break counted, "spirit" and "luck": the party's totals
 ## when it left, "health" and "max_health": {adventurer
 ## id: points} each member left with}. A party counts as out until the checkpoint after its return
@@ -434,22 +435,33 @@ func dismiss(adventurer: String) -> bool:
 
 
 ## Why `party` can't be sent on `quest_id` at `now`, in words for the player; "" when it can.
-## However many parties are out, anyone in a party, home, well and of a rank the quest allows can go;
-## a reserve can't.
+## However many parties are out, a party goes whole or not at all: `party` must be exactly one
+## party's members, each home and well, and the party's rank (Parties.rank) must allow the quest
+## (Challenges.can_join). Reserves never go.
 func party_refusal(quest_id: String, party: PackedStringArray, now: int) -> String:
-	if party.is_empty():
-		return "Pick at least one adventurer"
-	if party.size() > MAX_PARTY_SIZE:
-		return "At most %d in a party" % MAX_PARTY_SIZE
+	var id := party_id_of(party)
+	if id.is_empty():
+		return "Pick a party"
 	for adventurer: String in party:
-		if adventurers.parties.party_of(adventurer) == Parties.RESERVES:
-			return "Not in a party"
-		var who: Dictionary = adventurers.roster[adventurer]
 		if not can_go(adventurer, now):
-			return "%s can't go" % who["name"]
-		if not Challenges.can_join(who["rank"], QUESTS[quest_id]["rank"]):
-			return "%s's rank is too low" % who["name"]
+			return "%s can't go" % adventurers.roster[adventurer]["name"]
+	if not Challenges.can_join(adventurers.parties.rank(id, adventurers.roster), QUESTS[quest_id]["rank"]):
+		return "Party rank too low"
 	return ""
+
+
+## The id of the party whose members are exactly `party`, in any order; "" when no party's are.
+func party_id_of(party: PackedStringArray) -> String:
+	if party.is_empty():
+		return ""
+	var id := adventurers.parties.party_of(party[0])
+	if id == Parties.RESERVES:
+		return ""
+	var members: PackedStringArray = adventurers.parties.party(id)["members"].duplicate()
+	var asked := party.duplicate()
+	members.sort()
+	asked.sort()
+	return id if members == asked else ""
 
 
 ## Sends `party` on `quest_id` at `now`, its outcome fixed by `roll_seed`; false, with nothing
@@ -469,7 +481,7 @@ func send(quest_id: String, party: PackedStringArray, roll_seed: int, now: int, 
 	# A lucky break is decided by the seed now, and only counts when it lifts the weakest challenge.
 	var luck := party_stat(party, "luck")
 	var lucky: bool = Outcome.lucky_break(roll_seed, luck) and challenge_chances(quest_id, party).min() < Outcome.EVEN_CHANCE
-	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "seed": roll_seed, "chance": success_chance(quest_id, party, lucky), "spirit": party_stat(party, "spirit"), "luck": luck, "health": health_left_with, "max_health": max_left_with})
+	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "party_id": party_id_of(party), "seed": roll_seed, "chance": success_chance(quest_id, party, lucky), "spirit": party_stat(party, "spirit"), "luck": luck, "health": health_left_with, "max_health": max_left_with})
 	return true
 
 

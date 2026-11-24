@@ -1,5 +1,7 @@
 extends GutTest
 
+const Fixtures := preload("res://test/fixtures.gd")
+
 const SAVE_PATH: String = "user://test_hall_save.cfg"
 
 
@@ -1088,7 +1090,7 @@ func _new_game_played(step: int) -> Array:
 			1_030:
 				assert_true(hall.convert_room("side_left", "bunk_room", gold, now))
 			1_100:
-				assert_true(board.send(dispatch, board.slots[0], ["bram"], 1, now, PackedInt64Array()))
+				assert_true(board.send(dispatch, board.slots[0], Fixtures.party(dispatch, ["bram"]), 1, now, PackedInt64Array()))
 			1_200:
 				assert_true(recruits.hire(0, dispatch.adventurers, gold, hall.beds(now), now))
 	return [hall.restored, hall.converted, hall.beds(now), board.slots, board.refill_at, recruits.candidates, recruits.refill_at, dispatch.adventurers.roster.keys(), gold.amount]

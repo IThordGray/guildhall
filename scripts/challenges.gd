@@ -40,7 +40,7 @@ static func requirement(challenge: String, difficulty: int) -> int:
 	return roundi(difficulty * weight / float(DIFFICULTY_WEIGHT))
 
 
-## True when an adventurer of `adventurer_rank` may join a quest of `quest_rank`: at most one rank
-## above their own.
-static func can_join(adventurer_rank: String, quest_rank: String) -> bool:
-	return RANKS.find(quest_rank) <= RANKS.find(adventurer_rank) + 1
+## True when a party of `party_rank` (Parties.rank) may take a quest of `quest_rank`: at most one
+## rank above its own.
+static func can_join(party_rank: String, quest_rank: String) -> bool:
+	return RANKS.find(quest_rank) <= RANKS.find(party_rank) + 1

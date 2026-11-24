@@ -1,5 +1,7 @@
 extends GutTest
 
+const Fixtures := preload("res://test/fixtures.gd")
+
 const SAVE_PATH: String = "user://test_board_save.cfg"
 ## Unix seconds a new board in these tests is first filled at, and the slots it fills with: rank F,
 ## E and E quests.
@@ -101,7 +103,7 @@ func _play(sends: Array, halls: PackedInt64Array, end: int, step: int, rank: Str
 			board.refill(dispatch, now, _done_by(halls, now), map_room, rank)
 			var party: PackedStringArray = send[2]
 			var quest := board.slots[send[1]]
-			assert_true(board.send(dispatch, quest, party, 1, now, _done_by(halls, now), -1, map_room, rank), str(send))
+			assert_true(board.send(dispatch, quest, Fixtures.party(dispatch, party), 1, now, _done_by(halls, now), -1, map_room, rank), str(send))
 			_sent_ranks[Dispatch.QUESTS[quest]["rank"]] = true
 	dispatch.checkpoint(end)
 	board.refill(dispatch, end, _done_by(halls, end), map_room, rank)
@@ -157,8 +159,8 @@ func test_the_board_never_shows_a_quest_twice_and_leaves_a_slot_empty_when_none_
 func test_a_sent_quests_slot_refills_after_a_countdown_set_by_its_rank_f_20_seconds_e_60_and_d_120() -> void:
 	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
-	assert_true(board.send(dispatch, "moonherbs", ["bram"], 1, START + 100, NO_HALLS))
-	assert_true(board.send(dispatch, "wolves", ["ilse"], 1, START + 100, NO_HALLS))
+	assert_true(board.send(dispatch, "moonherbs", Fixtures.party(dispatch, ["bram"]), 1, START + 100, NO_HALLS))
+	assert_true(board.send(dispatch, "wolves", Fixtures.party(dispatch, ["ilse"]), 1, START + 100, NO_HALLS))
 	assert_eq(board.slots, PackedStringArray(["", "", "crypt"]))
 	assert_eq(board.seconds_to_refill(0, dispatch, START + 100), 20)
 	assert_eq(board.seconds_to_refill(1, dispatch, START + 100), 60)
@@ -180,15 +182,15 @@ func test_a_sent_quests_slot_refills_after_a_countdown_set_by_its_rank_f_20_seco
 	var ranked := _guild("E")
 	var ranked_board := _board(ranked, 0, "E")
 	assert_eq(Dispatch.QUESTS[ranked_board.slots[1]]["rank"], "D")
-	assert_true(ranked_board.send(ranked, ranked_board.slots[1], ["bram"], 1, START + 100, NO_HALLS, -1, -1, "E"))
+	assert_true(ranked_board.send(ranked, ranked_board.slots[1], Fixtures.party(ranked, ["bram"]), 1, START + 100, NO_HALLS, -1, -1, "E"))
 	assert_eq(ranked_board.seconds_to_refill(1, ranked, START + 100), 120)
 
 
 func test_each_slot_counts_down_on_its_own() -> void:
 	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
-	assert_true(board.send(dispatch, "moonherbs", ["bram"], 1, START + 100, NO_HALLS))
-	assert_true(board.send(dispatch, "wolves", ["ilse"], 1, START + 105, NO_HALLS))
+	assert_true(board.send(dispatch, "moonherbs", Fixtures.party(dispatch, ["bram"]), 1, START + 100, NO_HALLS))
+	assert_true(board.send(dispatch, "wolves", Fixtures.party(dispatch, ["ilse"]), 1, START + 105, NO_HALLS))
 	assert_eq(board.slots, PackedStringArray(["", "", "crypt"]))
 	assert_eq(board.seconds_to_refill(0, dispatch, START + 105), 15)
 	assert_eq(board.seconds_to_refill(1, dispatch, START + 105), 60)
@@ -206,9 +208,9 @@ func test_the_next_refill_is_the_soonest_empty_slots_countdown_and_none_while_no
 	var board := _board(dispatch, 0)
 	assert_eq(board.seconds_to_next_refill(dispatch, START), -1)
 	# Slot 1 empties first but counts down longer: rank E, 60 seconds, against slot 0's rank F, 20.
-	assert_true(board.send(dispatch, "wolves", ["ilse"], 1, START + 10, NO_HALLS))
+	assert_true(board.send(dispatch, "wolves", Fixtures.party(dispatch, ["ilse"]), 1, START + 10, NO_HALLS))
 	assert_eq(board.seconds_to_next_refill(dispatch, START + 10), 60)
-	assert_true(board.send(dispatch, "moonherbs", ["bram"], 1, START + 20, NO_HALLS))
+	assert_true(board.send(dispatch, "moonherbs", Fixtures.party(dispatch, ["bram"]), 1, START + 20, NO_HALLS))
 	assert_eq(board.seconds_to_next_refill(dispatch, START + 20), 20)
 	board.refill(dispatch, START + 40, NO_HALLS)
 	assert_ne(board.slots[0], "")
@@ -224,7 +226,7 @@ func test_an_empty_slot_waiting_for_a_free_quest_gives_way_to_a_slot_counting_do
 	var board := _board(dispatch, 11)
 	assert_eq(board.slots[13], "")
 	assert_eq(board.seconds_to_next_refill(dispatch, START), 0)
-	assert_true(board.send(dispatch, "rats", ["bram"], 1, START + 100, _halls(11)))
+	assert_true(board.send(dispatch, "rats", Fixtures.party(dispatch, ["bram"]), 1, START + 100, _halls(11)))
 	assert_eq(board.seconds_to_next_refill(dispatch, START + 100), 20)
 
 
@@ -237,7 +239,7 @@ func test_a_quest_out_is_not_offered_and_an_empty_slot_takes_it_once_its_party_i
 	assert_ne(rats, -1)
 	assert_eq(shown[13], "")
 	# Rats takes two seconds: out from START + 10 to START + 12.
-	assert_true(board.send(dispatch, "rats", ["bram"], _seed("rats", ["bram"], true), START + 10, _halls(11)))
+	assert_true(board.send(dispatch, "rats", Fixtures.party(dispatch, ["bram"]), _seed("rats", ["bram"], true), START + 10, _halls(11)))
 	shown[rats] = ""
 	assert_eq(board.slots, shown)
 	dispatch.checkpoint(START + 11)
@@ -281,7 +283,7 @@ func test_a_rank_f_guild_is_offered_every_rank_f_and_e_quest_in_turn_never_one_t
 	var now := START
 	for i: int in 100:
 		now = _until_a_quest(board, dispatch, now + 3_600)
-		assert_true(board.send(dispatch, _quest_from(board, i % 3), ["bram"], 1, now, NO_HALLS))
+		assert_true(board.send(dispatch, _quest_from(board, i % 3), Fixtures.party(dispatch, ["bram"]), 1, now, NO_HALLS))
 		now += 3_600
 		dispatch.checkpoint(now)
 		while not dispatch.waiting_loot.is_empty(): dispatch.let_loot_go(0)
@@ -296,9 +298,10 @@ func test_a_rank_f_guild_is_offered_every_rank_f_and_e_quest_in_turn_never_one_t
 	assert_eq(offered, F_AND_E_QUESTS)
 
 
-func test_with_one_rank_e_adventurer_rank_d_quests_reach_a_rank_e_guilds_board() -> void:
+func test_with_one_rank_e_party_rank_d_quests_reach_a_rank_e_guilds_board() -> void:
 	var dispatch := _four(START)
 	dispatch.adventurers.roster["maren"]["rank"] = "E"
+	Fixtures.party(dispatch, ["maren"])
 	var board := _board(dispatch, 0, "E")
 	var seen_ranks := {}
 	var now := START
@@ -313,6 +316,40 @@ func test_with_one_rank_e_adventurer_rank_d_quests_reach_a_rank_e_guilds_board()
 		while not dispatch.waiting_loot.is_empty(): dispatch.let_loot_go(0)
 		board.refill(dispatch, now, NO_HALLS, -1, "E")
 	assert_eq(seen_ranks, {"F": true, "E": true, "D": true})
+
+
+# How many of 200 one-slot boards, each filled at its own second against `dispatch` for a rank-E
+# guild, draw a rank D quest.
+func _rank_d_drawn(dispatch: Dispatch) -> int:
+	var drawn := 0
+	for i: int in 200:
+		var board := Board.new()
+		board.reception_slots = 1
+		board.refill(dispatch, START + i, NO_HALLS, -1, "E")
+		if Dispatch.QUESTS[board.slots[0]]["rank"] == "D":
+			drawn += 1
+	return drawn
+
+
+func test_the_board_reaches_one_rank_above_the_highest_ranked_party_reserves_not_counted_and_no_party_counts_as_f() -> void:
+	var dispatch := _four(START)
+	dispatch.adventurers.roster["maren"]["rank"] = "E"
+	# With three rank-F members, Maren's party is rank F: no rank D quest.
+	assert_eq(_rank_d_drawn(dispatch), 0)
+	# In reserve, her rank E counts for nothing.
+	assert_true(dispatch.adventurers.parties.move("maren", Parties.RESERVES, dispatch))
+	assert_eq(_rank_d_drawn(dispatch), 0)
+	# A party of her own is rank E.
+	assert_true(dispatch.adventurers.parties.move("maren", Parties.NEW_PARTY, dispatch))
+	assert_gt(_rank_d_drawn(dispatch), 0)
+	# With nobody in a party, the board is a rank-F party's, whatever the reserves' ranks.
+	for adventurer: String in dispatch.adventurers.roster:
+		dispatch.adventurers.roster[adventurer]["rank"] = "E"
+		assert_true(dispatch.adventurers.parties.move(adventurer, Parties.RESERVES, dispatch))
+	assert_true(dispatch.adventurers.parties.parties.is_empty())
+	assert_eq(_rank_d_drawn(dispatch), 0)
+	assert_true(dispatch.adventurers.parties.move("bram", Parties.NEW_PARTY, dispatch))
+	assert_gt(_rank_d_drawn(dispatch), 0)
 
 
 ## How many of 1_000 fills draw each rank for a guild of `guild_rank` whose starters are all of
@@ -413,12 +450,12 @@ func test_a_party_the_dispatch_refuses_leaves_the_quest_on_the_board() -> void:
 func test_clock_set_back_neither_undoes_a_refill_nor_restarts_a_countdown() -> void:
 	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
-	assert_true(board.send(dispatch, "moonherbs", ["bram"], 1, START + 10, NO_HALLS))
+	assert_true(board.send(dispatch, "moonherbs", Fixtures.party(dispatch, ["bram"]), 1, START + 10, NO_HALLS))
 	dispatch.checkpoint(START + 30)
 	board.refill(dispatch, START + 30, NO_HALLS)
 	var refilled := board.slots[0]
 	assert_ne(refilled, "")
-	assert_true(board.send(dispatch, "wolves", ["ilse"], 1, START + 35, NO_HALLS))
+	assert_true(board.send(dispatch, "wolves", Fixtures.party(dispatch, ["ilse"]), 1, START + 35, NO_HALLS))
 	assert_eq(board.slots, PackedStringArray([refilled, "", "crypt"]))
 	# Set back to before the first refill: it stays, and the second countdown runs on from where it was.
 	dispatch.checkpoint(START + 15)
@@ -435,8 +472,8 @@ func test_the_same_save_always_refills_the_same_way() -> void:
 	var gold := Gold.new(0)
 	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
-	assert_true(board.send(dispatch, "moonherbs", ["bram"], 1, START + 10, NO_HALLS))
-	assert_true(board.send(dispatch, "wolves", ["ilse"], 1, START + 25, NO_HALLS))
+	assert_true(board.send(dispatch, "moonherbs", Fixtures.party(dispatch, ["bram"]), 1, START + 10, NO_HALLS))
+	assert_true(board.send(dispatch, "wolves", Fixtures.party(dispatch, ["ilse"]), 1, START + 25, NO_HALLS))
 	dispatch.checkpoint(START + 27)
 	var file := ConfigFile.new()
 	gold.write(file)
@@ -477,7 +514,7 @@ func test_a_save_from_before_ranked_countdowns_with_old_quests_on_the_board_and_
 	# The previous build: six quests, one countdown of an hour, goblins out with Bram and Ilse.
 	var gold := Gold.new(40)
 	var dispatch := _four(START)
-	assert_true(dispatch.send("goblins", ["bram", "ilse"], 1, START))
+	assert_true(dispatch.send("goblins", Fixtures.party(dispatch, ["bram", "ilse"]), 1, START))
 	var success := Outcome.roll(1, dispatch.outings[0]["chance"], 0, PackedStringArray(["bram", "ilse"])).success
 	var file := ConfigFile.new()
 	gold.write(file)
@@ -500,7 +537,7 @@ func test_a_save_from_before_ranked_countdowns_with_old_quests_on_the_board_and_
 	assert_true(loaded.outings.is_empty())
 	assert_eq(loaded_gold.amount, 82 if success else 40)
 	# An old quest sends, and its slot counts down by rank; the saved countdown runs out when it said.
-	assert_true(board.send(loaded, "letters", ["tobin"], 1, START + 59, NO_HALLS))
+	assert_true(board.send(loaded, "letters", Fixtures.party(loaded, ["tobin"]), 1, START + 59, NO_HALLS))
 	assert_eq(board.seconds_to_refill(0, loaded, START + 59), 20)
 	loaded.checkpoint(START + 3_599)
 	board.refill(loaded, START + 3_599, NO_HALLS)
@@ -545,7 +582,7 @@ func test_with_a_map_room_finished_a_quest_is_revealed_exactly_10_seconds_after_
 		assert_eq(board.seconds_to_reveal(quest, dispatch, START + 10), -1, quest)
 	# A quest put on the board later counts from when it was put there: crypt's slot refills at
 	# START + 80.
-	assert_true(board.send(dispatch, "crypt", ["bram"], 1, START + 20, NO_HALLS, -1, MAP_ROOM_EARLY))
+	assert_true(board.send(dispatch, "crypt", Fixtures.party(dispatch, ["bram"]), 1, START + 20, NO_HALLS, -1, MAP_ROOM_EARLY))
 	dispatch.checkpoint(START + 89)
 	board.refill(dispatch, START + 89, NO_HALLS, MAP_ROOM_EARLY)
 	assert_eq(board.slots[2], "pilgrims")
@@ -575,7 +612,7 @@ func test_a_quest_the_map_room_revealed_stays_revealed_while_out_and_back_on_the
 	board.refill(dispatch, START + 10, _halls(11), MAP_ROOM_EARLY)
 	assert_true(dispatch.unknown_challenges("sealed_door").is_empty())
 	# The sealed door takes twelve seconds: out from START + 20 to START + 32.
-	assert_true(board.send(dispatch, "sealed_door", ["bram"], 1, START + 20, _halls(11), -1, MAP_ROOM_EARLY))
+	assert_true(board.send(dispatch, "sealed_door", Fixtures.party(dispatch, ["bram"]), 1, START + 20, _halls(11), -1, MAP_ROOM_EARLY))
 	dispatch.checkpoint(START + 31)
 	board.refill(dispatch, START + 31, _halls(11), MAP_ROOM_EARLY)
 	assert_false(board.slots.has("sealed_door"))
@@ -596,7 +633,7 @@ func test_a_quest_sent_before_its_reveal_is_not_revealed_by_the_map_room_but_by_
 	var board := _old_board()
 	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
 	# Moonherbs takes six seconds: out from START + 9 to START + 15.
-	assert_true(board.send(dispatch, "moonherbs", ["bram"], 1, START + 9, NO_HALLS, -1, MAP_ROOM_EARLY))
+	assert_true(board.send(dispatch, "moonherbs", Fixtures.party(dispatch, ["bram"]), 1, START + 9, NO_HALLS, -1, MAP_ROOM_EARLY))
 	dispatch.checkpoint(START + 14)
 	board.refill(dispatch, START + 14, NO_HALLS, MAP_ROOM_EARLY)
 	assert_true(dispatch.unknown_challenges("wolves").is_empty())
@@ -648,7 +685,7 @@ func test_fill_times_and_reveals_survive_save_and_load() -> void:
 	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
 	# The wolves are revealed at START + 10; crypt's slot takes pilgrims at START + 80, to be revealed
 	# at START + 90.
-	assert_true(board.send(dispatch, "crypt", ["bram"], 1, START + 20, NO_HALLS, -1, MAP_ROOM_EARLY))
+	assert_true(board.send(dispatch, "crypt", Fixtures.party(dispatch, ["bram"]), 1, START + 20, NO_HALLS, -1, MAP_ROOM_EARLY))
 	dispatch.checkpoint(START + 85)
 	board.refill(dispatch, START + 85, NO_HALLS, MAP_ROOM_EARLY)
 	assert_eq(board.slots[2], "pilgrims")
@@ -779,13 +816,13 @@ func test_a_clock_set_back_never_brings_back_a_quest_that_left_the_board() -> vo
 func test_a_quest_that_left_the_board_cannot_be_sent() -> void:
 	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
-	assert_false(board.send(dispatch, "moonherbs", ["bram"], 1, START + 60, NO_HALLS))
+	assert_false(board.send(dispatch, "moonherbs", Fixtures.party(dispatch, ["bram"]), 1, START + 60, NO_HALLS))
 	assert_true(dispatch.outings.is_empty())
 	assert_eq(board.slots, PackedStringArray(["", "wolves", "crypt"]))
 	# A second before, it could be.
 	var other := _four(START)
 	var still := _board(other, 0)
-	assert_true(still.send(other, "moonherbs", ["bram"], 1, START + 59, NO_HALLS))
+	assert_true(still.send(other, "moonherbs", Fixtures.party(other, ["bram"]), 1, START + 59, NO_HALLS))
 
 
 func test_the_map_room_reveals_only_quests_still_on_the_board_at_their_reveal_time() -> void:

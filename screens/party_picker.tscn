@@ -98,12 +98,12 @@ layout_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"Section"
-text = "WHO GOES"
+text = "WHICH PARTY"
 
 [node name="Hint" type="Label" parent="Root/WhoGoes"]
 layout_mode = 2
 theme_type_variation = &"Caption"
-text = "tap to add or remove"
+text = "tap one to pick it"
 vertical_alignment = 1
 
 [node name="Scroll" type="ScrollContainer" parent="Root"]
@@ -112,15 +112,27 @@ size_flags_vertical = 3
 horizontal_scroll_mode = 0
 vertical_scroll_mode = 3
 
-[node name="List" type="VBoxContainer" parent="Root/Scroll"]
+[node name="Box" type="VBoxContainer" parent="Root/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_constants/separation = 24
+
+[node name="List" type="VBoxContainer" parent="Root/Scroll/Box"]
+layout_mode = 2
 theme_type_variation = &"RowList"
+
+[node name="Reserves" type="Label" parent="Root/Scroll/Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "2 in reserve can't go: not in a party"
+horizontal_alignment = 1
+autowrap_mode = 3
 
 [node name="Reason" type="Label" parent="Root"]
 layout_mode = 2
 theme_type_variation = &"AlertSmall"
-text = "Pick at least one adventurer"
+text = "Pick a party"
 horizontal_alignment = 1
 autowrap_mode = 3
 
