@@ -167,6 +167,13 @@ static func failure_gold(_quest_id: String) -> int:
 	return 0
 
 
+## The XP each member of a party of `size` gains back from a quest whose whole party shares `xp` on
+## a success: an equal part of what the outcome gives (Adventurers.quest_xp), rounded down, but at
+## least 1, so nobody comes back from a quest with nothing.
+static func xp_share(xp: int, success: bool, size: int) -> int:
+	return maxi(1, floori(Adventurers.quest_xp(xp, success) / float(size)))
+
+
 ## Seconds until `outing` returns; 0 when it has returned.
 func seconds_left(outing: Dictionary, now: int) -> int:
 	return maxi(0, back_at(outing) - maxi(now, checked_at))
@@ -563,10 +570,9 @@ func _bring_home(outing: Dictionary) -> void:
 	if not unknown_challenges(outing["quest"]).is_empty():
 		revealed.append(outing["quest"])
 	tries[outing["quest"]] = int(tries.get(outing["quest"], 0)) + 1
-	# The party shares the quest's XP, each member gaining an equal part, rounded down, but at least 1,
-	# so nobody comes back from a quest with nothing. A party with no members gains nothing.
+	# A party with no members gains nothing.
 	if not party.is_empty():
-		var xp := maxi(1, floori(Adventurers.quest_xp(quest["xp"], success) / float(party.size())))
+		var xp := xp_share(quest["xp"], success, party.size())
 		for adventurer: String in party:
 			adventurers.gain_xp(adventurer, xp)
 	gold.amount += reward

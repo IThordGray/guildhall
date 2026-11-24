@@ -67,12 +67,29 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, ma
 	_map_room_from = map_room_from
 	# The ranks now stand for every refill due up to `at`: a rank changes only by a player action,
 	# and whatever does that refills the board first, so fills due before it use the rank before it.
-	var top := _top_rank(dispatch.adventurers)
+	var offered := offered_quests(_top_rank(dispatch.adventurers), guild_rank)
+	var offered_count := 0
+	for quests: PackedStringArray in offered:
+		offered_count += quests.size()
+	# No quest goes out during a refill, so when those out come back stands too.
+	var backs: Array = back_at.values()
+	backs.sort()
+	# When each slot next leaves or fills; -1 for never.
+	var times := PackedInt64Array()
+	times.resize(slots.size())
+	var settled := false
 	while true:
+		# Once everything out is back and more quests are on offer than there are slots, no slot
+		# can wait for a quest: each fills the moment it comes due. From then on only the slot that
+		# changed needs its time worked out again, which keeps a long absence quick.
+		if not settled:
+			settled = offered_count >= slots.size() and (backs.is_empty() or backs[-1] <= checked_at)
+			for i: int in slots.size():
+				times[i] = _next_time(i, offered, backs)
 		var next := -1
 		var next_time := 0
 		for i: int in slots.size():
-			var time := _leave_time(i) if slots[i] != "" else _fill_time(i, top, guild_rank)
+			var time := times[i]
 			if time < 0 or time > at:
 				continue
 			# At the same second a quest leaving comes first, so a slot filling then can take it;
@@ -93,10 +110,11 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, ma
 			refill_at[next] = next_time + REFILL_SECONDS[Dispatch.QUESTS[slots[next]]["rank"]]
 			slots[next] = ""
 		else:
-			slots[next] = _pick(next, next_time, top, guild_rank)
+			slots[next] = _pick(next, next_time, offered, backs)
 			filled_at[next] = next_time
 		# A slot filling after this can't fill before it, even with a quest free since earlier.
 		checked_at = maxi(checked_at, next_time)
+		times[next] = _next_time(next, offered, backs)
 	checked_at = at
 	# Every quest that left by `at` was revealed above if its time came first, and every send
 	# refills first, so the quests on the board now have been there since their fill time:
@@ -238,36 +256,50 @@ static func _top_rank(adventurers: Adventurers) -> String:
 	return Challenges.RANKS[top]
 
 
-# When empty slot `slot` fills, for a guild of `guild_rank` whose highest-ranked party is
-# `top`: its refill time, or no earlier than the board was last refilled to, as it found nothing
-# free before then; else the first party's return after that frees a quest. -1 when the slot is
-# filled or no return to come frees one. A quest leaving the board frees one too, which `refill`
-# handles as a time of its own.
-func _fill_time(slot: int, top: String, guild_rank: String) -> int:
+# When slot `slot` next changes: when its quest leaves, or, empty, when it fills (`_fill_time`).
+func _next_time(slot: int, offered: Array[PackedStringArray], backs: Array) -> int:
+	return _leave_time(slot) if slots[slot] != "" else _fill_time(slot, offered, backs)
+
+
+# When empty slot `slot` fills, drawing from `offered` (as `offered_quests` gives them), with
+# quests out back at `backs`, sorted: its refill time, or no earlier than the board was last
+# refilled to, as it found nothing free before then; else the first party's return after that
+# frees a quest. -1 when the slot is filled or no return to come frees one. A quest leaving the
+# board frees one too, which `refill` handles as a time of its own.
+func _fill_time(slot: int, offered: Array[PackedStringArray], backs: Array) -> int:
 	if slots[slot] != "":
 		return -1
 	var from := maxi(refill_at[slot], checked_at)
-	var times: Array[int] = [from]
-	for back: int in back_at.values():
-		if back > from:
-			times.append(back)
-	times.sort()
-	for time: int in times:
-		if not _free(time, top, guild_rank).is_empty():
-			return time
+	if _any_free(from, offered):
+		return from
+	for back: int in backs:
+		if back > from and _any_free(back, offered):
+			return back
 	return -1
 
 
-# The quests neither on the board nor out at `time` that a guild of `guild_rank` whose
-# highest-ranked party is `top` can be offered: of a rank RANK_WEIGHTS weighs, and one that
-# party can take (Challenges.can_join). In Dispatch.QUESTS order.
-func _free(time: int, top: String, guild_rank: String) -> PackedStringArray:
-	var free := PackedStringArray()
+## The quests a guild of `guild_rank` whose highest-ranked party is `top` can be offered, by their
+## rank's place in RANK_WEIGHTS, each in Dispatch.QUESTS order: of a rank RANK_WEIGHTS weighs, and
+## one that party can take (Challenges.can_join).
+static func offered_quests(top: String, guild_rank: String) -> Array[PackedStringArray]:
+	var offered: Array[PackedStringArray] = []
+	for index: int in RANK_WEIGHTS.size():
+		offered.append(PackedStringArray())
 	for quest: String in Dispatch.QUESTS:
 		var rank: String = Dispatch.QUESTS[quest]["rank"]
-		if quest not in slots and back_at.get(quest, 0) <= time and _weight_index(rank, guild_rank) != -1 and Challenges.can_join(top, rank):
-			free.append(quest)
-	return free
+		var index := _weight_index(rank, guild_rank)
+		if index != -1 and Challenges.can_join(top, rank):
+			offered[index].append(quest)
+	return offered
+
+
+# Whether any quest of `offered` is neither on the board nor out at `time`; stops at the first.
+func _any_free(time: int, offered: Array[PackedStringArray]) -> bool:
+	for quests: PackedStringArray in offered:
+		for quest: String in quests:
+			if not slots.has(quest) and back_at.get(quest, 0) <= time:
+				return true
+	return false
 
 
 # Where `rank` is in RANK_WEIGHTS for a guild of `guild_rank`; -1 when it is not weighed.
@@ -276,26 +308,35 @@ static func _weight_index(rank: String, guild_rank: String) -> int:
 	return index if index >= 0 and index < RANK_WEIGHTS.size() else -1
 
 
-# A quest for `slot` from those free at `time`, as `_free` has them: first a rank, by RANK_WEIGHTS
-# among the ranks with a quest free, then one of that rank's, each as likely. Drawn by a seed of the
-# slot and its refill time, so the same save always refills the same way.
-func _pick(slot: int, time: int, top: String, guild_rank: String) -> String:
-	var by_rank: Array[Array] = []
-	for index: int in RANK_WEIGHTS.size():
-		by_rank.append([])
-	for quest: String in _free(time, top, guild_rank):
-		by_rank[_weight_index(Dispatch.QUESTS[quest]["rank"], guild_rank)].append(quest)
+# A quest for `slot` from those of `offered` neither on the board nor out at `time`, those out
+# back at `backs`, sorted: first a rank, by RANK_WEIGHTS among the ranks with a quest free, then
+# one of that rank's, each as likely. Drawn by a seed of the slot and its refill time, so the same
+# save always refills the same way.
+func _pick(slot: int, time: int, offered: Array[PackedStringArray], backs: Array) -> String:
+	# With everything out back by then, only the board matters; it saves a lookup per quest.
+	var all_back: bool = backs.is_empty() or backs[-1] <= time
+	var free := PackedInt32Array()
+	free.resize(RANK_WEIGHTS.size())
 	var total := 0
 	for index: int in RANK_WEIGHTS.size():
-		if not by_rank[index].is_empty():
+		for quest: String in offered[index]:
+			if not slots.has(quest) and (all_back or back_at.get(quest, 0) <= time):
+				free[index] += 1
+		if free[index] > 0:
 			total += RANK_WEIGHTS[index]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([slot, refill_at[slot]])
 	var roll := rng.randi_range(1, total)
 	for index: int in RANK_WEIGHTS.size():
-		if by_rank[index].is_empty():
+		if free[index] == 0:
 			continue
 		roll -= RANK_WEIGHTS[index]
-		if roll <= 0:
-			return by_rank[index][rng.randi_range(0, by_rank[index].size() - 1)]
+		if roll > 0:
+			continue
+		var nth := rng.randi_range(0, free[index] - 1)
+		for quest: String in offered[index]:
+			if not slots.has(quest) and (all_back or back_at.get(quest, 0) <= time):
+				if nth == 0:
+					return quest
+				nth -= 1
 	return ""

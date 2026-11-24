@@ -840,3 +840,43 @@ func test_the_map_room_reveals_only_quests_still_on_the_board_at_their_reveal_ti
 	board.refill(dispatch, START + 61, NO_HALLS, START + 50)
 	assert_eq(dispatch.unknown_challenges("moonherbs"), PackedStringArray(["Attrition"]))
 	assert_true(dispatch.unknown_challenges("wolves").is_empty())
+
+
+func test_the_boards_next_change_is_the_map_rooms_reveal_when_that_comes_first() -> void:
+	# Moonherbs, the wolves and the crypt are put on the board at START: revealed at START + 10, and
+	# the first to leave goes at START + 60.
+	var dispatch := _four(START)
+	var board := _old_board()
+	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
+	assert_eq(board.next_change(dispatch, START), START + 10)
+	board.refill(dispatch, START + 10, NO_HALLS, MAP_ROOM_EARLY)
+	assert_eq(board.next_change(dispatch, START + 10), START + 60)
+	# With no Map room, nothing is revealed: the first change is a quest leaving.
+	var unmapped := _board(_four(START), 0)
+	assert_eq(unmapped.next_change(_four(START), START), START + 60)
+
+
+func test_one_refill_after_days_with_nothing_sent_gives_the_board_refilling_every_step_gives() -> void:
+	# Two days: each slot's quest leaves and refills over a thousand times. A party out at first, a
+	# Quest hall finished on the first day, and a Map room revealing quests as they come.
+	var end := START + 2 * 86_400
+	var halls := PackedInt64Array([START + 40_000])
+	var sends: Array = [[START + 5, 1, ["bram"]]]
+	var away := _play(sends, halls, end, 0, "F", START + 100)
+	var revealed := _revealed.duplicate()
+	var watched := _play(sends, halls, end, 41, "F", START + 100)
+	assert_eq(away.slots.size(), 4)
+	assert_eq(away.slots, watched.slots)
+	assert_eq(away.filled_at, watched.filled_at)
+	assert_eq(away.refill_at, watched.refill_at)
+	assert_eq(revealed, _revealed)
+	assert_gt(revealed.size(), 5)
+	for slot: int in away.slots.size():
+		# Each slot's latest quest came in the last few minutes.
+		assert_gt(maxi(away.filled_at[slot], away.refill_at[slot]), end - 400, str(slot))
+	# A rank-E guild, drawing rank D quests too.
+	away = _play([], NO_HALLS, end, 0, "E")
+	watched = _play([], NO_HALLS, end, 41, "E")
+	assert_eq(away.slots, watched.slots)
+	assert_eq(away.filled_at, watched.filled_at)
+	assert_eq(away.refill_at, watched.refill_at)

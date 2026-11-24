@@ -90,8 +90,28 @@ static func loot(roll_seed: int, rank: String, luck: int = 0) -> String:
 	var rng := RandomNumberGenerator.new()
 	# Not the outcome's own sequence, so whether loot comes is independent of success.
 	rng.seed = hash("loot:%d" % roll_seed)
-	if rng.randi_range(1, 100) > LOOT_PERCENT[rank] + mini(MOST_LUCK_LOOT_POINTS, luck):
+	if rng.randi_range(1, 100) > loot_percent(rank, luck):
 		return ""
+	return _draw_item(rng, luck)
+
+
+## The whole-percent chance that a party with `luck` in all, back from a quest of `rank`, brings an
+## item.
+static func loot_percent(rank: String, luck: int) -> int:
+	return LOOT_PERCENT[rank] + mini(MOST_LUCK_LOOT_POINTS, luck)
+
+
+## An item a party with `luck` in all brings, as `loot` draws it once there is one, drawn by
+## `roll_seed` alone, so the same seed always gives the same item.
+static func loot_item(roll_seed: int, luck: int) -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = roll_seed
+	return _draw_item(rng, luck)
+
+
+# An item's quality by `quality_percent` for `luck`, then one of that quality's items, each as
+# likely, drawn from `rng`.
+static func _draw_item(rng: RandomNumberGenerator, luck: int) -> String:
 	var roll := rng.randi_range(1, 100)
 	var shares := quality_percent(luck)
 	var quality := ""
