@@ -73,7 +73,10 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   adds stats and shapes growth; titles from the top two stats; Luck's lucky break). · Walk-ins (free,
   a hidden 3–7 min arrival, swap when beds are full; dismiss from the Adventurer screen)). · Compact gear and roster (52-dp roster rows; stat chips and icon-only slots with fit
   badges; gear changed in place from a slot or a stash item through a tray; landscape roster list beside
-  the adventurer; candidates and walk-ins open a character sheet).
+  the adventurer; candidates and walk-ins open a character sheet). · Needs you and compact Quests (no
+  debrief: returns pay at once; only full-stash loot and ready level-ups wait in Needs you; board
+  quests leave after a time by rank; compact Quests rows and a picker of one quest card over compact
+  rows).
 
 ## Stack
 
