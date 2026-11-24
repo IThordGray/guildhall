@@ -5,6 +5,8 @@ extends PanelContainer
 signal send_pressed(quest: String, party: PackedStringArray)
 ## The player is done with the quest picked without sending a party.
 signal back_pressed
+## The quest picked left the board, so the picker dropped it and prompts for one.
+signal quest_left
 
 ## The tick on a picked adventurer's card.
 const TICK_SIZE_PX: float = 40.0
@@ -144,6 +146,13 @@ func close() -> void:
 	_quest = ""
 	_root.hide()
 	_prompt.show()
+
+
+## Drops the quest picked once `board` no longer shows it, since it can't be sent.
+func show_board(board: Board) -> void:
+	if has_quest() and not board.slots.has(_quest):
+		close()
+		quest_left.emit()
 
 
 ## Opens the picker for `quest` with nobody picked.

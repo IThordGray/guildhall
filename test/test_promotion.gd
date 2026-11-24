@@ -118,7 +118,8 @@ func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_
 	var sent_at := START + 9
 	assert_eq(board.slots[1], "goblins")
 	assert_true(board.send(dispatch, "goblins", ["bram"], 1, sent_at, NO_HALLS, -1, -1, GUILD))
-	var promoted_at := START + 1_000
+	# Promoted a second after that slot refilled, before any other slot refills.
+	var promoted_at := START + 70
 	# Promoting first would let the slot due before it draw a rank D quest, so this case separates
 	# the two orders.
 	var wrong := Board.new()
@@ -140,12 +141,23 @@ func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_
 	var ranks := {}
 	var now := promoted_at
 	for i: int in 30:
+		# The first filled slot from slot i % 3 on, once one is: every slot can be between its quest
+		# leaving and its refill at once.
 		now += 3_600
-		assert_true(board.send(dispatch, board.slots[i % 3], ["maren"], 1, now, NO_HALLS, -1, -1, GUILD), str(i))
+		board.refill(dispatch, now, NO_HALLS, -1, GUILD)
+		while board.filled() == 0:
+			now += 1
+			board.refill(dispatch, now, NO_HALLS, -1, GUILD)
+		var sent := ""
+		for k: int in 3:
+			if sent == "":
+				sent = board.slots[(i + k) % 3]
+		assert_true(board.send(dispatch, sent, ["maren"], 1, now, NO_HALLS, -1, -1, GUILD), str(i))
 		now += 3_600
 		dispatch.checkpoint(now)
 		while not dispatch.waiting_loot.is_empty(): dispatch.let_loot_go(0)
 		board.refill(dispatch, now, NO_HALLS, -1, GUILD)
 		for quest: String in board.slots:
-			ranks[Dispatch.QUESTS[quest]["rank"]] = true
+			if quest != "":
+				ranks[Dispatch.QUESTS[quest]["rank"]] = true
 	assert_true(ranks.has("D"))

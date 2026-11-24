@@ -106,6 +106,7 @@ func _ready() -> void:
 	_board.level_up_pressed.connect(_on_quests_level_up_pressed)
 	_picker.send_pressed.connect(_on_party_sent)
 	_picker.back_pressed.connect(_close_picker)
+	_picker.quest_left.connect(_close_picker)
 	_roster.adventurer_pressed.connect(_open_adventurer.bind(_roster))
 	_roster.hire_pressed.connect(_on_hire_pressed)
 	_roster.visitor_pressed.connect(_open_visitor)
@@ -237,6 +238,7 @@ func _checkpoint(now: int) -> void:
 	_walk_in_badge.visible = not _walk_ins.walk_in.is_empty()
 	_hall_view.show_state(_hall, _dispatch, _quest_board.filled(), now)
 	_board.show_board(_quest_board, _dispatch, now)
+	_picker.show_board(_quest_board)
 	_roster.show_dispatch(_dispatch, now)
 	_roster.show_recruits(_recruits, _dispatch.adventurers, _gold, _hall.beds(now), _hall, now)
 	_roster.show_walk_in(_walk_ins.walk_in, _dispatch.adventurers.roster.size() < _hall.beds(now))
@@ -394,9 +396,11 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	_checkpoint(now)
 
 
+# Back to the Quests screen, or, in landscape, its "Pick a quest" prompt; when another screen shows
+# instead, it stays.
 func _close_picker() -> void:
 	_picker.close()
-	_show_quests(true)
+	_show_quests(_board.visible or _picker.visible)
 
 
 # Opens `adventurer` from `from`, the Roster, which Back returns to. In landscape the roster stays

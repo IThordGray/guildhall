@@ -353,3 +353,62 @@ func test_a_marked_candidate_stays_marked_when_the_candidates_are_rebuilt_and_th
 	assert_eq(_marked_rows(roster.get_node("Scroll/Box/List")), [1] as Array[int])
 	assert_eq(_visitor_card(roster, "WalkIn", 1).theme_type_variation, &"")
 	await wait_process_frames(1)
+
+
+# The visible rows of the Quests screen's board, in order.
+func _visible_rows(board: QuestBoard) -> Array[Node]:
+	var rows: Array[Node] = []
+	for row: Node in board.get_node("Scroll/Box/List").get_children():
+		if row is Container and (row as Control).visible:
+			rows.append(row)
+	return rows
+
+
+func test_each_board_row_shows_its_time_left_which_a_tick_updates_without_rebuilding_the_rows() -> void:
+	var board := _quests()
+	# Filled at 1_000_000: moonherbs (F) leaves at 1_000_060, the wolves and the crypt (E) at
+	# 1_000_120.
+	var quests := Board.new()
+	quests.reception_slots = 3
+	quests.refill(_dispatch, 1_000_000, PackedInt64Array())
+	assert_eq(quests.slots, PackedStringArray(["moonherbs", "wolves", "crypt"]))
+	board.show_board(quests, _dispatch, 1_000_018)
+	var rows := _visible_rows(board)
+	assert_eq(rows.size(), 3)
+	var meta := rows[0].find_child("Meta", true, false) as Label
+	assert_eq(meta.text, "Rank F · 0:06 · 10 gold · leaves" + String.chr(0xA0) + "0:42")
+	assert_eq((rows[1].find_child("Meta", true, false) as Label).text, "Rank E · 0:10 · 22 gold · leaves" + String.chr(0xA0) + "1:42")
+	# A tick: the same rows, in the same order, the time left one second less.
+	quests.refill(_dispatch, 1_000_019, PackedInt64Array())
+	board.show_board(quests, _dispatch, 1_000_019)
+	assert_eq(_visible_rows(board), rows)
+	assert_same(rows[0].find_child("Meta", true, false), meta)
+	assert_eq(meta.text, "Rank F · 0:06 · 10 gold · leaves" + String.chr(0xA0) + "0:41")
+	# Moonherbs leaves: its row goes.
+	quests.refill(_dispatch, 1_000_060, PackedInt64Array())
+	board.show_board(quests, _dispatch, 1_000_060)
+	assert_eq(_visible_rows(board), rows.slice(1))
+
+
+func test_the_picker_drops_a_quest_that_left_the_board_and_keeps_one_still_on_it() -> void:
+	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
+	var left: Array[bool] = []
+	picker.quest_left.connect(func() -> void: left.append(true))
+	var quests := Board.new()
+	quests.reception_slots = 3
+	quests.refill(_dispatch, 1_000_000, PackedInt64Array())
+	picker.open("moonherbs", _dispatch, 1_000_000)
+	quests.refill(_dispatch, 1_000_059, PackedInt64Array())
+	picker.show_board(quests)
+	assert_true(picker.has_quest())
+	assert_true((picker.get_node("Root") as Control).visible)
+	assert_eq(left, [] as Array[bool])
+	# Moonherbs (F) leaves the board at 1_000_060: no Send, and the prompt for a quest.
+	quests.refill(_dispatch, 1_000_060, PackedInt64Array())
+	picker.show_board(quests)
+	assert_false(picker.has_quest())
+	assert_false((picker.get_node("Root") as Control).visible)
+	assert_true((picker.get_node("Prompt") as Control).visible)
+	assert_eq(left, [true] as Array[bool])
+	picker.show_board(quests)
+	assert_eq(left, [true] as Array[bool])

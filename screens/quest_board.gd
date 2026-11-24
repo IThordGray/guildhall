@@ -29,6 +29,9 @@ var _rows: Dictionary[String, Control] = {}
 ## only when a return or the Map room reveals one.
 var _chips: Dictionary[String, HFlowContainer] = {}
 var _unknown_shown: Dictionary[String, int] = {}
+## Each quest's rank, time and gold line, which ends with its time left on the board, so it
+## changes each second without rebuilding the row.
+var _meta: Dictionary[String, Label] = {}
 ## The board's slots shown, so the rows change only when the board does.
 var _shown: PackedStringArray = PackedStringArray()
 ## The one line under the quests for the empty slots: the soonest refill.
@@ -81,7 +84,9 @@ func _ready() -> void:
 		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		words.alignment = BoxContainer.ALIGNMENT_CENTER
 		words.add_child(_label(info["name"], &"Heading"))
-		words.add_child(_label("Rank %s · %s · %d gold" % [info["rank"], Duration.label(info["seconds"]), info["gold"]], &"Meta"))
+		_meta[quest] = _label("", &"Meta")
+		_meta[quest].name = "Meta"
+		words.add_child(_meta[quest])
 		var chips := HFlowContainer.new()
 		chips.theme_type_variation = &"Chips"
 		words.add_child(chips)
@@ -112,9 +117,9 @@ func set_landscape(landscape: bool) -> void:
 
 
 ## Shows what needs the player in `dispatch` (loot that found the stash full, and level-ups ready)
-## and the parties out at `now`, then the quests in `board`'s slots in order, and under them, while
-## a slot is empty, the soonest refill. An unknown challenge shows the time to its reveal while the
-## Map room is revealing it.
+## and the parties out at `now`, then the quests in `board`'s slots in order, each with the time
+## until it leaves the board, and under them, while a slot is empty, the soonest refill. An unknown
+## challenge shows the time to its reveal while the Map room is revealing it.
 func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 	_dispatch = dispatch
 	_parties_count.text = str(dispatch.outings.size())
@@ -137,6 +142,9 @@ func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
 	for quest: String in _shown:
 		if quest == "":
 			continue
+		var info: Dictionary = Dispatch.QUESTS[quest]
+		# A no-break space keeps the time left with "leaves" where the line wraps.
+		_meta[quest].text = "Rank %s · %s · %d gold · leaves%s%s" % [info["rank"], Duration.label(info["seconds"]), info["gold"], String.chr(0xA0), Duration.label(board.seconds_to_leave(quest, dispatch, now))]
 		var reveal := board.seconds_to_reveal(quest, dispatch, now)
 		for chip_shown: Label in _chips[quest].get_children():
 			if chip_shown.theme_type_variation == &"ChipUnknown":

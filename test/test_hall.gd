@@ -1007,11 +1007,13 @@ func test_a_save_from_before_guild_ranks_loads_unchanged_with_its_capacity_and_i
 	recruits.reception_slots = hall.reception("candidate_slots")
 	board.reception_slots = hall.reception("board_slots")
 	dispatch.adventurers.gear.stash_cap = hall.reception("stash")
+	# The save's three quests load; by the time it is loaded they have left the board, and their
+	# slots refill as usual.
+	assert_eq(board.filled(), 3)
 	recruits.refill(dispatch.adventurers, 2_000)
 	board.refill(dispatch, 2_000, PackedInt64Array())
 	assert_eq(recruits.candidates.size(), 2)
 	assert_eq(board.slots.size(), 3)
-	assert_eq(board.filled(), 3)
 	for i: int in 13:
 		assert_true(dispatch.adventurers.gear.stow("belt"), str(i))
 	assert_false(dispatch.adventurers.gear.stow("belt"))
