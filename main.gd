@@ -30,9 +30,6 @@ const SELL: String = "sell"
 const UPGRADE: String = "upgrade"
 ## What the confirmation sheet asks about when it confirms ranking the guild up.
 const RANK_UP: String = "rank_up"
-## The story quests the guild has finished, which story goals count: none can be yet, as no story
-## quest is on the board.
-const STORY_DONE: PackedStringArray = []
 ## Play-testing only: the speeds the Test speed control cycles through.
 const TEST_SPEEDS: Array[int] = [1, 10, 60]
 
@@ -285,9 +282,10 @@ func _checkpoint(now: int) -> void:
 	_needs_you_badge.visible = needs_you > 0
 	_walk_in_badge.visible = not _walk_ins.walk_in.is_empty()
 	_hall_view.show_state(_hall, _dispatch, _quest_board.filled(), now)
-	_hall_view.goals_card.show_goals(_goals, _dispatch, _hall, STORY_DONE, now)
-	_board.show_board(_quest_board, _dispatch, now, _goals.is_unlocked(Goals.AUTO))
-	_picker.show_board(_quest_board)
+	_hall_view.goals_card.show_goals(_goals, _dispatch, _hall, _dispatch.story_done, now)
+	var story := _dispatch.open_story_quests(_goals.unlocked)
+	_board.show_board(_quest_board, _dispatch, now, _goals.is_unlocked(Goals.AUTO), story)
+	_picker.show_board(_quest_board, story)
 	_roster.show_dispatch(_dispatch, now)
 	_roster.show_recruits(_recruits, _dispatch.adventurers, _gold, _hall.beds(now), _hall, now)
 	_roster.show_walk_in(_walk_ins.walk_in, _dispatch.adventurers.roster.size() < _hall.beds(now))
@@ -406,7 +404,7 @@ func _on_collect_pressed(slot: String) -> void:
 func _on_claim_pressed(goal: String, from: Vector2) -> void:
 	var now := _now()
 	_checkpoint(now)
-	var claimed := _goals.claim(goal, _dispatch, _hall, STORY_DONE, now)
+	var claimed := _goals.claim(goal, _dispatch, _hall, _dispatch.story_done, now)
 	_checkpoint(now)
 	if claimed:
 		_show_collected(Goals.GOALS[goal]["gold"], from)
@@ -472,12 +470,18 @@ func _on_send_pressed(quest: String) -> void:
 
 
 # The seed comes from the global generator; the outcome it fixes is rolled from the seed alone. The
-# outing, the last to leave, counts towards Goals' hand sends once it is home.
+# outing, the last to leave, counts towards Goals' hand sends once it is home. A story quest goes
+# while it is open, with no board slot.
 func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
 	# Auto sends due by now go first, and a Quest hall finished since the last tick adds its slot.
 	_checkpoint(now)
-	if _quest_board.send(_dispatch, quest, party, randi(), now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank):
+	var sent := false
+	if Dispatch.is_story(quest):
+		sent = quest in _dispatch.open_story_quests(_goals.unlocked) and _dispatch.send(quest, party, randi(), now, _hall.first_done_at("infirmary"))
+	else:
+		sent = _quest_board.send(_dispatch, quest, party, randi(), now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank)
+	if sent:
 		_goals.sent_by_hand(_dispatch.outings.back())
 		_close_picker()
 	_checkpoint(now)

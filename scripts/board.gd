@@ -271,21 +271,24 @@ func _fill_time(slot: int, top: String, guild_rank: String) -> int:
 
 
 # The quests neither on the board nor out at `time` that a guild of `guild_rank` whose
-# highest-ranked party is `top` can be offered: of a rank RANK_WEIGHTS weighs, and one that
-# party can take (Challenges.can_join). In Dispatch.QUESTS order.
+# highest-ranked party is `top` can be offered: no story quest (Dispatch.is_story), of a rank
+# RANK_WEIGHTS weighs, and one that party can take (Challenges.can_join). In Dispatch.QUESTS order.
 func _free(time: int, top: String, guild_rank: String) -> PackedStringArray:
 	var free := PackedStringArray()
 	for quest: String in Dispatch.QUESTS:
 		var rank: String = Dispatch.QUESTS[quest]["rank"]
-		if quest not in slots and back_at.get(quest, 0) <= time and _weight_index(rank, guild_rank) != -1 and Challenges.can_join(top, rank):
+		if not Dispatch.is_story(quest) and quest not in slots and back_at.get(quest, 0) <= time and _weight_index(rank, guild_rank) != -1 and Challenges.can_join(top, rank):
 			free.append(quest)
 	return free
 
 
 ## The chance that a slot filling for `adventurers`' guild, of `guild_rank`, draws `quest` while
 ## every quest is free: its rank's share of RANK_WEIGHTS among the ranks offered, split evenly among
-## that rank's quests (as `_pick` draws). 0 for a quest the board doesn't offer the guild.
+## that rank's quests (as `_pick` draws). 0 for a quest the board doesn't offer the guild, a story
+## quest among them.
 static func draw_chance(quest: String, adventurers: Adventurers, guild_rank: String) -> float:
+	if Dispatch.is_story(quest):
+		return 0.0
 	var top := _top_rank(adventurers)
 	var rank: String = Dispatch.QUESTS[quest]["rank"]
 	var weights := {}
@@ -293,7 +296,7 @@ static func draw_chance(quest: String, adventurers: Adventurers, guild_rank: Str
 	for each: String in Dispatch.QUESTS:
 		var each_rank: String = Dispatch.QUESTS[each]["rank"]
 		var index := _weight_index(each_rank, guild_rank)
-		if index != -1 and Challenges.can_join(top, each_rank):
+		if not Dispatch.is_story(each) and index != -1 and Challenges.can_join(top, each_rank):
 			weights[each_rank] = RANK_WEIGHTS[index]
 			same_rank += 1 if each_rank == rank else 0
 	if same_rank == 0:

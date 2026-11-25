@@ -86,6 +86,8 @@ func test_the_pool_has_7_f_6_e_and_5_d_quests_longer_and_richer_by_rank_each_pay
 	var least_gold := {}
 	var most_gold := {}
 	for quest: String in Dispatch.QUESTS:
+		if Dispatch.is_story(quest):
+			continue
 		var info: Dictionary = Dispatch.QUESTS[quest]
 		var rank: String = info["rank"]
 		count[rank] += 1
@@ -124,6 +126,8 @@ func test_the_four_starters_have_good_odds_on_every_f_quest_fair_odds_together_o
 	assert_eq(_pairs().size(), 6)
 	var checked := {"F": 0, "E": 0, "D": 0}
 	for quest: String in Dispatch.QUESTS:
+		if Dispatch.is_story(quest):
+			continue
 		var together := dispatch.success_chance(quest, all_four)
 		var pair_chances: Array[int] = []
 		for pair: PackedStringArray in _pairs():
@@ -1115,6 +1119,8 @@ func test_a_success_pays_each_quests_new_gold() -> void:
 	var expected := {"rats": 3, "well": 5, "letters": 7, "spiders": 7, "cartographer": 8, "mouth": 8, "moonherbs": 10, "wolves": 22, "sealed_door": 25, "lurker": 30, "crypt": 33, "pilgrims": 38, "goblins": 42, "maze": 87, "chapel": 100, "minotaur": 113, "envoy": 125, "vault": 150}
 	var paid := {}
 	for quest: String in Dispatch.QUESTS:
+		if Dispatch.is_story(quest):
+			continue
 		var dispatch := _guild(1_000)
 		for adventurer: String in PARTY:
 			dispatch.adventurers.roster[adventurer]["rank"] = "E"
@@ -1130,6 +1136,8 @@ func test_each_quest_takes_its_own_seconds_and_a_success_gives_its_party_its_own
 	var took := {}
 	var gave := {}
 	for quest: String in Dispatch.QUESTS:
+		if Dispatch.is_story(quest):
+			continue
 		var dispatch := _guild(1_000)
 		# Alone, so his share is the whole; rank E, so rank D quests take him.
 		dispatch.adventurers.roster["bram"]["rank"] = "E"
@@ -1413,6 +1421,8 @@ const STARTING_UNKNOWN: Dictionary = {
 func _unknown(dispatch: Dispatch) -> Dictionary:
 	var unknown := {}
 	for quest: String in Dispatch.QUESTS:
+		if Dispatch.is_story(quest):
+			continue
 		unknown[quest] = Array(dispatch.unknown_challenges(quest))
 	return unknown
 
@@ -1796,7 +1806,7 @@ func test_in_a_new_game_bram_and_tobin_together_have_at_least_80_on_every_rank_f
 	assert_eq(pair, PackedStringArray(["bram", "tobin"]))
 	var checked := 0
 	for quest: String in Dispatch.QUESTS:
-		if Dispatch.QUESTS[quest]["rank"] != "F":
+		if Dispatch.QUESTS[quest]["rank"] != "F" or Dispatch.is_story(quest):
 			continue
 		checked += 1
 		assert_gte(dispatch.success_chance(quest, pair), 80, quest)

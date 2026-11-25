@@ -26,8 +26,13 @@ layout_mode = 2
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Title" type="Label" parent="Root/Quest/Box"]
+[node name="Heading" type="HBoxContainer" parent="Root/Quest/Box"]
 layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Root/Quest/Box/Heading"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_type_variation = &"Heading"
 text = "Wolves at the mill"
 autowrap_mode = 3
@@ -36,6 +41,12 @@ autowrap_mode = 3
 layout_mode = 2
 theme_type_variation = &"MetaSmall"
 text = "E · 0:10 · 22g · fail 0g"
+
+[node name="StoryLine" type="Label" parent="Root/Quest/Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "Story quest · stays until done"
 
 [node name="Coverage" type="HFlowContainer" parent="Root/Quest/Box"]
 layout_mode = 2

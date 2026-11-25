@@ -1,6 +1,22 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://screens/quest_board.gd" id="1_board"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_story"]
+content_margin_left = 36.0
+content_margin_top = 30.0
+content_margin_right = 36.0
+content_margin_bottom = 30.0
+bg_color = Color(0.1294, 0.1137, 0.1569, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.949, 0.7569, 0.3059, 0.55)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
 
 [node name="QuestBoard" type="Control"]
 layout_mode = 3
@@ -92,6 +108,18 @@ text = "PARTIES"
 visible = false
 layout_mode = 2
 theme_type_variation = &"RowList"
+
+[node name="StorySection" type="Label" parent="Scroll/Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"SectionGold"
+text = "STORY"
+
+[node name="StoryList" type="VBoxContainer" parent="Scroll/Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"RowList"
+theme_override_styles/panel = SubResource("StyleBoxFlat_story")
 
 [node name="BoardHeader" type="HBoxContainer" parent="Scroll/Box"]
 layout_mode = 2

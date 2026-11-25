@@ -340,3 +340,80 @@ func test_while_auto_is_locked_a_partys_auto_switch_and_mode_are_hidden_and_it_s
 	assert_true(switch.button_pressed)
 	assert_true(mode.is_visible_in_tree())
 	assert_eq(mode.text, "Auto · Safe")
+
+
+# The text of every label in `node` shown on screen, in tree order.
+func _shown_texts(node: Node) -> Array[String]:
+	var texts: Array[String] = []
+	for label: Node in node.find_children("*", "Label", true, false):
+		if (label as Label).is_visible_in_tree():
+			texts.append((label as Label).text)
+	return texts
+
+
+func test_the_story_band_shows_an_open_story_quest_above_the_board_with_its_tag_meta_and_known_challenges_and_hides_with_none() -> void:
+	var board := _screen("res://screens/quest_board.tscn") as QuestBoard
+	var quests := Board.new()
+	quests.refill(_dispatch, 1_000, PackedInt64Array())
+	board.show_board(quests, _dispatch, 1_000)
+	var section := board.get_node("Scroll/Box/StorySection") as Control
+	var band := board.get_node("Scroll/Box/StoryList") as Control
+	assert_false(section.is_visible_in_tree())
+	assert_false(band.is_visible_in_tree())
+	assert_true((board.get_node("Scroll/Box/List") as Control).is_visible_in_tree())
+	board.show_board(quests, _dispatch, 1_000, true, PackedStringArray(["sealed_gate"]))
+	assert_true(section.is_visible_in_tree())
+	assert_true(band.is_visible_in_tree())
+	assert_lt(band.get_index(), board.get_node("Scroll/Box/BoardHeader").get_index())
+	assert_eq(_shown_texts(band), ["The sealed gate", "Story", "F · 0:10 · 30g · stays until done", "Curse", "Traps", "Send ›"] as Array[String])
+	assert_does_not_have(_texts(board.get_node("Scroll/Box/List")), "The sealed gate")
+	board.show_board(quests, _dispatch, 1_000, true, PackedStringArray())
+	assert_false(section.is_visible_in_tree())
+	assert_false(band.is_visible_in_tree())
+
+
+func test_a_tap_on_the_story_row_asks_to_send_a_party_on_it() -> void:
+	var board := _screen("res://screens/quest_board.tscn") as QuestBoard
+	board.show_board(Board.new(), _dispatch, 1_000, true, PackedStringArray(["sealed_gate"]))
+	var asked: Array[String] = []
+	board.send_pressed.connect(asked.append)
+	await wait_process_frames(1)
+	_tap(_middle_of(board.get_node("Scroll/Box/StoryList").get_child(0) as Control))
+	assert_eq(asked, ["sealed_gate"] as Array[String])
+
+
+func test_while_a_party_is_out_on_the_story_quest_its_row_shows_the_party_and_time_left_in_place_of_send_until_it_is_back() -> void:
+	var board := _screen("res://screens/quest_board.tscn") as QuestBoard
+	var party: Dictionary = _dispatch.adventurers.parties.parties[0]
+	assert_true(_dispatch.send("sealed_gate", party["members"], 1, 1_000))
+	board.show_board(Board.new(), _dispatch, 1_004, true, PackedStringArray(["sealed_gate"]))
+	var band := board.get_node("Scroll/Box/StoryList") as Control
+	assert_eq(_shown_texts(band), ["The sealed gate", "Story", party["name"], "0:06"] as Array[String])
+	# Back from a failure, it is offered again.
+	_dispatch.outings[0]["chance"] = 0
+	_dispatch.checkpoint(1_010)
+	board.show_board(Board.new(), _dispatch, 1_010, true, PackedStringArray(["sealed_gate"]))
+	assert_eq(_shown_texts(band), ["The sealed gate", "Story", "F · 0:10 · 30g · stays until done", "Curse", "Traps", "Send ›"] as Array[String])
+
+
+func test_the_picker_on_a_story_quest_shows_its_tag_its_stays_until_done_line_and_every_challenge_known_and_on_a_board_quest_neither() -> void:
+	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
+	picker.open("sealed_gate", _dispatch, 1_000)
+	var card := picker.get_node("Root/Quest")
+	assert_eq(_shown_texts(card).slice(0, 6), ["The sealed gate", "Story", "F · 0:10 · 30g · fail 0g", "Story quest · stays until done", "Curse", "Traps"] as Array[String])
+	assert_does_not_have(_shown_texts(card), "?")
+	picker.open("mouth", _dispatch, 1_000)
+	assert_eq(_shown_texts(card).slice(0, 4), ["Chart the labyrinth's mouth", "F · 0:05 · 8g · fail 0g", "Traps", "?"] as Array[String])
+
+
+func test_the_picker_keeps_a_story_quest_while_it_is_open_and_drops_it_once_it_is_not() -> void:
+	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
+	var left: Array[bool] = []
+	picker.quest_left.connect(func() -> void: left.append(true))
+	picker.open("sealed_gate", _dispatch, 1_000)
+	picker.show_board(Board.new(), PackedStringArray(["sealed_gate"]))
+	assert_true(picker.has_quest())
+	assert_eq(left, [] as Array[bool])
+	picker.show_board(Board.new(), PackedStringArray())
+	assert_false(picker.has_quest())
+	assert_eq(left, [true] as Array[bool])

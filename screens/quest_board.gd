@@ -32,6 +32,8 @@ const KNOB_INSET_PX: float = 7.0
 const AUTO_COLUMN_PX: float = 150.0
 ## The space between a row's faces or icon, its words and what is on its right.
 const ROW_GAP_PX: int = 28
+## How strongly the Story tag's border shows its gold.
+const STORY_BORDER_ALPHA: float = 0.55
 
 ## What each adventurer wears, Gear.worn itself, so a token shows it; main sets it when a game opens.
 static var worn: Dictionary[String, Dictionary] = {}
@@ -39,6 +41,8 @@ static var worn: Dictionary[String, Dictionary] = {}
 static var _looks: Dictionary[int, Look] = {}
 
 var _rows: Dictionary[String, Control] = {}
+## Each story quest's row in the Story band, by its id, and its parts that change.
+var _story_rows: Dictionary[String, StoryRow] = {}
 ## Each quest's meta line followed by its challenge pills, and how many of them were unknown when
 ## last shown, so the pills change only when a return or the Map room reveals one.
 var _chips: Dictionary[String, HFlowContainer] = {}
@@ -60,6 +64,8 @@ var _deciding: int = -1
 var _dispatch: Dispatch
 var _board: Board
 var _now: int = 0
+## The open story quests last shown.
+var _story: PackedStringArray = PackedStringArray()
 ## Whether the guild has unlocked Auto (Goals.AUTO), as last shown: until it has, no party row shows
 ## its Auto switch or mode, and a party saved with Auto on shows as home.
 var _auto_unlocked: bool = true
@@ -78,6 +84,8 @@ var _landscape: bool = false
 @onready var _parties_section: Control = $Scroll/Box/PartiesSection
 @onready var _party_list: VBoxContainer = $Scroll/Box/PartyList
 @onready var _list: VBoxContainer = $Scroll/Box/List
+@onready var _story_section: Control = $Scroll/Box/StorySection
+@onready var _story_list: VBoxContainer = $Scroll/Box/StoryList
 ## The one line for the empty slots, beside the board's section label: the soonest refill.
 @onready var _refill: Label = $Scroll/Box/BoardHeader/Refill
 @onready var _parties: Control = $Scroll/Box/Header/Parties
@@ -103,6 +111,17 @@ class PartyRow extends RefCounted:
 	var mode: Button
 
 
+## A story quest's row: the whole row, and what shows while it is home or while a party is out on
+## it: Send and its meta and challenges, or the party with a bar and the time left.
+class StoryRow extends RefCounted:
+	var row: Control
+	var send: Label
+	var out: HBoxContainer
+	var party: Label
+	var bar: ProgressBar
+	var time: Label
+
+
 ## Someone's figure and face as they look in `items`, what they wore when the textures were drawn.
 ## A change of items redraws the same textures, so every token and figure showing them changes at
 ## once.
@@ -115,7 +134,7 @@ class Look extends RefCounted:
 
 
 func _ready() -> void:
-	for list: VBoxContainer in [_needs_you, _party_list, _list]:
+	for list: VBoxContainer in [_needs_you, _party_list, _story_list, _list]:
 		list.draw.connect(draw_card.bind(list))
 		# Rows moving inside the list move the lines between them.
 		list.sort_children.connect(list.queue_redraw)
@@ -131,6 +150,10 @@ func _ready() -> void:
 		_chips[quest] = chips
 		var words := VBoxContainer.new()
 		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if Dispatch.is_story(quest):
+			_story_rows[quest] = _story_row(quest, words)
+			_story_list.add_child(_story_rows[quest].row)
+			continue
 		words.add_child(one_line(Dispatch.QUESTS[quest]["name"], &"RowTitle"))
 		words.add_child(chips)
 		var more := _label("›", &"Secondary")
@@ -157,23 +180,32 @@ func set_landscape(landscape: bool) -> void:
 	for id: String in _party_rows:
 		_place_parts(_party_rows[id])
 	if _board != null:
-		show_board(_board, _dispatch, _now, _auto_unlocked)
+		show_board(_board, _dispatch, _now, _auto_unlocked, _story)
 
 
 ## Shows what needs the player in `dispatch` (loot that found the stash full, and level-ups ready)
-## and every party with where it is at `now` and its Auto, then the quests in `board`'s slots in
-## order, each with the time until it leaves the board, and beside the board's label, while a slot
-## is empty, the soonest refill. An unknown challenge shows the time to its reveal while the Map room is revealing it.
-## Each party's Auto shows only once the guild has `auto_unlocked` it.
-func show_board(board: Board, dispatch: Dispatch, now: int, auto_unlocked: bool = true) -> void:
+## and every party with where it is at `now` and its Auto, then the open story quests in `story`
+## (Dispatch.open_story_quests) in a Story band, hidden with none, then the quests in `board`'s
+## slots in order, each with the time until it leaves the board, and beside the board's label,
+## while a slot is empty, the soonest refill. An unknown challenge shows the time to its reveal
+## while the Map room is revealing it. Each party's Auto shows only once the guild has
+## `auto_unlocked` it.
+func show_board(board: Board, dispatch: Dispatch, now: int, auto_unlocked: bool = true, story: PackedStringArray = PackedStringArray()) -> void:
 	_dispatch = dispatch
 	_board = board
 	_now = now
 	_auto_unlocked = auto_unlocked
+	_story = story
 	_parties_count.text = str(dispatch.outings.size())
 	_show_needs_you(dispatch)
 	_show_parties(dispatch, now)
 	_show_challenges(dispatch)
+	_story_section.visible = not story.is_empty()
+	_story_list.visible = _story_section.visible
+	for quest: String in _story_rows:
+		_story_rows[quest].row.visible = quest in story
+		if quest in story:
+			_show_story(quest, dispatch, now)
 	if board.slots != _shown:
 		_shown = board.slots.duplicate()
 		for quest: String in _rows:
@@ -199,6 +231,92 @@ func show_board(board: Board, dispatch: Dispatch, now: int, auto_unlocked: bool 
 		for chip_shown: Label in _chips[quest].get_children():
 			if chip_shown.theme_type_variation == &"PillUnknown":
 				chip_shown.text = "? · " + Duration.label(reveal) if reveal > 0 else "?"
+
+
+# The row of story quest `quest` with `words`, which holds nothing yet: its name and Story tag over
+# its meta line and challenges, `_chips`, or the party out on it; Send at its right. A tap anywhere
+# on it asks to send a party, as a board row does.
+func _story_row(quest: String, words: VBoxContainer) -> StoryRow:
+	var parts := StoryRow.new()
+	var title := _label(Dispatch.QUESTS[quest]["name"], &"RowTitle")
+	title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 16)
+	top.add_child(title)
+	top.add_child(story_tag(self))
+	top.add_child(gap)
+	parts.party = one_line("", &"Caption")
+	parts.party.size_flags_stretch_ratio = 2.0
+	parts.bar = ProgressBar.new()
+	parts.bar.theme_type_variation = &"GoldBar"
+	parts.bar.show_percentage = false
+	parts.bar.step = 1.0
+	parts.bar.custom_minimum_size = Vector2(0, PARTY_BAR_PX)
+	parts.bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parts.bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	parts.time = _label("", &"Numbers")
+	parts.time.autowrap_mode = TextServer.AUTOWRAP_OFF
+	parts.time.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	parts.out = HBoxContainer.new()
+	parts.out.add_theme_constant_override("separation", 16)
+	parts.out.add_child(parts.party)
+	parts.out.add_child(parts.bar)
+	parts.out.add_child(parts.time)
+	words.add_child(top)
+	words.add_child(_chips[quest])
+	words.add_child(parts.out)
+	parts.send = _label("Send ›", &"GoldText")
+	parts.send.autowrap_mode = TextServer.AUTOWRAP_OFF
+	parts.send.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", ROW_GAP_PX)
+	line.add_child(words)
+	line.add_child(parts.send)
+	var row := PanelContainer.new()
+	row.theme_type_variation = &"CardRow"
+	row.add_child(line)
+	parts.row = _tap_row(row, send_pressed.emit.bind(quest))
+	return parts
+
+
+# Shows story quest `quest`'s row at `now`: while home, Send and its meta line, which says it stays
+# until done; while a party is out on it, that party with a bar and the time left, as its party row
+# shows it.
+func _show_story(quest: String, dispatch: Dispatch, now: int) -> void:
+	var parts := _story_rows[quest]
+	var outing := {}
+	for each: Dictionary in dispatch.outings:
+		if each["quest"] == quest:
+			outing = each
+	parts.out.visible = not outing.is_empty()
+	parts.send.visible = outing.is_empty()
+	_chips[quest].visible = outing.is_empty()
+	if outing.is_empty():
+		var info: Dictionary = Dispatch.QUESTS[quest]
+		_meta[quest].text = "%s · %s · %dg · stays until done" % [info["rank"], Duration.label(info["seconds"]), info["gold"]]
+		return
+	parts.party.text = dispatch.adventurers.parties.party(outing.get("party_id", "")).get("name", "")
+	var from: int = outing["since"]
+	var to := dispatch.back_at(outing)
+	var left := dispatch.seconds_left(outing, now)
+	parts.bar.max_value = to - from
+	parts.bar.value = to - from - left
+	parts.time.text = Duration.label(left)
+
+
+## A gold-outlined "Story" tag, from `themed`'s theme: a Pill with a gold border and words.
+static func story_tag(themed: Control) -> Label:
+	# The Pill's outline, which it takes from Chip: a lookup by type doesn't follow a variation's base.
+	var style := (themed.get_theme_stylebox(&"normal", &"Chip") as StyleBoxFlat).duplicate() as StyleBoxFlat
+	var gold := themed.get_theme_color(&"font_color", &"GoldText")
+	style.border_color = Color(gold, STORY_BORDER_ALPHA)
+	var tag := chip("Story", &"Pill")
+	tag.add_theme_stylebox_override(&"normal", style)
+	tag.add_theme_color_override(&"font_color", gold)
+	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return tag
 
 
 ## A round token: the face of `who` in what they wear when they are in `roster`

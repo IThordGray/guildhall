@@ -7,7 +7,10 @@ extends RefCounted
 ## difficulties are tuned so a new game's Bram and Tobin together have at least 80% on every rank F
 ## quest and each alone 45–75%; the four starters have fair odds together on rank E and little
 ## hope on rank D. Gold is a stand-in too, kept small next to what the guild can spend so a quest's
-## reward matters. "xp" is the XP the whole party shares on a success.
+## reward matters. "xp" is the XP the whole party shares on a success. A quest with "story" true is a
+## story quest: the board never offers it; it is open once Goals unlocks its id, until a party comes
+## home from it successfully (`story_done`), and every challenge of it is known. "reputation", where
+## a quest has it, is what a success earns in place of REPUTATION for its rank.
 const QUESTS: Dictionary[String, Dictionary] = {
 	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 2, "gold": 3, "xp": 4, "difficulty": 11, "challenges": ["Brute force"]},
 	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 3, "gold": 5, "xp": 5, "difficulty": 0, "challenges": ["Curse"]},
@@ -27,6 +30,8 @@ const QUESTS: Dictionary[String, Dictionary] = {
 	"minotaur": {"name": "Slay the minotaur of the third ring", "rank": "D", "seconds": 40, "gold": 113, "xp": 67, "difficulty": 70, "challenges": ["Brute force", "Attrition"]},
 	"envoy": {"name": "Escort the envoy to the deep market", "rank": "D", "seconds": 50, "gold": 125, "xp": 83, "difficulty": 91, "challenges": ["Protect", "Negotiation", "Navigation"]},
 	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 60, "gold": 150, "xp": 100, "difficulty": 83, "challenges": ["Curse", "Traps", "Protect"]},
+	# A new game's Bram and Tobin, at level 1 in their starting gear, have about 60%.
+	"sealed_gate": {"name": "The sealed gate", "rank": "F", "seconds": 10, "gold": 30, "xp": 15, "difficulty": 17, "challenges": ["Curse", "Traps"], "story": true, "reputation": 3},
 }
 const MAX_PARTY_SIZE: int = 4
 ## How long an injury lasts, counted from the moment the party returns.
@@ -82,6 +87,8 @@ var adventurers: Adventurers = Adventurers.new()
 ## seconds they came home}. Their health at home is computed from it; anyone missing is at full
 ## health.
 var wounds: Dictionary[String, Dictionary] = {}
+## The story quests a party has come home from successfully, each once, in the order they were.
+var story_done: PackedStringArray = PackedStringArray()
 ## Quests whose unknown challenges a returning party has made known, for good.
 var revealed: PackedStringArray = PackedStringArray()
 ## Unix seconds each adventurer in training started their stint at. Their XP from it is computed
@@ -161,12 +168,28 @@ func try_points(quest_id: String) -> int:
 
 
 ## The challenges of `quest_id` the player doesn't know yet. A quest's last challenge starts
-## unknown, unless it is its only one; a party back from the quest makes them known for good.
+## unknown, unless it is its only one or the quest is a story quest; a party back from the quest
+## makes them known for good.
 func unknown_challenges(quest_id: String) -> PackedStringArray:
 	var challenges: Array = QUESTS[quest_id]["challenges"]
-	if quest_id in revealed or challenges.size() < 2:
+	if quest_id in revealed or challenges.size() < 2 or is_story(quest_id):
 		return PackedStringArray()
 	return PackedStringArray([challenges[-1]])
+
+
+## True when `quest_id` is a story quest (QUESTS "story").
+static func is_story(quest_id: String) -> bool:
+	return QUESTS[quest_id].get("story", false)
+
+
+## The story quests open to a guild whose goals have unlocked the ids in `unlocked` (Goals.unlocked),
+## in QUESTS order: each unlocked and not done, whether or not a party is out on it.
+func open_story_quests(unlocked: PackedStringArray) -> PackedStringArray:
+	var open := PackedStringArray()
+	for quest: String in QUESTS:
+		if is_story(quest) and quest in unlocked and quest not in story_done:
+			open.append(quest)
+	return open
 
 
 ## The gold `_quest_id` brings when it fails: none, so failing costs something.
@@ -451,8 +474,14 @@ func dismiss(adventurer: String) -> bool:
 ## Why `party` can't be sent on `quest_id` at `now`, in words for the player; "" when it can.
 ## However many parties are out, a party goes whole or not at all: `party` must be exactly one
 ## party's members, each home and well, and the party's rank (Parties.rank) must allow the quest
-## (Challenges.can_join). Reserves never go.
+## (Challenges.can_join). Reserves never go. A story quest goes once at a time and never once done.
 func party_refusal(quest_id: String, party: PackedStringArray, now: int) -> String:
+	if is_story(quest_id):
+		if quest_id in story_done:
+			return "Already done"
+		for outing: Dictionary in outings:
+			if outing["quest"] == quest_id:
+				return "A party is out on it"
 	var id := party_id_of(party)
 	if id.is_empty():
 		return "Pick a party"
@@ -479,7 +508,8 @@ func party_id_of(party: PackedStringArray) -> String:
 
 
 ## Sends `party` on `quest_id` at `now`, its outcome fixed by `roll_seed`; false, with nothing
-## started, when `party_refusal` gives a reason. Which quests can be sent is Board's rule.
+## started, when `party_refusal` gives a reason. Which board quests can be sent is Board's rule;
+## which story quests, `open_story_quests`.
 ## `infirmary_from` is as for `checkpoint`.
 func send(quest_id: String, party: PackedStringArray, roll_seed: int, now: int, infirmary_from: int = -1) -> bool:
 	checkpoint(now, infirmary_from)
@@ -511,7 +541,7 @@ func returned_since_checkpoint(now: int) -> bool:
 ## Stows the loot waiting, oldest first, as far as the stash has room, freeing its parties. Then
 ## brings every returned party home, once, in the order they returned: gives each member damage and
 ## XP and, on a success, counts it for them (Adventurers.successes), gives the guild its reputation
-## (REPUTATION), injures those it leaves under a
+## (REPUTATION, or the quest's own) and marks a story quest done, injures those it leaves under a
 ## quarter of their health, reveals the quest's challenges, puts the gold it earned into `gold` and
 ## its loot into the stash, where loot that finds it full waits (`waiting_loot`). Debriefs a save from before held unread are paid first, the same way.
 ## `infirmary_from` is the unix seconds the first Infirmary is finished at, -1 for none: from then
@@ -590,7 +620,9 @@ func _bring_home(outing: Dictionary) -> void:
 			if success:
 				adventurers.add_successes(adventurer, quest["rank"], 1)
 	gold.amount += reward
-	reputation = maxi(0, reputation + (REPUTATION[quest["rank"]] if success else -FAILURE_REPUTATION))
+	reputation = maxi(0, reputation + (int(quest.get("reputation", REPUTATION[quest["rank"]])) if success else -FAILURE_REPUTATION))
+	if success and is_story(outing["quest"]) and outing["quest"] not in story_done:
+		story_done.append(outing["quest"])
 	# Loot comes whatever the outcome, from the seed the party left with.
 	var item := Gear.loot(outing["seed"], quest["rank"], luck)
 	if not item.is_empty():
@@ -633,6 +665,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("dispatch", "waiting_loot", waiting_loot)
 	file.set_value("dispatch", "wounds", wounds)
 	file.set_value("dispatch", "revealed", revealed)
+	file.set_value("dispatch", "story_done", story_done)
 	file.set_value("dispatch", "training", training)
 	file.set_value("dispatch", "trained_seconds", trained_seconds)
 	file.set_value("dispatch", "tries", tries)
@@ -671,6 +704,8 @@ static func load_or_start(path: String, now: int) -> Dispatch:
 	dispatch.wounds.assign(file.get_value("dispatch", "wounds", {}))
 	# A save from before challenges were known knows what every new guild knows.
 	dispatch.revealed = file.get_value("dispatch", "revealed", PackedStringArray())
+	# A save from before story quests has finished none.
+	dispatch.story_done = file.get_value("dispatch", "story_done", PackedStringArray())
 	# A save from before training has nobody training and nobody trained.
 	dispatch.training.assign(file.get_value("dispatch", "training", {}))
 	dispatch.trained_seconds.assign(file.get_value("dispatch", "trained_seconds", {}))

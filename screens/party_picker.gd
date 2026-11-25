@@ -41,9 +41,14 @@ var _now: int = 0
 ## The quest's unknown challenges the pills were last built with, so a reveal while the picker is
 ## open shows at once and nothing else rebuilds them.
 var _forecast_unknown: PackedStringArray = PackedStringArray()
+## The Story tag beside a story quest's name.
+var _story_tag: Label
 
-@onready var _title: Label = $Root/Quest/Box/Title
+@onready var _heading: HBoxContainer = $Root/Quest/Box/Heading
+@onready var _title: Label = $Root/Quest/Box/Heading/Title
 @onready var _meta: Label = $Root/Quest/Box/Meta
+## Under the meta line of a story quest, which stays until done.
+@onready var _story_line: Label = $Root/Quest/Box/StoryLine
 @onready var _coverage: HFlowContainer = $Root/Quest/Box/Coverage
 @onready var _slots: HBoxContainer = $Root/Quest/Box/Party/Slots
 @onready var _odds: Label = $Root/Quest/Box/Party/Chance/Line/Odds
@@ -64,6 +69,8 @@ func _ready() -> void:
 	_list.draw.connect(QuestBoard.draw_card.bind(_list))
 	# Rows moving inside the list move the lines between them.
 	_list.sort_children.connect(_list.queue_redraw)
+	_story_tag = QuestBoard.story_tag(self)
+	_heading.add_child(_story_tag)
 
 
 ## Landscape docks the picker beside the board, where Cancel drops the quest; portrait makes it a
@@ -162,14 +169,16 @@ func close() -> void:
 	_prompt.show()
 
 
-## Drops the quest picked once `board` no longer shows it, since it can't be sent.
-func show_board(board: Board) -> void:
-	if has_quest() and not board.slots.has(_quest):
+## Drops the quest picked once neither `board` shows it nor it is among the open story quests in
+## `story` (Dispatch.open_story_quests), since it can't be sent.
+func show_board(board: Board, story: PackedStringArray = PackedStringArray()) -> void:
+	if has_quest() and not board.slots.has(_quest) and not story.has(_quest):
 		close()
 		quest_left.emit()
 
 
-## Opens the picker for `quest` with no party picked.
+## Opens the picker for `quest` with no party picked; a story quest with its Story tag and a line
+## saying it stays until done.
 func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	_quest = quest
 	_prompt.hide()
@@ -179,6 +188,8 @@ func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	var info: Dictionary = Dispatch.QUESTS[quest]
 	_title.text = info["name"]
 	_meta.text = "%s · %s · %dg · fail %dg" % [info["rank"], Duration.label(info["seconds"]), info["gold"], Dispatch.failure_gold(quest)]
+	_story_tag.visible = Dispatch.is_story(quest)
+	_story_line.visible = _story_tag.visible
 	_dispatch = dispatch
 	# Every row's range is the new quest's.
 	_looks_shown.clear()
