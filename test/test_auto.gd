@@ -563,3 +563,36 @@ func test_a_clock_set_back_after_a_long_absence_never_removes_progress_nor_settl
 	for back: int in [end - 1, end - Auto.REPLAY_SECONDS - 1, 1_000]:
 		Auto.checkpoint(_dispatch, board, back, PackedInt64Array(), 2_800, 1_600)
 		assert_eq(_saved(board), after, str(back))
+
+
+func test_with_auto_locked_a_party_saved_with_auto_on_is_never_sent_and_once_unlocked_it_goes_as_before() -> void:
+	var board := _board(["well", "moonherbs"], 1_000)
+	_auto(_first)
+	_auto(_second, Parties.BOLD)
+	for at: int in [1_000, 1_001, 1_030]:
+		Auto.checkpoint(_dispatch, board, at, PackedInt64Array(), -1, -1, Hall.STARTING_RANK, false)
+	assert_eq(_out(_first), [])
+	assert_eq(_out(_second), [])
+	assert_eq(board.slots, PackedStringArray(["well", "moonherbs"]))
+	# Unlocked at the same check: the same parties go at once, as they would have all along.
+	Auto.checkpoint(_dispatch, board, 1_030, PackedInt64Array(), -1, -1, Hall.STARTING_RANK, true)
+	assert_eq(_out(_first), ["well", 1_030])
+	assert_eq(_out(_second), ["moonherbs", 1_030])
+
+
+func test_with_auto_locked_a_long_absence_averages_nothing_for_a_party_saved_with_auto_on_and_once_unlocked_it_does() -> void:
+	_auto(_second)
+	_dispatch.adventurers.gear.stash_cap = 5_000
+	var end := 1_000 + 86_400 + Auto.REPLAY_SECONDS
+	Auto.checkpoint(_dispatch, _new_board(1_000), end, PackedInt64Array(), -1, -1, Hall.STARTING_RANK, false)
+	assert_eq(_quests_done(), 0)
+	assert_eq(_dispatch.gold.amount, 0)
+	assert_eq(_dispatch.adventurers.xp["ilse"], 0)
+	assert_eq(_out(_second), [])
+	# The same absence, unlocked, keeps Ilse and Maren busy on the well.
+	before_each()
+	_auto(_second)
+	_dispatch.adventurers.gear.stash_cap = 5_000
+	Auto.checkpoint(_dispatch, _new_board(1_000), end, PackedInt64Array(), -1, -1, Hall.STARTING_RANK, true)
+	assert_gt(_quests_done(), 100)
+	assert_gt(_dispatch.gold.amount, 0)

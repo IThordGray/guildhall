@@ -39,6 +39,7 @@ var _dispatch: Dispatch
 var _quest_board: Board
 var _recruits: Recruits
 var _walk_ins: WalkIns
+var _goals: Goals
 ## The slot the Give it a job screen is open for.
 var _chosen_slot: String = ""
 ## What the confirmation sheet asks about: the damaged slot to restore, Hall.EXTENSION, UPGRADE,
@@ -204,6 +205,7 @@ func _open_game() -> void:
 	_quest_board = Board.load_or_start(SAVE_PATH)
 	_recruits = Recruits.load_or_start(SAVE_PATH)
 	_walk_ins = WalkIns.load_or_start(SAVE_PATH)
+	_goals = Goals.load_or_start(SAVE_PATH)
 	# What the Reception gives the guild depends on the hall the save holds; the stash's size
 	# follows the hall at each checkpoint.
 	_quest_board.reception_slots = _hall.reception("board_slots")
@@ -255,7 +257,8 @@ func _on_tick() -> void:
 func _checkpoint(now: int) -> void:
 	_hall.checkpoint(now)
 	_dispatch.adventurers.gear.stash_cap = _hall.stash_cap(now)
-	Auto.checkpoint(_dispatch, _quest_board, now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank)
+	Auto.checkpoint(_dispatch, _quest_board, now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank, _goals.is_unlocked(Goals.AUTO))
+	_goals.count_home(_dispatch)
 	_recruits.refill(_dispatch.adventurers, now, _rooms_done("common_room"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1))
 	_walk_ins.refill(_dispatch.adventurers, _recruits, now, _hall.ranked_at.get("E", -1))
 	var file := ConfigFile.new()
@@ -266,6 +269,7 @@ func _checkpoint(now: int) -> void:
 	_quest_board.write(file)
 	_recruits.write(file)
 	_walk_ins.write(file)
+	_goals.write(file)
 	if file.save(SAVE_PATH) != OK:
 		push_error("Could not save to " + SAVE_PATH)
 	_gold_label.text = str(_gold.amount)
@@ -276,7 +280,7 @@ func _checkpoint(now: int) -> void:
 	_needs_you_badge.visible = needs_you > 0
 	_walk_in_badge.visible = not _walk_ins.walk_in.is_empty()
 	_hall_view.show_state(_hall, _dispatch, _quest_board.filled(), now)
-	_board.show_board(_quest_board, _dispatch, now)
+	_board.show_board(_quest_board, _dispatch, now, _goals.is_unlocked(Goals.AUTO))
 	_picker.show_board(_quest_board)
 	_roster.show_dispatch(_dispatch, now)
 	_roster.show_recruits(_recruits, _dispatch.adventurers, _gold, _hall.beds(now), _hall, now)
@@ -450,12 +454,14 @@ func _on_send_pressed(quest: String) -> void:
 	_show_quests(true)
 
 
-# The seed comes from the global generator; the outcome it fixes is rolled from the seed alone.
+# The seed comes from the global generator; the outcome it fixes is rolled from the seed alone. The
+# outing, the last to leave, counts towards Goals' hand sends once it is home.
 func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
 	# Auto sends due by now go first, and a Quest hall finished since the last tick adds its slot.
 	_checkpoint(now)
 	if _quest_board.send(_dispatch, quest, party, randi(), now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank):
+		_goals.sent_by_hand(_dispatch.outings.back())
 		_close_picker()
 	_checkpoint(now)
 

@@ -60,6 +60,9 @@ var _deciding: int = -1
 var _dispatch: Dispatch
 var _board: Board
 var _now: int = 0
+## Whether the guild has unlocked Auto (Goals.AUTO), as last shown: until it has, no party row shows
+## its Auto switch or mode, and a party saved with Auto on shows as home.
+var _auto_unlocked: bool = true
 ## The parties the Parties rows were built for (Parties.groups), so they are rebuilt only when a
 ## party is made, goes or changes members; and each row's parts that change, by the party's id.
 var _parties_shown: Array = []
@@ -154,17 +157,19 @@ func set_landscape(landscape: bool) -> void:
 	for id: String in _party_rows:
 		_place_parts(_party_rows[id])
 	if _board != null:
-		show_board(_board, _dispatch, _now)
+		show_board(_board, _dispatch, _now, _auto_unlocked)
 
 
 ## Shows what needs the player in `dispatch` (loot that found the stash full, and level-ups ready)
 ## and every party with where it is at `now` and its Auto, then the quests in `board`'s slots in
 ## order, each with the time until it leaves the board, and beside the board's label, while a slot
 ## is empty, the soonest refill. An unknown challenge shows the time to its reveal while the Map room is revealing it.
-func show_board(board: Board, dispatch: Dispatch, now: int) -> void:
+## Each party's Auto shows only once the guild has `auto_unlocked` it.
+func show_board(board: Board, dispatch: Dispatch, now: int, auto_unlocked: bool = true) -> void:
 	_dispatch = dispatch
 	_board = board
 	_now = now
+	_auto_unlocked = auto_unlocked
 	_parties_count.text = str(dispatch.outings.size())
 	_show_needs_you(dispatch)
 	_show_parties(dispatch, now)
@@ -594,7 +599,8 @@ static func _draw_knob(switch: Button) -> void:
 func _show_party(parts: PartyRow, id: String, dispatch: Dispatch, now: int) -> void:
 	var parties := dispatch.adventurers.parties
 	var members: PackedStringArray = parties.party(id)["members"]
-	var on := parties.auto(id)
+	var on := parties.auto(id) and _auto_unlocked
+	parts.right.visible = _auto_unlocked
 	parts.name.text = parties.party(id)["name"]
 	parts.rank.text = parties.rank(id, dispatch.adventurers.roster)
 	parts.auto.set_pressed_no_signal(on)

@@ -27,12 +27,13 @@ const REPLAY_SECONDS: int = 3 * 3_600
 ## then, in party order, a quest taken by one gone for the next. Each Auto send's outcome is fixed by
 ## a seed of the party, the quest and the time it leaves, never the global generator, so the same
 ## save always plays out the same way. Checkpointing once after an absence of up to REPLAY_SECONDS
-## gives the same as checkpointing every second through it. The other arguments are as for
-## Board.refill and Dispatch.checkpoint.
-static func checkpoint(dispatch: Dispatch, board: Board, now: int, quest_halls_done: PackedInt64Array, infirmary_from: int = -1, map_room_from: int = -1, guild_rank: String = Hall.STARTING_RANK) -> void:
+## gives the same as checkpointing every second through it. Until the guild has unlocked Auto
+## (`unlocked` false, see Goals), no party goes by itself, exactly or averaged, whatever its Auto. The
+## other arguments are as for Board.refill and Dispatch.checkpoint.
+static func checkpoint(dispatch: Dispatch, board: Board, now: int, quest_halls_done: PackedInt64Array, infirmary_from: int = -1, map_room_from: int = -1, guild_rank: String = Hall.STARTING_RANK, unlocked: bool = true) -> void:
 	var at := maxi(now, dispatch.checked_at)
 	if at - REPLAY_SECONDS > dispatch.checked_at:
-		_settle(dispatch, board, at - REPLAY_SECONDS, quest_halls_done, infirmary_from, map_room_from, guild_rank)
+		_settle(dispatch, board, at - REPLAY_SECONDS, quest_halls_done, infirmary_from, map_room_from, guild_rank, unlocked)
 	var time := dispatch.checked_at
 	while true:
 		dispatch.checkpoint(time, infirmary_from)
@@ -40,7 +41,7 @@ static func checkpoint(dispatch: Dispatch, board: Board, now: int, quest_halls_d
 		var parties := dispatch.adventurers.parties
 		for party: Dictionary in parties.parties:
 			var id: String = party["id"]
-			if not parties.auto(id) or seconds_to_ready(dispatch, id, time) != 0:
+			if not unlocked or not parties.auto(id) or seconds_to_ready(dispatch, id, time) != 0:
 				continue
 			var quest := pick(dispatch, board, id, time)
 			if not quest.is_empty():
@@ -104,9 +105,9 @@ static func _next_change(dispatch: Dispatch, board: Board, now: int) -> int:
 
 # Brings `dispatch` and `board` up to `to` with no Auto send: parties out come home as their quests
 # decide, at their own time; each Auto party's questing from its first ready moment on is settled by
-# `_average`; and the board is drawn afresh at `to` (Board.redraw). The other arguments are as for
-# `checkpoint`.
-static func _settle(dispatch: Dispatch, board: Board, to: int, quest_halls_done: PackedInt64Array, infirmary_from: int, map_room_from: int, guild_rank: String) -> void:
+# `_average`, while Auto is `unlocked`; and the board is drawn afresh at `to` (Board.redraw). The
+# other arguments are as for `checkpoint`.
+static func _settle(dispatch: Dispatch, board: Board, to: int, quest_halls_done: PackedInt64Array, infirmary_from: int, map_room_from: int, guild_rank: String, unlocked: bool) -> void:
 	var parties := dispatch.adventurers.parties
 	var ready_at: Dictionary[String, int] = {}
 	var time := dispatch.checked_at
@@ -114,7 +115,7 @@ static func _settle(dispatch: Dispatch, board: Board, to: int, quest_halls_done:
 		dispatch.checkpoint(time, infirmary_from)
 		for party: Dictionary in parties.parties:
 			var id: String = party["id"]
-			if not parties.auto(id) or ready_at.has(id):
+			if not unlocked or not parties.auto(id) or ready_at.has(id):
 				continue
 			var left := seconds_to_ready(dispatch, id, time)
 			if left >= 0 and time + left <= to:

@@ -320,3 +320,23 @@ func test_a_tap_on_a_partys_auto_switch_turns_it_on_or_off_at_once_and_its_mode_
 	assert_false(mode.is_visible_in_tree())
 	# The first party's switch was never touched.
 	assert_false(parties.auto(parties.party_of("bram")))
+
+
+func test_while_auto_is_locked_a_partys_auto_switch_and_mode_are_hidden_and_it_shows_home_even_saved_with_auto_on() -> void:
+	var parties := _dispatch.adventurers.parties
+	parties.set_auto(parties.party_of("bram"), true)
+	var board := _screen("res://screens/quest_board.tscn") as QuestBoard
+	board.show_board(Board.new(), _dispatch, 1_000, false)
+	var row := board.get_node("Scroll/Box/PartyList").get_child(0) as Control
+	var switch := row.find_children("*", "Button", true, false).filter(func(button: Button) -> bool: return button.toggle_mode)[0] as Button
+	var mode := row.find_children("*", "Button", true, false).filter(func(button: Button) -> bool: return not button.toggle_mode)[0] as Button
+	assert_true(row.is_visible_in_tree())
+	assert_has(_texts(row), "Home")
+	assert_false(switch.is_visible_in_tree())
+	assert_false(mode.is_visible_in_tree())
+	# Unlocked: its switch shows on, with its mode.
+	board.show_board(Board.new(), _dispatch, 1_000, true)
+	assert_true(switch.is_visible_in_tree())
+	assert_true(switch.button_pressed)
+	assert_true(mode.is_visible_in_tree())
+	assert_eq(mode.text, "Auto · Safe")
