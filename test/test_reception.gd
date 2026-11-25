@@ -116,3 +116,157 @@ func test_a_guild_at_its_last_rank_shows_only_its_rank_and_back() -> void:
 	assert_false(reception.get_node("Box/Scroll/Columns/Needs").visible)
 	assert_false(reception.get_node("Box/Scroll/Columns/Opens").visible)
 	assert_true(reception.get_node("Box/Back").visible)
+
+
+# A new game's hall with its side room a Bunk room and its backroom a Common room, both in use at
+# 1_010, so only reputation and gold stand between it and rank E.
+func _hall_in_use() -> Hall:
+	var hall := Hall.new(1_000)
+	var gold := Gold.new(1_000)
+	assert_true(hall.restore("side_left", gold, 1_000))
+	assert_true(hall.restore("back_left", gold, 1_001))
+	assert_true(hall.convert_room("side_left", "bunk_room", gold, 1_005))
+	assert_true(hall.convert_room("back_left", "common_room", gold, 1_007))
+	hall.checkpoint(1_010)
+	return hall
+
+
+# Whether an icon shows over the middle of the room `slot` on `hall_view`.
+func _icon_on(hall_view: HallView, slot: String) -> bool:
+	for icon: Node in hall_view.find_children("*", "TextureRect", true, false):
+		if (icon as TextureRect).is_visible_in_tree() and (icon as TextureRect).get_global_rect().has_point(hall_view.room_center(slot)):
+			return true
+	return false
+
+
+func test_a_rank_e_hall_draws_the_front_split_with_the_three_new_rooms_and_a_rank_f_hall_as_before() -> void:
+	var hall_view := _screen("res://screens/hall_view.tscn") as HallView
+	var summary := hall_view.get_node("Scroll/Box/Top/Header/Summary") as Label
+	var hall := _hall_in_use()
+	hall_view.show_state(hall, Dispatch.new(1_010), 0, 1_010)
+	await wait_process_frames(1)
+	assert_eq(summary.text, "Rank F guild · 3 of 3 rooms in use")
+	var texts := _texts(hall_view)
+	assert_has(texts, "Reception")
+	for absent: String in ["North-east room", "East room", "Entrance hall", "Front room"]:
+		assert_does_not_have(texts, absent)
+
+	assert_true(hall.rank_up(15, Gold.new(150), 1_020))
+	hall_view.show_state(hall, Dispatch.new(1_020), 0, 1_020)
+	await wait_process_frames(1)
+	assert_eq(summary.text, "Rank E guild · 3 of 6 rooms in use")
+	texts = _texts(hall_view)
+	for shown: String in ["North-east room", "East room", "Entrance hall", "Front room"]:
+		assert_has(texts, shown)
+	# The front strip splits 60:40, the entrance hall on the left under the Reception's left part.
+	var entrance := hall_view.room_center("entrance")
+	var reception := hall_view.room_center("reception")
+	var front := hall_view.room_center("front_right")
+	assert_almost_eq(entrance.y, front.y, 1.0)
+	assert_almost_eq((front.x - reception.x) / (reception.x - entrance.x), 1.5, 0.02)
+
+	# A rank-F hall from before guild ranks keeps its whole-width entrance hall and its floors.
+	var old := Hall.new(1_000)
+	old.layout = Hall.OLD_LAYOUT
+	hall_view.show_state(old, Dispatch.new(1_000), 0, 1_000)
+	await wait_process_frames(1)
+	assert_eq(summary.text, "Ground floor · 2 of 6 rooms in use")
+	assert_almost_eq(hall_view.room_center("entrance").x, hall_view.room_center("reception").x, 1.0)
+	assert_has(_texts(hall_view), "Entrance hall")
+	assert_does_not_have(_texts(hall_view), "Front room")
+
+
+func test_the_reception_shows_its_crest_only_when_the_guild_can_rank_up_and_a_tap_opens_it_either_way() -> void:
+	var hall_view := _screen("res://screens/hall_view.tscn") as HallView
+	var hall := _hall_in_use()
+	var dispatch := _guild(14, 150)
+	var opened: Array[int] = [0]
+	hall_view.reception_pressed.connect(func() -> void: opened[0] += 1)
+	hall_view.show_state(hall, dispatch, 0, 1_010)
+	await wait_process_frames(1)
+	# One reputation short: no crest yet.
+	assert_false(_icon_on(hall_view, "reception"))
+	_tap(hall_view.room_center("reception"))
+	assert_eq(opened[0], 1)
+	dispatch.reputation = 15
+	hall_view.show_state(hall, dispatch, 0, 1_011)
+	await wait_process_frames(1)
+	assert_true(_icon_on(hall_view, "reception"))
+	_tap(hall_view.room_center("reception"))
+	assert_eq(opened[0], 2)
+	dispatch.gold.amount = 149
+	hall_view.show_state(hall, dispatch, 0, 1_012)
+	await wait_process_frames(1)
+	assert_false(_icon_on(hall_view, "reception"))
+
+
+func test_an_upgradable_bunk_room_shows_its_upgrade_icon_and_one_at_tier_3_shows_none() -> void:
+	var hall_view := _screen("res://screens/hall_view.tscn") as HallView
+	var hall := _hall_in_use()
+	var gold := Gold.new(1_000)
+	hall_view.show_state(hall, Dispatch.new(1_010), 0, 1_010)
+	await wait_process_frames(1)
+	assert_true(_icon_on(hall_view, "side_left"))
+	# Tier 2 from 1_010 to 1_014, tier 3 from 1_020 to 1_030.
+	assert_true(hall.upgrade("side_left", gold, 1_010))
+	hall.checkpoint(1_020)
+	assert_true(hall.upgrade("side_left", gold, 1_020))
+	hall.checkpoint(1_040)
+	assert_eq(hall.tier("side_left", 1_040), 3)
+	hall_view.show_state(hall, Dispatch.new(1_040), 0, 1_040)
+	await wait_process_frames(1)
+	assert_false(_icon_on(hall_view, "side_left"))
+	assert_has(_texts(hall_view), "Bunk room")
+
+
+func test_rank_up_shows_on_the_reception_only_once_every_line_is_met() -> void:
+	var reception := _screen("res://screens/reception.tscn") as Reception
+	var rank_up := reception.get_node("Box/RankUp") as Button
+	var dispatch := _guild(15, 149)
+	reception.show_guild(_hall_in_use(), dispatch, 1_010)
+	assert_false(rank_up.visible)
+	assert_true(reception.get_node("Box/Back").visible)
+	dispatch.gold.amount = 150
+	reception.show_guild(_hall_in_use(), dispatch, 1_010)
+	assert_true(rank_up.visible)
+	assert_eq(rank_up.text, "Rank up · 150g")
+	dispatch.reputation = 14
+	reception.show_guild(_hall_in_use(), dispatch, 1_010)
+	assert_false(rank_up.visible)
+	# Rooms not yet in use.
+	reception.show_guild(Hall.new(1_000), _guild(15, 150), 1_010)
+	assert_false(rank_up.visible)
+
+
+func test_pressing_rank_up_opens_the_confirm_card_and_confirming_ranks_up_and_rebuilds_the_reception() -> void:
+	var reception := _screen("res://screens/reception.tscn") as Reception
+	var sheet := _screen("res://screens/confirm_sheet.tscn") as ConfirmSheet
+	var hall := _hall_in_use()
+	var dispatch := _guild(15, 200)
+	# The same as main.gd does with the signals.
+	reception.rank_up_pressed.connect(func() -> void:
+		sheet.ask("Rank up to E", "150 gold", "Rank up", hall.rank_up_refusal(dispatch.reputation, dispatch.gold, 1_020)))
+	sheet.confirmed.connect(func() -> void:
+		hall.rank_up(dispatch.reputation, dispatch.gold, 1_020)
+		sheet.close()
+		reception.show_guild(hall, dispatch, 1_020))
+	reception.show_guild(hall, dispatch, 1_010)
+	await wait_process_frames(1)
+	_tap((reception.get_node("Box/RankUp") as Button).get_global_rect().get_center())
+	await wait_process_frames(1)
+	assert_true(sheet.visible)
+	assert_eq((sheet.get_node("Sheet/Box/Title") as Label).text, "Rank up to E")
+	assert_eq((sheet.get_node("Sheet/Box/Note") as Label).text, "150 gold")
+	assert_false((sheet.get_node("Sheet/Box/Price") as Control).visible)
+	var action := sheet.get_node("Sheet/Box/Buttons/Action") as Button
+	assert_eq(action.text, "Rank up")
+	assert_eq(hall.rank, "F")
+	_tap(action.get_global_rect().get_center())
+	await wait_process_frames(1)
+	assert_false(sheet.visible)
+	assert_eq(hall.rank, "E")
+	assert_eq(dispatch.gold.amount, 50)
+	assert_has(_texts(reception), "Rank E guild")
+	assert_false(reception.get_node("Box/Scroll/Columns/Needs").visible)
+	assert_false(reception.get_node("Box/RankUp").visible)
+	assert_true(reception.get_node("Box/Back").visible)

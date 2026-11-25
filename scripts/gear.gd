@@ -71,8 +71,8 @@ const STARTER_GEAR: Dictionary[String, Dictionary] = {
 var worn: Dictionary[String, Dictionary] = {}
 ## Item ids in the shared stash, in the order they came in.
 var stash: PackedStringArray = PackedStringArray()
-## Items the stash holds at most, as the Reception gives it (Hall.reception); loot that finds it
-## full waits for the player (Dispatch.waiting_loot). Not saved: whoever loads the game sets it from the hall.
+## Items the stash holds at most, as the hall gives it (Hall.stash_cap); loot that finds it full
+## waits for the player (Dispatch.waiting_loot). Not saved: whoever runs the game sets it from the hall.
 var stash_cap: int = Hall.LAYOUTS[Hall.NEW_LAYOUT]["stash"]
 
 

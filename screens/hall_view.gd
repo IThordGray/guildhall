@@ -28,7 +28,12 @@ const GROUND_FLOOR: Dictionary[String, Rect2] = {
 	"reception": Rect2(0.3, 0.3, 0.4, 0.4),
 	"side_right": Rect2(0.7, 0.3, 0.3, 0.4),
 	"entrance": Rect2(0.0, 0.7, 1.0, 0.3),
+	"front_right": Rect2(0.6, 0.7, 0.4, 0.3),
 }
+## The room that splits the front strip once the hall has it: the entrance hall keeps the left part,
+## SPLIT_ENTRANCE, and its doorways are SPLIT_DOORS.
+const FRONT_ROOM: String = "front_right"
+const SPLIT_ENTRANCE: Rect2 = Rect2(0.0, 0.7, 0.6, 0.3)
 # The First floor the same way: four rooms, and at the front the landing the stairs come up to,
 # which is not a room.
 const FIRST_FLOOR: Dictionary[String, Rect2] = {
@@ -52,6 +57,7 @@ const SLOT_NAMES: Dictionary[String, String] = {
 	"upper_se": "Upper south-east room",
 	"entrance": "Entrance hall",
 	"reception": "Reception",
+	"front_right": "Front room",
 }
 ## The names a hall saved before guild ranks keeps for its rooms where SLOT_NAMES differs.
 const OLD_SLOT_NAMES: Dictionary[String, String] = {
@@ -66,6 +72,18 @@ const OLD_SLOT_NAMES: Dictionary[String, String] = {
 const GROUND_DOORS: Dictionary[Vector2, String] = {
 	Vector2(0.6, 0.7): "reception",
 	Vector2(0.5, 1.0): "entrance",
+	Vector2(0.3, 0.5): "side_left",
+	Vector2(0.7, 0.5): "side_right",
+	Vector2(0.4, 0.3): "back_left",
+	Vector2(0.6, 0.3): "back_right",
+}
+## The Ground floor's doorways once FRONT_ROOM splits the front: the front door in the middle of
+## the entrance hall, the Reception's moved off the new wall, and the front room's into the
+## entrance hall.
+const SPLIT_DOORS: Dictionary[Vector2, String] = {
+	Vector2(0.55, 0.7): "reception",
+	Vector2(0.3, 1.0): "entrance",
+	Vector2(0.6, 0.85): "front_right",
 	Vector2(0.3, 0.5): "side_left",
 	Vector2(0.7, 0.5): "side_right",
 	Vector2(0.4, 0.3): "back_left",
@@ -109,34 +127,42 @@ const TOP_LEFT: Vector2 = Vector2(0.0, 0.0)
 const TOP_RIGHT: Vector2 = Vector2(1.0, 0.0)
 const CENTRE: Vector2 = Vector2(0.5, 0.5)
 const FRONT_MIDDLE: Vector2 = Vector2(0.5, 1.0)
+## The Reception's furniture but its front door's swing, which moves with that doorway, as FURNITURE.
+const RECEPTION: Array = [
+	# A notice board on the back wall, the counter with a stool behind it, a bench by the front wall,
+	# and a round table with four stools.
+	["slab", TOP_LEFT, Rect2(5.2, 0.09, 1.52, 0.15)],
+	["box", TOP_LEFT, Rect2(5.99, 1.78, 0.66, 2.64)],
+	["line", TOP_LEFT, Vector2(5.99, 2.18), Vector2(6.65, 2.18)],
+	["line", TOP_LEFT, Vector2(5.99, 4.02), Vector2(6.65, 4.02)],
+	["seat", TOP_LEFT, Vector2(7.2, 3.1), 0.2],
+	["box", TOP_LEFT, Rect2(0.77, 6.06, 3.56, 0.25)],
+	["disc", TOP_LEFT, Vector2(2.73, 3.47), 0.51],
+	["seat", TOP_LEFT, Vector2(2.155, 2.895), 0.18],
+	["seat", TOP_LEFT, Vector2(3.305, 2.895), 0.18],
+	["seat", TOP_LEFT, Vector2(2.155, 4.045), 0.18],
+	["seat", TOP_LEFT, Vector2(3.305, 4.045), 0.18],
+	# Its doors' swings, at its doorways in GROUND_DOORS: into the Backroom and into the Side room.
+	["line", TOP_LEFT, Vector2(1.5, 0.0), Vector2(1.5, -1.0)],
+	["arc", TOP_LEFT, Vector2(1.5, 0.0), 1.0, 0.0, -PI / 2.0],
+	["line", TOP_LEFT, Vector2(0.0, 3.7), Vector2(-1.0, 3.7)],
+	["arc", TOP_LEFT, Vector2(0.0, 3.7), 1.0, -PI / 2.0, -PI],
+]
 ## What stands in a room in use, by its type, or by its slot for the Reception and the entrance
-## hall. Each piece is its shape, the point of the room it is measured from, then in metres from
-## there: "box" a filled outline, "frame" an outline, "slab" a solid block, each a Rect2; "line" and
-## "dash" from one point to another; "seat" an outlined and "disc" a filled circle, at a centre with
-## a radius; "arc" a centre, a radius and the angles it runs between.
+## hall; "split_reception" is the Reception once FRONT_ROOM splits the front. Each piece is its
+## shape, the point of the room it is measured from, then in metres from there: "box" a filled
+## outline, "frame" an outline, "slab" a solid block, each a Rect2; "line" and "dash" from one point
+## to another; "seat" an outlined and "disc" a filled circle, at a centre with a radius; "arc" a
+## centre, a radius and the angles it runs between.
 const FURNITURE: Dictionary[String, Array] = {
-	"reception": [
-		# A notice board on the back wall, the counter with a stool behind it, a bench by the front
-		# wall, and a round table with four stools.
-		["slab", TOP_LEFT, Rect2(5.2, 0.09, 1.52, 0.15)],
-		["box", TOP_LEFT, Rect2(5.99, 1.78, 0.66, 2.64)],
-		["line", TOP_LEFT, Vector2(5.99, 2.18), Vector2(6.65, 2.18)],
-		["line", TOP_LEFT, Vector2(5.99, 4.02), Vector2(6.65, 4.02)],
-		["seat", TOP_LEFT, Vector2(7.2, 3.1), 0.2],
-		["box", TOP_LEFT, Rect2(0.77, 6.06, 3.56, 0.25)],
-		["disc", TOP_LEFT, Vector2(2.73, 3.47), 0.51],
-		["seat", TOP_LEFT, Vector2(2.155, 2.895), 0.18],
-		["seat", TOP_LEFT, Vector2(3.305, 2.895), 0.18],
-		["seat", TOP_LEFT, Vector2(2.155, 4.045), 0.18],
-		["seat", TOP_LEFT, Vector2(3.305, 4.045), 0.18],
-		# Its doors' swings, at its doorways in GROUND_DOORS: into the Backroom, into the Side room,
-		# and the front door opening in.
-		["line", TOP_LEFT, Vector2(1.5, 0.0), Vector2(1.5, -1.0)],
-		["arc", TOP_LEFT, Vector2(1.5, 0.0), 1.0, 0.0, -PI / 2.0],
-		["line", TOP_LEFT, Vector2(0.0, 3.7), Vector2(-1.0, 3.7)],
-		["arc", TOP_LEFT, Vector2(0.0, 3.7), 1.0, -PI / 2.0, -PI],
+	# The front door opening in, at its doorway in GROUND_DOORS, or in SPLIT_DOORS.
+	"reception": RECEPTION + [
 		["line", TOP_LEFT, Vector2(6.5, 6.4), Vector2(6.5, 5.4)],
 		["arc", TOP_LEFT, Vector2(6.5, 6.4), 1.0, PI, PI * 1.5],
+	],
+	"split_reception": RECEPTION + [
+		["line", TOP_LEFT, Vector2(5.5, 6.4), Vector2(5.5, 5.4)],
+		["arc", TOP_LEFT, Vector2(5.5, 6.4), 1.0, PI, PI * 1.5],
 	],
 	"entrance": [
 		# A doormat at the front door, and the staircase.
@@ -209,9 +235,18 @@ const FURNITURE: Dictionary[String, Array] = {
 		["box", CENTRE, Rect2(-0.8, -0.3, 1.6, 0.7)],
 		["frame", CENTRE, Rect2(-0.15, 0.55, 0.3, 0.25)],
 	],
+	"storeroom": [
+		# Shelves along the right wall, and two crates.
+		["box", TOP_RIGHT, Rect2(-1.05, 0.55, 0.5, 3.0)],
+		["line", TOP_RIGHT, Vector2(-1.05, 1.55), Vector2(-0.55, 1.55)],
+		["line", TOP_RIGHT, Vector2(-1.05, 2.55), Vector2(-0.55, 2.55)],
+		["frame", TOP_RIGHT, Rect2(-2.6, 0.6, 0.9, 0.9)],
+		["frame", TOP_RIGHT, Rect2(-2.6, 1.8, 0.9, 0.9)],
+	],
 }
 ## What a room's icon offers: a damaged room or the stairs to build, an empty room to give a job, a
-## Tavern's gold to collect; a room with a next tier shows "build" too, to upgrade it. Each a pixel
+## Tavern's gold to collect, the Reception's crest when the guild can rank up; a room with a next
+## tier shows "build" too, to upgrade it. Each a pixel
 ## image, a row of characters per line, coloured by ICON_COLORS; "." is see-through.
 const ICONS: Dictionary[String, PackedStringArray] = {
 	"build": [
@@ -268,6 +303,24 @@ const ICONS: Dictionary[String, PackedStringArray] = {
 		"....oooddooo....",
 		".......oo.......",
 	],
+	"crest": [
+		"................",
+		"..oooooooooooo..",
+		"..ohhhhhhhhhho..",
+		"..ohhhhhhhhhho..",
+		"..ohhhhgghhhho..",
+		"..ohhhgggghhho..",
+		"..ohhgghhgghho..",
+		"..ohgghhhhggho..",
+		"..ohhhhhhhhhho..",
+		"..ohhhhgghhhho..",
+		"...ohhgggghho...",
+		"....ogghhggo....",
+		".....ohhhho.....",
+		"......ohho......",
+		".......oo.......",
+		"................",
+	],
 }
 const ICON_COLORS: Dictionary[String, Color] = {
 	"o": Color("#16131b"),
@@ -295,6 +348,8 @@ var _upstairs_in_use: int = 0
 var _ground_rooms: int = 0
 ## The part of the Ground floor that is built, as fractions of the floor; the plan centres it.
 var _ground_built: Rect2 = Rect2(0.0, 0.0, 1.0, 1.0)
+## Whether the hall has FRONT_ROOM, which splits the front strip.
+var _split: bool = false
 ## The guild's rank, shown in place of the floor's name when the hall has only one floor.
 var _rank: String = ""
 ## ICONS drawn once, by kind.
@@ -315,14 +370,17 @@ var _icons: Dictionary[String, Texture2D] = {}
 ## A room on the plan and the parts that change with its state.
 class Room extends Control:
 	var look: int = -1
+	## Where the room is on its floor, as fractions, and the doorways in its floor's walls.
+	var area: Rect2
+	var doors: Dictionary[Vector2, String]
 	## The key of FURNITURE drawn in the room; "" for none.
 	var furniture: String = ""
 	var title: Label
 	var bar: ProgressBar
-	## The icon for `kind`, centred on the room; hidden when `kind` has none in ICONS.
+	## The icon for `kind`, centred on the room; hidden when `kind` has none (ICONS, or "upgrade").
 	var icon: TextureRect
-	## What can be done here: a key of ICONS, "reception" (opens on a tap, with no icon), or "" for
-	## nothing.
+	## What can be done here: a key of ICONS, "reception" (opens the Reception on a tap, with no
+	## icon; with "crest" it opens it too), or "" for nothing.
 	var kind: String = ""
 	## What a tap anywhere on the room does: emits the signal for `kind`, or nothing.
 	var action: Callable
@@ -388,24 +446,39 @@ func show_state(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: int) 
 	_ground_in_use = 0
 	_upstairs_in_use = 0
 	_ground_rooms = 0
+	var split := hall.state(FRONT_ROOM, now) != Hall.State.UNBUILT
+	if split != _split:
+		_split = split
+		_rooms["entrance"].area = SPLIT_ENTRANCE if split else GROUND_FLOOR["entrance"]
+		_anchor(_rooms["entrance"], _rooms["entrance"].area)
+		for slot: String in GROUND_FLOOR:
+			_rooms[slot].doors = SPLIT_DOORS if split else GROUND_DOORS
+			_rooms[slot].queue_redraw()
+	# Only a hall with stairs has floors to choose from: one from before guild ranks, which always
+	# had them, or one whose First floor is built.
+	_floors.visible = hall.from_before_ranks() or hall.has_first_floor(now)
+	var rank_up := hall.rank_up_refusal(dispatch.reputation, dispatch.gold, now).is_empty()
 	var built := Rect2()
 	for slot: String in _rooms:
 		var state := hall.state(slot, now)
 		if slot not in FIRST_FLOOR and state != Hall.State.UNBUILT:
+			built = _rooms[slot].area if not built.has_area() else built.merge(_rooms[slot].area)
+		_show_room(_rooms[slot], slot, state, hall, now, rank_up)
+		# The rank summary counts rooms, not the entrance hall; the Ground floor's, kept as it was
+		# before ranks, counts it too.
+		if state == Hall.State.UNBUILT or (slot == STAIRS and not _floors.visible):
+			continue
+		if slot not in FIRST_FLOOR:
 			_ground_rooms += 1
-			built = GROUND_FLOOR[slot] if not built.has_area() else built.merge(GROUND_FLOOR[slot])
 		if state == Hall.State.USABLE or state == Hall.State.CONVERTED:
 			if slot in FIRST_FLOOR:
 				_upstairs_in_use += 1
 			else:
 				_ground_in_use += 1
-		_show_room(_rooms[slot], slot, state, hall, now)
 	if built != _ground_built:
 		_ground_built = built
 		_place_building()
 	_first_button.disabled = not hall.has_first_floor(now)
-	# Only a hall with stairs has floors to choose from.
-	_floors.visible = hall.state(STAIRS, now) != Hall.State.UNBUILT
 	_rank = hall.rank
 	_show_summary()
 	_parties_count.text = str(dispatch.outings.size())
@@ -429,19 +502,24 @@ func _show_summary() -> void:
 
 
 # A room shows its name, its state by its walls and fill, its furniture once it is in use, and an
-# icon for what can be done there.
-func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: int) -> void:
+# icon for what can be done there; the Reception's crest when `rank_up` says the guild can rank up.
+func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: int, rank_up: bool) -> void:
 	var type := hall.room_type(slot)
 	var look := Look.IN_USE
 	var building := state == Hall.State.RESTORING or state == Hall.State.CONVERTING
 	var kind := ""
 	var furniture := slot
+	if slot == "reception" and _split:
+		furniture = "split_reception"
+	elif slot == STAIRS and not _floors.visible:
+		# A hall without stairs has an empty entrance hall.
+		furniture = ""
 	room.title.text = slot_name(hall, slot)
 	match state:
 		Hall.State.USABLE:
-			# The Reception opens on a tap, with no icon.
+			# The Reception opens on a tap, with no icon unless the guild can rank up.
 			if slot == "reception":
-				kind = "reception"
+				kind = "crest" if rank_up else "reception"
 			elif slot == STAIRS and not hall.has_first_floor(now):
 				if hall.building == Hall.EXTENSION:
 					room.bar.theme_type_variation = &"PlanBar"
@@ -488,9 +566,9 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: in
 	if kind != room.kind:
 		room.kind = kind
 		room.icon.texture = _icons.get(kind)
-		room.icon.visible = kind in ICONS
+		room.icon.visible = kind in _icons
 		match kind:
-			"reception":
+			"reception", "crest":
 				room.action = reception_pressed.emit
 			"build":
 				room.action = extend_pressed.emit if slot == STAIRS else restore_pressed.emit.bind(slot)
@@ -514,7 +592,7 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: in
 
 ## `slot`'s name in `hall` until it is given a job.
 static func slot_name(hall: Hall, slot: String) -> String:
-	if hall.layout == Hall.OLD_LAYOUT:
+	if hall.from_before_ranks():
 		return OLD_SLOT_NAMES.get(slot, SLOT_NAMES[slot])
 	return SLOT_NAMES[slot]
 
@@ -648,11 +726,16 @@ func _add_floor() -> Control:
 
 # Puts `item` on `layer` over `area`, a fraction of the floor.
 func _lay(item: Control, area: Rect2, layer: Control) -> void:
+	_anchor(item, area)
+	layer.add_child(item)
+
+
+# Spans `item` over `area`, a fraction of the floor its layer covers.
+static func _anchor(item: Control, area: Rect2) -> void:
 	item.anchor_left = area.position.x
 	item.anchor_top = area.position.y
 	item.anchor_right = area.end.x
 	item.anchor_bottom = area.end.y
-	layer.add_child(item)
 
 
 # The First floor's landing: drawn as a room in use, with nothing to do there.
@@ -665,7 +748,9 @@ func _add_landing() -> void:
 
 func _add_room(slot: String, area: Rect2, layer: Control, doors: Dictionary[Vector2, String]) -> void:
 	var room := Room.new()
-	room.draw.connect(func() -> void: _paint(room, room.look, area, doors, room.furniture))
+	room.area = area
+	room.doors = doors
+	room.draw.connect(func() -> void: _paint(room, room.look, room.area, room.doors, room.furniture))
 	# What is in the room stays inside it; its walls do not, so neighbours share them.
 	var inside := Control.new()
 	inside.clip_contents = true

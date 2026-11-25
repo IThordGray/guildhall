@@ -3,6 +3,8 @@ extends Control
 
 ## The player is done looking at the guild's rank.
 signal back_pressed
+## The player asked to rank the guild up.
+signal rank_up_pressed
 
 ## What reaching each rank opens, in words for the player, by rank.
 const OPENS: Dictionary[String, PackedStringArray] = {
@@ -39,16 +41,18 @@ var _shown: Array = []
 @onready var _opens: Control = $Box/Scroll/Columns/Opens
 @onready var _opens_section: Label = $Box/Scroll/Columns/Opens/Section
 @onready var _open_rows: VBoxContainer = $Box/Scroll/Columns/Opens/List/Rows
+@onready var _rank_up: Button = $Box/RankUp
 @onready var _back: Button = $Box/Back
 
 
 func _ready() -> void:
+	_rank_up.pressed.connect(rank_up_pressed.emit)
 	_back.pressed.connect(back_pressed.emit)
 
 
-## Landscape shows how many parties are out beside the title, and puts the rank card with Back
-## under it in a column, then the checklist and what the next rank opens side by side; portrait
-## stacks them, Back last.
+## Landscape shows how many parties are out beside the title, and puts the rank card with Rank up
+## and Back under it in a column, then the checklist and what the next rank opens side by side;
+## portrait stacks them, Rank up and Back last.
 func set_landscape(landscape: bool) -> void:
 	_parties.visible = landscape
 	_columns.vertical = not landscape
@@ -57,12 +61,13 @@ func set_landscape(landscape: bool) -> void:
 	_reputation.alignment = BoxContainer.ALIGNMENT_CENTER if landscape else BoxContainer.ALIGNMENT_BEGIN
 	_side.custom_minimum_size.x = SIDE_WIDTH_PX if landscape else 0.0
 	_gap.visible = landscape
+	_rank_up.reparent(_side if landscape else _box, false)
 	_back.reparent(_side if landscape else _box, false)
 
 
 ## Shows `hall`'s rank, `dispatch`'s reputation, and what ranking up needs against what the guild
-## has at `now` (Hall.rank_up_checklist), with what the next rank opens; at the last rank, only the
-## rank.
+## has at `now` (Hall.rank_up_checklist), with what the next rank opens, and Rank up once every
+## line is met; at the last rank, only the rank.
 func show_guild(hall: Hall, dispatch: Dispatch, now: int) -> void:
 	_parties_count.text = str(dispatch.outings.size())
 	var checklist := hall.rank_up_checklist(dispatch.reputation, dispatch.gold.amount, now)
@@ -73,11 +78,13 @@ func show_guild(hall: Hall, dispatch: Dispatch, now: int) -> void:
 	_letter.text = hall.rank
 	_name.text = "Rank %s guild" % hall.rank
 	_reputation_count.text = str(dispatch.reputation)
+	_rank_up.visible = hall.rank_up_refusal(dispatch.reputation, dispatch.gold, now).is_empty()
 	var next: String = Hall.RANK_UPS.get(hall.rank, {}).get("to", "")
 	_needs.visible = not next.is_empty()
 	_opens.visible = not next.is_empty()
 	if next.is_empty():
 		return
+	_rank_up.text = "Rank up · %dg" % Hall.RANK_UPS[hall.rank]["gold"]
 	_needs_section.text = "TO RANK " + next
 	_opens_section.text = "RANK %s OPENS" % next
 	for row: Node in _need_rows.get_children() + _open_rows.get_children():

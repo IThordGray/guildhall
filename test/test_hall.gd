@@ -233,7 +233,7 @@ func _hall_with_empty_room(slot: String, gold: Gold) -> Hall:
 
 
 func test_the_convert_choices_are_every_room_type_each_60_gold_but_a_bunk_room_30_and_2_seconds() -> void:
-	assert_eq(Hall.ROOM_TYPES.keys(), ["quest_hall", "infirmary", "bunk_room", "tavern", "map_room", "training_room", "common_room"])
+	assert_eq(Hall.ROOM_TYPES.keys(), ["quest_hall", "infirmary", "bunk_room", "tavern", "map_room", "training_room", "common_room", "storeroom"])
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["name"], "Quest hall")
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["blurb"], "adds a slot to the quest board")
 	assert_eq(Hall.ROOM_TYPES["infirmary"]["name"], "Infirmary")
@@ -721,7 +721,7 @@ func test_at_rank_f_only_a_bunk_room_and_a_common_room_can_be_built_and_any_othe
 		assert_eq(hall.convert_refusal("side_left", type, gold, 1_030), "", type)
 	# Rank E opens its own types, and rank D the rest.
 	hall.rank = "E"
-	assert_eq(hall.open_types(), PackedStringArray(["quest_hall", "infirmary", "bunk_room", "common_room"]))
+	assert_eq(hall.open_types(), PackedStringArray(["quest_hall", "infirmary", "bunk_room", "common_room", "storeroom"]))
 	assert_eq(hall.convert_refusal("side_left", "tavern", gold, 1_030), "Guild rank D")
 	assert_true(hall.convert_room("side_left", "quest_hall", gold, 1_030))
 	hall.rank = "D"
@@ -732,12 +732,12 @@ func test_extending_is_refused_at_rank_f_with_nothing_changed() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_restores(3, gold)
 	hall.rank = "F"
-	assert_eq(hall.extend_refusal(gold, 1_450), "Guild rank E")
+	assert_eq(hall.extend_refusal(gold, 1_450), "Guild rank D")
 	assert_false(hall.extend(gold, 1_450))
 	assert_eq(gold.amount, 760)
 	assert_eq(hall.building, "")
 	assert_false(hall.has_first_floor(99_999))
-	hall.rank = "E"
+	hall.rank = "D"
 	assert_eq(hall.extend_refusal(gold, 1_450), "")
 
 
@@ -933,7 +933,7 @@ func test_an_extension_under_way_and_a_built_first_floor_survive_save_and_load()
 	assert_eq(reloaded.extend_refusal(gold, 2_160), "Already extended")
 
 
-func test_an_old_save_loads_with_no_first_floor_and_can_extend_once_the_guild_reaches_rank_e() -> void:
+func test_an_old_save_loads_with_no_first_floor_and_can_extend_once_the_guild_reaches_rank_d() -> void:
 	var file := ConfigFile.new()
 	file.set_value("gold", "saved", 500)
 	file.set_value("hall", "restored", PackedStringArray(["back_left", "back_right", "side_left"]))
@@ -949,11 +949,11 @@ func test_an_old_save_loads_with_no_first_floor_and_can_extend_once_the_guild_re
 	assert_false(hall.has_first_floor(99_999))
 	assert_eq(hall.state("upper_nw", 99_999), Hall.State.UNBUILT)
 	assert_eq(hall.room_type("back_left"), "tavern")
-	assert_eq(hall.extend_refusal(gold, 2_000), "Guild rank E")
+	assert_eq(hall.extend_refusal(gold, 2_000), "Guild rank D")
 	assert_false(hall.extend(gold, 2_000))
 	assert_eq(gold.amount, 500)
 	assert_eq(hall.building, "")
-	hall.rank = "E"
+	hall.rank = "D"
 	assert_true(hall.extend(gold, 2_000))
 	assert_eq(gold.amount, 100)
 	assert_true(hall.has_first_floor(2_600))
@@ -1419,3 +1419,154 @@ func test_the_rank_up_checklist_of_a_six_room_hall_counts_its_four_rooms_and_a_g
 	assert_eq(hall.rank_up_checklist(0, 0, 1_000)[1], {"what": "rooms", "has": 0, "needs": 4, "met": false})
 	hall.rank = "E"
 	assert_eq(hall.rank_up_checklist(100, 10_000, 1_000), [])
+
+
+## A new game's hall at 1_000 with its side room a Bunk room and its backroom a Common room, both
+## finished by 1_009 and checkpointed at 1_010, paid from `gold` (60, 60, 30 and 60).
+func _rank_f_hall_in_use(gold: Gold) -> Hall:
+	var hall := Hall.new(1_000)
+	assert_true(hall.restore("side_left", gold, 1_000))
+	assert_true(hall.restore("back_left", gold, 1_001))
+	assert_true(hall.convert_room("side_left", "bunk_room", gold, 1_005))
+	assert_true(hall.convert_room("back_left", "common_room", gold, 1_007))
+	hall.checkpoint(1_010)
+	return hall
+
+
+func _assert_rank_up_refused(hall: Hall, reputation: int, gold: Gold, now: int, reason: String) -> void:
+	var held := gold.amount
+	var rank := hall.rank
+	assert_eq(hall.rank_up_refusal(reputation, gold, now), reason)
+	assert_false(hall.rank_up(reputation, gold, now), reason)
+	assert_eq(gold.amount, held, reason)
+	assert_eq(hall.rank, rank, reason)
+	assert_true(hall.ranked_at.is_empty(), reason)
+	assert_eq(hall.state("front_right", now), Hall.State.UNBUILT, reason)
+
+
+func test_each_rank_up_refusal_changes_nothing_reputation_first_then_every_room_in_use_then_gold_and_none_past_the_last_rank() -> void:
+	var hall := Hall.new(1_000)
+	_assert_rank_up_refused(hall, 9, Gold.new(100), 1_000, "Need 6 more reputation")
+	_assert_rank_up_refused(hall, 15, Gold.new(100), 1_000, "Every room in use first")
+	hall = _rank_f_hall_in_use(Gold.new(1_000))
+	_assert_rank_up_refused(hall, 15, Gold.new(120), 1_010, "Need 30 more gold")
+	hall.rank = "E"
+	_assert_rank_up_refused(hall, 100, Gold.new(10_000), 1_010, "Highest rank for now")
+
+
+func test_ranking_up_pays_150_sets_rank_e_records_when_and_grows_the_wing_damaged_beside_a_usable_entrance_hall() -> void:
+	var hall := _rank_f_hall_in_use(Gold.new(1_000))
+	var gold := Gold.new(200)
+	assert_eq(hall.rank_up_refusal(15, gold, 1_020), "")
+	assert_true(hall.rank_up(15, gold, 1_020))
+	assert_eq(gold.amount, 50)
+	assert_eq(hall.rank, "E")
+	assert_eq(hall.ranked_at, {"E": 1_020})
+	# The rooms it had keep their state; the wing's start damaged, the entrance hall usable.
+	assert_eq(hall.state("reception", 1_020), Hall.State.USABLE)
+	assert_eq(hall.room_type("side_left"), "bunk_room")
+	assert_eq(hall.room_type("back_left"), "common_room")
+	assert_eq(hall.state("side_left", 1_020), Hall.State.CONVERTED)
+	assert_eq(hall.state("back_left", 1_020), Hall.State.CONVERTED)
+	assert_eq(hall.state("entrance", 1_020), Hall.State.USABLE)
+	for slot: String in ["back_right", "side_right", "front_right"]:
+		assert_eq(hall.state(slot, 1_020), Hall.State.DAMAGED, slot)
+	assert_eq(hall.state("upper_nw", 1_020), Hall.State.UNBUILT)
+	# The Reception gives what it gave at rank F.
+	assert_eq(hall.beds(1_020), 4)
+	assert_eq([hall.reception("beds"), hall.reception("candidate_slots"), hall.reception("board_slots"), hall.reception("stash")], [2, 1, 2, 6])
+	# The game's third, fourth and fifth restores.
+	var restoring := Gold.new(620)
+	assert_eq(hall.next_restore(), {"gold": 120, "seconds": 4})
+	assert_true(hall.restore("back_right", restoring, 1_020))
+	hall.checkpoint(1_030)
+	assert_eq(hall.next_restore(), {"gold": 200, "seconds": 10})
+	assert_true(hall.restore("side_right", restoring, 1_030))
+	hall.checkpoint(1_040)
+	assert_eq(hall.next_restore(), {"gold": 300, "seconds": 20})
+	assert_true(hall.restore("front_right", restoring, 1_040))
+	assert_eq(restoring.amount, 0)
+
+
+func test_a_hall_from_before_guild_ranks_ranks_up_gaining_only_the_front_room_and_keeping_its_capacity() -> void:
+	var file := ConfigFile.new()
+	file.set_value("hall", "restored", PackedStringArray(["back_left", "back_right", "side_left", "side_right"]))
+	file.set_value("hall", "converted", {"back_left": {"type": "tavern", "done_at": 1_100}, "side_left": {"type": "bunk_room", "done_at": 1_050}, "back_right": {"type": "infirmary", "done_at": 1_060}, "side_right": {"type": "quest_hall", "done_at": 1_070}})
+	file.set_value("hall", "checked_at", 1_200)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var hall := Hall.load_or_start(SAVE_PATH, 2_000)
+	var gold := Gold.new(150)
+	assert_true(hall.rank_up(15, gold, 2_000))
+	assert_eq(gold.amount, 0)
+	assert_eq(hall.rank, "E")
+	assert_eq(hall.state("front_right", 2_000), Hall.State.DAMAGED)
+	for slot: String in ["entrance", "reception"]:
+		assert_eq(hall.state(slot, 2_000), Hall.State.USABLE, slot)
+	for slot: String in ["back_left", "side_left", "back_right", "side_right"]:
+		assert_eq(hall.state(slot, 2_000), Hall.State.CONVERTED, slot)
+	assert_eq(hall.room_type("back_right"), "infirmary")
+	assert_eq(hall.beds(2_000), 6)
+	assert_eq([hall.reception("beds"), hall.reception("candidate_slots"), hall.reception("board_slots"), hall.reception("stash")], [4, 2, 3, 20])
+	assert_eq(hall.stash_cap(2_000), 20)
+
+
+func test_a_ranked_up_hall_survives_save_and_load() -> void:
+	var old := _six_room_hall(1_000)
+	old.rank = "F"
+	for slot: String in ["back_left", "back_right", "side_left", "side_right"]:
+		old.restored.append(slot)
+	old.converted.assign({"back_left": {"type": "bunk_room", "done_at": 1_000}, "back_right": {"type": "common_room", "done_at": 1_000}, "side_left": {"type": "tavern", "done_at": 1_000}, "side_right": {"type": "infirmary", "done_at": 1_000}})
+	for start: Hall in [_rank_f_hall_in_use(Gold.new(1_000)), old]:
+		assert_true(start.rank_up(15, Gold.new(150), 1_020))
+		var file := ConfigFile.new()
+		start.write(file)
+		assert_eq(file.save(SAVE_PATH), OK)
+		var loaded := Hall.load_or_start(SAVE_PATH, 1_030)
+		assert_eq(loaded.rank, "E")
+		assert_eq(loaded.ranked_at, {"E": 1_020})
+		assert_eq(loaded.layout, start.layout)
+		for slot: String in ["back_left", "back_right", "side_left", "reception", "side_right", "entrance", "front_right", "upper_nw"]:
+			assert_eq(loaded.state(slot, 1_030), start.state(slot, 1_030), slot)
+		for capacity: String in ["beds", "candidate_slots", "board_slots", "stash"]:
+			assert_eq(loaded.reception(capacity), start.reception(capacity), capacity)
+		assert_eq(loaded.rank_up_refusal(100, Gold.new(10_000), 1_030), "Highest rank for now")
+	assert_eq(old.reception("stash"), 20)
+
+
+func test_a_storeroom_can_be_built_only_at_rank_e_and_once_finished_adds_6_to_the_stash_cap() -> void:
+	var gold := Gold.new(1_000)
+	var hall := Hall.new(1_000)
+	assert_true(hall.restore("side_left", gold, 1_000))
+	hall.checkpoint(1_030)
+	assert_eq(Hall.ROOM_TYPES["storeroom"]["name"], "Storeroom")
+	assert_eq(Hall.ROOM_TYPES["storeroom"]["blurb"], "6 more stash slots")
+	assert_eq(hall.convert_refusal("side_left", "storeroom", gold, 1_030), "Guild rank E")
+	assert_false(hall.convert_room("side_left", "storeroom", gold, 1_030))
+	assert_eq(gold.amount, 940)
+	assert_eq(hall.state("side_left", 1_030), Hall.State.RESTORED)
+	hall.rank = "E"
+	assert_eq(hall.stash_cap(1_030), 6)
+	assert_true(hall.convert_room("side_left", "storeroom", gold, 1_030))
+	assert_eq(gold.amount, 880)
+	assert_eq(hall.stash_cap(1_031), 6)
+	assert_eq(hall.stash_cap(1_032), 12)
+	hall.checkpoint(1_040)
+	assert_eq(hall.stash_cap(1_040), 12)
+	var gear := Gear.new()
+	gear.stash_cap = hall.stash_cap(1_040)
+	for i: int in 12:
+		assert_true(gear.stow("belt"), str(i))
+	assert_false(gear.stow("belt"))
+
+
+func test_extending_is_refused_at_rank_e_with_nothing_changed_and_allowed_at_rank_d() -> void:
+	var gold := Gold.new(1_000)
+	var hall := _hall_with_restores(3, gold)
+	hall.rank = "E"
+	assert_eq(hall.extend_refusal(gold, 1_450), "Guild rank D")
+	assert_false(hall.extend(gold, 1_450))
+	assert_eq(gold.amount, 760)
+	assert_eq(hall.building, "")
+	hall.rank = "D"
+	assert_true(hall.extend(gold, 1_450))
+	assert_eq(gold.amount, 360)

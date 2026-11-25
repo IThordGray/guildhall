@@ -16,18 +16,23 @@ const RESTORES: Array[Dictionary] = [
 ]
 ## Rooms usable from the start, where the hall has them; every other ground-floor room starts damaged.
 const STARTING_USABLE: Array[String] = ["entrance", "reception"]
-## What a hall is, by its layout: the ground floor's rooms, and what its Reception gives the guild
-## before any room adds to it: beds, candidate slots, quest board slots and the stash's size. A new
-## game is a run-down rank-F hall: the Reception and two damaged rooms. A hall saved before guild
-## ranks keeps its six rooms and the capacity it had then, so nobody is evicted and no item lost.
-## A save refers to a layout by its place here.
-const LAYOUTS: Array[Dictionary] = [
-	{"ground_floor": ["back_left", "back_right", "side_left", "reception", "side_right", "entrance"], "beds": 4, "candidate_slots": 2, "board_slots": 3, "stash": 20},
-	{"ground_floor": ["reception", "side_left", "back_left"], "beds": 2, "candidate_slots": 1, "board_slots": 2, "stash": 6},
-]
-## The layout of a hall saved before guild ranks, and a new game's.
+## The layout of a hall saved before guild ranks, and a new game's; and each once ranked up to E.
 const OLD_LAYOUT: int = 0
 const NEW_LAYOUT: int = 1
+const NEW_LAYOUT_E: int = 2
+const OLD_LAYOUT_E: int = 3
+## What a hall is, by its layout: the ground floor's rooms, what its Reception gives the guild
+## before any room adds to it (beds, candidate slots, quest board slots and the stash's size), and
+## the layout ranking up grows it into, "rank_up" (none keeps it). A new game is a run-down rank-F
+## hall: the Reception and two damaged rooms. A hall saved before guild ranks keeps its six rooms
+## and the capacity it had then, so nobody is evicted and no item lost. Rank E adds the ground-floor
+## wing and keeps the capacity. A save refers to a layout by its place here: append, never reorder.
+const LAYOUTS: Array[Dictionary] = [
+	{"ground_floor": ["back_left", "back_right", "side_left", "reception", "side_right", "entrance"], "beds": 4, "candidate_slots": 2, "board_slots": 3, "stash": 20, "rank_up": OLD_LAYOUT_E},
+	{"ground_floor": ["reception", "side_left", "back_left"], "beds": 2, "candidate_slots": 1, "board_slots": 2, "stash": 6, "rank_up": NEW_LAYOUT_E},
+	{"ground_floor": ["back_left", "back_right", "side_left", "reception", "side_right", "entrance", "front_right"], "beds": 2, "candidate_slots": 1, "board_slots": 2, "stash": 6},
+	{"ground_floor": ["back_left", "back_right", "side_left", "reception", "side_right", "entrance", "front_right"], "beds": 4, "candidate_slots": 2, "board_slots": 3, "stash": 20},
+]
 ## The rank a new guild starts at.
 const STARTING_RANK: String = "F"
 ## What ranking up from each rank needs: the rank it leads "to", the "reputation" earned and the
@@ -41,7 +46,7 @@ const EXTEND_GOLD: int = 400
 const EXTEND_SECONDS: int = 20
 const EXTEND_AFTER_RESTORES: int = 3
 ## The guild rank extending needs.
-const EXTEND_RANK: String = "E"
+const EXTEND_RANK: String = "D"
 ## The First floor's rooms. They are new, so they start restored and empty once it is built.
 const FIRST_FLOOR: Array[String] = ["upper_nw", "upper_ne", "upper_sw", "upper_se"]
 ## What `building` holds while the builder extends the hall; not a slot.
@@ -59,6 +64,7 @@ const ROOM_TYPES: Dictionary[String, Dictionary] = {
 	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "rank": "D", "gold": 60, "seconds": 2},
 	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "rank": "D", "gold": 60, "seconds": 2},
 	"common_room": {"name": "Common room", "blurb": "more candidates visit", "rank": "F", "gold": 60, "seconds": 2},
+	"storeroom": {"name": "Storeroom", "blurb": "6 more stash slots", "rank": "E", "gold": 60, "seconds": 2},
 }
 ## A finished Tavern fills with gold at this rate from when it finished or was last collected, up
 ## to TAVERN_CAP; the cap is the reason to come back before it is full (stand-ins).
@@ -68,11 +74,16 @@ const TAVERN_CAP: int = 40
 const BUNK_ROOM_BEDS: Array[int] = [2, 3, 4]
 ## The most adventurers the guild can have, however many Bunk rooms it has.
 const MAX_ROSTER: int = 8
+## Stash slots a finished Storeroom adds to the Reception's.
+const STOREROOM_STASH: int = 6
 
 ## Which of LAYOUTS the hall is.
 var layout: int = NEW_LAYOUT
 ## The guild's rank. It limits what can be built from now on; rooms already built keep working.
 var rank: String = STARTING_RANK
+## Unix seconds the guild reached each rank it ranked up to: {rank: at}. A rank missing is not
+## reached.
+var ranked_at: Dictionary[String, int] = {}
 ## Slots the builder has finished restoring, converted or not.
 var restored: PackedStringArray = PackedStringArray()
 ## Whether the builder has finished extending the hall.
@@ -195,6 +206,42 @@ func rank_up_checklist(reputation: int, gold: int, now: int) -> Array[Dictionary
 	for line: Array in [["reputation", reputation, needs["reputation"]], ["rooms", in_use, rooms], ["gold", gold, needs["gold"]]]:
 		checklist.append({"what": line[0], "has": line[1], "needs": line[2], "met": line[1] >= line[2]})
 	return checklist
+
+
+## Why the guild, with `reputation` earned and `gold` held, can't rank up at `now`, in words for
+## the player; "" when it can: the first unmet line of `rank_up_checklist`.
+func rank_up_refusal(reputation: int, gold: Gold, now: int) -> String:
+	if not RANK_UPS.has(rank):
+		return "Highest rank for now"
+	for line: Dictionary in rank_up_checklist(reputation, gold.amount, now):
+		if not line["met"]:
+			return "Every room in use first" if line["what"] == "rooms" else "Need %d more %s" % [line["needs"] - line["has"], line["what"]]
+	return ""
+
+
+## Pays and ranks the guild up at `now`, growing the hall into its layout's "rank_up" and recording
+## when; false, with nothing changed, when `rank_up_refusal` gives a reason. Reputation is not
+## spent. Rooms the hall already has keep their state; the ones the new layout adds start damaged.
+func rank_up(reputation: int, gold: Gold, now: int) -> bool:
+	if not rank_up_refusal(reputation, gold, now).is_empty():
+		return false
+	checkpoint(now)
+	gold.spend(RANK_UPS[rank]["gold"])
+	rank = RANK_UPS[rank]["to"]
+	layout = LAYOUTS[layout].get("rank_up", layout)
+	ranked_at[rank] = checked_at
+	return true
+
+
+## Whether the hall is one saved before guild ranks, ranked up since or not.
+func from_before_ranks() -> bool:
+	return layout == OLD_LAYOUT or layout == OLD_LAYOUT_E
+
+
+## How many items the stash holds at most at `now`: the Reception's, and STOREROOM_STASH for each
+## finished Storeroom.
+func stash_cap(now: int) -> int:
+	return reception("stash") + STOREROOM_STASH * rooms_done("storeroom", now)
 
 
 ## How many adventurers the guild has beds for at `now`.
@@ -442,6 +489,7 @@ func _done_at() -> int:
 func write(file: ConfigFile) -> void:
 	file.set_value("hall", "layout", layout)
 	file.set_value("hall", "rank", rank)
+	file.set_value("hall", "ranked_at", ranked_at)
 	file.set_value("hall", "restored", restored)
 	file.set_value("hall", "converted", converted)
 	file.set_value("hall", "restoring", building)
@@ -462,6 +510,7 @@ static func load_or_start(path: String, now: int) -> Hall:
 		return hall
 	hall.layout = int(file.get_value("hall", "layout", OLD_LAYOUT))
 	hall.rank = file.get_value("hall", "rank", STARTING_RANK)
+	hall.ranked_at.assign(file.get_value("hall", "ranked_at", {}))
 	if not file.has_section("hall"):
 		return hall
 	hall.restored = file.get_value("hall", "restored", PackedStringArray())

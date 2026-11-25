@@ -27,6 +27,8 @@ const LET_GO: String = "let_go"
 const SELL: String = "sell"
 ## What the confirmation sheet asks about when it confirms upgrading the room `_upgrading`.
 const UPGRADE: String = "upgrade"
+## What the confirmation sheet asks about when it confirms ranking the guild up.
+const RANK_UP: String = "rank_up"
 ## Play-testing only: the speeds the Test speed control cycles through.
 const TEST_SPEEDS: Array[int] = [1, 10, 60]
 
@@ -40,7 +42,7 @@ var _walk_ins: WalkIns
 ## The slot the Give it a job screen is open for.
 var _chosen_slot: String = ""
 ## What the confirmation sheet asks about: the damaged slot to restore, Hall.EXTENSION, UPGRADE,
-## DISMISS, SWAP, SWAP_LOOT, LET_GO or SELL.
+## RANK_UP, DISMISS, SWAP, SWAP_LOOT, LET_GO or SELL.
 var _confirming: String = ""
 ## The adventurer DISMISS or SWAP sends away.
 var _leaving: String = ""
@@ -106,6 +108,7 @@ func _ready() -> void:
 		_confirm(UPGRADE))
 	_hall_view.reception_pressed.connect(_open_reception)
 	_reception.back_pressed.connect(_close_reception)
+	_reception.rank_up_pressed.connect(_confirm.bind(RANK_UP))
 	_confirm_sheet.confirmed.connect(_on_confirmed)
 	_convert_panel.convert_pressed.connect(_on_convert_pressed)
 	_convert_panel.back_pressed.connect(_close_convert)
@@ -201,8 +204,8 @@ func _open_game() -> void:
 	_quest_board = Board.load_or_start(SAVE_PATH)
 	_recruits = Recruits.load_or_start(SAVE_PATH)
 	_walk_ins = WalkIns.load_or_start(SAVE_PATH)
-	# What the Reception gives the guild depends on the hall the save holds.
-	_dispatch.adventurers.gear.stash_cap = _hall.reception("stash")
+	# What the Reception gives the guild depends on the hall the save holds; the stash's size
+	# follows the hall at each checkpoint.
 	_quest_board.reception_slots = _hall.reception("board_slots")
 	_recruits.reception_slots = _hall.reception("candidate_slots")
 	_arrive()
@@ -251,6 +254,7 @@ func _on_tick() -> void:
 
 func _checkpoint(now: int) -> void:
 	_hall.checkpoint(now)
+	_dispatch.adventurers.gear.stash_cap = _hall.stash_cap(now)
 	Auto.checkpoint(_dispatch, _quest_board, now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank)
 	_recruits.refill(_dispatch.adventurers, now, _rooms_done("common_room"), _walk_ins.waiting_name())
 	_walk_ins.refill(_dispatch.adventurers, _recruits, now)
@@ -324,6 +328,9 @@ func _offer(now: int) -> void:
 		_confirm_sheet.ask("Sell " + Gear.ITEMS[_item]["name"], "+%d gold" % Gear.price(_item), "Sell", _dispatch.adventurers.gear.sell_refusal(_item))
 	elif _confirming == Hall.EXTENSION:
 		_confirm_sheet.offer("Build the first floor", Hall.EXTEND_GOLD, Hall.EXTEND_SECONDS, "Extend", _hall.extend_refusal(_gold, now))
+	elif _confirming == RANK_UP:
+		var rank_up: Dictionary = Hall.RANK_UPS[_hall.rank]
+		_confirm_sheet.ask("Rank up to " + rank_up["to"], "%d gold" % rank_up["gold"], "Rank up", _hall.rank_up_refusal(_dispatch.reputation, _gold, now))
 	elif _confirming == UPGRADE:
 		var next := _hall.next_upgrade(_upgrading, now)
 		_confirm_sheet.offer("Upgrade " + Hall.ROOM_TYPES[_hall.room_type(_upgrading)]["name"], next["gold"], next["seconds"], "Upgrade", _hall.upgrade_refusal(_upgrading, _gold, now), "+1 bed")
@@ -345,6 +352,10 @@ func _on_confirmed() -> void:
 		_dispatch.adventurers.gear.sell(_item, _gold)
 	elif _confirming == Hall.EXTENSION:
 		_hall.extend(_gold, now)
+	elif _confirming == RANK_UP:
+		# The checkpoint before brings the board, candidates and walk-ins up to now at the old rank.
+		_checkpoint(now)
+		_hall.rank_up(_dispatch.reputation, _gold, now)
 	elif _confirming == UPGRADE:
 		_hall.upgrade(_upgrading, _gold, now)
 	else:
