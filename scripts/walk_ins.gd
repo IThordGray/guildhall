@@ -13,6 +13,10 @@ const MAX_FIRST_GAP_SECONDS: int = 420
 ## each later walk-in is an event rather than a flood.
 const MIN_GAP_SECONDS: int = 20 * 3600
 const MAX_GAP_SECONDS: int = 28 * 3600
+## The same once the guild has reached rank E, about 14 hours on average: a better-known guild draws
+## them sooner.
+const MIN_GAP_SECONDS_E: int = 12 * 3600
+const MAX_GAP_SECONDS_E: int = 16 * 3600
 ## How likely a walk-in arrives at each level, in whole percent: mostly 1, now and then someone
 ## strong. They are always rank F.
 const LEVEL_PERCENT: Dictionary[int, int] = {1: 75, 2: 18, 3: 7}
@@ -41,16 +45,16 @@ func waiting_name() -> String:
 ## replaces whoever waited. Each walk-in and each gap is drawn from its arrival time alone, never
 ## the global generator, so refilling once after an absence gives the same walk-in as refilling
 ## every second through it; their name is none in `adventurers` or among `recruits`' candidates.
-## Time is read as no earlier than the walk-ins last saw, so a clock set back never undoes an
-## arrival.
-func refill(adventurers: Adventurers, recruits: Recruits, now: int) -> void:
+## `rank_e_at` is as for `arrival_gap`. Time is read as no earlier than the walk-ins last saw, so a
+## clock set back never undoes an arrival.
+func refill(adventurers: Adventurers, recruits: Recruits, now: int, rank_e_at: int = -1) -> void:
 	var at := maxi(now, checked_at)
 	if next_at < 0:
 		next_at = at + first_gap(at)
 	var arriving := -1
 	while next_at <= at:
 		arriving = next_at
-		next_at = arriving + arrival_gap(arriving)
+		next_at = arriving + arrival_gap(arriving, rank_e_at)
 	# Only the latest arrival is drawn: everyone before them has already left.
 	if arriving >= 0:
 		arrived_at = arriving
@@ -66,12 +70,16 @@ static func first_gap(started_at: int) -> int:
 	return rng.randi_range(MIN_FIRST_GAP_SECONDS, MAX_FIRST_GAP_SECONDS)
 
 
-## The gap from a walk-in arriving at `arrived_at` until the next one, MIN_GAP_SECONDS to
-## MAX_GAP_SECONDS, drawn from that time alone. The one place the gap between walk-ins is decided:
-## reputation, once the guild has it, shortens the gap here.
-static func arrival_gap(arrived_at: int) -> int:
+## The gap from a walk-in arriving at `arrived_at` until the next one, drawn from that time alone:
+## MIN_GAP_SECONDS_E to MAX_GAP_SECONDS_E when they arrive at or after `rank_e_at`, the moment the
+## guild reached rank E (-1 for not yet), MIN_GAP_SECONDS to MAX_GAP_SECONDS before it. A gap is
+## drawn once, when its walk-in arrives, so one already running when the guild ranks up keeps its
+## length. The one place the gap between walk-ins is decided.
+static func arrival_gap(arrived_at: int, rank_e_at: int = -1) -> int:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(["walk-in gap", arrived_at])
+	if rank_e_at >= 0 and arrived_at >= rank_e_at:
+		return rng.randi_range(MIN_GAP_SECONDS_E, MAX_GAP_SECONDS_E)
 	return rng.randi_range(MIN_GAP_SECONDS, MAX_GAP_SECONDS)
 
 

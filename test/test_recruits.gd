@@ -350,16 +350,16 @@ func _with_rooms(adventurers: Adventurers, at: int, rooms: Array[int]) -> Recrui
 	return recruits
 
 
-## A new guild's candidates, filled at the first time `at` from START on at which, with Common
-## rooms finished at `at` plus each of `room_offsets`, slot 0's candidate is rank E; null, with the
-## test failed, when none is within 10_000 seconds.
+## A new guild's candidates, filled at the first time `at` from START on at which, with the guild
+## reaching rank E at `at` and Common rooms finished at `at` plus each of `room_offsets`, slot 0's
+## candidate is rank E; null, with the test failed, when none is within 10_000 seconds.
 func _rank_e_guild(adventurers: Adventurers, room_offsets: Array[int] = [0]) -> Recruits:
 	for at: int in range(START, START + 10_000):
 		var rooms := PackedInt64Array()
 		for offset: int in room_offsets:
 			rooms.append(at + offset)
 		var recruits := _old_recruits()
-		recruits.refill(adventurers, at, rooms)
+		recruits.refill(adventurers, at, rooms, "", at)
 		if recruits.candidates[0]["who"]["rank"] == "E":
 			return recruits
 	fail_test("no rank-E candidate in slot 0 within 10_000 seconds")
@@ -373,6 +373,11 @@ func _done_by(rooms: Array[int], at: int) -> PackedInt64Array:
 		if room <= at:
 			done.append(room)
 	return done
+
+
+## The moment the guild reached rank E, `rank_e_at`, as the hall has it at `at`: -1 before then.
+func _reached(rank_e_at: int, at: int) -> int:
+	return rank_e_at if at >= rank_e_at else -1
 
 
 func test_a_common_room_adds_a_slot_whose_first_candidate_arrives_when_the_room_finished() -> void:
@@ -393,30 +398,73 @@ func test_common_rooms_add_slots_up_to_four_in_all() -> void:
 		assert_false(candidate.is_empty())
 
 
-func test_about_a_quarter_of_candidates_arriving_once_a_common_room_finished_are_rank_e_and_none_before() -> void:
-	var room_done := START + 1_000
+func test_about_70_percent_of_candidates_arriving_from_the_moment_the_guild_reached_rank_e_are_rank_e_and_none_before() -> void:
+	var rank_e_at := START + 1_000
 	var rank_e := 0
 	for at: int in 2_000:
 		var arrives := START + at
-		var candidate := Recruits.candidate_for(at % 4, arrives, PackedStringArray(), room_done)
+		var candidate := Recruits.candidate_for(at % 4, arrives, PackedStringArray(), rank_e_at)
 		var plain := Recruits.candidate_for(at % 4, arrives, PackedStringArray())
 		assert_eq(plain["who"]["rank"], "F")
-		if arrives < room_done:
+		if arrives < rank_e_at:
 			assert_eq(candidate["who"]["rank"], "F")
 		elif candidate["who"]["rank"] == "E":
 			rank_e += 1
 		# Only the rank, and a rank-E one's level and stats, can differ from the same candidate
-		# without a Common room.
+		# before the guild reached rank E.
 		if candidate["who"]["rank"] == "E":
 			candidate.erase("level")
 			candidate["stats"] = plain["stats"]
 		candidate["who"]["rank"] = "F"
 		assert_eq(candidate, plain)
-	assert_between(rank_e, 200, 300)
+	# Of the 1_000 arriving from the moment on.
+	assert_between(rank_e, 600, 800)
 
 
-func test_rank_e_starts_from_the_first_common_room_not_a_later_one() -> void:
-	# Rooms finished 10 seconds before and 1_000 seconds after slot 0's candidate arrives.
+func test_before_the_guild_reached_rank_e_or_with_no_rank_e_no_candidate_is_rank_e_with_or_without_a_common_room() -> void:
+	var rank_e := 0
+	for at: int in range(START, START + 300):
+		# Two Common rooms finished at `at`: four slots, every one filled at `at`.
+		var rooms := PackedInt64Array([at, at])
+		var never := _old_recruits()
+		never.refill(Adventurers.new(EVERYONE), at, rooms)
+		var later := _old_recruits()
+		later.refill(Adventurers.new(EVERYONE), at, rooms, "", at + 1)
+		var no_room := _old_recruits()
+		no_room.refill(Adventurers.new(EVERYONE), at, PackedInt64Array(), "", at + 1)
+		assert_eq(never.candidates.size(), 4)
+		assert_eq(no_room.candidates.size(), 2)
+		for candidate: Dictionary in never.candidates + later.candidates + no_room.candidates:
+			assert_eq(candidate["who"]["rank"], "F", str(at))
+		# The same arrivals once the guild has reached rank E do bring rank-E candidates.
+		var reached := _old_recruits()
+		reached.refill(Adventurers.new(EVERYONE), at, rooms, "", at)
+		for candidate: Dictionary in reached.candidates:
+			if candidate["who"]["rank"] == "E":
+				rank_e += 1
+	assert_gt(rank_e, 0)
+
+
+func test_candidates_already_waiting_when_the_guild_reaches_rank_e_are_unchanged_and_a_common_room_still_adds_its_slot() -> void:
+	var adventurers := Adventurers.new(EVERYONE)
+	var recruits := _with_rooms(adventurers, START + 10, [START + 5])
+	var waiting := recruits.candidates.duplicate(true)
+	assert_eq(waiting.size(), 3)
+	var rank_e_at := START + 100
+	recruits.refill(adventurers, rank_e_at + 500, PackedInt64Array([START + 5]), "", rank_e_at)
+	assert_eq(recruits.candidates, waiting)
+	for candidate: Dictionary in recruits.candidates:
+		assert_eq(candidate["who"]["rank"], "F")
+	# A Common room finishing after the guild reached rank E adds its slot all the same.
+	recruits.refill(adventurers, rank_e_at + 1_000, PackedInt64Array([START + 5, rank_e_at + 900]), "", rank_e_at)
+	assert_eq(recruits.candidates.size(), 4)
+	assert_false(recruits.candidates[3].is_empty())
+	assert_eq(recruits.candidates.slice(0, 3), waiting)
+
+
+func test_rank_e_starts_from_the_moment_the_guild_reached_it_whatever_common_rooms_finished() -> void:
+	# Rooms finished 10 seconds before and 1_000 seconds after slot 0's candidate arrives, when the
+	# guild reaches rank E.
 	var recruits := _rank_e_guild(Adventurers.new(EVERYONE), [-10, 1_000])
 	if recruits == null:
 		return
@@ -448,15 +496,15 @@ func test_a_rank_e_candidate_costs_180_gold_and_is_refused_with_nothing_changed_
 	var before := recruits.candidates.duplicate(true)
 	var short := Gold.new(179)
 	assert_eq(Recruits.refusal(adventurers, short, 6, Recruits.hire_gold(recruits.candidates[0])), "Not enough gold")
-	assert_false(recruits.hire(0, adventurers, short, 6, at, rooms))
+	assert_false(recruits.hire(0, adventurers, short, 6, at, rooms, "", at))
 	var gold := Gold.new(180)
-	assert_false(recruits.hire(0, adventurers, gold, 4, at, rooms))
+	assert_false(recruits.hire(0, adventurers, gold, 4, at, rooms, "", at))
 	assert_eq(short.amount, 179)
 	assert_eq(gold.amount, 180)
 	assert_eq(adventurers.roster.size(), 4)
 	assert_eq(recruits.candidates, before)
 
-	assert_true(recruits.hire(0, adventurers, gold, 6, at, rooms))
+	assert_true(recruits.hire(0, adventurers, gold, 6, at, rooms, "", at))
 	assert_eq(gold.amount, 0)
 	assert_eq(adventurers.roster[adventurers.roster.keys()[4]]["rank"], "E")
 	assert_eq(Recruits.hire_gold({"who": {"rank": "F"}}), 100)
@@ -464,6 +512,7 @@ func test_a_rank_e_candidate_costs_180_gold_and_is_refused_with_nothing_changed_
 
 func test_one_refill_after_an_absence_equals_refilling_every_second_with_common_rooms_finishing_during_it() -> void:
 	var rooms: Array[int] = [START + 300, START + 2_500]
+	var rank_e_at := START + 200
 	var watched_guild := Adventurers.new(EVERYONE)
 	var watched := _recruits(watched_guild)
 	var away_guild := Adventurers.new(EVERYONE)
@@ -471,18 +520,18 @@ func test_one_refill_after_an_absence_equals_refilling_every_second_with_common_
 	var hires: Array[Vector2i] = [Vector2i(START + 5, 0), Vector2i(START + 710, 1), Vector2i(START + 2_600, 2), Vector2i(START + 2_700, 3)]
 	for hire: Vector2i in hires:
 		for at: int in range(watched.checked_at, hire.x):
-			watched.refill(watched_guild, at, _done_by(rooms, at))
-		assert_true(watched.hire(hire.y, watched_guild, Gold.new(1_000), Hall.MAX_ROSTER, hire.x, _done_by(rooms, hire.x)))
-		assert_true(away.hire(hire.y, away_guild, Gold.new(1_000), Hall.MAX_ROSTER, hire.x, _done_by(rooms, hire.x)))
+			watched.refill(watched_guild, at, _done_by(rooms, at), "", _reached(rank_e_at, at))
+		assert_true(watched.hire(hire.y, watched_guild, Gold.new(1_000), Hall.MAX_ROSTER, hire.x, _done_by(rooms, hire.x), "", _reached(rank_e_at, hire.x)))
+		assert_true(away.hire(hire.y, away_guild, Gold.new(1_000), Hall.MAX_ROSTER, hire.x, _done_by(rooms, hire.x), "", _reached(rank_e_at, hire.x)))
 	for at: int in range(watched.checked_at, START + 6_000):
-		watched.refill(watched_guild, at, _done_by(rooms, at))
-	watched.refill(watched_guild, START + 6_000, PackedInt64Array(rooms))
-	away.refill(away_guild, START + 6_000, PackedInt64Array(rooms))
+		watched.refill(watched_guild, at, _done_by(rooms, at), "", _reached(rank_e_at, at))
+	watched.refill(watched_guild, START + 6_000, PackedInt64Array(rooms), "", rank_e_at)
+	away.refill(away_guild, START + 6_000, PackedInt64Array(rooms), "", rank_e_at)
 	assert_eq(away.candidates, watched.candidates)
 	assert_eq(away.refill_at, watched.refill_at)
 	assert_eq(_names(away_guild), _names(watched_guild))
 	assert_eq(away.candidates.size(), 4)
-	# Some candidates came after the first Common room finished as rank E, so ranks were compared.
+	# Some candidates came after the guild reached rank E as rank E, so ranks were compared.
 	var ranks: Array[String] = []
 	for who: Dictionary in away_guild.roster.values():
 		ranks.append(who["rank"])
@@ -509,8 +558,9 @@ func test_common_room_slots_and_rank_e_candidates_survive_save_and_load() -> voi
 	var recruits := _rank_e_guild(adventurers)
 	if recruits == null:
 		return
+	var rank_e_at := recruits.checked_at
 	var rooms := PackedInt64Array([recruits.checked_at, recruits.checked_at + 10])
-	recruits.refill(adventurers, recruits.checked_at + 20, rooms)
+	recruits.refill(adventurers, recruits.checked_at + 20, rooms, "", rank_e_at)
 	var file := ConfigFile.new()
 	recruits.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
@@ -520,7 +570,7 @@ func test_common_room_slots_and_rank_e_candidates_survive_save_and_load() -> voi
 	assert_eq(loaded.candidates, recruits.candidates)
 	assert_eq(loaded.candidates[0]["who"]["rank"], "E")
 	assert_eq(loaded.refill_at, recruits.refill_at)
-	loaded.refill(adventurers, loaded.checked_at, rooms)
+	loaded.refill(adventurers, loaded.checked_at, rooms, "", rank_e_at)
 	assert_eq(loaded.candidates, recruits.candidates)
 
 
@@ -566,7 +616,7 @@ func test_a_rank_e_candidate_arrives_at_level_3_with_each_stat_at_least_the_same
 	assert_eq(Recruits.candidate_for(1, START + 5, PackedStringArray(), START), first)
 
 
-func test_a_rank_f_candidate_is_drawn_the_same_with_or_without_a_common_room_and_with_a_face() -> void:
+func test_a_rank_f_candidate_is_drawn_the_same_before_or_after_the_guild_reached_rank_e_and_with_a_face() -> void:
 	var joss := Recruits.candidate_for(0, 1_000_000, PackedStringArray())
 	assert_true(joss["who"].has("face_seed"))
 	joss["who"].erase("face_seed")
@@ -579,10 +629,10 @@ func test_a_rank_f_candidate_is_drawn_the_same_with_or_without_a_common_room_and
 	})
 	var rank_f := 0
 	for at: int in range(1_000_500, 1_000_540):
-		var with_room := Recruits.candidate_for(3, at, PackedStringArray(), 1_000_000)
-		if with_room["who"]["rank"] == "F":
+		var ranked := Recruits.candidate_for(3, at, PackedStringArray(), 1_000_000)
+		if ranked["who"]["rank"] == "F":
 			rank_f += 1
-			assert_eq(with_room, Recruits.candidate_for(3, at, PackedStringArray()))
+			assert_eq(ranked, Recruits.candidate_for(3, at, PackedStringArray()))
 	assert_gt(rank_f, 0)
 
 
@@ -697,7 +747,7 @@ func test_hiring_a_rank_e_candidate_brings_them_in_at_level_3_with_0_xp_and_thei
 	if recruits == null:
 		return
 	var hired := recruits.candidates[0].duplicate(true)
-	assert_true(recruits.hire(0, adventurers, Gold.new(180), 6, recruits.checked_at, PackedInt64Array([recruits.checked_at])))
+	assert_true(recruits.hire(0, adventurers, Gold.new(180), 6, recruits.checked_at, PackedInt64Array([recruits.checked_at]), "", recruits.checked_at))
 	var id: String = adventurers.roster.keys()[4]
 	assert_eq(adventurers.roster[id]["rank"], "E")
 	assert_eq(adventurers.levels[id], 3)
@@ -719,9 +769,9 @@ func test_a_rank_e_candidate_saved_before_they_arrived_levelled_loads_and_is_hir
 	assert_eq(file.save(SAVE_PATH), OK)
 
 	var loaded := _load_old_recruits()
-	loaded.refill(adventurers, at, PackedInt64Array([at]))
+	loaded.refill(adventurers, at, PackedInt64Array([at]), "", at)
 	assert_eq(loaded.candidates[0], saved)
-	assert_true(loaded.hire(0, adventurers, Gold.new(180), 6, at, PackedInt64Array([at])))
+	assert_true(loaded.hire(0, adventurers, Gold.new(180), 6, at, PackedInt64Array([at]), "", at))
 	var id: String = adventurers.roster.keys()[4]
 	assert_eq(adventurers.roster[id]["rank"], "E")
 	assert_eq(adventurers.levels[id], 1)

@@ -65,6 +65,61 @@ func test_every_later_walk_in_arrives_20_to_28_hours_after_the_one_before_about_
 	assert_true(gaps.any(func(gap: int) -> bool: return gap > 27 * 3600))
 
 
+## The moment the guild reached rank E, `rank_e_at`, as the hall has it at `at`: -1 before then.
+func _reached(rank_e_at: int, at: int) -> int:
+	return rank_e_at if at >= rank_e_at else -1
+
+
+func test_a_walk_in_arriving_from_the_moment_the_guild_reached_rank_e_is_followed_12_to_16_hours_later_and_before_it_20_to_28() -> void:
+	var walk_ins := _waiting()
+	var rank_e_at := walk_ins.arrived_at + 5 * 86_400
+	var before: Array[int] = []
+	var after: Array[int] = []
+	for arrival: int in 200:
+		var last := walk_ins.arrived_at
+		walk_ins.refill(_dispatch.adventurers, _recruits, walk_ins.next_at, _reached(rank_e_at, walk_ins.next_at))
+		if last < rank_e_at:
+			before.append(walk_ins.arrived_at - last)
+		else:
+			after.append(walk_ins.arrived_at - last)
+	assert_gt(before.size(), 2)
+	assert_gt(after.size(), 100)
+	for gap: int in before:
+		assert_between(gap, 20 * 3600, 28 * 3600)
+	var total := 0
+	for gap: int in after:
+		assert_between(gap, 12 * 3600, 16 * 3600)
+		total += gap
+	assert_between(total / float(after.size()), 13.0 * 3600, 15.0 * 3600)
+	# Arriving at the very moment counts as after it; a second earlier, before.
+	for at: int in range(START, START + 50):
+		assert_between(WalkIns.arrival_gap(at, at), 12 * 3600, 16 * 3600)
+		assert_between(WalkIns.arrival_gap(at - 1, at), 20 * 3600, 28 * 3600)
+		assert_between(WalkIns.arrival_gap(at, -1), 20 * 3600, 28 * 3600)
+
+
+func test_a_gap_that_started_before_the_guild_reached_rank_e_keeps_its_length() -> void:
+	var walk_ins := _waiting()
+	var away := _waiting()
+	var arrived := walk_ins.arrived_at
+	var next := walk_ins.next_at
+	assert_between(next - arrived, 20 * 3600, 28 * 3600)
+	var rank_e_at := arrived + 3_600
+	walk_ins.refill(_dispatch.adventurers, _recruits, rank_e_at, rank_e_at)
+	assert_eq(walk_ins.next_at, next)
+	walk_ins.refill(_dispatch.adventurers, _recruits, next, rank_e_at)
+	assert_eq(walk_ins.arrived_at, next)
+	assert_between(walk_ins.next_at - next, 12 * 3600, 16 * 3600)
+	# Away from before the guild ranked up until long after, the walk-ins are the same as watched.
+	for hour: int in range(1, 6 * 24 + 1):
+		var at := arrived + hour * 3_600
+		walk_ins.refill(_dispatch.adventurers, _recruits, at, _reached(rank_e_at, at))
+	away.refill(_dispatch.adventurers, _recruits, arrived + 6 * 86_400, rank_e_at)
+	assert_eq(away.arrived_at, walk_ins.arrived_at)
+	assert_eq(away.next_at, walk_ins.next_at)
+	assert_eq(away.walk_in, walk_ins.walk_in)
+
+
 func test_one_refill_after_an_absence_gives_the_same_walk_in_as_refilling_every_second() -> void:
 	var watched := _walk_ins()
 	var away := _walk_ins()

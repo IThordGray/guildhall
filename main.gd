@@ -256,8 +256,8 @@ func _checkpoint(now: int) -> void:
 	_hall.checkpoint(now)
 	_dispatch.adventurers.gear.stash_cap = _hall.stash_cap(now)
 	Auto.checkpoint(_dispatch, _quest_board, now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank)
-	_recruits.refill(_dispatch.adventurers, now, _rooms_done("common_room"), _walk_ins.waiting_name())
-	_walk_ins.refill(_dispatch.adventurers, _recruits, now)
+	_recruits.refill(_dispatch.adventurers, now, _rooms_done("common_room"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1))
+	_walk_ins.refill(_dispatch.adventurers, _recruits, now, _hall.ranked_at.get("E", -1))
 	var file := ConfigFile.new()
 	_clock.write(file, Time.get_unix_time_from_system())
 	_gold.write(file)
@@ -557,7 +557,7 @@ func _on_hire_pressed(slot: int) -> void:
 	var now := _now()
 	# A Common room finished since the last tick adds its slot before the hire.
 	_hall.checkpoint(now)
-	if _recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now, _rooms_done("common_room"), _walk_ins.waiting_name()):
+	if _recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now, _rooms_done("common_room"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1)):
 		_open_newcomer()
 	_checkpoint(now)
 

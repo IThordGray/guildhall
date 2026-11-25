@@ -12,9 +12,9 @@ const CANDIDATE_REFILL_SECONDS: int = 60
 const HIRE_GOLD: int = 100
 ## The rank every candidate starts at.
 const RANK: String = "F"
-## Once the first Common room is finished, the share of candidates arriving from then on who are
-## rank E instead, and what hiring one of them costs.
-const RANK_E_CHANCE: float = 0.25
+## Once the guild has reached rank E, the share of candidates arriving from then on who are rank E
+## instead, and what hiring one of them costs.
+const RANK_E_CHANCE: float = 0.7
 const HIRE_GOLD_E: int = 180
 ## How many stats a candidate's "shown" names. Every stat is shown to the player; the draw is kept so
 ## every candidate, and everything drawn after it, stays as it was drawn.
@@ -64,11 +64,12 @@ var reception_slots: int = Hall.LAYOUTS[Hall.NEW_LAYOUT]["candidate_slots"]
 ## at the room's finish time in `common_rooms_done`, and fills each empty slot whose time has come,
 ## in the order their time comes. Each candidate is drawn from their slot and arrival time alone,
 ## never the global generator, so refilling once after an absence gives the same candidates as
-## refilling every second through it; one arriving at or after the first Common room finished may
-## be rank E. Nobody arriving is named after `walk_in_name`, the walk-in waiting (see WalkIns), if
-## any. Time is read as no earlier than the slots last saw, so a clock set back never undoes a refill
-## or restarts a countdown. A new guild starts with every slot filled.
-func refill(adventurers: Adventurers, now: int, common_rooms_done: PackedInt64Array = PackedInt64Array(), walk_in_name: String = "") -> void:
+## refilling every second through it; one arriving at or after `rank_e_at`, the moment the guild
+## reached rank E (-1 for not yet), may be rank E. Nobody arriving is named after `walk_in_name`, the
+## walk-in waiting (see WalkIns), if any. Time is read as no earlier than the slots last saw, so a
+## clock set back never undoes a refill or restarts a countdown. A new guild starts with every slot
+## filled.
+func refill(adventurers: Adventurers, now: int, common_rooms_done: PackedInt64Array = PackedInt64Array(), walk_in_name: String = "", rank_e_at: int = -1) -> void:
 	var at := maxi(now, checked_at)
 	if candidates.is_empty():
 		for slot: int in reception_slots:
@@ -79,7 +80,6 @@ func refill(adventurers: Adventurers, now: int, common_rooms_done: PackedInt64Ar
 	for i: int in range(candidates.size() - reception_slots, mini(rooms.size(), MAX_CANDIDATE_SLOTS - reception_slots)):
 		candidates.append({})
 		refill_at.append(rooms[i])
-	var better_from := -1 if rooms.is_empty() else rooms[0]
 	while true:
 		var next := -1
 		for slot: int in candidates.size():
@@ -90,7 +90,7 @@ func refill(adventurers: Adventurers, now: int, common_rooms_done: PackedInt64Ar
 		var taken := names_taken(adventurers, next)
 		if not walk_in_name.is_empty():
 			taken.append(walk_in_name)
-		candidates[next] = candidate_for(next, refill_at[next], taken, better_from)
+		candidates[next] = candidate_for(next, refill_at[next], taken, rank_e_at)
 	checked_at = at
 
 
@@ -136,9 +136,10 @@ static func bed_refusal(adventurers: Adventurers, beds: int, hall: Hall = null) 
 
 ## Pays `hire_gold` and brings the candidate in `slot` at `now` into `adventurers`, emptying the
 ## slot until CANDIDATE_REFILL_SECONDS later; false, with nothing paid or hired, when the slot is
-## empty or `refusal` gives a reason. `common_rooms_done` and `walk_in_name` are as for `refill`.
-func hire(slot: int, adventurers: Adventurers, gold: Gold, beds: int, now: int, common_rooms_done: PackedInt64Array = PackedInt64Array(), walk_in_name: String = "") -> bool:
-	refill(adventurers, now, common_rooms_done, walk_in_name)
+## empty or `refusal` gives a reason. `common_rooms_done`, `walk_in_name` and `rank_e_at` are as for
+## `refill`.
+func hire(slot: int, adventurers: Adventurers, gold: Gold, beds: int, now: int, common_rooms_done: PackedInt64Array = PackedInt64Array(), walk_in_name: String = "", rank_e_at: int = -1) -> bool:
+	refill(adventurers, now, common_rooms_done, walk_in_name, rank_e_at)
 	if candidates[slot].is_empty() or not refusal(adventurers, gold, beds, hire_gold(candidates[slot])).is_empty():
 		return false
 	var hired := candidates[slot]
@@ -159,10 +160,10 @@ static func join(adventurers: Adventurers, id: String, candidate: Dictionary) ->
 
 
 ## The candidate who arrives in `slot` at `arrived_at`, named from NAMES other than `taken`; rank E
-## by RANK_E_CHANCE when they arrive at or after `better_from`, the first Common room's finish time
-## (-1 for none). A rank-E one arrives at the level rank E needs, their stats grown by a level-up's
+## by RANK_E_CHANCE when they arrive at or after `rank_e_at`, the moment the guild reached rank E
+## (-1 for not yet). A rank-E one arrives at the level rank E needs, their stats grown by a level-up's
 ## gains for each level past the first.
-static func candidate_for(slot: int, arrived_at: int, taken: PackedStringArray, better_from: int = -1) -> Dictionary:
+static func candidate_for(slot: int, arrived_at: int, taken: PackedStringArray, rank_e_at: int = -1) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([slot, arrived_at])
 	var names := PackedStringArray()
@@ -188,9 +189,9 @@ static func candidate_for(slot: int, arrived_at: int, taken: PackedStringArray, 
 		order[i] = order[j]
 		order[j] = swap
 	var name := names[rng.randi_range(0, names.size() - 1)]
-	# Drawn last, so everything else about a candidate is as it would be without a Common room.
+	# Drawn last, so everything else about a candidate is as it would be before the guild reached E.
 	var rank := RANK
-	if better_from >= 0 and arrived_at >= better_from and rng.randf() < RANK_E_CHANCE:
+	if rank_e_at >= 0 and arrived_at >= rank_e_at and rng.randf() < RANK_E_CHANCE:
 		rank = "E"
 	var candidate := {
 		"who": {"name": name, "rank": rank},
