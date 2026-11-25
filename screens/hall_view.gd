@@ -13,6 +13,8 @@ signal collect_pressed(slot: String)
 signal extend_pressed
 ## The player tapped the finished room `slot`, to upgrade it to its next tier.
 signal upgrade_pressed(slot: String)
+## The player tapped the Reception, to see the guild's rank.
+signal reception_pressed
 
 ## How a room is drawn on the plan. UNBUILT is a room the hall doesn't have yet: not drawn at all.
 enum Look { IN_USE, EMPTY, DAMAGED, RESTORING, CONVERTING, UNBUILT }
@@ -317,8 +319,10 @@ class Room extends Control:
 	var furniture: String = ""
 	var title: Label
 	var bar: ProgressBar
-	## What can be done here, centred on the room, as a key of ICONS; "" for nothing.
+	## The icon for `kind`, centred on the room; hidden when `kind` has none in ICONS.
 	var icon: TextureRect
+	## What can be done here: a key of ICONS, "reception" (opens on a tap, with no icon), or "" for
+	## nothing.
 	var kind: String = ""
 	## What a tap anywhere on the room does: emits the signal for `kind`, or nothing.
 	var action: Callable
@@ -435,7 +439,10 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: in
 	room.title.text = slot_name(hall, slot)
 	match state:
 		Hall.State.USABLE:
-			if slot == STAIRS and not hall.has_first_floor(now):
+			# The Reception opens on a tap, with no icon.
+			if slot == "reception":
+				kind = "reception"
+			elif slot == STAIRS and not hall.has_first_floor(now):
 				if hall.building == Hall.EXTENSION:
 					room.bar.theme_type_variation = &"PlanBar"
 					building = true
@@ -481,8 +488,10 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: in
 	if kind != room.kind:
 		room.kind = kind
 		room.icon.texture = _icons.get(kind)
-		room.icon.visible = not kind.is_empty()
+		room.icon.visible = kind in ICONS
 		match kind:
+			"reception":
+				room.action = reception_pressed.emit
 			"build":
 				room.action = extend_pressed.emit if slot == STAIRS else restore_pressed.emit.bind(slot)
 			"upgrade":

@@ -47,6 +47,10 @@ const TRAINING_HINT_SECONDS: int = 20
 ## to that quest's chance, up to MOST_TRY_POINTS, because the guild learns its tricks.
 const POINTS_PER_TRY: int = 1
 const MOST_TRY_POINTS: int = 15
+## The reputation a party coming home earns the guild on a success, by the quest's rank; a failure
+## takes FAILURE_REPUTATION. Reputation never goes below 0.
+const REPUTATION: Dictionary[String, int] = {"F": 1, "E": 2, "D": 3}
+const FAILURE_REPUTATION: int = 1
 ## Why an adventurer can't start training while every Training room's one place is taken.
 const NO_TRAINING_PLACE: String = "No free training place — convert a Training room"
 
@@ -87,6 +91,8 @@ var training: Dictionary[String, int] = {}
 var trained_seconds: Dictionary[String, int] = {}
 ## How many parties have come back from each quest, success or failure: see `try_points`.
 var tries: Dictionary[String, int] = {}
+## The guild's reputation: what returning parties have earned it (REPUTATION), never below 0.
+var reputation: int = 0
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back neither
 ## adds time to a quest or an injury nor brings back a party that has returned.
 var checked_at: int
@@ -504,7 +510,8 @@ func returned_since_checkpoint(now: int) -> bool:
 
 ## Stows the loot waiting, oldest first, as far as the stash has room, freeing its parties. Then
 ## brings every returned party home, once, in the order they returned: gives each member damage and
-## XP and, on a success, counts it for them (Adventurers.successes), injures those it leaves under a
+## XP and, on a success, counts it for them (Adventurers.successes), gives the guild its reputation
+## (REPUTATION), injures those it leaves under a
 ## quarter of their health, reveals the quest's challenges, puts the gold it earned into `gold` and
 ## its loot into the stash, where loot that finds it full waits (`waiting_loot`). Debriefs a save from before held unread are paid first, the same way.
 ## `infirmary_from` is the unix seconds the first Infirmary is finished at, -1 for none: from then
@@ -583,6 +590,7 @@ func _bring_home(outing: Dictionary) -> void:
 			if success:
 				adventurers.add_successes(adventurer, quest["rank"], 1)
 	gold.amount += reward
+	reputation = maxi(0, reputation + (REPUTATION[quest["rank"]] if success else -FAILURE_REPUTATION))
 	# Loot comes whatever the outcome, from the seed the party left with.
 	var item := Gear.loot(outing["seed"], quest["rank"], luck)
 	if not item.is_empty():
@@ -628,6 +636,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("dispatch", "training", training)
 	file.set_value("dispatch", "trained_seconds", trained_seconds)
 	file.set_value("dispatch", "tries", tries)
+	file.set_value("dispatch", "reputation", reputation)
 	file.set_value("dispatch", "checked_at", checked_at)
 	adventurers.write(file)
 
@@ -667,5 +676,7 @@ static func load_or_start(path: String, now: int) -> Dispatch:
 	dispatch.trained_seconds.assign(file.get_value("dispatch", "trained_seconds", {}))
 	# A save from before tries were counted has tried nothing.
 	dispatch.tries.assign(file.get_value("dispatch", "tries", {}))
+	# A save from before reputation has earned none.
+	dispatch.reputation = int(file.get_value("dispatch", "reputation", 0))
 	dispatch.checked_at = int(file.get_value("dispatch", "checked_at", now))
 	return dispatch

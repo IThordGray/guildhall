@@ -30,6 +30,11 @@ const OLD_LAYOUT: int = 0
 const NEW_LAYOUT: int = 1
 ## The rank a new guild starts at.
 const STARTING_RANK: String = "F"
+## What ranking up from each rank needs: the rank it leads "to", the "reputation" earned and the
+## "gold" held, and every room in use (`rank_up_checklist`). A rank with no row is the last.
+const RANK_UPS: Dictionary[String, Dictionary] = {
+	"F": {"to": "E", "reputation": 15, "gold": 150},
+}
 ## Extending the hall builds the First floor: what it costs and takes, done by the builder like a
 ## restoration, and how many rooms must be restored first (stand-ins).
 const EXTEND_GOLD: int = 400
@@ -167,6 +172,29 @@ func open_types() -> PackedStringArray:
 		if has_rank(ROOM_TYPES[type]["rank"]):
 			open.append(type)
 	return open
+
+
+## What ranking up from the guild's rank needs (RANK_UPS) against what a guild with `reputation`
+## and `gold` held has at `now`, in order: {"what": "reputation", "rooms" or "gold", "has", "needs",
+## "met"}. Rooms count those on the layout's ground floor that can take a job, the Reception and the
+## entrance hall not among them; one is in use once its conversion has finished. Empty at the last
+## rank.
+func rank_up_checklist(reputation: int, gold: int, now: int) -> Array[Dictionary]:
+	var checklist: Array[Dictionary] = []
+	if not RANK_UPS.has(rank):
+		return checklist
+	var rooms := 0
+	var in_use := 0
+	for slot: String in LAYOUTS[layout]["ground_floor"]:
+		if slot in STARTING_USABLE:
+			continue
+		rooms += 1
+		if state(slot, now) == State.CONVERTED:
+			in_use += 1
+	var needs: Dictionary = RANK_UPS[rank]
+	for line: Array in [["reputation", reputation, needs["reputation"]], ["rooms", in_use, rooms], ["gold", gold, needs["gold"]]]:
+		checklist.append({"what": line[0], "has": line[1], "needs": line[2], "met": line[1] >= line[2]})
+	return checklist
 
 
 ## How many adventurers the guild has beds for at `now`.

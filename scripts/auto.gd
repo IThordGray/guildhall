@@ -138,8 +138,9 @@ static func _settle(dispatch: Dispatch, board: Board, to: int, quest_halls_done:
 # of what the board offers (`_offered`) of the quests it would take (`_takes`): a cycle is a quest
 # and the healing after it (twice as fast from the Infirmary on), then a wait for the next such quest
 # to come up. It takes each quest as often as it comes up, and what it takes is gone for the parties
-# after it. Quests taken count as learned (`_takes`). It earns the cycles' gold and each member
-# their XP and their expected successes by quest rank, each rounded down, and adds their tries,
+# after it. Quests taken count as learned (`_takes`). It earns the cycles' gold, the guild their
+# expected reputation rounded down (never taking it below 0), and each member their XP and their
+# expected successes by quest rank, each rounded down, and adds their tries,
 # revealing the quests tried. Its loot is the expected number of items, each drawn by a seed of the
 # party, its first ready moment and the cycle, put into the stash in time order across parties until
 # it is full; the first that doesn't fit waits for the player and ends that party's questing from
@@ -181,7 +182,7 @@ static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String
 		# A cycle is a try, then a wait for the next quest it would take to come up.
 		var fast_from := to if infirmary_from < 0 else clampi(infirmary_from, start, to)
 		var cycles := (fast_from - start) / (seconds / rate + 1.0 / rate) + (to - fast_from) / (fast_seconds / rate + 1.0 / rate)
-		var plan := {"id": id, "start": start, "members": party["members"], "luck": dispatch.party_stat(party["members"], "luck"), "cycles": cycles, "share": {}, "quest": "", "gold": 0.0, "xp": 0.0, "drops": 0.0, "successes": {}}
+		var plan := {"id": id, "start": start, "members": party["members"], "luck": dispatch.party_stat(party["members"], "luck"), "cycles": cycles, "share": {}, "quest": "", "gold": 0.0, "xp": 0.0, "drops": 0.0, "reputation": 0.0, "successes": {}}
 		var share: Dictionary = plan["share"]
 		# It takes each quest as often as it comes up, and what it takes is gone for the parties
 		# after it.
@@ -192,7 +193,7 @@ static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String
 				continue
 			offered[quest] = each * (1.0 - used)
 			share[quest] = each / rate
-			for key: String in ["gold", "xp", "drops"]:
+			for key: String in ["gold", "xp", "drops", "reputation"]:
 				plan[key] += share[quest] * take[quest][key]
 			var rank: String = Dispatch.QUESTS[quest]["rank"]
 			plan["successes"][rank] = plan["successes"].get(rank, 0.0) + share[quest] * take[quest]["chance"]
@@ -224,6 +225,7 @@ static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String
 	for plan: Dictionary in plans:
 		var cycles: float = plan["cycles"]
 		dispatch.gold.amount += roundi(cycles * plan["gold"])
+		dispatch.reputation = maxi(0, dispatch.reputation + floori(cycles * plan["reputation"]))
 		for member: String in plan["members"]:
 			dispatch.adventurers.gain_xp(member, roundi(cycles * plan["xp"]))
 			for rank: String in plan["successes"]:
@@ -242,7 +244,8 @@ static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String
 # `learned` counted with its challenges known and the most try points (Dispatch.MOST_TRY_POINTS).
 # Each with what a try at it can be expected to bring: {"seconds": the quest and the healing back to
 # full from its expected damage, "fast_seconds": the same with the Infirmary's healing, "gold",
-# "xp": each member's, "drops": items, "chance": of success, 0 to 1}.
+# "xp": each member's, "drops": items, "reputation": the guild's (Dispatch.REPUTATION), "chance": of
+# success, 0 to 1}.
 static func _takes(dispatch: Dispatch, id: String, guild_rank: String, learned: Dictionary) -> Dictionary:
 	var parties := dispatch.adventurers.parties
 	var members: PackedStringArray = parties.party(id)["members"]
@@ -270,6 +273,7 @@ static func _takes(dispatch: Dispatch, id: String, guild_rank: String, learned: 
 			"gold": chance * info["gold"] + (1.0 - chance) * Dispatch.failure_gold(quest),
 			"xp": chance * Dispatch.xp_share(info["xp"], true, members.size()) + (1.0 - chance) * Dispatch.xp_share(info["xp"], false, members.size()),
 			"drops": Gear.loot_percent(info["rank"], luck) / 100.0,
+			"reputation": chance * Dispatch.REPUTATION[info["rank"]] - (1.0 - chance) * Dispatch.FAILURE_REPUTATION,
 			"chance": chance,
 		}
 	return takes

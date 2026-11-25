@@ -2275,3 +2275,40 @@ func test_loot_waiting_stows_itself_oldest_first_once_the_stash_has_room_at_a_ch
 	assert_true(dispatch.waiting_loot.is_empty())
 	assert_false(dispatch.loot_waiting("bram"))
 	assert_false(dispatch.loot_waiting("ilse"))
+
+
+func test_a_party_coming_home_earns_1_2_or_3_reputation_for_a_success_at_rank_f_e_or_d_and_loses_1_for_a_failure_never_below_0() -> void:
+	var dispatch := _guild(1_000)
+	# Rank E members take rank D quests.
+	for adventurer: String in PARTY:
+		dispatch.adventurers.roster[adventurer]["rank"] = "E"
+	var at := 1_000
+	var reputations: Array[int] = []
+	for step: Array in [["moonherbs", true], ["wolves", true], ["maze", true], ["letters", false]]:
+		assert_true(dispatch.send(step[0], Fixtures.party(dispatch, PARTY), _seed(step[0], PARTY, step[1]), at), step[0])
+		# Long enough for any injury to heal before the next.
+		at += 1_000
+		dispatch.checkpoint(at)
+		reputations.append(dispatch.reputation)
+	assert_eq(reputations, [1, 3, 6, 5])
+	# A guild with none loses nothing on a failure.
+	var fresh := _guild(1_000)
+	assert_true(fresh.send("letters", Fixtures.party(fresh, PARTY), _seed("letters", PARTY, false), 1_000))
+	fresh.checkpoint(2_000)
+	assert_true(fresh.outings.is_empty())
+	assert_eq(fresh.reputation, 0)
+
+
+func test_reputation_survives_save_and_load_and_a_save_from_before_reputation_loads_at_0() -> void:
+	var dispatch := _guild(1_000)
+	dispatch.reputation = 7
+	var file := ConfigFile.new()
+	dispatch.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+	assert_eq(Dispatch.load_or_start(SAVE_PATH, 99_999).reputation, 7)
+	file.erase_section_key("dispatch", "reputation")
+	assert_eq(file.save(SAVE_PATH), OK)
+	var old := Dispatch.load_or_start(SAVE_PATH, 99_999)
+	# The rest of the save loaded.
+	assert_eq(old.checked_at, 1_000)
+	assert_eq(old.reputation, 0)

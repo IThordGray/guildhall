@@ -83,6 +83,7 @@ var _portrait_places: Dictionary[Control, Array] = {}
 @onready var _adventurer: Adventurer = $Body/Adventurer
 @onready var _level_up: LevelUp = $Body/LevelUp
 @onready var _armory: Armory = $Body/Armory
+@onready var _reception: Reception = $Body/Reception
 @onready var _swap_pick: SwapPick = $Body/SwapPick
 @onready var _picker: PartyPicker = $Body/PartyPicker
 @onready var _convert_panel: ConvertPanel = $Body/ConvertPanel
@@ -103,6 +104,8 @@ func _ready() -> void:
 	_hall_view.upgrade_pressed.connect(func(slot: String) -> void:
 		_upgrading = slot
 		_confirm(UPGRADE))
+	_hall_view.reception_pressed.connect(_open_reception)
+	_reception.back_pressed.connect(_close_reception)
 	_confirm_sheet.confirmed.connect(_on_confirmed)
 	_convert_panel.convert_pressed.connect(_on_convert_pressed)
 	_convert_panel.back_pressed.connect(_close_convert)
@@ -170,7 +173,7 @@ func _ready() -> void:
 	_test_speed.pressed.connect(_on_test_speed_pressed)
 	_start.continue_pressed.connect(_open_game)
 	_start.new_game_pressed.connect(_on_new_game)
-	for part: Control in [_tab_bar, _body, _board, _roster, _adventurer, _level_up, _armory, _swap_pick, _convert_panel, _picker]:
+	for part: Control in [_tab_bar, _body, _board, _roster, _adventurer, _level_up, _armory, _reception, _swap_pick, _convert_panel, _picker]:
 		_portrait_places[part] = [
 			Vector4(part.anchor_left, part.anchor_top, part.anchor_right, part.anchor_bottom),
 			Vector4(part.offset_left, part.offset_top, part.offset_right, part.offset_bottom),
@@ -278,6 +281,8 @@ func _checkpoint(now: int) -> void:
 		_show_adventurer(now)
 	if _armory.visible:
 		_armory.show_gear(_dispatch.adventurers)
+	if _reception.visible:
+		_reception.show_guild(_hall, _dispatch, now)
 	if _swap_pick.visible:
 		# The walk-in may have left, replaced by the next, whom the pick then names.
 		if _walk_ins.walk_in.is_empty():
@@ -414,6 +419,17 @@ func _on_convert_pressed(type: String) -> void:
 
 func _close_convert() -> void:
 	_convert_panel.hide()
+	_hall_view.show()
+
+
+func _open_reception() -> void:
+	_reception.show_guild(_hall, _dispatch, _now())
+	_hall_view.hide()
+	_reception.show()
+
+
+func _close_reception() -> void:
+	_reception.hide()
 	_hall_view.show()
 
 
@@ -680,6 +696,7 @@ func _on_tab_pressed(tab: BaseButton) -> void:
 	_adventurer.hide()
 	_level_up.hide()
 	_armory.hide()
+	_reception.hide()
 	_swap_pick.hide()
 	_convert_panel.hide()
 	_picker.close()
@@ -710,6 +727,7 @@ func _lay_out() -> void:
 	_board.set_landscape(landscape)
 	_adventurer.set_landscape(landscape)
 	_picker.set_landscape(landscape)
+	_reception.set_landscape(landscape)
 	if not landscape:
 		for part: Control in _portrait_places:
 			_place(part, _portrait_places[part][0], _portrait_places[part][1])
@@ -719,6 +737,7 @@ func _lay_out() -> void:
 		_place(_body, full, Vector4(RAIL_WIDTH_PX + SIDE_MARGIN_PX, END_MARGIN_PX, -SIDE_MARGIN_PX, -END_MARGIN_PX))
 		_place(_board, Vector4(0, 0, BOARD_SHARE, 1), Vector4(0, 0, -SIDE_MARGIN_PX / 2, 0))
 		_place(_adventurer, full, Vector4.ZERO)
+		_place(_reception, full, Vector4.ZERO)
 		# Where the Adventurer screen keeps its left column.
 		_place(_roster, Vector4(0, 0, Adventurer.SIDE_SHARE, 1), Vector4(0, 0, -Adventurer.SIDE_GAP_PX / 2, 0))
 		for column: Control in [_level_up, _armory, _swap_pick, _convert_panel]:

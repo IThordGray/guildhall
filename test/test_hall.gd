@@ -1384,3 +1384,38 @@ func _tap(at: Vector2) -> void:
 		click.global_position = at
 		Input.parse_input_event(click.xformed_by(get_viewport().get_final_transform()))
 		Input.flush_buffered_events()
+
+
+func test_the_rank_up_checklist_reports_reputation_rooms_in_use_counting_only_rooms_that_take_a_job_and_gold_each_with_whether_it_is_met() -> void:
+	var hall := Hall.new(1_000)
+	assert_eq(hall.rank_up_checklist(9, 120, 1_000), [
+		{"what": "reputation", "has": 9, "needs": 15, "met": false},
+		{"what": "rooms", "has": 0, "needs": 2, "met": false},
+		{"what": "gold", "has": 120, "needs": 150, "met": false},
+	])
+	# The side room becomes a Bunk room, finished at 1_007; the backroom a Common room, under way
+	# until 1_009.
+	var gold := Gold.new(1_000)
+	assert_true(hall.restore("side_left", gold, 1_000))
+	assert_true(hall.restore("back_left", gold, 1_001))
+	assert_true(hall.convert_room("side_left", "bunk_room", gold, 1_005))
+	assert_true(hall.convert_room("back_left", "common_room", gold, 1_007))
+	assert_eq(hall.rank_up_checklist(15, 150, 1_008), [
+		{"what": "reputation", "has": 15, "needs": 15, "met": true},
+		{"what": "rooms", "has": 1, "needs": 2, "met": false},
+		{"what": "gold", "has": 150, "needs": 150, "met": true},
+	])
+	# Finished, though no checkpoint has recorded it yet.
+	assert_eq(hall.rank_up_checklist(14, 149, 1_009), [
+		{"what": "reputation", "has": 14, "needs": 15, "met": false},
+		{"what": "rooms", "has": 2, "needs": 2, "met": true},
+		{"what": "gold", "has": 149, "needs": 150, "met": false},
+	])
+
+
+func test_the_rank_up_checklist_of_a_six_room_hall_counts_its_four_rooms_and_a_guild_at_its_last_rank_has_none() -> void:
+	var hall := Hall.new(1_000)
+	hall.layout = Hall.OLD_LAYOUT
+	assert_eq(hall.rank_up_checklist(0, 0, 1_000)[1], {"what": "rooms", "has": 0, "needs": 4, "met": false})
+	hall.rank = "E"
+	assert_eq(hall.rank_up_checklist(100, 10_000, 1_000), [])

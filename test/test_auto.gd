@@ -367,6 +367,31 @@ func test_averaged_gold_and_quests_come_within_a_quarter_of_playing_the_same_twe
 		assert_between(ratio.y, 0.75, 1.25, scenario + ": quests")
 
 
+# The reputation `scenario` earns from `start` in 12 hours, as [played out, averaged], each as
+# `_twelve_hours` takes them.
+func _twelve_hours_reputation(scenario: String, start: int) -> Vector2:
+	var guild_rank := _scenario(scenario, start)
+	var board := _new_board(start, guild_rank)
+	var played: Array[int] = []
+	for hours: int in [3, 6, 9, 12, 15]:
+		Auto.checkpoint(_dispatch, board, start + hours * 3_600, PackedInt64Array(), -1, -1, guild_rank)
+		played.append(_dispatch.reputation)
+	guild_rank = _scenario(scenario, start)
+	Auto.checkpoint(_dispatch, _new_board(start, guild_rank), start + 15 * 3_600, PackedInt64Array(), -1, -1, guild_rank)
+	return Vector2(played[3], _dispatch.reputation - (played[4] - played[3]))
+
+
+func test_averaged_reputation_comes_within_a_quarter_of_playing_the_same_twelve_hours() -> void:
+	for scenario: String in ["one Safe party, guild F", "two Bold parties, guild E", "three parties of both modes"]:
+		var both := Vector2()
+		for start: int in [1_000, 100_003, 200_017]:
+			both += _twelve_hours_reputation(scenario, start)
+		var ratio := both.y / both.x
+		gut.p("%s: reputation %.2f of playing (%d against %d)" % [scenario, ratio, both.y, both.x])
+		assert_gt(both.x, 200.0, scenario)
+		assert_between(ratio, 0.75, 1.25, scenario + ": reputation")
+
+
 func test_a_long_absence_pays_an_auto_party_the_expected_gold_xp_and_tries_of_the_quests_the_board_offers_it() -> void:
 	# Ilse and Maren on Safe take only the town well (shown 85–95): 3 seconds, a true 95%, 5 gold, 5 XP
 	# shared (2 each on a success, 1 on a failure). With Spirit 12 and Luck 4 a member can expect

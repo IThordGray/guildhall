@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
@@ -17,6 +17,7 @@
 [ext_resource type="PackedScene" path="res://screens/armory.tscn" id="17_armory"]
 [ext_resource type="PackedScene" path="res://screens/confirm_sheet.tscn" id="18_confirm_sheet"]
 [ext_resource type="PackedScene" path="res://screens/swap_pick.tscn" id="19_swap_pick"]
+[ext_resource type="PackedScene" path="res://screens/reception.tscn" id="20_reception"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -116,6 +117,11 @@ layout_mode = 1
 offset_bottom = -24.0
 
 [node name="Armory" parent="Body" instance=ExtResource("17_armory")]
+visible = false
+layout_mode = 1
+offset_bottom = -24.0
+
+[node name="Reception" parent="Body" instance=ExtResource("20_reception")]
 visible = false
 layout_mode = 1
 offset_bottom = -24.0
