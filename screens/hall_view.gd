@@ -355,6 +355,8 @@ var _rank: String = ""
 ## ICONS drawn once, by kind.
 var _icons: Dictionary[String, Texture2D] = {}
 
+## Odile's goals: under the header in portrait, at the top of the In progress column in landscape.
+@onready var goals_card: GoalsCard = $Scroll/Box/Top/Goals
 @onready var _summary: Label = $Scroll/Box/Top/Header/Summary
 @onready var _parties: Control = $Scroll/Box/Top/Header/Parties
 @onready var _parties_count: Label = $Scroll/Box/Top/Header/Parties/Count
@@ -427,13 +429,17 @@ func _ready() -> void:
 		_legend.add_child(item)
 
 
-## Landscape puts the floor bar beside the header and In progress beside the plan, shows how many
-## parties are out in the header, and leaves out the legend; portrait stacks them all. In
-## landscape the floor summary keeps to one line: the title is smaller and the header takes the
-## width the summary needs from the floor bar.
+## Landscape puts the floor bar beside the header and the goals with In progress under them beside
+## the plan, shows how many parties are out in the header, and leaves out the legend; portrait
+## stacks them all, the goals under the header. In landscape the floor summary keeps to one line:
+## the title is smaller and the header takes the width the summary needs from the floor bar.
 func set_landscape(landscape: bool) -> void:
-	($Scroll/Box/Top as BoxContainer).vertical = not landscape
+	var top := $Scroll/Box/Top as BoxContainer
+	top.vertical = not landscape
 	($Scroll/Box/Columns as BoxContainer).vertical = not landscape
+	var goals_box: Control = $Scroll/Box/Columns/Right if landscape else top
+	goals_card.reparent(goals_box, false)
+	goals_box.move_child(goals_card, 0 if landscape else 1)
 	_parties.visible = landscape
 	_legend.visible = not landscape
 	($Scroll/Box/Top/Header/Title as Label).theme_type_variation = &"Heading" if landscape else &"Title"

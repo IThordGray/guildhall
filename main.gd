@@ -12,7 +12,8 @@ const END_MARGIN_PX: float = 32.0
 const COLUMN_WIDTH_PX: float = 1100.0
 ## In landscape, the share of the body's width the quest board takes; the party picker has the rest.
 const BOARD_SHARE: float = 0.42
-## How long the "+N" from a collected Tavern takes to rise to the gold counter and fade.
+## How long the "+N" from a collected Tavern or a claimed goal takes to rise to the gold counter and
+## fade.
 const COLLECT_SECONDS: float = 0.6
 ## How much the gold counter grows when collected gold reaches it.
 const COLLECT_PULSE_SCALE: float = 1.3
@@ -29,6 +30,9 @@ const SELL: String = "sell"
 const UPGRADE: String = "upgrade"
 ## What the confirmation sheet asks about when it confirms ranking the guild up.
 const RANK_UP: String = "rank_up"
+## The story quests the guild has finished, which story goals count: none can be yet, as no story
+## quest is on the board.
+const STORY_DONE: PackedStringArray = []
 ## Play-testing only: the speeds the Test speed control cycles through.
 const TEST_SPEEDS: Array[int] = [1, 10, 60]
 
@@ -108,6 +112,7 @@ func _ready() -> void:
 		_upgrading = slot
 		_confirm(UPGRADE))
 	_hall_view.reception_pressed.connect(_open_reception)
+	_hall_view.goals_card.claim_pressed.connect(_on_claim_pressed)
 	_reception.back_pressed.connect(_close_reception)
 	_reception.rank_up_pressed.connect(_confirm.bind(RANK_UP))
 	_confirm_sheet.confirmed.connect(_on_confirmed)
@@ -280,6 +285,7 @@ func _checkpoint(now: int) -> void:
 	_needs_you_badge.visible = needs_you > 0
 	_walk_in_badge.visible = not _walk_ins.walk_in.is_empty()
 	_hall_view.show_state(_hall, _dispatch, _quest_board.filled(), now)
+	_hall_view.goals_card.show_goals(_goals, _dispatch, _hall, STORY_DONE, now)
 	_board.show_board(_quest_board, _dispatch, now, _goals.is_unlocked(Goals.AUTO))
 	_picker.show_board(_quest_board)
 	_roster.show_dispatch(_dispatch, now)
@@ -393,6 +399,17 @@ func _on_collect_pressed(slot: String) -> void:
 	_checkpoint(now)
 	if amount > 0:
 		_show_collected(amount, _hall_view.room_center(slot))
+
+
+# The checkpoint before brings what the goal counts up to now; the one after shows its reward and
+# what it unlocked, and the next goals. Its gold rises from its Claim button, at `from`.
+func _on_claim_pressed(goal: String, from: Vector2) -> void:
+	var now := _now()
+	_checkpoint(now)
+	var claimed := _goals.claim(goal, _dispatch, _hall, STORY_DONE, now)
+	_checkpoint(now)
+	if claimed:
+		_show_collected(Goals.GOALS[goal]["gold"], from)
 
 
 # Purely a show of gold already added: a "+N" rises from `from` to the gold counter and fades,

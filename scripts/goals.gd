@@ -14,20 +14,20 @@ const SIDE: String = "side"
 ## What claiming "hand_quests" unlocks: Auto (see Auto.checkpoint).
 const AUTO: String = "auto"
 
-## Chapter 1, in the order the story tells it. Each goal: "kind", STORY or SIDE; "openers", the goals
-## that must be claimed before it opens; "counts", what it counts (`progress`), with "rank" or
-## "quest" where that needs one, and "need", the target; "line", what the clerk says; "gold" and,
-## for some, "reputation", its reward; "unlocks", a flag or story quest claiming it turns on, "" for
-## none. The save refers to a goal by its id.
+## Chapter 1, in the order the story tells it. Each goal: "name", what the player sees it called;
+## "kind", STORY or SIDE; "openers", the goals that must be claimed before it opens; "counts", what
+## it counts (`progress`), with "rank" or "quest" where that needs one, and "need", the target;
+## "line", what the clerk says; "gold" and, for some, "reputation", its reward; "unlocks", a flag or
+## story quest claiming it turns on, "" for none. The save refers to a goal by its id.
 const GOALS: Dictionary[String, Dictionary] = {
-	"first_quest": {"kind": STORY, "openers": [], "counts": "quests_home", "need": 1, "line": "Pick a quest from the board and see your party home.", "gold": 10, "unlocks": ""},
-	"first_restore": {"kind": STORY, "openers": ["first_quest"], "counts": "rooms_restored", "need": 1, "line": "This old hall needs work. Have the builder restore a room.", "gold": 15, "unlocks": ""},
-	"first_room": {"kind": STORY, "openers": ["first_restore"], "counts": "rooms_in_use", "need": 1, "line": "An empty room earns nothing. Give your restored room a job.", "gold": 15, "unlocks": ""},
-	"first_recruit": {"kind": STORY, "openers": ["first_room"], "counts": "adventurers", "need": 3, "line": "Three adventurers make a proper guild. Hire someone new.", "gold": 20, "unlocks": ""},
-	"second_party": {"kind": STORY, "openers": ["first_recruit"], "counts": "parties", "need": 2, "line": "Two parties can work at once. Form a second one.", "gold": 20, "unlocks": "sealed_gate"},
-	"sealed_gate": {"kind": STORY, "openers": ["second_party"], "counts": "story_quest", "quest": "sealed_gate", "need": 1, "line": "The town wants the sealed gate opened. I think you're ready.", "gold": 30, "reputation": 3, "unlocks": "labyrinth"},
-	"rank_e": {"kind": STORY, "openers": ["sealed_gate"], "counts": "guild_rank", "rank": "E", "need": 1, "line": "You've earned the town's trust. Rank the guild up to E.", "gold": 50, "unlocks": ""},
-	"hand_quests": {"kind": SIDE, "openers": [], "counts": "hand_quests", "need": 10, "line": "Send ten quests out yourself, then your parties may go alone.", "gold": 20, "unlocks": AUTO},
+	"first_quest": {"name": "Send a party on a quest", "kind": STORY, "openers": [], "counts": "quests_home", "need": 1, "line": "Pick a quest from the board and see your party home.", "gold": 10, "unlocks": ""},
+	"first_restore": {"name": "Restore a room", "kind": STORY, "openers": ["first_quest"], "counts": "rooms_restored", "need": 1, "line": "This old hall needs work. Have the builder restore a room.", "gold": 15, "unlocks": ""},
+	"first_room": {"name": "Give a room a job", "kind": STORY, "openers": ["first_restore"], "counts": "rooms_in_use", "need": 1, "line": "An empty room earns nothing. Give your restored room a job.", "gold": 15, "unlocks": ""},
+	"first_recruit": {"name": "Recruit someone", "kind": STORY, "openers": ["first_room"], "counts": "adventurers", "need": 3, "line": "Three adventurers make a proper guild. Hire someone new.", "gold": 20, "unlocks": ""},
+	"second_party": {"name": "Form a second party", "kind": STORY, "openers": ["first_recruit"], "counts": "parties", "need": 2, "line": "Two parties can work at once. Form a second one.", "gold": 20, "unlocks": "sealed_gate"},
+	"sealed_gate": {"name": "Finish The sealed gate", "kind": STORY, "openers": ["second_party"], "counts": "story_quest", "quest": "sealed_gate", "need": 1, "line": "The town wants the sealed gate opened. I think you're ready.", "gold": 30, "reputation": 3, "unlocks": "labyrinth"},
+	"rank_e": {"name": "Rank up to E", "kind": STORY, "openers": ["sealed_gate"], "counts": "guild_rank", "rank": "E", "need": 1, "line": "You've earned the town's trust. Rank the guild up to E.", "gold": 50, "unlocks": ""},
+	"hand_quests": {"name": "Send 10 quests by hand", "kind": SIDE, "openers": [], "counts": "hand_quests", "need": 10, "line": "Send ten quests out yourself, then your parties may go alone.", "gold": 20, "unlocks": AUTO},
 }
 
 ## The goals claimed, each once, in the order they were.
@@ -55,6 +55,21 @@ func state(id: String, dispatch: Dispatch, hall: Hall, story_done: PackedStringA
 			return State.LOCKED
 	var have_need := progress(id, dispatch, hall, story_done, now)
 	return State.DONE if have_need.x >= have_need.y else State.OPEN
+
+
+## The goals open or done at `now`, as the player sees them listed: the story goals, then the side
+## goals, each in table order. The arguments are as for `state`.
+func shown(dispatch: Dispatch, hall: Hall, story_done: PackedStringArray, now: int) -> PackedStringArray:
+	var story := PackedStringArray()
+	var side := PackedStringArray()
+	for id: String in GOALS:
+		if state(id, dispatch, hall, story_done, now) not in [State.OPEN, State.DONE]:
+			continue
+		if GOALS[id]["kind"] == STORY:
+			story.append(id)
+		else:
+			side.append(id)
+	return story + side
 
 
 ## What goal `id` counts, as [have, need], from the game as it is at `now`: parties home from any
