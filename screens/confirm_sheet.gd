@@ -23,11 +23,13 @@ func _ready() -> void:
 
 ## Opens the sheet, or updates it while open, on `title`, costing `gold` and taking `seconds`, done
 ## by a button reading `action`; while `refusal` gives a reason, the button is disabled and reads it.
-func offer(title: String, gold: int, seconds: int, action: String, refusal: String) -> void:
+## `note` says what else it does, and shows only when there is one.
+func offer(title: String, gold: int, seconds: int, action: String, refusal: String, note: String = "") -> void:
 	_cost.text = "%dg" % gold
 	_time.text = Duration.label(seconds)
 	_price.show()
-	_note.hide()
+	_note.text = note
+	_note.visible = not note.is_empty()
 	_open(title, action, refusal)
 
 

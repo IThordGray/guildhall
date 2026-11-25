@@ -9,6 +9,7 @@ enum State { USABLE, DAMAGED, RESTORING, RESTORED, CONVERTING, CONVERTED, UNBUIL
 ## first entry, and so on; any after the last, the last (stand-ins). Cheap and quick first.
 const RESTORES: Array[Dictionary] = [
 	{"gold": 60, "seconds": 1},
+	{"gold": 60, "seconds": 2},
 	{"gold": 120, "seconds": 4},
 	{"gold": 200, "seconds": 10},
 	{"gold": 300, "seconds": 20},
@@ -41,13 +42,14 @@ const FIRST_FLOOR: Array[String] = ["upper_nw", "upper_ne", "upper_sw", "upper_s
 ## What `building` holds while the builder extends the hall; not a slot.
 const EXTENSION: String = "first_floor"
 ## What an empty restored room can be converted into, in panel order, and the guild rank that opens
-## each; the hall has at most one room of each type, so growth comes from upgrading a room, not
-## building another. The save and the art refer to a type by its id. What a type does is applied
-## where its effect is: see Dispatch.
+## each, and what building it costs and takes; the hall has at most one room of each type, so growth
+## comes from upgrading a room, not building another. A type with "upgrades" can be upgraded by the
+## builder from tier 1, each entry the cost and time of reaching the next tier. The save and the art
+## refer to a type by its id. What a type does is applied where its effect is: see Dispatch.
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
 	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "rank": "E", "gold": 60, "seconds": 2},
 	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "rank": "E", "gold": 60, "seconds": 2},
-	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "rank": "F", "gold": 60, "seconds": 2},
+	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "rank": "F", "gold": 30, "seconds": 2, "upgrades": [{"gold": 60, "seconds": 4}, {"gold": 120, "seconds": 10}]},
 	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "rank": "D", "gold": 60, "seconds": 2},
 	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "rank": "D", "gold": 60, "seconds": 2},
 	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "rank": "D", "gold": 60, "seconds": 2},
@@ -57,8 +59,8 @@ const ROOM_TYPES: Dictionary[String, Dictionary] = {
 ## to TAVERN_CAP; the cap is the reason to come back before it is full (stand-ins).
 const TAVERN_GOLD_PER_MINUTE: int = 20
 const TAVERN_CAP: int = 40
-## Beds each finished Bunk room adds to the Reception's.
-const BEDS_PER_BUNK_ROOM: int = 2
+## Beds a finished Bunk room adds to the Reception's, by its tier: the first entry tier 1, and so on.
+const BUNK_ROOM_BEDS: Array[int] = [2, 3, 4]
 ## The most adventurers the guild can have, however many Bunk rooms it has.
 const MAX_ROSTER: int = 8
 
@@ -71,19 +73,23 @@ var restored: PackedStringArray = PackedStringArray()
 ## Whether the builder has finished extending the hall.
 var first_floor: bool = false
 ## Rooms the builder has finished converting: slot -> {"type": a ROOM_TYPES id, "done_at": unix
-## seconds the conversion finished, and for a Tavern collected at least once "collected_at": unix
-## seconds it was last collected}.
+## seconds the conversion finished, for a room upgraded at least once "tier": the tier it reached
+## (none is tier 1), and for a Tavern collected at least once "collected_at": unix seconds it was
+## last collected}.
 var converted: Dictionary[String, Dictionary] = {}
 ## The slot the builder is working on, or "" when the builder is free. One builder, so one
-## restoration, conversion or extension at a time.
+## restoration, conversion, upgrade or extension at a time.
 var building: String = ""
 ## Unix seconds the builder started on `building`.
 var building_since: int = 0
 ## How many seconds `building` takes in all, fixed when it started, so a later change to the rule
 ## tables never stretches a job under way; 0 for a job saved before lengths were kept.
 var building_seconds: int = 0
-## The room type `building` is being converted into; "" when it is being restored.
+## The room type `building` is being converted into, or is when it is being upgraded; "" when it is
+## being restored.
 var building_into: String = ""
+## The tier `building`, a converted room, is being upgraded to; 0 when the job is not an upgrade.
+var building_tier: int = 0
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back
 ## neither adds time to a countdown nor undoes a restoration or a conversion.
 var checked_at: int
@@ -98,7 +104,8 @@ func state(slot: String, now: int) -> State:
 		return State.UNBUILT
 	if slot in STARTING_USABLE:
 		return State.USABLE
-	if slot == building:
+	# A room being upgraded stays converted, and in use, throughout.
+	if slot == building and building_tier == 0:
 		var done := seconds_left(now) == 0
 		if building_into.is_empty():
 			return State.RESTORED if done else State.RESTORING
@@ -130,9 +137,16 @@ func rooms_done(type: String, now: int) -> int:
 	for room: Dictionary in converted.values():
 		if room["type"] == type:
 			count += 1
-	if building_into == type and seconds_left(now) == 0:
+	if _converting() and building_into == type and seconds_left(now) == 0:
 		count += 1
 	return count
+
+
+## The tier of the converted room `slot` at `now`; an upgrade under way counts once finished.
+func tier(slot: String, now: int) -> int:
+	if slot == building and building_tier > 0 and seconds_left(now) == 0:
+		return building_tier
+	return int(converted.get(slot, {}).get("tier", 1))
 
 
 ## What the Reception gives the guild of `what`, a capacity in LAYOUTS: "beds", "candidate_slots",
@@ -157,7 +171,13 @@ func open_types() -> PackedStringArray:
 
 ## How many adventurers the guild has beds for at `now`.
 func beds(now: int) -> int:
-	return mini(MAX_ROSTER, reception("beds") + BEDS_PER_BUNK_ROOM * rooms_done("bunk_room", now))
+	var total := reception("beds")
+	for slot: String in converted:
+		if converted[slot]["type"] == "bunk_room":
+			total += BUNK_ROOM_BEDS[tier(slot, now) - 1]
+	if _converting() and building_into == "bunk_room" and seconds_left(now) == 0:
+		total += BUNK_ROOM_BEDS[0]
+	return mini(MAX_ROSTER, total)
 
 
 ## The slot of the first room of `type` to be converted, on any floor, counting one under way,
@@ -222,7 +242,7 @@ func refusal(slot: String, gold: Gold, now: int) -> String:
 func restore(slot: String, gold: Gold, now: int) -> bool:
 	if not refusal(slot, gold, now).is_empty():
 		return false
-	_start(slot, "", next_restore()["gold"], gold, now)
+	_start(slot, "", 0, next_restore()["gold"], gold, now)
 	return true
 
 
@@ -245,12 +265,19 @@ func job_seconds() -> int:
 	if building_into.is_empty():
 		# The room under way is not yet among those restored.
 		return _restore_after(restored.size())["seconds"]
+	if building_tier > 0:
+		return ROOM_TYPES[building_into]["upgrades"][building_tier - 2]["seconds"]
 	return ROOM_TYPES[building_into]["seconds"]
 
 
 # Whether the builder's current job is a restoration.
 func _restoring() -> bool:
 	return not building.is_empty() and building != EXTENSION and building_into.is_empty()
+
+
+# Whether the builder's current job is a conversion.
+func _converting() -> bool:
+	return not building_into.is_empty() and building_tier == 0
 
 
 # What restoring a room costs and takes once `before` rooms are restored.
@@ -266,7 +293,7 @@ func convert_refusal(slot: String, type: String, gold: Gold, now: int) -> String
 		return "Not an empty room"
 	if not has_rank(ROOM_TYPES[type]["rank"]):
 		return "Guild rank %s" % ROOM_TYPES[type]["rank"]
-	if building_into == type and seconds_left(now) > 0:
+	if _converting() and building_into == type and seconds_left(now) > 0:
 		return "Being built"
 	if rooms_done(type, now) > 0:
 		return "Already built"
@@ -278,7 +305,37 @@ func convert_refusal(slot: String, type: String, gold: Gold, now: int) -> String
 func convert_room(slot: String, type: String, gold: Gold, now: int) -> bool:
 	if not convert_refusal(slot, type, gold, now).is_empty():
 		return false
-	_start(slot, type, ROOM_TYPES[type]["gold"], gold, now)
+	_start(slot, type, 0, ROOM_TYPES[type]["gold"], gold, now)
+	return true
+
+
+## What upgrading the converted room `slot` to its next tier costs and takes at `now`, {"gold",
+## "seconds"}; {} when its type has no tiers or it is at its highest.
+func next_upgrade(slot: String, now: int) -> Dictionary:
+	var upgrades: Array = ROOM_TYPES.get(room_type(slot), {}).get("upgrades", [])
+	var at := tier(slot, now)
+	if at > upgrades.size():
+		return {}
+	return upgrades[at - 1]
+
+
+## Why `slot` can't be upgraded at `now`, in words for the player; "" when it can. Any guild rank
+## can upgrade.
+func upgrade_refusal(slot: String, gold: Gold, now: int) -> String:
+	if not ROOM_TYPES.get(room_type(slot), {}).has("upgrades"):
+		return "Not upgradable"
+	var next := next_upgrade(slot, now)
+	if next.is_empty():
+		return "Highest tier"
+	return _builder_refusal(next["gold"], gold, now)
+
+
+## Pays and starts upgrading `slot` to its next tier at `now`; false, with nothing paid, when
+## `upgrade_refusal` gives a reason. The tier rises once the job finishes.
+func upgrade(slot: String, gold: Gold, now: int) -> bool:
+	if not upgrade_refusal(slot, gold, now).is_empty():
+		return false
+	_start(slot, room_type(slot), tier(slot, now) + 1, next_upgrade(slot, now)["gold"], gold, now)
 	return true
 
 
@@ -300,7 +357,7 @@ func extend_refusal(gold: Gold, now: int) -> String:
 func extend(gold: Gold, now: int) -> bool:
 	if not extend_refusal(gold, now).is_empty():
 		return false
-	_start(EXTENSION, "", EXTEND_GOLD, gold, now)
+	_start(EXTENSION, "", 0, EXTEND_GOLD, gold, now)
 	return true
 
 
@@ -310,7 +367,7 @@ func finished_since_checkpoint(now: int) -> bool:
 	return not building.is_empty() and seconds_left(now) == 0
 
 
-## Records a finished job as restored, converted or extended for good, and the time seen.
+## Records a finished job as restored, converted, upgraded or extended for good, and the time seen.
 func checkpoint(now: int) -> void:
 	checked_at = maxi(checked_at, now)
 	if finished_since_checkpoint(checked_at):
@@ -318,10 +375,13 @@ func checkpoint(now: int) -> void:
 			first_floor = true
 		elif building_into.is_empty():
 			restored.append(building)
+		elif building_tier > 0:
+			converted[building]["tier"] = building_tier
 		else:
 			converted[building] = {"type": building_into, "done_at": _done_at()}
 		building = ""
 		building_into = ""
+		building_tier = 0
 		building_seconds = 0
 
 
@@ -334,11 +394,12 @@ func _builder_refusal(cost: int, gold: Gold, now: int) -> String:
 	return ""
 
 
-func _start(slot: String, into: String, cost: int, gold: Gold, now: int) -> void:
+func _start(slot: String, into: String, to_tier: int, cost: int, gold: Gold, now: int) -> void:
 	checkpoint(now)
 	gold.spend(cost)
 	building = slot
 	building_into = into
+	building_tier = to_tier
 	building_since = checked_at
 	# The builder was free, so nothing is fixed yet and this reads the rule tables.
 	building_seconds = job_seconds()
@@ -359,6 +420,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("hall", "restoring_since", building_since)
 	file.set_value("hall", "converting_into", building_into)
 	file.set_value("hall", "building_seconds", building_seconds)
+	file.set_value("hall", "building_tier", building_tier)
 	file.set_value("hall", "first_floor", first_floor)
 	file.set_value("hall", "checked_at", checked_at)
 
@@ -380,6 +442,7 @@ static func load_or_start(path: String, now: int) -> Hall:
 	hall.building_since = int(file.get_value("hall", "restoring_since", 0))
 	hall.building_into = file.get_value("hall", "converting_into", "")
 	hall.building_seconds = int(file.get_value("hall", "building_seconds", 0))
+	hall.building_tier = int(file.get_value("hall", "building_tier", 0))
 	hall.first_floor = file.get_value("hall", "first_floor", false)
 	hall.checked_at = int(file.get_value("hall", "checked_at", now))
 	return hall

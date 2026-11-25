@@ -25,6 +25,8 @@ const SWAP: String = "swap"
 const SWAP_LOOT: String = "swap_loot"
 const LET_GO: String = "let_go"
 const SELL: String = "sell"
+## What the confirmation sheet asks about when it confirms upgrading the room `_upgrading`.
+const UPGRADE: String = "upgrade"
 ## Play-testing only: the speeds the Test speed control cycles through.
 const TEST_SPEEDS: Array[int] = [1, 10, 60]
 
@@ -37,8 +39,8 @@ var _recruits: Recruits
 var _walk_ins: WalkIns
 ## The slot the Give it a job screen is open for.
 var _chosen_slot: String = ""
-## What the confirmation sheet asks about: the damaged slot to restore, Hall.EXTENSION, DISMISS,
-## SWAP, SWAP_LOOT, LET_GO or SELL.
+## What the confirmation sheet asks about: the damaged slot to restore, Hall.EXTENSION, UPGRADE,
+## DISMISS, SWAP, SWAP_LOOT, LET_GO or SELL.
 var _confirming: String = ""
 ## The adventurer DISMISS or SWAP sends away.
 var _leaving: String = ""
@@ -46,6 +48,8 @@ var _leaving: String = ""
 var _loot: int = -1
 ## The stash item SWAP_LOOT or SELL sells.
 var _item: String = ""
+## The room UPGRADE upgrades.
+var _upgrading: String = ""
 ## The adventurer the Adventurer screen shows, or last showed.
 var _shown_adventurer: String = ""
 ## The candidate's slot, or Roster.WALK_IN, the Adventurer screen shows instead; Roster.NO_VISITOR
@@ -96,6 +100,9 @@ func _ready() -> void:
 	_hall_view.send_pressed.connect(_on_go_send)
 	_hall_view.collect_pressed.connect(_on_collect_pressed)
 	_hall_view.extend_pressed.connect(_confirm.bind(Hall.EXTENSION))
+	_hall_view.upgrade_pressed.connect(func(slot: String) -> void:
+		_upgrading = slot
+		_confirm(UPGRADE))
 	_confirm_sheet.confirmed.connect(_on_confirmed)
 	_convert_panel.convert_pressed.connect(_on_convert_pressed)
 	_convert_panel.back_pressed.connect(_close_convert)
@@ -312,6 +319,9 @@ func _offer(now: int) -> void:
 		_confirm_sheet.ask("Sell " + Gear.ITEMS[_item]["name"], "+%d gold" % Gear.price(_item), "Sell", _dispatch.adventurers.gear.sell_refusal(_item))
 	elif _confirming == Hall.EXTENSION:
 		_confirm_sheet.offer("Build the first floor", Hall.EXTEND_GOLD, Hall.EXTEND_SECONDS, "Extend", _hall.extend_refusal(_gold, now))
+	elif _confirming == UPGRADE:
+		var next := _hall.next_upgrade(_upgrading, now)
+		_confirm_sheet.offer("Upgrade " + Hall.ROOM_TYPES[_hall.room_type(_upgrading)]["name"], next["gold"], next["seconds"], "Upgrade", _hall.upgrade_refusal(_upgrading, _gold, now), "+1 bed")
 	else:
 		var next := _hall.next_restore()
 		_confirm_sheet.offer("Restore " + HallView.slot_name(_hall, _confirming), next["gold"], next["seconds"], "Restore", _hall.refusal(_confirming, _gold, now))
@@ -330,6 +340,8 @@ func _on_confirmed() -> void:
 		_dispatch.adventurers.gear.sell(_item, _gold)
 	elif _confirming == Hall.EXTENSION:
 		_hall.extend(_gold, now)
+	elif _confirming == UPGRADE:
+		_hall.upgrade(_upgrading, _gold, now)
 	else:
 		_hall.restore(_confirming, _gold, now)
 	_confirm_sheet.close()

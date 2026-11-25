@@ -70,8 +70,8 @@ func test_restoring_the_first_damaged_room_takes_60_gold_at_once() -> void:
 	assert_eq(hall.state("back_left", 1_000), Hall.State.RESTORING)
 
 
-func test_each_room_restored_costs_and_takes_more_than_the_last_60g_1s_120g_4s_200g_10s_then_300g_20s() -> void:
-	var expected := [[60, 1], [120, 4], [200, 10], [300, 20]]
+func test_each_room_restored_costs_and_takes_at_least_the_last_60g_1s_60g_2s_120g_4s_then_200g_10s() -> void:
+	var expected := [[60, 1], [60, 2], [120, 4], [200, 10]]
 	var slots: Array[String] = ["back_left", "back_right", "side_left", "side_right"]
 	var gold := Gold.new(1_000)
 	var hall := _six_room_hall(1_000)
@@ -88,7 +88,7 @@ func test_each_room_restored_costs_and_takes_more_than_the_last_60g_1s_120g_4s_2
 		assert_eq(hall.state(slots[i], now - 1), Hall.State.RESTORING, str(i))
 		assert_eq(hall.state(slots[i], now), Hall.State.RESTORED, str(i))
 		hall.checkpoint(now)
-	assert_eq(gold.amount, 1_000 - 60 - 120 - 200 - 300)
+	assert_eq(gold.amount, 1_000 - 60 - 60 - 120 - 200)
 
 
 func test_restoring_is_refused_with_the_shortfall_when_gold_is_short() -> void:
@@ -108,11 +108,11 @@ func test_restoring_a_second_room_is_refused_with_the_shortfall_for_the_second_p
 	assert_true(hall.restore("back_left", gold, 1_000))
 	hall.checkpoint(1_030)
 	assert_eq(gold.amount, 40)
-	assert_eq(hall.refusal("back_right", gold, 1_030), "Need 80 more gold")
+	assert_eq(hall.refusal("back_right", gold, 1_030), "Need 20 more gold")
 	assert_false(hall.restore("back_right", gold, 1_030))
 	assert_eq(gold.amount, 40)
 	assert_eq(hall.state("back_right", 1_030), Hall.State.DAMAGED)
-	gold.amount += 80
+	gold.amount += 20
 	assert_eq(hall.refusal("back_right", gold, 1_030), "")
 	assert_true(hall.restore("back_right", gold, 1_030))
 	assert_eq(gold.amount, 0)
@@ -169,13 +169,13 @@ func test_a_clock_set_back_mid_restoration_adds_no_time_to_the_countdown() -> vo
 	var hall := _six_room_hall(1_000)
 	hall.restore("back_left", gold, 1_000)
 	hall.checkpoint(1_001)
-	# The second restoration takes 4 seconds: from 1_001 to 1_005.
+	# The second restoration takes 2 seconds: from 1_001 to 1_003.
 	hall.restore("back_right", gold, 1_001)
-	hall.checkpoint(1_003)
-	assert_eq(hall.seconds_left(500), 2)
+	hall.checkpoint(1_002)
+	assert_eq(hall.seconds_left(500), 1)
 	hall.checkpoint(500)
-	assert_eq(hall.seconds_left(500), 2)
-	assert_eq(hall.seconds_left(1_004), 1)
+	assert_eq(hall.seconds_left(500), 1)
+	assert_eq(hall.seconds_left(1_003), 0)
 
 
 func test_a_restoration_in_progress_survives_save_and_load() -> void:
@@ -183,7 +183,7 @@ func test_a_restoration_in_progress_survives_save_and_load() -> void:
 	var hall := _six_room_hall(1_000)
 	hall.restore("back_left", gold, 1_000)
 	hall.checkpoint(1_120)
-	hall.restore("side_right", gold, 1_130)
+	hall.restore("side_right", gold, 1_132)
 	hall.checkpoint(1_132)
 	var file := ConfigFile.new()
 	gold.write(file)
@@ -196,8 +196,8 @@ func test_a_restoration_in_progress_survives_save_and_load() -> void:
 	assert_eq(loaded.seconds_left(1_132), 2)
 	assert_eq(loaded.state("side_right", 1_134), Hall.State.RESTORED)
 	assert_eq(loaded.state("back_right", 1_132), Hall.State.DAMAGED)
-	assert_eq(loaded.next_restore(), {"gold": 200, "seconds": 10})
-	assert_eq(Gold.load_or_start(SAVE_PATH).amount, 500 - 60 - 120)
+	assert_eq(loaded.next_restore(), {"gold": 120, "seconds": 4})
+	assert_eq(Gold.load_or_start(SAVE_PATH).amount, 500 - 60 - 60)
 
 
 func test_a_save_with_gold_only_loads_with_the_gold_kept_and_a_fresh_hall() -> void:
@@ -232,7 +232,7 @@ func _hall_with_empty_room(slot: String, gold: Gold) -> Hall:
 	return hall
 
 
-func test_the_convert_choices_are_every_room_type_each_60_gold_and_2_seconds() -> void:
+func test_the_convert_choices_are_every_room_type_each_60_gold_but_a_bunk_room_30_and_2_seconds() -> void:
 	assert_eq(Hall.ROOM_TYPES.keys(), ["quest_hall", "infirmary", "bunk_room", "tavern", "map_room", "training_room", "common_room"])
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["name"], "Quest hall")
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["blurb"], "adds a slot to the quest board")
@@ -245,7 +245,7 @@ func test_the_convert_choices_are_every_room_type_each_60_gold_and_2_seconds() -
 	assert_eq(Hall.ROOM_TYPES["training_room"]["name"], "Training room")
 	assert_eq(Hall.ROOM_TYPES["training_room"]["blurb"], "trains one adventurer at a time")
 	for type: String in Hall.ROOM_TYPES:
-		assert_eq(Hall.ROOM_TYPES[type]["gold"], 60, type)
+		assert_eq(Hall.ROOM_TYPES[type]["gold"], 30 if type == "bunk_room" else 60, type)
 		assert_eq(Hall.ROOM_TYPES[type]["seconds"], 2, type)
 
 
@@ -323,19 +323,19 @@ func test_converting_is_refused_while_a_restoration_runs_and_restoring_while_a_c
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_empty_room("back_left", gold)
 	assert_true(hall.restore("back_right", gold, 1_200))
-	assert_eq(hall.convert_refusal("back_left", "quest_hall", gold, 1_202), "Builder busy")
-	assert_false(hall.convert_room("back_left", "quest_hall", gold, 1_202))
-	assert_eq(gold.amount, 820)
-	assert_true(hall.convert_room("back_left", "quest_hall", gold, 1_204))
-	assert_eq(hall.state("back_right", 1_204), Hall.State.RESTORED)
+	assert_eq(hall.convert_refusal("back_left", "quest_hall", gold, 1_201), "Builder busy")
+	assert_false(hall.convert_room("back_left", "quest_hall", gold, 1_201))
+	assert_eq(gold.amount, 880)
+	assert_true(hall.convert_room("back_left", "quest_hall", gold, 1_202))
+	assert_eq(hall.state("back_right", 1_202), Hall.State.RESTORED)
 
-	assert_eq(hall.refusal("side_left", gold, 1_205), "Builder busy")
-	assert_false(hall.restore("side_left", gold, 1_205))
-	assert_eq(hall.convert_refusal("back_right", "infirmary", gold, 1_205), "Builder busy")
-	assert_false(hall.convert_room("back_right", "infirmary", gold, 1_205))
-	assert_eq(gold.amount, 760)
+	assert_eq(hall.refusal("side_left", gold, 1_203), "Builder busy")
+	assert_false(hall.restore("side_left", gold, 1_203))
+	assert_eq(hall.convert_refusal("back_right", "infirmary", gold, 1_203), "Builder busy")
+	assert_false(hall.convert_room("back_right", "infirmary", gold, 1_203))
+	assert_eq(gold.amount, 820)
 	assert_true(hall.restore("side_left", gold, 1_380))
-	assert_eq(gold.amount, 560)
+	assert_eq(gold.amount, 700)
 
 
 func test_only_an_empty_restored_room_can_be_converted() -> void:
@@ -377,10 +377,10 @@ func _hall_with_tavern_and_empty_room(gold: Gold) -> Hall:
 func test_converting_to_a_type_already_built_is_refused_with_nothing_changed() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_tavern_and_empty_room(gold)
-	assert_eq(gold.amount, 760)
+	assert_eq(gold.amount, 820)
 	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_400), "Already built")
 	assert_false(hall.convert_room("back_right", "tavern", gold, 1_400))
-	assert_eq(gold.amount, 760)
+	assert_eq(gold.amount, 820)
 	assert_eq(hall.state("back_right", 1_400), Hall.State.RESTORED)
 	assert_eq(hall.rooms_done("tavern", 1_400), 1)
 	# Any other type can still go in the empty room.
@@ -394,18 +394,18 @@ func test_converting_to_a_type_being_built_is_refused_with_nothing_changed_and_a
 	assert_true(hall.restore("back_right", gold, 1_120))
 	hall.checkpoint(1_240)
 	assert_true(hall.convert_room("back_left", "tavern", gold, 1_240))
-	assert_eq(gold.amount, 760)
+	assert_eq(gold.amount, 820)
 	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_241), "Being built")
 	assert_false(hall.convert_room("back_right", "tavern", gold, 1_241))
 	assert_eq(hall.convert_refusal("back_right", "infirmary", gold, 1_241), "Builder busy")
-	assert_eq(gold.amount, 760)
+	assert_eq(gold.amount, 820)
 	assert_eq(hall.state("back_right", 1_241), Hall.State.RESTORED)
 	# Finished but not yet checkpointed, and after.
 	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_242), "Already built")
 	assert_false(hall.convert_room("back_right", "tavern", gold, 1_242))
 	hall.checkpoint(1_242)
 	assert_eq(hall.convert_refusal("back_right", "tavern", gold, 1_242), "Already built")
-	assert_eq(gold.amount, 760)
+	assert_eq(gold.amount, 820)
 	assert_eq(hall.state("back_right", 1_242), Hall.State.RESTORED)
 
 
@@ -458,7 +458,7 @@ func test_a_clock_set_back_after_a_conversion_keeps_the_room_converted_and_charg
 	assert_eq(gold.amount, 180)
 	assert_eq(hall.refusal("back_right", gold, 900), "")
 	assert_true(hall.restore("back_right", gold, 900))
-	assert_eq(gold.amount, 60)
+	assert_eq(gold.amount, 120)
 
 
 func test_a_clock_set_back_mid_conversion_adds_no_time_and_does_not_undo_it() -> void:
@@ -490,7 +490,7 @@ func test_a_conversion_in_progress_and_a_converted_room_survive_save_and_load() 
 
 	var loaded := Hall.load_or_start(SAVE_PATH, 99_999)
 	var loaded_gold := Gold.load_or_start(SAVE_PATH)
-	assert_eq(loaded_gold.amount, 1_000 - 60 - 60 - 120 - 60)
+	assert_eq(loaded_gold.amount, 1_000 - 60 - 60 - 60 - 60)
 	assert_eq(loaded.state("back_left", 1_401), Hall.State.CONVERTED)
 	assert_eq(loaded.room_type("back_left"), "infirmary")
 	assert_eq(loaded.first_done_at("infirmary"), 1_202)
@@ -508,7 +508,7 @@ func _m4_save() -> void:
 	file.set_value("gold", "saved", 400)
 	file.set_value("hall", "restored", PackedStringArray(["back_left"]))
 	file.set_value("hall", "restoring", "side_left")
-	file.set_value("hall", "restoring_since", 1_048)
+	file.set_value("hall", "restoring_since", 1_050)
 	file.set_value("hall", "checked_at", 1_050)
 	file.set_value("dispatch", "outings", [{"quest": "rats", "since": 1_049, "party": PackedStringArray(["bram"]), "seed": 7}])
 	file.set_value("dispatch", "injured_until", {"tobin": 1_200})
@@ -537,7 +537,7 @@ func test_an_m4_save_loads_with_no_converted_rooms_and_everything_else_as_it_was
 	assert_true(dispatch.waiting_loot.is_empty())
 	assert_eq(hall.convert_refusal("back_left", "bunk_room", gold, 1_050), "Builder busy")
 	assert_true(hall.convert_room("back_left", "bunk_room", gold, 1_052))
-	assert_eq(gold.amount, 340)
+	assert_eq(gold.amount, 370)
 
 
 ## A hall with a Tavern in `slot` converted from 1_200, finishing at 1_202, paid from `gold`.
@@ -734,7 +734,7 @@ func test_extending_is_refused_at_rank_f_with_nothing_changed() -> void:
 	hall.rank = "F"
 	assert_eq(hall.extend_refusal(gold, 1_450), "Guild rank E")
 	assert_false(hall.extend(gold, 1_450))
-	assert_eq(gold.amount, 620)
+	assert_eq(gold.amount, 760)
 	assert_eq(hall.building, "")
 	assert_false(hall.has_first_floor(99_999))
 	hall.rank = "E"
@@ -753,7 +753,7 @@ func test_an_extension_under_way_at_rank_f_still_finishes() -> void:
 
 
 ## A hall at 1_000 with `restores` ground-floor rooms restored one after another, paid from `gold`
-## (60, then 120, then 200), and the builder free at 1_450.
+## (60, then 60, then 120), and the builder free at 1_450.
 func _hall_with_restores(restores: int, gold: Gold) -> Hall:
 	var hall := _six_room_hall(1_000)
 	var slots: Array[String] = ["back_left", "back_right", "side_left"]
@@ -777,22 +777,22 @@ func test_extending_is_refused_until_3_ground_floor_rooms_are_restored_with_noth
 	var hall := _hall_with_restores(2, gold)
 	assert_eq(hall.extend_refusal(gold, 1_450), "Restore the ground floor first")
 	assert_false(hall.extend(gold, 1_450))
-	assert_eq(gold.amount, 820)
+	assert_eq(gold.amount, 880)
 	assert_false(hall.has_first_floor(99_999))
 	assert_eq(hall.state("upper_nw", 99_999), Hall.State.UNBUILT)
 	assert_eq(hall.seconds_left(1_450), 0)
 	# The third restoration counts the moment it finishes, before any checkpoint.
 	assert_true(hall.restore("side_left", gold, 1_450))
-	assert_eq(hall.extend_refusal(gold, 1_459), "Restore the ground floor first")
-	assert_eq(hall.extend_refusal(gold, 1_460), "")
+	assert_eq(hall.extend_refusal(gold, 1_453), "Restore the ground floor first")
+	assert_eq(hall.extend_refusal(gold, 1_454), "")
 
 
 func test_extending_is_refused_while_the_builder_is_busy_with_nothing_changed() -> void:
-	var gold := Gold.new(1_000)
+	var gold := Gold.new(760)
 	var hall := _hall_with_restores(3, gold)
 	assert_true(hall.restore("side_right", gold, 1_500))
-	assert_eq(hall.extend_refusal(gold, 1_510), "Builder busy")
-	assert_false(hall.extend(gold, 1_510))
+	assert_eq(hall.extend_refusal(gold, 1_509), "Builder busy")
+	assert_false(hall.extend(gold, 1_509))
 	assert_eq(gold.amount, 320)
 	assert_eq(hall.building, "side_right")
 	assert_false(hall.has_first_floor(99_999))
@@ -801,7 +801,7 @@ func test_extending_is_refused_while_the_builder_is_busy_with_nothing_changed() 
 
 
 func test_extending_is_refused_with_the_shortfall_when_gold_is_short_with_nothing_changed() -> void:
-	var gold := Gold.new(730)
+	var gold := Gold.new(590)
 	var hall := _hall_with_restores(3, gold)
 	assert_eq(hall.extend_refusal(gold, 1_500), "Need 50 more gold")
 	assert_false(hall.extend(gold, 1_500))
@@ -813,7 +813,7 @@ func test_extending_is_refused_with_the_shortfall_when_gold_is_short_with_nothin
 
 
 func test_extending_costs_400_gold_and_builds_the_first_floor_exactly_20_seconds_later() -> void:
-	var gold := Gold.new(780)
+	var gold := Gold.new(640)
 	var hall := _hall_with_restores(3, gold)
 	assert_true(hall.extend(gold, 1_500))
 	assert_eq(gold.amount, 0)
@@ -825,10 +825,10 @@ func test_extending_costs_400_gold_and_builds_the_first_floor_exactly_20_seconds
 	for slot: String in ["upper_nw", "upper_ne", "upper_sw", "upper_se"]:
 		assert_eq(hall.state(slot, 1_520), Hall.State.RESTORED, slot)
 	# Restore pricing counts restorations only, under way or after.
-	assert_eq(hall.next_restore(), {"gold": 300, "seconds": 20})
+	assert_eq(hall.next_restore(), {"gold": 200, "seconds": 10})
 	hall.checkpoint(1_520)
 	assert_true(hall.has_first_floor(1_520))
-	assert_eq(hall.next_restore(), {"gold": 300, "seconds": 20})
+	assert_eq(hall.next_restore(), {"gold": 200, "seconds": 10})
 	assert_eq(hall.state("side_right", 1_520), Hall.State.DAMAGED)
 
 
@@ -858,7 +858,7 @@ func test_a_bunk_room_quest_hall_and_tavern_on_the_first_floor_count_as_on_the_g
 	assert_eq(hall.state("upper_se", 2_280), Hall.State.CONVERTED)
 	assert_eq(hall.tavern_gold("upper_se", 2_222 + 30), 10)
 	assert_eq(hall.collect("upper_se", gold, 2_222 + 30), 10)
-	assert_eq(gold.amount, 2_000 - 380 - 400 - 3 * 60 + 10)
+	assert_eq(gold.amount, 2_000 - 240 - 400 - 30 - 2 * 60 + 10)
 
 
 func test_the_first_infirmary_done_is_the_one_injured_adventurers_use_on_either_floor() -> void:
@@ -883,7 +883,7 @@ func test_the_hall_can_be_extended_only_once() -> void:
 	hall.checkpoint(2_100)
 	assert_eq(hall.extend_refusal(gold, 2_100), "Already extended")
 	assert_false(hall.extend(gold, 2_100))
-	assert_eq(gold.amount, 2_000 - 380 - 400)
+	assert_eq(gold.amount, 2_000 - 240 - 400)
 	assert_eq(hall.seconds_left(2_100), 0)
 
 
@@ -900,7 +900,7 @@ func test_a_clock_set_back_neither_adds_time_to_the_extension_nor_undoes_it() ->
 	assert_true(hall.has_first_floor(900))
 	assert_eq(hall.state("upper_nw", 900), Hall.State.RESTORED)
 	assert_eq(hall.extend_refusal(gold, 900), "Already extended")
-	assert_eq(gold.amount, 2_000 - 380 - 400)
+	assert_eq(gold.amount, 2_000 - 240 - 400)
 
 
 func test_an_extension_under_way_and_a_built_first_floor_survive_save_and_load() -> void:
@@ -916,7 +916,7 @@ func test_an_extension_under_way_and_a_built_first_floor_survive_save_and_load()
 	assert_eq(loaded.seconds_left(1_510), 10)
 	assert_false(loaded.has_first_floor(1_519))
 	assert_eq(loaded.extend_refusal(gold, 1_510), "Already extended")
-	assert_eq(loaded.next_restore(), {"gold": 300, "seconds": 20})
+	assert_eq(loaded.next_restore(), {"gold": 200, "seconds": 10})
 	assert_true(loaded.has_first_floor(1_520))
 
 	loaded.checkpoint(2_100)
@@ -1110,7 +1110,7 @@ func test_a_restoration_keeps_the_length_it_started_with_when_the_rule_tables_re
 	var gold := Gold.new(500)
 	var hall := _six_room_hall(1_000)
 	hall.restore("back_left", gold, 1_000)
-	# Another room counted as restored would make today's table give the second room's 4 seconds.
+	# Another room counted as restored would make today's table give the second room's 2 seconds.
 	hall.restored.append("side_left")
 	assert_eq(hall.job_seconds(), 1)
 	assert_eq(hall.seconds_left(1_000), 1)
@@ -1158,6 +1158,229 @@ func test_a_finished_job_leaves_the_next_one_its_own_length() -> void:
 	hall.restore("back_left", gold, 1_000)
 	hall.checkpoint(1_030)
 	hall.restore("side_left", gold, 1_030)
-	assert_eq(hall.seconds_left(1_030), 4)
-	assert_eq(hall.state("side_left", 1_033), Hall.State.RESTORING)
-	assert_eq(hall.state("side_left", 1_034), Hall.State.RESTORED)
+	assert_eq(hall.seconds_left(1_030), 2)
+	assert_eq(hall.state("side_left", 1_031), Hall.State.RESTORING)
+	assert_eq(hall.state("side_left", 1_032), Hall.State.RESTORED)
+
+
+func test_a_new_games_two_rank_f_restores_cost_60_each_then_120_200_300_and_a_bunk_room_costs_30_and_a_common_room_60() -> void:
+	var gold := Gold.new(1_000)
+	var hall := Hall.new(1_000)
+	assert_true(hall.restore("side_left", gold, 1_000))
+	assert_eq(gold.amount, 940)
+	hall.checkpoint(1_001)
+	assert_true(hall.restore("back_left", gold, 1_001))
+	assert_eq(gold.amount, 880)
+	hall.checkpoint(1_003)
+	assert_true(hall.convert_room("side_left", "bunk_room", gold, 1_003))
+	assert_eq(gold.amount, 850)
+	hall.checkpoint(1_005)
+	assert_true(hall.convert_room("back_left", "common_room", gold, 1_005))
+	assert_eq(gold.amount, 790)
+	# The restorations after a new game's two, in a hall that has the rooms for them.
+	var six := _hall_with_restores(2, gold)
+	var spent: Array[int] = []
+	for slot: String in ["side_left", "side_right"]:
+		var before := gold.amount
+		assert_true(six.restore(slot, gold, six.checked_at))
+		spent.append(before - gold.amount)
+		six.checkpoint(six.checked_at + 60)
+	assert_eq(spent, [120, 200])
+	assert_eq(six.next_restore()["gold"], 300)
+
+
+## A new game's hall at 1_000 with its side room a finished Bunk room at tier 1 from 1_005 and its
+## backroom restored and empty, the builder free, paid from `gold`: 60, 60 and 30.
+func _hall_with_bunk_room(gold: Gold) -> Hall:
+	var hall := Hall.new(1_000)
+	assert_true(hall.restore("side_left", gold, 1_000))
+	hall.checkpoint(1_001)
+	assert_true(hall.restore("back_left", gold, 1_001))
+	hall.checkpoint(1_003)
+	assert_true(hall.convert_room("side_left", "bunk_room", gold, 1_003))
+	hall.checkpoint(1_005)
+	return hall
+
+
+func test_a_finished_bunk_room_upgrades_to_tier_2_then_3_paid_at_the_start_and_its_beds_rise_only_once_each_job_finishes() -> void:
+	var gold := Gold.new(500)
+	var hall := _hall_with_bunk_room(gold)
+	assert_eq(gold.amount, 350)
+	# The Reception's 2 beds and the Bunk room's.
+	assert_eq(hall.beds(1_005), 4)
+	assert_eq(hall.upgrade_refusal("side_left", gold, 1_005), "")
+	assert_true(hall.upgrade("side_left", gold, 1_005))
+	assert_eq(gold.amount, 290)
+	assert_eq(hall.seconds_left(1_005), 4)
+	# Still a Bunk room in use while the builder works on it.
+	assert_eq(hall.state("side_left", 1_006), Hall.State.CONVERTED)
+	assert_eq(hall.room_type("side_left"), "bunk_room")
+	assert_eq(hall.beds(1_008), 4)
+	assert_eq(hall.beds(1_009), 5)
+	hall.checkpoint(1_009)
+	assert_eq(hall.tier("side_left", 1_009), 2)
+	assert_eq(hall.beds(1_009), 5)
+	assert_true(hall.upgrade("side_left", gold, 1_009))
+	assert_eq(gold.amount, 170)
+	assert_eq(hall.seconds_left(1_009), 10)
+	assert_eq(hall.beds(1_018), 5)
+	# Finished, not yet checkpointed: the beds and the tier count already.
+	assert_eq(hall.beds(1_019), 6)
+	assert_eq(hall.tier("side_left", 1_019), 3)
+	assert_eq(hall.upgrade_refusal("side_left", gold, 1_019), "Highest tier")
+	assert_false(hall.upgrade("side_left", gold, 1_019))
+	hall.checkpoint(1_019)
+	assert_eq(hall.upgrade_refusal("side_left", gold, 1_019), "Highest tier")
+	assert_false(hall.upgrade("side_left", gold, 1_019))
+	assert_eq(gold.amount, 170)
+	assert_eq(hall.building, "")
+	assert_eq(hall.beds(1_019), 6)
+
+
+func test_every_upgrade_refusal_changes_nothing_builder_busy_short_gold_highest_tier_and_not_upgradable() -> void:
+	var gold := Gold.new(500)
+	var hall := _hall_with_bunk_room(gold)
+	gold.amount = 59
+	_assert_upgrade_refused(hall, "side_left", gold, 1_005, "Need 1 more gold")
+	gold.amount = 60
+	assert_true(hall.upgrade("side_left", gold, 1_005))
+	assert_eq(gold.amount, 0)
+	gold.amount = 1_000
+	_assert_upgrade_refused(hall, "side_left", gold, 1_006, "Builder busy")
+	# One builder: an upgrade under way keeps every other job waiting too.
+	assert_eq(hall.convert_refusal("back_left", "common_room", gold, 1_006), "Builder busy")
+	assert_false(hall.convert_room("back_left", "common_room", gold, 1_006))
+	assert_eq(gold.amount, 1_000)
+	hall.checkpoint(1_009)
+	assert_true(hall.convert_room("back_left", "common_room", gold, 1_009))
+	hall.checkpoint(1_011)
+	_assert_upgrade_refused(hall, "back_left", gold, 1_011, "Not upgradable")
+	_assert_upgrade_refused(hall, "reception", gold, 1_011, "Not upgradable")
+	assert_true(hall.upgrade("side_left", gold, 1_011))
+	hall.checkpoint(1_021)
+	_assert_upgrade_refused(hall, "side_left", gold, 1_021, "Highest tier")
+	assert_eq(hall.beds(1_021), 6)
+
+
+# Asserts upgrading `slot` at `now` is refused for `reason`, and that trying leaves the gold, the
+# builder and the beds as they were.
+func _assert_upgrade_refused(hall: Hall, slot: String, gold: Gold, now: int, reason: String) -> void:
+	var before := [gold.amount, hall.building, hall.building_since, hall.beds(now), hall.tier(slot, now)]
+	assert_eq(hall.upgrade_refusal(slot, gold, now), reason, slot)
+	assert_false(hall.upgrade(slot, gold, now), slot)
+	assert_eq([gold.amount, hall.building, hall.building_since, hall.beds(now), hall.tier(slot, now)], before, slot)
+
+
+func test_a_bunk_rooms_tier_and_an_upgrade_under_way_survive_save_and_load() -> void:
+	var gold := Gold.new(500)
+	var hall := _hall_with_bunk_room(gold)
+	assert_true(hall.upgrade("side_left", gold, 1_005))
+	hall.checkpoint(1_009)
+	assert_true(hall.upgrade("side_left", gold, 1_009))
+	hall.checkpoint(1_012)
+	var file := ConfigFile.new()
+	hall.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var loaded := Hall.load_or_start(SAVE_PATH, 99_999)
+	assert_eq(loaded.tier("side_left", 1_012), 2)
+	assert_eq(loaded.beds(1_012), 5)
+	assert_eq(loaded.building, "side_left")
+	assert_eq(loaded.seconds_left(1_012), 7)
+	assert_eq(loaded.state("side_left", 1_012), Hall.State.CONVERTED)
+	assert_eq(loaded.upgrade_refusal("side_left", Gold.new(1_000), 1_012), "Builder busy")
+	assert_eq(loaded.beds(1_018), 5)
+	assert_eq(loaded.beds(1_019), 6)
+	loaded.checkpoint(1_019)
+	file = ConfigFile.new()
+	loaded.write(file)
+	assert_eq(file.save(SAVE_PATH), OK)
+	var reloaded := Hall.load_or_start(SAVE_PATH, 99_999)
+	assert_eq(reloaded.tier("side_left", 1_019), 3)
+	assert_eq(reloaded.beds(1_019), 6)
+	assert_eq(reloaded.building, "")
+	assert_eq(reloaded.upgrade_refusal("side_left", Gold.new(1_000), 1_019), "Highest tier")
+
+
+func test_a_save_without_tiers_loads_its_bunk_rooms_at_tier_1_with_the_same_beds_and_a_conversion_under_way_as_one() -> void:
+	# What a build before tiers saved: a finished Bunk room and a Common room being built.
+	var file := ConfigFile.new()
+	file.set_value("hall", "layout", Hall.NEW_LAYOUT)
+	file.set_value("hall", "restored", PackedStringArray(["side_left", "back_left"]))
+	file.set_value("hall", "converted", {"side_left": {"type": "bunk_room", "done_at": 1_100}})
+	file.set_value("hall", "restoring", "back_left")
+	file.set_value("hall", "restoring_since", 1_200)
+	file.set_value("hall", "converting_into", "common_room")
+	file.set_value("hall", "building_seconds", 2)
+	file.set_value("hall", "checked_at", 1_201)
+	assert_eq(file.save(SAVE_PATH), OK)
+
+	var hall := Hall.load_or_start(SAVE_PATH, 2_000)
+	assert_eq(hall.tier("side_left", 1_201), 1)
+	assert_eq(hall.beds(1_201), 4)
+	assert_eq(hall.state("back_left", 1_201), Hall.State.CONVERTING)
+	assert_eq(hall.state("back_left", 1_202), Hall.State.CONVERTED)
+	hall.checkpoint(1_202)
+	assert_eq(hall.room_type("back_left"), "common_room")
+	assert_eq(hall.tier("side_left", 1_202), 1)
+	assert_eq(hall.beds(1_202), 4)
+	var gold := Gold.new(60)
+	assert_true(hall.upgrade("side_left", gold, 1_202))
+	assert_eq(gold.amount, 0)
+	assert_eq(hall.beds(1_206), 5)
+
+
+func test_on_the_hall_an_upgradable_bunk_rooms_icon_opens_the_confirm_card_and_confirming_starts_the_upgrade() -> void:
+	var gold := Gold.new(500)
+	var hall := _hall_with_bunk_room(gold)
+	# On a layer above GUT's own output window, with Touch as main.tscn has it.
+	var layer := CanvasLayer.new()
+	layer.layer = 128
+	add_child_autofree(layer)
+	layer.add_child(Touch.new())
+	var hall_view := (load("res://screens/hall_view.tscn") as PackedScene).instantiate() as HallView
+	layer.add_child(hall_view)
+	hall_view.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	hall_view.size = Vector2(1000, 700)
+	var sheet := (load("res://screens/confirm_sheet.tscn") as PackedScene).instantiate() as ConfirmSheet
+	layer.add_child(sheet)
+	# The same as main.gd does with the signals.
+	var upgrading := [""]
+	hall_view.upgrade_pressed.connect(func(slot: String) -> void:
+		upgrading[0] = slot
+		var next := hall.next_upgrade(slot, 1_005)
+		sheet.offer("Upgrade " + Hall.ROOM_TYPES[hall.room_type(slot)]["name"], next["gold"], next["seconds"], "Upgrade", hall.upgrade_refusal(slot, gold, 1_005), "+1 bed"))
+	sheet.confirmed.connect(func() -> void:
+		hall.upgrade(upgrading[0], gold, 1_005)
+		sheet.close())
+	hall_view.show_state(hall, Dispatch.new(1_005), 0, 1_005)
+	await wait_process_frames(1)
+
+	_tap(hall_view.room_center("side_left"))
+	await wait_process_frames(1)
+	assert_true(sheet.visible)
+	assert_eq((sheet.get_node("Sheet/Box/Title") as Label).text, "Upgrade Bunk room")
+	assert_eq((sheet.get_node("Sheet/Box/Price/Cost") as Label).text, "60g")
+	var note := sheet.get_node("Sheet/Box/Note") as Label
+	assert_true(note.is_visible_in_tree())
+	assert_eq(note.text, "+1 bed")
+	var action := sheet.get_node("Sheet/Box/Buttons/Action") as Button
+	assert_eq(action.text, "Upgrade")
+	assert_eq(hall.building, "")
+	_tap(action.get_global_rect().get_center())
+	await wait_process_frames(1)
+	assert_false(sheet.visible)
+	assert_eq(hall.building, "side_left")
+	assert_eq(gold.amount, 350 - 60)
+
+
+func _tap(at: Vector2) -> void:
+	for pressed: bool in [true, false]:
+		var click := InputEventMouseButton.new()
+		click.button_index = MOUSE_BUTTON_LEFT
+		click.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+		click.pressed = pressed
+		click.position = at
+		click.global_position = at
+		Input.parse_input_event(click.xformed_by(get_viewport().get_final_transform()))
+		Input.flush_buffered_events()

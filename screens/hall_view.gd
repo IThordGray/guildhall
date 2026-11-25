@@ -11,6 +11,8 @@ signal send_pressed
 signal collect_pressed(slot: String)
 ## The player tapped the stairs, to extend the hall with the First floor.
 signal extend_pressed
+## The player tapped the finished room `slot`, to upgrade it to its next tier.
+signal upgrade_pressed(slot: String)
 
 ## How a room is drawn on the plan. UNBUILT is a room the hall doesn't have yet: not drawn at all.
 enum Look { IN_USE, EMPTY, DAMAGED, RESTORING, CONVERTING, UNBUILT }
@@ -207,8 +209,8 @@ const FURNITURE: Dictionary[String, Array] = {
 	],
 }
 ## What a room's icon offers: a damaged room or the stairs to build, an empty room to give a job, a
-## Tavern's gold to collect. Each a pixel image, a row of characters per line, coloured by
-## ICON_COLORS; "." is see-through.
+## Tavern's gold to collect; a room with a next tier shows "build" too, to upgrade it. Each a pixel
+## image, a row of characters per line, coloured by ICON_COLORS; "." is see-through.
 const ICONS: Dictionary[String, PackedStringArray] = {
 	"build": [
 		"......oo........",
@@ -333,6 +335,7 @@ class Row extends RefCounted:
 func _ready() -> void:
 	for kind: String in ICONS:
 		_icons[kind] = _pixel_image(ICONS[kind])
+	_icons["upgrade"] = _icons["build"]
 	_building = Control.new()
 	_building.mouse_filter = Control.MOUSE_FILTER_PASS
 	_plan.add_child(_building)
@@ -448,6 +451,12 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: in
 				room.bar.value = held
 				if held > 0:
 					kind = "collect"
+			elif slot == hall.building and hall.seconds_left(now) > 0:
+				# Being upgraded: it stays in use, with the builder's bar.
+				room.bar.theme_type_variation = &"PlanBar"
+				building = true
+			elif not hall.next_upgrade(slot, now).is_empty():
+				kind = "upgrade"
 		Hall.State.RESTORED:
 			kind = "job"
 			look = Look.EMPTY
@@ -476,6 +485,8 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: in
 		match kind:
 			"build":
 				room.action = extend_pressed.emit if slot == STAIRS else restore_pressed.emit.bind(slot)
+			"upgrade":
+				room.action = upgrade_pressed.emit.bind(slot)
 			"job":
 				room.action = job_pressed.emit.bind(slot)
 			"collect":
@@ -521,6 +532,8 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 			entries.append({"swatch": Look.RESTORING, "title": "Building the first floor", "bar": &"GoldBar"})
 		elif hall.building_into.is_empty():
 			entries.append({"swatch": Look.RESTORING, "title": "Restoring the " + slot_name(hall, hall.building).to_lower(), "bar": &"GoldBar"})
+		elif hall.building_tier > 0:
+			entries.append({"swatch": Look.CONVERTING, "title": "Upgrading the " + Hall.ROOM_TYPES[hall.building_into]["name"].to_lower(), "bar": &"GoldBar"})
 		else:
 			entries.append({"swatch": Look.CONVERTING, "title": "Converting the " + slot_name(hall, hall.building).to_lower(), "bar": &"GoldBar"})
 		waits.append(Vector3i(hall.job_seconds(), hall.job_seconds() - build_left, build_left))
