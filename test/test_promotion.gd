@@ -350,3 +350,77 @@ func _lit(grid: Node) -> Array[String]:
 		if String((grid.get_child(index) as Control).theme_type_variation).ends_with("Changed"):
 			lit.append(stats[index])
 	return lit
+
+
+const PROGRESS: String = "Box/Scroll/Content/Card/Header/Row/Words/Progress"
+
+
+func test_a_rank_f_adventurer_with_3_rank_e_successes_at_level_2_shows_3_of_5_to_rank_e_at_level_3_with_no_tick_and_the_tick_at_level_3() -> void:
+	var dispatch := _guild(START)
+	var adventurers := dispatch.adventurers
+	adventurers.levels["bram"] = 2
+	adventurers.add_successes("bram", "E", 3)
+	# Lower-rank successes don't count toward E.
+	adventurers.add_successes("bram", "F", 9)
+	var sheet := _sheet(dispatch, "bram")
+	var progress := sheet.get_node(PROGRESS) as Control
+	var text := sheet.get_node(PROGRESS + "/Text") as Label
+	var tick := sheet.get_node(PROGRESS + "/Tick") as Control
+	assert_true(progress.visible)
+	assert_eq(text.text, "To rank E · 3 / 5 rank-E quests · level 3")
+	assert_false(tick.visible)
+	adventurers.levels["bram"] = 3
+	sheet.show_adventurer("bram", dispatch, 0, START)
+	assert_eq(text.text, "To rank E · 3 / 5 rank-E quests · level 3")
+	assert_true(tick.visible)
+	# More successes than needed show as the count needed, beside Promote.
+	adventurers.add_successes("bram", "E", 4)
+	sheet.show_adventurer("bram", dispatch, 0, START)
+	assert_eq(text.text, "To rank E · 5 / 5 rank-E quests · level 3")
+	assert_true(progress.visible)
+	assert_true((sheet.get_node("Box/Scroll/Content/Card/Header/Row/Words/Actions/Promote") as Button).visible)
+
+
+func test_after_promotion_to_e_the_line_shows_progress_to_d_and_at_a_rank_with_no_further_promotion_it_hides() -> void:
+	var dispatch := _guild(START)
+	var adventurers := dispatch.adventurers
+	adventurers.levels["bram"] = 4
+	adventurers.add_successes("bram", "E", 5)
+	var sheet := _sheet(dispatch, "bram")
+	# As main.gd does it.
+	sheet.promote_pressed.connect(func(adventurer: String) -> void:
+		adventurers.promote(adventurer, false)
+		sheet.show_adventurer(adventurer, dispatch, 0, START))
+	var progress := sheet.get_node(PROGRESS) as Control
+	var text := sheet.get_node(PROGRESS + "/Text") as Label
+	var tick := sheet.get_node(PROGRESS + "/Tick") as Control
+	(sheet.get_node("Box/Scroll/Content/Card/Header/Row/Words/Actions/Promote") as Button).pressed.emit()
+	assert_eq(adventurers.roster["bram"]["rank"], "E")
+	assert_true(progress.visible)
+	assert_eq(text.text, "To rank D · 0 / 5 rank-D quests · level 6")
+	assert_false(tick.visible)
+	adventurers.levels["bram"] = 6
+	adventurers.add_successes("bram", "D", 5)
+	assert_true(adventurers.promote("bram", false))
+	sheet.show_adventurer("bram", dispatch, 0, START)
+	assert_eq(adventurers.roster["bram"]["rank"], "D")
+	assert_false(progress.visible)
+	# The header around it still shows.
+	var details := sheet.get_node("Box/Scroll/Content/Card/Header/Row/Words/Details") as Label
+	assert_true(details.visible)
+	assert_string_contains(details.text, "rank D")
+
+
+func test_a_candidates_or_walk_ins_sheet_shows_no_progress_line() -> void:
+	var dispatch := _guild(START)
+	var sheet := _sheet(dispatch, "bram")
+	var progress := sheet.get_node(PROGRESS) as Control
+	var details := sheet.get_node("Box/Scroll/Content/Card/Header/Row/Words/Details") as Label
+	assert_true(progress.visible)
+	var joss := Recruits.candidate_for(0, START, PackedStringArray())
+	for walk_in: bool in [false, true]:
+		sheet.show_visitor(joss, walk_in, "", true)
+		assert_false(progress.visible, str(walk_in))
+		assert_string_contains(details.text, "rank F", str(walk_in))
+		sheet.show_adventurer("bram", dispatch, 0, START)
+		assert_true(progress.visible, str(walk_in))

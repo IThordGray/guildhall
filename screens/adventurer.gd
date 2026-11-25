@@ -135,6 +135,10 @@ var _press_at: Vector2 = Vector2.ZERO
 @onready var _name: Label = $Box/Scroll/Content/Card/Header/Row/Words/NameLine/Name
 @onready var _status: Label = $Box/Scroll/Content/Card/Header/Row/Words/NameLine/Status
 @onready var _details: Label = $Box/Scroll/Content/Card/Header/Row/Words/Details
+## Progress toward the next promotion, and the tick once the level it needs is reached.
+@onready var _progress: HBoxContainer = $Box/Scroll/Content/Card/Header/Row/Words/Progress
+@onready var _progress_text: Label = $Box/Scroll/Content/Card/Header/Row/Words/Progress/Text
+@onready var _progress_tick: Control = $Box/Scroll/Content/Card/Header/Row/Words/Progress/Tick
 @onready var _level_up: Button = $Box/Scroll/Content/Card/Header/Row/Words/LevelUp
 @onready var _xp: HBoxContainer = $Box/Scroll/Content/Card/Header/Row/Words/Xp
 @onready var _xp_bar: ProgressBar = $Box/Scroll/Content/Card/Header/Row/Words/Xp/Bar
@@ -206,6 +210,7 @@ func _ready() -> void:
 	(_health.get_child(1) as Label).add_theme_font_size_override(&"font_size", Roster.NUMBERS_FONT_PX)
 	($Box/Scroll/Content/Card/Header/Row/Words/Hp as HBoxContainer).add_child(_health)
 	_xp_text.custom_minimum_size.x = HEALTH_TEXT_WIDTH_PX
+	_progress_tick.draw.connect(_draw_tick)
 	_level_up.pressed.connect(func() -> void: level_up_pressed.emit(_adventurer))
 	_promote.pressed.connect(_on_promote)
 	_train.pressed.connect(func() -> void: train_pressed.emit(_adventurer))
@@ -319,8 +324,9 @@ func _by_layout(values: Vector2i) -> int:
 	return values.y if _landscape else values.x
 
 
-## Shows `adventurer` as `dispatch` has them at `now`: Promote only when promoting them would
-## succeed; Train only when one of `training_places` would take them now; Dismiss while they are
+## Shows `adventurer` as `dispatch` has them at `now`: progress toward their next promotion while
+## there is one; Promote only when promoting them would succeed; Train only when one of
+## `training_places` would take them now; Dismiss while they are
 ## home and not the last, disabled with the reason while something else keeps them.
 ## Another adventurer closes the tray; the same one keeps it as it is.
 func show_adventurer(adventurer: String, dispatch: Dispatch, training_places: int, now: int) -> void:
@@ -345,7 +351,16 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, training_places: in
 	_xp_bar.value = xp
 	_xp_text.text = "%d / %d" % [xp, needed]
 	_promote.visible = adventurers.can_promote(adventurer, not dispatch.quest_of(adventurer).is_empty())
-	_promote.text = "Promote to %s" % adventurers.next_rank(adventurer)
+	var next := adventurers.next_rank(adventurer)
+	_promote.text = "Promote to %s" % next
+	# Shown beside Promote too: Promote is the action, this line only says how close they are.
+	_progress.visible = not next.is_empty()
+	if _progress.visible:
+		var needs: Dictionary = Adventurers.PROMOTIONS[next]
+		var quests: int = needs["quests"]
+		var done := mini(int(adventurers.successes[adventurer].get(next, 0)), quests)
+		_progress_text.text = "To rank %s · %d / %d rank-%s quests · level %d" % [next, done, quests, next, needs["level"]]
+		_progress_tick.visible = adventurers.levels[adventurer] >= int(needs["level"])
 	_hire_reason.visible = false
 	var training := dispatch.training.has(adventurer)
 	_training_xp.visible = training
@@ -391,7 +406,7 @@ func show_visitor(visitor: Dictionary, walk_in: bool, refusal: String, free_bed:
 	var health_text := _health.get_child(1) as Label
 	health_text.text = "%d / %d" % [most, most]
 	health_text.theme_type_variation = &"Meta"
-	for part: Control in [_level_up, _xp, _promote, _training_xp, _stop, _train, _dismiss, _party_line, _last_level_up, _training_notes, _stash, _tray, $Side]:
+	for part: Control in [_progress, _level_up, _xp, _promote, _training_xp, _stop, _train, _dismiss, _party_line, _last_level_up, _training_notes, _stash, _tray, $Side]:
 		part.visible = false
 	_hire.visible = not walk_in
 	_hire.text = "Hire · %dg" % Recruits.hire_gold(visitor)
@@ -468,6 +483,13 @@ func _show_gear_choice() -> void:
 		if tray_shown != _tray_shown:
 			_tray_shown = tray_shown
 			_show_tray(worn)
+
+
+# A tick in the theme's green, drawn to fill the progress line's tick, as Reception's ticks are.
+func _draw_tick() -> void:
+	var unit := _progress_tick.size / 24.0
+	var points := PackedVector2Array([Vector2(5.0, 12.5) * unit, Vector2(9.5, 17.0) * unit, Vector2(19.0, 7.5) * unit])
+	_progress_tick.draw_polyline(points, get_theme_color(&"font_color", &"Ok"), 2.6 * unit.x, true)
 
 
 # `stat`'s chip: its `total`, or "8→9" while a change of `points` is previewed, green for a gain and
