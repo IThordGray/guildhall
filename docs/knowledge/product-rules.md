@@ -62,7 +62,7 @@ it merges. Screens and wording live in the code.
 - Candidate slots refill from saved timestamps only, like the quest board: being away gives the same
   candidates as watching.
 - Taverns and training fill from saved timestamps only, up to their cap. Gold held changes only by
-  rewards (paid when the party is back), spending, collecting and selling.
+  rewards (paid when the party is back), goal claims, spending, collecting and selling.
 
 ## Hall
 
@@ -76,20 +76,35 @@ it merges. Screens and wording live in the code.
   room upgrades twice, at any rank, by the builder: 2, 3, then 4 beds. Old saves keep any copies
   they have.
 - Reputation changes only when a party comes home: +1, +2 or +3 for a success at rank F, E or D,
-  −1 for a failure, never below 0. Ranking up doesn't spend it.
+  −1 for a failure, never below 0; a story quest may set its own (The sealed gate: +3). Ranking up
+  doesn't spend it.
 - The guild ranks up at the Reception when the player presses Rank up, never automatically. F → E
-  needs 15 reputation, every room that can take a job in use, and 150 gold. Rank E adds the
+  needs 15 reputation, every room that can take a job in use, 2 parties, The sealed gate done, and
+  150 gold. Rank E adds the
   Entrance hall and three damaged rooms (north-east, east, front) and opens the Storeroom, Infirmary
   and Quest hall. Ranking up brings the board, candidates and walk-ins up to date first; rules that
   change with rank count from the moment it was reached. The Reception shows its icon only when
   ranking up is allowed.
 - A Storeroom adds 6 to the stash. Extending to the upper floor needs rank D.
 
+## Goals
+
+- Goals show on the Hall, several at once. A goal opens when the goals before it are claimed and is
+  done when its count is met; its progress is computed from saved state, so time away can finish a
+  goal but only the player claims it. Claiming pays its reward and unlocks what it names, once.
+- The story chain is the guided start. Side goals run beside it and never block it.
+- Auto unlocks with the side goal "Send 10 quests by hand": quests the player sends, counted when
+  they come home. Until then parties can't use Auto and its switch is hidden. Saves from before
+  goals keep Auto.
+
 ## Quests
 
+- Story quests sit in a Story row above the board while open (a goal's unlock opens them). They
+  don't expire or use a slot, their challenges are all known, and Auto never takes them. A failed
+  one can be tried again; a success marks it done for good.
 - Only a whole party goes out, never part of one or a mix; how many are out is limited only by
   ready parties. A party takes quests at most one rank above its own rank.
-- Auto (per party, off by default, saved, with Safe or Bold): a party with Auto on is ready the
+- Auto (per party, once unlocked, off by default, saved, with Safe or Bold): a party with Auto on is ready the
   moment every member is home, at full health, not injured, not training and has no loot waiting.
   It then takes the board quest its rank allows with the most gold among those whose shown chance's
   low end is at least 70% (Safe) or 40% (Bold); ties go to the higher low end, then board order;
