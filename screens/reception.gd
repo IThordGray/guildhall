@@ -41,8 +41,9 @@ var _shown: Array = []
 @onready var _opens: Control = $Box/Scroll/Columns/Opens
 @onready var _opens_section: Label = $Box/Scroll/Columns/Opens/Section
 @onready var _open_rows: VBoxContainer = $Box/Scroll/Columns/Opens/List/Rows
-@onready var _rank_up: Button = $Box/RankUp
-@onready var _back: Button = $Box/Back
+@onready var _buttons: HBoxContainer = $Box/Buttons
+@onready var _rank_up: Button = $Box/Buttons/RankUp
+@onready var _back: Button = $Box/Buttons/Back
 
 
 func _ready() -> void:
@@ -52,7 +53,7 @@ func _ready() -> void:
 
 ## Landscape shows how many parties are out beside the title, and puts the rank card with Rank up
 ## and Back under it in a column, then the checklist and what the next rank opens side by side;
-## portrait stacks them, Rank up and Back last.
+## portrait stacks them, with Back and Rank up side by side last.
 func set_landscape(landscape: bool) -> void:
 	_parties.visible = landscape
 	_columns.vertical = not landscape
@@ -61,8 +62,9 @@ func set_landscape(landscape: bool) -> void:
 	_reputation.alignment = BoxContainer.ALIGNMENT_CENTER if landscape else BoxContainer.ALIGNMENT_BEGIN
 	_side.custom_minimum_size.x = SIDE_WIDTH_PX if landscape else 0.0
 	_gap.visible = landscape
-	_rank_up.reparent(_side if landscape else _box, false)
-	_back.reparent(_side if landscape else _box, false)
+	_buttons.visible = not landscape
+	for button: Button in [_rank_up, _back] if landscape else [_back, _rank_up]:
+		button.reparent(_side if landscape else _buttons, false)
 
 
 ## Shows `hall`'s rank, `dispatch`'s reputation, and what ranking up needs against what the guild
@@ -70,7 +72,8 @@ func set_landscape(landscape: bool) -> void:
 ## line is met; at the last rank, only the rank.
 func show_guild(hall: Hall, dispatch: Dispatch, now: int) -> void:
 	_parties_count.text = str(dispatch.outings.size())
-	var checklist := hall.rank_up_checklist(dispatch.reputation, dispatch.gold.amount, now)
+	var parties := dispatch.adventurers.parties.parties.size()
+	var checklist := hall.rank_up_checklist(dispatch.reputation, dispatch.gold.amount, parties, dispatch.story_done, now)
 	var shown := [hall.rank, dispatch.reputation, checklist]
 	if shown == _shown:
 		return
@@ -78,7 +81,7 @@ func show_guild(hall: Hall, dispatch: Dispatch, now: int) -> void:
 	_letter.text = hall.rank
 	_name.text = "Rank %s guild" % hall.rank
 	_reputation_count.text = str(dispatch.reputation)
-	_rank_up.visible = hall.rank_up_refusal(dispatch.reputation, dispatch.gold, now).is_empty()
+	_rank_up.visible = hall.rank_up_refusal(dispatch.reputation, dispatch.gold, parties, dispatch.story_done, now).is_empty()
 	var next: String = Hall.RANK_UPS.get(hall.rank, {}).get("to", "")
 	_needs.visible = not next.is_empty()
 	_opens.visible = not next.is_empty()
@@ -91,7 +94,7 @@ func show_guild(hall: Hall, dispatch: Dispatch, now: int) -> void:
 		row.get_parent().remove_child(row)
 		row.queue_free()
 	for line: Dictionary in checklist:
-		_need_rows.add_child(_need_row(line))
+		_need_rows.add_child(_need_row(line, Hall.RANK_UPS[hall.rank]["story"]))
 	for text: String in OPENS.get(next, PackedStringArray()):
 		var pip := ColorRect.new()
 		pip.custom_minimum_size = Vector2(PIP_PX, PIP_PX)
@@ -104,19 +107,33 @@ func show_guild(hall: Hall, dispatch: Dispatch, now: int) -> void:
 		_open_rows.add_child(_row(line))
 
 
-# A checklist line: its name; for reputation a small bar; what the guild has of what it needs, which
-# the gold line shows only while unmet; and a green tick, named Tick, once met.
-func _need_row(line: Dictionary) -> PanelContainer:
+# A checklist line: its name, the story line's its quest `story`'s; for reputation, and for parties
+# while unmet, a small bar; what the guild has of what it needs, which the parties and gold lines
+# show only while unmet and the story line never; "not done" on the story line while unmet; and a
+# green tick, named Tick, once met.
+func _need_row(line: Dictionary, story: String) -> PanelContainer:
 	var what: String = line["what"]
 	var has: int = line["has"]
 	var needs: int = line["needs"]
 	var met: bool = line["met"]
 	var parts := HBoxContainer.new()
 	parts.add_theme_constant_override("separation", 28)
-	var name_label := _label("%d gold" % needs if what == "gold" else NEED_NAMES[what], &"Label")
+	var name_text: String
+	match what:
+		"parties":
+			name_text = "%d parties" % needs
+		"story":
+			name_text = Dispatch.QUESTS[story]["name"]
+		"gold":
+			name_text = "%d gold" % needs
+		_:
+			name_text = NEED_NAMES[what]
+	var name_label := _label(name_text, &"Label")
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	parts.add_child(name_label)
-	if what == "reputation":
+	if what == "story" and not met:
+		parts.add_child(_label("not done", &"Label"))
+	if what == "reputation" or (what == "parties" and not met):
 		var bar := ProgressBar.new()
 		bar.theme_type_variation = &"GoldBar"
 		bar.show_percentage = false
@@ -125,7 +142,7 @@ func _need_row(line: Dictionary) -> PanelContainer:
 		bar.max_value = needs
 		bar.value = has
 		parts.add_child(bar)
-	if what != "gold" or not met:
+	if what in ["reputation", "rooms"] or (what != "story" and not met):
 		var value := _label("%d / %d" % [has, needs], &"Meta" if met else &"Numbers")
 		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		value.custom_minimum_size.x = VALUE_WIDTH_PX

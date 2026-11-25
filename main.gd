@@ -338,7 +338,7 @@ func _offer(now: int) -> void:
 		_confirm_sheet.offer("Build the first floor", Hall.EXTEND_GOLD, Hall.EXTEND_SECONDS, "Extend", _hall.extend_refusal(_gold, now))
 	elif _confirming == RANK_UP:
 		var rank_up: Dictionary = Hall.RANK_UPS[_hall.rank]
-		_confirm_sheet.ask("Rank up to " + rank_up["to"], "%d gold" % rank_up["gold"], "Rank up", _hall.rank_up_refusal(_dispatch.reputation, _gold, now))
+		_confirm_sheet.ask("Rank up to " + rank_up["to"], "%d gold" % rank_up["gold"], "Rank up", _hall.rank_up_refusal(_dispatch.reputation, _gold, _dispatch.adventurers.parties.parties.size(), _dispatch.story_done, now))
 	elif _confirming == UPGRADE:
 		var next := _hall.next_upgrade(_upgrading, now)
 		_confirm_sheet.offer("Upgrade " + Hall.ROOM_TYPES[_hall.room_type(_upgrading)]["name"], next["gold"], next["seconds"], "Upgrade", _hall.upgrade_refusal(_upgrading, _gold, now), "+1 bed")
@@ -363,7 +363,7 @@ func _on_confirmed() -> void:
 	elif _confirming == RANK_UP:
 		# The checkpoint before brings the board, candidates and walk-ins up to now at the old rank.
 		_checkpoint(now)
-		_hall.rank_up(_dispatch.reputation, _gold, now)
+		_hall.rank_up(_dispatch.reputation, _gold, _dispatch.adventurers.parties.parties.size(), _dispatch.story_done, now)
 	elif _confirming == UPGRADE:
 		_hall.upgrade(_upgrading, _gold, now)
 	else:

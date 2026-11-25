@@ -35,10 +35,11 @@ const LAYOUTS: Array[Dictionary] = [
 ]
 ## The rank a new guild starts at.
 const STARTING_RANK: String = "F"
-## What ranking up from each rank needs: the rank it leads "to", the "reputation" earned and the
-## "gold" held, and every room in use (`rank_up_checklist`). A rank with no row is the last.
+## What ranking up from each rank needs: the rank it leads "to", the "reputation" earned, how many
+## "parties" the guild has, the "story" quest done (a Dispatch.QUESTS id) and the "gold" held, and
+## every room in use (`rank_up_checklist`). A rank with no row is the last.
 const RANK_UPS: Dictionary[String, Dictionary] = {
-	"F": {"to": "E", "reputation": 15, "gold": 150},
+	"F": {"to": "E", "reputation": 15, "parties": 2, "story": "sealed_gate", "gold": 150},
 }
 ## Extending the hall builds the First floor: what it costs and takes, done by the builder like a
 ## restoration, and how many rooms must be restored first (stand-ins).
@@ -185,12 +186,13 @@ func open_types() -> PackedStringArray:
 	return open
 
 
-## What ranking up from the guild's rank needs (RANK_UPS) against what a guild with `reputation`
-## and `gold` held has at `now`, in order: {"what": "reputation", "rooms" or "gold", "has", "needs",
-## "met"}. Rooms count those on the layout's ground floor that can take a job, the Reception and the
-## entrance hall not among them; one is in use once its conversion has finished. Empty at the last
-## rank.
-func rank_up_checklist(reputation: int, gold: int, now: int) -> Array[Dictionary]:
+## What ranking up from the guild's rank needs (RANK_UPS) against what a guild with `reputation`,
+## `gold` held, `parties` (Parties.parties) and the story quests `story_done` (Dispatch.story_done)
+## has at `now`, in order: {"what": "reputation", "rooms", "parties", "story" or "gold", "has",
+## "needs", "met"}; the story line has 1 of 1 once its quest is done. Rooms count those on the
+## layout's ground floor that can take a job, the Reception and the entrance hall not among them;
+## one is in use once its conversion has finished. Empty at the last rank.
+func rank_up_checklist(reputation: int, gold: int, parties: int, story_done: PackedStringArray, now: int) -> Array[Dictionary]:
 	var checklist: Array[Dictionary] = []
 	if not RANK_UPS.has(rank):
 		return checklist
@@ -203,27 +205,39 @@ func rank_up_checklist(reputation: int, gold: int, now: int) -> Array[Dictionary
 		if state(slot, now) == State.CONVERTED:
 			in_use += 1
 	var needs: Dictionary = RANK_UPS[rank]
-	for line: Array in [["reputation", reputation, needs["reputation"]], ["rooms", in_use, rooms], ["gold", gold, needs["gold"]]]:
+	var story := 1 if needs["story"] in story_done else 0
+	for line: Array in [["reputation", reputation, needs["reputation"]], ["rooms", in_use, rooms], ["parties", parties, needs["parties"]], ["story", story, 1], ["gold", gold, needs["gold"]]]:
 		checklist.append({"what": line[0], "has": line[1], "needs": line[2], "met": line[1] >= line[2]})
 	return checklist
 
 
-## Why the guild, with `reputation` earned and `gold` held, can't rank up at `now`, in words for
-## the player; "" when it can: the first unmet line of `rank_up_checklist`.
-func rank_up_refusal(reputation: int, gold: Gold, now: int) -> String:
+## Why the guild, with `reputation` earned, `gold` held, and `parties` and `story_done` as for
+## `rank_up_checklist`, can't rank up at `now`, in words for the player; "" when it can: the first
+## unmet line of `rank_up_checklist`.
+func rank_up_refusal(reputation: int, gold: Gold, parties: int, story_done: PackedStringArray, now: int) -> String:
 	if not RANK_UPS.has(rank):
 		return "Highest rank for now"
-	for line: Dictionary in rank_up_checklist(reputation, gold.amount, now):
-		if not line["met"]:
-			return "Every room in use first" if line["what"] == "rooms" else "Need %d more %s" % [line["needs"] - line["has"], line["what"]]
+	for line: Dictionary in rank_up_checklist(reputation, gold.amount, parties, story_done, now):
+		if line["met"]:
+			continue
+		match line["what"]:
+			"rooms":
+				return "Every room in use first"
+			"parties":
+				# RANK_UPS' one row needs 2.
+				return "Form a second party first"
+			"story":
+				return "Finish %s first" % Dispatch.QUESTS[RANK_UPS[rank]["story"]]["name"]
+		return "Need %d more %s" % [line["needs"] - line["has"], line["what"]]
 	return ""
 
 
-## Pays and ranks the guild up at `now`, growing the hall into its layout's "rank_up" and recording
-## when; false, with nothing changed, when `rank_up_refusal` gives a reason. Reputation is not
-## spent. Rooms the hall already has keep their state; the ones the new layout adds start damaged.
-func rank_up(reputation: int, gold: Gold, now: int) -> bool:
-	if not rank_up_refusal(reputation, gold, now).is_empty():
+## Pays and ranks the guild up at `now`, with what it has as for `rank_up_refusal`, growing the hall
+## into its layout's "rank_up" and recording when; false, with nothing changed, when
+## `rank_up_refusal` gives a reason. Reputation is not spent. Rooms the hall already has keep their
+## state; the ones the new layout adds start damaged.
+func rank_up(reputation: int, gold: Gold, parties: int, story_done: PackedStringArray, now: int) -> bool:
+	if not rank_up_refusal(reputation, gold, parties, story_done, now).is_empty():
 		return false
 	checkpoint(now)
 	gold.spend(RANK_UPS[rank]["gold"])

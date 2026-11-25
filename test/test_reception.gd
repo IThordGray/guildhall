@@ -1,5 +1,8 @@
 extends GutTest
 
+## The story quests done once The sealed gate is, which ranking up to E needs.
+const SEALED_GATE_DONE: PackedStringArray = ["sealed_gate"]
+
 ## The screens are put on a layer above GUT's own output window, with Touch as main.tscn has it.
 var _layer: CanvasLayer
 
@@ -57,6 +60,17 @@ func _guild(reputation: int, gold: int) -> Dispatch:
 	return dispatch
 
 
+# `dispatch`, whose new guild has one party, Bram and Tobin's, with parties of one added until it has
+# `parties`, and The sealed gate done when `sealed_gate`: with 2 and true, the rest of what rank E
+# needs.
+func _with(dispatch: Dispatch, parties: int, sealed_gate: bool) -> Dispatch:
+	while dispatch.adventurers.parties.parties.size() < parties:
+		assert_true(dispatch.adventurers.parties.move("adventurer_%d" % dispatch.adventurers.parties.next_id, Parties.NEW_PARTY, dispatch))
+	if sealed_gate:
+		dispatch.story_done.append("sealed_gate")
+	return dispatch
+
+
 func test_tapping_the_reception_on_the_hall_asks_to_open_it_and_tapping_a_damaged_room_does_not() -> void:
 	var hall_view := _screen("res://screens/hall_view.tscn") as HallView
 	hall_view.show_state(Hall.new(1_000), Dispatch.new(1_000), 2, 1_000)
@@ -86,11 +100,11 @@ func test_the_reception_shows_the_rank_reputation_checklist_and_what_rank_e_open
 	var texts := _texts(reception)
 	for shown: String in ["Reception", "F", "Rank F guild", "Reputation", "9", "TO RANK E", "RANK E OPENS"]:
 		assert_has(texts, shown)
-	assert_eq(_needs(reception), [["Reputation", "9 / 15"], ["Rooms in use", "2 / 2", "✓"], ["150 gold", "✓"]])
+	assert_eq(_needs(reception), [["Reputation", "9 / 15"], ["Rooms in use", "2 / 2", "✓"], ["2 parties", "1 / 2"], ["The sealed gate", "not done"], ["150 gold", "✓"]])
 	assert_eq(_texts(reception.get_node("Box/Scroll/Columns/Opens/List/Rows")), ["Ground-floor wing: 3 rooms", "Storeroom, Infirmary, Quest hall", "Mostly rank-E quests", "Rank-E recruits", "Walk-ins sooner"])
 	var backs: Array[int] = [0]
 	reception.back_pressed.connect(func() -> void: backs[0] += 1)
-	(reception.get_node("Box/Back") as Button).pressed.emit()
+	(reception.get_node("Box/Buttons/Back") as Button).pressed.emit()
 	assert_eq(backs[0], 1)
 
 
@@ -99,12 +113,12 @@ func test_the_reception_rebuilds_when_reputation_or_gold_changes_while_it_is_ope
 	var hall := Hall.new(1_000)
 	var dispatch := _guild(9, 185)
 	reception.show_guild(hall, dispatch, 1_000)
-	assert_eq(_needs(reception), [["Reputation", "9 / 15"], ["Rooms in use", "0 / 2"], ["150 gold", "✓"]])
+	assert_eq(_needs(reception), [["Reputation", "9 / 15"], ["Rooms in use", "0 / 2"], ["2 parties", "1 / 2"], ["The sealed gate", "not done"], ["150 gold", "✓"]])
 	dispatch.reputation = 15
 	dispatch.gold.amount = 120
 	reception.show_guild(hall, dispatch, 1_001)
 	assert_has(_texts(reception), "15")
-	assert_eq(_needs(reception), [["Reputation", "15 / 15", "✓"], ["Rooms in use", "0 / 2"], ["150 gold", "120 / 150"]])
+	assert_eq(_needs(reception), [["Reputation", "15 / 15", "✓"], ["Rooms in use", "0 / 2"], ["2 parties", "1 / 2"], ["The sealed gate", "not done"], ["150 gold", "120 / 150"]])
 
 
 func test_a_guild_at_its_last_rank_shows_only_its_rank_and_back() -> void:
@@ -115,7 +129,7 @@ func test_a_guild_at_its_last_rank_shows_only_its_rank_and_back() -> void:
 	assert_has(_texts(reception), "Rank E guild")
 	assert_false(reception.get_node("Box/Scroll/Columns/Needs").visible)
 	assert_false(reception.get_node("Box/Scroll/Columns/Opens").visible)
-	assert_true(reception.get_node("Box/Back").visible)
+	assert_true(reception.get_node("Box/Buttons/Back").visible)
 
 
 # A new game's hall with its side room a Bunk room and its backroom a Common room, both in use at
@@ -151,7 +165,7 @@ func test_a_rank_e_hall_draws_the_front_split_with_the_three_new_rooms_and_a_ran
 	for absent: String in ["North-east room", "East room", "Entrance hall", "Front room"]:
 		assert_does_not_have(texts, absent)
 
-	assert_true(hall.rank_up(15, Gold.new(150), 1_020))
+	assert_true(hall.rank_up(15, Gold.new(150), 2, SEALED_GATE_DONE, 1_020))
 	hall_view.show_state(hall, Dispatch.new(1_020), 0, 1_020)
 	await wait_process_frames(1)
 	assert_eq(summary.text, "Rank E guild · 3 of 6 rooms in use")
@@ -179,7 +193,7 @@ func test_a_rank_e_hall_draws_the_front_split_with_the_three_new_rooms_and_a_ran
 func test_the_reception_shows_its_crest_only_when_the_guild_can_rank_up_and_a_tap_opens_it_either_way() -> void:
 	var hall_view := _screen("res://screens/hall_view.tscn") as HallView
 	var hall := _hall_in_use()
-	var dispatch := _guild(14, 150)
+	var dispatch := _with(_guild(14, 150), 2, true)
 	var opened: Array[int] = [0]
 	hall_view.reception_pressed.connect(func() -> void: opened[0] += 1)
 	hall_view.show_state(hall, dispatch, 0, 1_010)
@@ -221,11 +235,11 @@ func test_an_upgradable_bunk_room_shows_its_upgrade_icon_and_one_at_tier_3_shows
 
 func test_rank_up_shows_on_the_reception_only_once_every_line_is_met() -> void:
 	var reception := _screen("res://screens/reception.tscn") as Reception
-	var rank_up := reception.get_node("Box/RankUp") as Button
-	var dispatch := _guild(15, 149)
+	var rank_up := reception.get_node("Box/Buttons/RankUp") as Button
+	var dispatch := _with(_guild(15, 149), 2, true)
 	reception.show_guild(_hall_in_use(), dispatch, 1_010)
 	assert_false(rank_up.visible)
-	assert_true(reception.get_node("Box/Back").visible)
+	assert_true(reception.get_node("Box/Buttons/Back").visible)
 	dispatch.gold.amount = 150
 	reception.show_guild(_hall_in_use(), dispatch, 1_010)
 	assert_true(rank_up.visible)
@@ -242,17 +256,17 @@ func test_pressing_rank_up_opens_the_confirm_card_and_confirming_ranks_up_and_re
 	var reception := _screen("res://screens/reception.tscn") as Reception
 	var sheet := _screen("res://screens/confirm_sheet.tscn") as ConfirmSheet
 	var hall := _hall_in_use()
-	var dispatch := _guild(15, 200)
+	var dispatch := _with(_guild(15, 200), 2, true)
 	# The same as main.gd does with the signals.
 	reception.rank_up_pressed.connect(func() -> void:
-		sheet.ask("Rank up to E", "150 gold", "Rank up", hall.rank_up_refusal(dispatch.reputation, dispatch.gold, 1_020)))
+		sheet.ask("Rank up to E", "150 gold", "Rank up", hall.rank_up_refusal(dispatch.reputation, dispatch.gold, dispatch.adventurers.parties.parties.size(), dispatch.story_done, 1_020)))
 	sheet.confirmed.connect(func() -> void:
-		hall.rank_up(dispatch.reputation, dispatch.gold, 1_020)
+		hall.rank_up(dispatch.reputation, dispatch.gold, dispatch.adventurers.parties.parties.size(), dispatch.story_done, 1_020)
 		sheet.close()
 		reception.show_guild(hall, dispatch, 1_020))
 	reception.show_guild(hall, dispatch, 1_010)
 	await wait_process_frames(1)
-	_tap((reception.get_node("Box/RankUp") as Button).get_global_rect().get_center())
+	_tap((reception.get_node("Box/Buttons/RankUp") as Button).get_global_rect().get_center())
 	await wait_process_frames(1)
 	assert_true(sheet.visible)
 	assert_eq((sheet.get_node("Sheet/Box/Title") as Label).text, "Rank up to E")
@@ -268,5 +282,48 @@ func test_pressing_rank_up_opens_the_confirm_card_and_confirming_ranks_up_and_re
 	assert_eq(dispatch.gold.amount, 50)
 	assert_has(_texts(reception), "Rank E guild")
 	assert_false(reception.get_node("Box/Scroll/Columns/Needs").visible)
-	assert_false(reception.get_node("Box/RankUp").visible)
-	assert_true(reception.get_node("Box/Back").visible)
+	assert_false(reception.get_node("Box/Buttons/RankUp").visible)
+	assert_true(reception.get_node("Box/Buttons/Back").visible)
+
+
+func test_the_reception_shows_2_parties_and_the_sealed_gate_after_rooms_in_use_with_progress_while_short_and_a_tick_once_met() -> void:
+	var reception := _screen("res://screens/reception.tscn") as Reception
+	var hall := _hall_in_use()
+	var dispatch := _with(_guild(15, 150), 1, false)
+	reception.show_guild(hall, dispatch, 1_010)
+	assert_eq(_needs(reception), [["Reputation", "15 / 15", "✓"], ["Rooms in use", "2 / 2", "✓"], ["2 parties", "1 / 2"], ["The sealed gate", "not done"], ["150 gold", "✓"]])
+	var rows := reception.get_node("Box/Scroll/Columns/Needs/List/Rows")
+	var bars := rows.get_child(2).find_children("*", "ProgressBar", true, false)
+	assert_eq(bars.size(), 1)
+	assert_eq([(bars[0] as ProgressBar).value, (bars[0] as ProgressBar).max_value], [1.0, 2.0])
+	_with(dispatch, 2, true)
+	reception.show_guild(hall, dispatch, 1_011)
+	assert_eq(_needs(reception), [["Reputation", "15 / 15", "✓"], ["Rooms in use", "2 / 2", "✓"], ["2 parties", "✓"], ["The sealed gate", "✓"], ["150 gold", "✓"]])
+	assert_eq(rows.get_child(2).find_children("*", "ProgressBar", true, false).size(), 0)
+
+
+func test_rank_up_and_the_crest_appear_only_when_2_parties_and_the_sealed_gate_are_met_too() -> void:
+	var reception := _screen("res://screens/reception.tscn") as Reception
+	var rank_up := reception.get_node("Box/Buttons/RankUp") as Button
+	var hall_view := _screen("res://screens/hall_view.tscn") as HallView
+	var hall := _hall_in_use()
+	# Every old line met, one party, The sealed gate done.
+	var dispatch := _with(_guild(15, 150), 1, true)
+	reception.show_guild(hall, dispatch, 1_010)
+	hall_view.show_state(hall, dispatch, 0, 1_010)
+	await wait_process_frames(1)
+	assert_false(rank_up.visible)
+	assert_false(_icon_on(hall_view, "reception"))
+	# Two parties, The sealed gate not done.
+	dispatch = _with(_guild(15, 150), 2, false)
+	reception.show_guild(hall, dispatch, 1_011)
+	hall_view.show_state(hall, dispatch, 0, 1_011)
+	await wait_process_frames(1)
+	assert_false(rank_up.visible)
+	assert_false(_icon_on(hall_view, "reception"))
+	dispatch.story_done.append("sealed_gate")
+	reception.show_guild(hall, dispatch, 1_012)
+	hall_view.show_state(hall, dispatch, 0, 1_012)
+	await wait_process_frames(1)
+	assert_true(rank_up.visible)
+	assert_true(_icon_on(hall_view, "reception"))

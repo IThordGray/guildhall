@@ -153,13 +153,18 @@ theme_type_variation = &"ProgressList"
 layout_mode = 2
 theme_override_constants/separation = 0
 
-[node name="RankUp" type="Button" parent="Box"]
+[node name="Buttons" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Back" type="Button" parent="Box/Buttons"]
+custom_minimum_size = Vector2(300, 144)
+layout_mode = 2
+text = "Back"
+
+[node name="RankUp" type="Button" parent="Box/Buttons"]
 visible = false
 custom_minimum_size = Vector2(0, 144)
 layout_mode = 2
+size_flags_horizontal = 3
 theme_type_variation = &"GoldButton"
-
-[node name="Back" type="Button" parent="Box"]
-custom_minimum_size = Vector2(0, 144)
-layout_mode = 2
-text = "Back"

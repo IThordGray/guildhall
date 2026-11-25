@@ -463,7 +463,7 @@ func show_state(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: int) 
 	# Only a hall with stairs has floors to choose from: one from before guild ranks, which always
 	# had them, or one whose First floor is built.
 	_floors.visible = hall.from_before_ranks() or hall.has_first_floor(now)
-	var rank_up := hall.rank_up_refusal(dispatch.reputation, dispatch.gold, now).is_empty()
+	var rank_up := hall.rank_up_refusal(dispatch.reputation, dispatch.gold, dispatch.adventurers.parties.parties.size(), dispatch.story_done, now).is_empty()
 	var built := Rect2()
 	for slot: String in _rooms:
 		var state := hall.state(slot, now)
