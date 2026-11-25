@@ -18,9 +18,8 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next:** guild rank (spec: Guild rank) G2: reputation and ranking up at Reception to E (the
-  ground-floor wing, E quests, Storeroom, Infirmary, Quest hall); G3 room tiers. Walk-ins come
-  faster as reputation grows. Death starts at rank C quests, built when C quests exist.
+- **Next:** guild rank (spec: Guild rank) G3: room tiers (the Bunk room's are built) and E → D.
+  Death starts at rank C quests, built when C quests exist.
 - Single-player for good: no multiplayer is planned.
 - **Later, not planned yet:** battery use (a phone emptied in a day of play: frames drawn while
   nothing moves, low-processor mode, pausing when hidden); Quest hall extras, the labyrinth.
@@ -79,7 +78,10 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   rows). · Parties (everyone who quests is in a named party of 1–4, the rest are reserves; only
   whole parties go out, gated by party rank; Auto per party, Safe or Bold, replayed while away;
   absences past 3 hours settled by averages; promotion earned by 5 successful quests at the next
-  rank and free, +1 to the two highest stats; waiting loot stows itself once there is room).
+  rank and free, +1 to the two highest stats; waiting loot stows itself once there is room). · G2 guild rank E (reputation from quests;
+  the Reception shows rank and the checklist, Rank up for 150g; rank E adds the wing with a split
+  front, the Storeroom, walk-ins every 12–16 h and 70% rank-E candidates; Extend needs D; Bunk room
+  upgrades twice; restores 60, 60 then dearer, Bunk room 30 to build; promotion progress shown).
 
 ## Stack
 

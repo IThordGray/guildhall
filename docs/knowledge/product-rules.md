@@ -10,7 +10,7 @@ it merges. Screens and wording live in the code.
 
 - Progress runs on wall-clock time, open or closed. Up to 3 hours away gives the same result as
   watching. A longer absence settles everything before its last 3 hours at once: parties out come
-  home, each Auto party earns the expected gold, XP, tries and loot of the quests the board would
+  home, each Auto party earns the expected gold, XP, reputation, tries and loot of the quests the board would
   offer it and its mode takes (loot stops it when the stash is full, as a return would), everyone
   ends that part home and healed with no level-ups, and the board is drawn fresh from saved state.
   The last 3 hours then play out as watching.
@@ -25,14 +25,14 @@ it merges. Screens and wording live in the code.
 - No dialogs or overlay panels: everything opens as a full screen with Back (in landscape the party
   picker docks beside the board, and the chosen adventurer beside the roster list). Gear changes in
   place on the Adventurer screen: tapping a slot or a stash item swaps the stash strip (in landscape
-  the left column) for that slot's tray; nothing slides over the screen. The one exception: an action that spends (restore, extend), lets an
+  the left column) for that slot's tray; nothing slides over the screen. The one exception: an action that spends (restore, upgrade, extend, rank up), lets an
   adventurer go (dismiss, swap) or gives up an item (sell, swap loot in, let loot go) confirms in a small centred
   card showing only its cost and time, what leaves, or the gold it brings, with Cancel and the action. Any scroll scrolls by dragging anywhere on it, and a control fires
   only on a tap that stayed within about 10 dp; a press that turns into a drag never fires. A card
   with only one action does it from a tap anywhere on it; a candidate's or the walk-in's card opens
   their sheet instead, and only its buttons act.
 - A list of slots shows what can be acted on first, and at most one line for the soonest refill.
-- A button shows only when its action applies (Train, Promote once earned).
+- A button shows only when its action applies (Train, Promote once earned, Rank up once its requirements are met).
 
 ## Roster
 
@@ -47,15 +47,18 @@ it merges. Screens and wording live in the code.
   D after 5 successful rank-D quests at level 6 or higher; the player presses Promote, never
   automatic, and not while out. Each member counts the quests they succeeded on by rank (averaged
   absences count their expected successes, rounded down). A promotion raises the adventurer's two
-  highest stats by 1, shown like a level-up.
+  highest stats by 1, shown like a level-up. The Adventurer screen shows progress towards the
+  next promotion.
 - A save from before parties groups its adventurers into parties of up to 4 in roster order.
 - The roster never holds more adventurers than the guild has beds. A hire is refused with nothing
   changed when gold is short or every bed is taken.
 - Walk-ins arrive one at a time, the first a hidden 3–7 minutes into a game and each later one a
-  hidden 20–28 hours after the one before, from saved timestamps and seeds only; each waits until
+  hidden 20–28 hours after the one before (12–16 hours once the guild has reached rank E), from saved timestamps and seeds only; each waits until
   the next arrives. Accepting is free and needs a bed; with every bed taken, a
   walk-in can be swapped for a current adventurer. Dismissing returns gear to the stash where it
   fits; nobody out, training or waiting on loot to be decided, and never the last adventurer, can go.
+- Candidates are rank F until the guild reaches rank E; from that moment 70% are rank E (180
+  gold, level 3). The Common room adds candidate slots only.
 - Candidate slots refill from saved timestamps only, like the quest board: being away gives the same
   candidates as watching.
 - Taverns and training fill from saved timestamps only, up to their cap. Gold held changes only by
@@ -69,8 +72,18 @@ it merges. Screens and wording live in the code.
   before ranks keep their rooms, roster, stash and capacities.
 - Hall rooms show their name, their fill, faint furniture and one icon for what can be done; no
   status text and no adventurer faces. Unbuilt parts of the building are not drawn.
-- Each room type is built at most once; more of one will come from upgrading it, not a copy. Old
-  saves keep any copies they have.
+- Each room type is built at most once; more of one comes from upgrading it, not a copy. A Bunk
+  room upgrades twice, at any rank, by the builder: 2, 3, then 4 beds. Old saves keep any copies
+  they have.
+- Reputation changes only when a party comes home: +1, +2 or +3 for a success at rank F, E or D,
+  −1 for a failure, never below 0. Ranking up doesn't spend it.
+- The guild ranks up at the Reception when the player presses Rank up, never automatically. F → E
+  needs 15 reputation, every room that can take a job in use, and 150 gold. Rank E adds the
+  Entrance hall and three damaged rooms (north-east, east, front) and opens the Storeroom, Infirmary
+  and Quest hall. Ranking up brings the board, candidates and walk-ins up to date first; rules that
+  change with rank count from the moment it was reached. The Reception shows its icon only when
+  ranking up is allowed.
+- A Storeroom adds 6 to the stash. Extending to the upper floor needs rank D.
 
 ## Quests
 
