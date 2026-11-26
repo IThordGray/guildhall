@@ -175,3 +175,33 @@ func test_a_save_without_goals_has_auto_unlocked_and_the_goals_it_already_meets_
 	assert_false(fresh.is_unlocked(Goals.AUTO))
 	assert_eq(fresh.claimed, PackedStringArray())
 	assert_eq(fresh.hand_quests, 0)
+
+
+func test_send_a_party_into_the_labyrinth_opens_after_the_sealed_gate_is_done_once_a_party_is_home_from_a_floor_even_failed_and_pays_20_gold_unlocking_nothing() -> void:
+	var goal: Dictionary = Goals.GOALS["first_expedition"]
+	assert_eq([goal["name"], goal["kind"], goal["line"]], ["Send a party into the labyrinth", Goals.STORY, "The gate is open. Send a party down and see what they find."])
+	_goals.claimed.append_array(["first_quest", "first_restore", "first_room", "first_recruit", "second_party"])
+	assert_eq(_state("first_expedition", 1_000), Goals.State.LOCKED)
+	assert_true(_claim("sealed_gate", 1_000, PackedStringArray(["sealed_gate"])))
+	assert_eq(_state("first_expedition", 1_000), Goals.State.OPEN)
+	assert_has(_goals.shown(_dispatch, _hall, NONE_DONE, 1_000), "first_expedition")
+	assert_eq(_goals.progress("first_expedition", _dispatch, _hall, NONE_DONE, 1_000), Vector2i(0, 1))
+	# A party home from a board quest is not one home from the labyrinth.
+	_dispatch.tries["rats"] = 3
+	assert_eq(_state("first_expedition", 1_000), Goals.State.OPEN)
+	# A party out on floor 1 counts only once home, here from a failure.
+	var pair: PackedStringArray = _dispatch.adventurers.parties.parties[0]["members"]
+	assert_true(_dispatch.send("floor_1", pair, 1, 1_000))
+	_dispatch.outings[0]["chance"] = 0
+	_dispatch.checkpoint(1_059)
+	assert_eq(_state("first_expedition", 1_059), Goals.State.OPEN)
+	_dispatch.checkpoint(1_060)
+	assert_eq(_dispatch.labyrinth.explored_percent("floor_1"), Labyrinth.FAILURE_EXPLORED)
+	assert_eq(_state("first_expedition", 1_060), Goals.State.DONE)
+	var gold := _dispatch.gold.amount
+	var reputation := _dispatch.reputation
+	assert_true(_claim("first_expedition", 1_060))
+	assert_eq(_dispatch.gold.amount - gold, 20)
+	assert_eq(_dispatch.reputation, reputation)
+	assert_eq(_goals.unlocked, PackedStringArray([Labyrinth.UNLOCK]))
+	assert_eq(_state("first_expedition", 1_060), Goals.State.CLAIMED)

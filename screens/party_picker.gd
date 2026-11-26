@@ -41,14 +41,17 @@ var _now: int = 0
 ## The quest's unknown challenges the pills were last built with, so a reveal while the picker is
 ## open shows at once and nothing else rebuilds them.
 var _forecast_unknown: PackedStringArray = PackedStringArray()
-## The Story tag beside a story quest's name.
+## The Story tag beside a story quest's name; the Floor tag beside a floor's.
 var _story_tag: Label
+var _floor_tag: Label
 
 @onready var _heading: HBoxContainer = $Root/Quest/Box/Heading
 @onready var _title: Label = $Root/Quest/Box/Heading/Title
 @onready var _meta: Label = $Root/Quest/Box/Meta
 ## Under the meta line of a story quest, which stays until done.
 @onready var _story_line: Label = $Root/Quest/Box/StoryLine
+## Under the meta line of a floor: what an expedition brings home.
+@onready var _floor_line: Label = $Root/Quest/Box/FloorLine
 @onready var _coverage: HFlowContainer = $Root/Quest/Box/Coverage
 @onready var _slots: HBoxContainer = $Root/Quest/Box/Party/Slots
 @onready var _odds: Label = $Root/Quest/Box/Party/Chance/Line/Odds
@@ -71,6 +74,9 @@ func _ready() -> void:
 	_list.sort_children.connect(_list.queue_redraw)
 	_story_tag = QuestBoard.story_tag(self)
 	_heading.add_child(_story_tag)
+	_floor_tag = QuestBoard.chip("", &"PillCovered")
+	_floor_tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_heading.add_child(_floor_tag)
 
 
 ## Landscape docks the picker beside the board, where Cancel drops the quest; portrait makes it a
@@ -170,15 +176,21 @@ func close() -> void:
 
 
 ## Drops the quest picked once neither `board` shows it nor it is among the open story quests in
-## `story` (Dispatch.open_story_quests), since it can't be sent.
-func show_board(board: Board, story: PackedStringArray = PackedStringArray()) -> void:
-	if has_quest() and not board.slots.has(_quest) and not story.has(_quest):
+## `story` (Dispatch.open_story_quests) or the open floors in `floors` (Dispatch.open_floors), since
+## it can't be sent.
+func show_board(board: Board, story: PackedStringArray = PackedStringArray(), floors: PackedStringArray = PackedStringArray()) -> void:
+	if has_quest() and not board.slots.has(_quest) and not story.has(_quest) and not floors.has(_quest):
 		close()
 		quest_left.emit()
 
 
+## What the picker asks for while nothing is picked, such as "Pick a quest".
+func set_prompt(text: String) -> void:
+	_prompt.text = text
+
+
 ## Opens the picker for `quest` with no party picked; a story quest with its Story tag and a line
-## saying it stays until done.
+## saying it stays until done; a floor with its number and a line saying what an expedition brings.
 func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	_quest = quest
 	_prompt.hide()
@@ -190,6 +202,11 @@ func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	_meta.text = "%s · %s · %dg · fail %dg" % [info["rank"], Duration.label(info["seconds"]), info["gold"], Dispatch.failure_gold(quest)]
 	_story_tag.visible = Dispatch.is_story(quest)
 	_story_line.visible = _story_tag.visible
+	_floor_tag.visible = Dispatch.is_floor(quest)
+	_floor_line.visible = _floor_tag.visible
+	if _floor_tag.visible:
+		_floor_tag.text = "Floor %d" % info["floor"]
+		_floor_line.text = "Expedition · success explores +%d%% and brings %d %s; failure +%d%% and %d" % [Labyrinth.SUCCESS_EXPLORED, Labyrinth.SUCCESS_MATERIAL, Labyrinth.FLOORS[quest]["material"], Labyrinth.FAILURE_EXPLORED, Labyrinth.FAILURE_MATERIAL]
 	_dispatch = dispatch
 	# Every row's range is the new quest's.
 	_looks_shown.clear()

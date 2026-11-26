@@ -1,0 +1,90 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://screens/labyrinth.gd" id="1_labyrinth"]
+
+[node name="Labyrinth" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_labyrinth")
+
+[node name="Scroll" type="ScrollContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 3
+
+[node name="Box" type="VBoxContainer" parent="Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 24
+
+[node name="Header" type="HBoxContainer" parent="Scroll/Box"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Title" type="Label" parent="Scroll/Box/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Title"
+text = "Labyrinth"
+
+[node name="Parties" type="HBoxContainer" parent="Scroll/Box/Header"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Text" type="Label" parent="Scroll/Box/Header/Parties"]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"Secondary"
+text = "Parties out"
+vertical_alignment = 1
+
+[node name="Count" type="Label" parent="Scroll/Box/Header/Parties"]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"Numbers"
+text = "0"
+vertical_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Scroll/Box"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "Below the sealed gate. Send a party to explore a floor."
+autowrap_mode = 3
+
+[node name="MaterialsSection" type="Label" parent="Scroll/Box"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "MATERIALS"
+
+[node name="Materials" type="PanelContainer" parent="Scroll/Box"]
+layout_mode = 2
+theme_type_variation = &"CardTight"
+
+[node name="Row" type="HBoxContainer" parent="Scroll/Box/Materials"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="FloorsSection" type="Label" parent="Scroll/Box"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "FLOORS"
+
+[node name="Floors" type="VBoxContainer" parent="Scroll/Box"]
+layout_mode = 2
+theme_type_variation = &"RowList"
+
+[node name="Bonus" type="Label" parent="Scroll/Box"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "A floor explored to 100% pays a one-time bonus: 60g · 100g · 200g."
+autowrap_mode = 3

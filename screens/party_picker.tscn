@@ -48,6 +48,13 @@ layout_mode = 2
 theme_type_variation = &"Caption"
 text = "Story quest · stays until done"
 
+[node name="FloorLine" type="Label" parent="Root/Quest/Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "Expedition · success explores +20% and brings 3 Glowmoss; failure +5% and 1"
+autowrap_mode = 3
+
 [node name="Coverage" type="HFlowContainer" parent="Root/Quest/Box"]
 layout_mode = 2
 theme_type_variation = &"Chips"

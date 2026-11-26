@@ -25,7 +25,8 @@ const GOALS: Dictionary[String, Dictionary] = {
 	"first_room": {"name": "Give a room a job", "kind": STORY, "openers": ["first_restore"], "counts": "rooms_in_use", "need": 1, "line": "An empty room earns nothing. Give your restored room a job.", "gold": 15, "unlocks": ""},
 	"first_recruit": {"name": "Recruit someone", "kind": STORY, "openers": ["first_room"], "counts": "adventurers", "need": 3, "line": "Three adventurers make a proper guild. Hire someone new.", "gold": 20, "unlocks": ""},
 	"second_party": {"name": "Form a second party", "kind": STORY, "openers": ["first_recruit"], "counts": "parties", "need": 2, "line": "Two parties can work at once. Form a second one.", "gold": 20, "unlocks": "sealed_gate"},
-	"sealed_gate": {"name": "Finish The sealed gate", "kind": STORY, "openers": ["second_party"], "counts": "story_quest", "quest": "sealed_gate", "need": 1, "line": "The town wants the sealed gate opened. I think you're ready.", "gold": 30, "reputation": 3, "unlocks": "labyrinth"},
+	"sealed_gate": {"name": "Finish The sealed gate", "kind": STORY, "openers": ["second_party"], "counts": "story_quest", "quest": "sealed_gate", "need": 1, "line": "The town wants the sealed gate opened. I think you're ready.", "gold": 30, "reputation": 3, "unlocks": Labyrinth.UNLOCK},
+	"first_expedition": {"name": "Send a party into the labyrinth", "kind": STORY, "openers": ["sealed_gate"], "counts": "floors_home", "need": 1, "line": "The gate is open. Send a party down and see what they find.", "gold": 20, "unlocks": ""},
 	"rank_e": {"name": "Rank up to E", "kind": STORY, "openers": ["sealed_gate"], "counts": "guild_rank", "rank": "E", "need": 1, "line": "You've earned the town's trust. Rank the guild up to E.", "gold": 50, "unlocks": ""},
 	"hand_quests": {"name": "Send 10 quests by hand", "kind": SIDE, "openers": [], "counts": "hand_quests", "need": 10, "line": "Send ten quests out yourself, then your parties may go alone.", "gold": 20, "unlocks": AUTO},
 }
@@ -73,7 +74,7 @@ func shown(dispatch: Dispatch, hall: Hall, story_done: PackedStringArray, now: i
 
 
 ## What goal `id` counts, as [have, need], from the game as it is at `now`: parties home from any
-## quest (Dispatch.tries), rooms on the ground floor restored or with a job, adventurers, parties,
+## quest or from any floor of the labyrinth (Dispatch.tries), rooms on the ground floor restored or with a job, adventurers, parties,
 ## whether its story quest is in `story_done` or the guild has its rank, or quests sent by hand
 ## home (`hand_quests`).
 func progress(id: String, dispatch: Dispatch, hall: Hall, story_done: PackedStringArray, now: int) -> Vector2i:
@@ -83,6 +84,9 @@ func progress(id: String, dispatch: Dispatch, hall: Hall, story_done: PackedStri
 		"quests_home":
 			for tried: int in dispatch.tries.values():
 				have += tried
+		"floors_home":
+			for floor_id: String in Labyrinth.FLOORS:
+				have += int(dispatch.tries.get(floor_id, 0))
 		"rooms_restored", "rooms_in_use":
 			for slot: String in Hall.LAYOUTS[hall.layout]["ground_floor"]:
 				var room := hall.state(slot, now)

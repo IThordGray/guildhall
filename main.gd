@@ -1,6 +1,8 @@
 extends Control
 
-const SAVE_PATH: String = "user://save.cfg"
+## Where the guild is saved. Tests point it elsewhere, so they never touch the player's save.
+static var save_path: String = "user://save.cfg"
+
 ## The landscape rail, which holds the gold and the tabs.
 const RAIL_WIDTH_PX: float = 200.0
 ## In landscape, the space between the screens and the rail or the window's sides, and between
@@ -10,7 +12,8 @@ const SIDE_MARGIN_PX: float = 44.0
 const END_MARGIN_PX: float = 32.0
 ## In landscape, Level up, the Armory and the swap pick are a centred column at most this wide.
 const COLUMN_WIDTH_PX: float = 1100.0
-## In landscape, the share of the body's width the quest board takes; the party picker has the rest.
+## In landscape, the share of the body's width the quest board or the labyrinth takes; the party
+## picker has the rest.
 const BOARD_SHARE: float = 0.42
 ## How long the "+N" from a collected Tavern or a claimed goal takes to rise to the gold counter and
 ## fade.
@@ -64,6 +67,8 @@ var _visitor_who: Dictionary = {}
 ## The screen the Adventurer screen's Back returns to, the Roster; or the Quests screen while Level
 ## up is open from it, which Continue then returns to.
 var _adventurer_from: Control
+## The screen the party picker sends from and goes back to: the Quests board or the Labyrinth.
+var _picker_from: Control
 ## Whether the window is wider than tall, so the landscape layout shows.
 var _landscape: bool = false
 ## Each part that moves with the orientation: its portrait anchors and offsets as main.tscn has
@@ -90,6 +95,8 @@ var _portrait_places: Dictionary[Control, Array] = {}
 @onready var _reception: Reception = $Body/Reception
 @onready var _swap_pick: SwapPick = $Body/SwapPick
 @onready var _picker: PartyPicker = $Body/PartyPicker
+@onready var _labyrinth: LabyrinthScreen = $Body/Labyrinth
+@onready var _labyrinth_tab: Button = $TabBar/Tabs/Labyrinth
 @onready var _convert_panel: ConvertPanel = $Body/ConvertPanel
 @onready var _confirm_sheet: ConfirmSheet = $ConfirmSheet
 @onready var _tick: Timer = $Tick
@@ -136,6 +143,7 @@ func _ready() -> void:
 	_picker.send_pressed.connect(_on_party_sent)
 	_picker.back_pressed.connect(_close_picker)
 	_picker.quest_left.connect(_close_picker)
+	_labyrinth.send_pressed.connect(_on_floor_pressed)
 	_roster.adventurer_pressed.connect(_open_adventurer.bind(_roster))
 	_roster.hire_pressed.connect(_on_hire_pressed)
 	_roster.visitor_pressed.connect(_open_visitor)
@@ -179,35 +187,36 @@ func _ready() -> void:
 	_test_speed.pressed.connect(_on_test_speed_pressed)
 	_start.continue_pressed.connect(_open_game)
 	_start.new_game_pressed.connect(_on_new_game)
-	for part: Control in [_tab_bar, _body, _board, _roster, _adventurer, _level_up, _armory, _reception, _swap_pick, _convert_panel, _picker]:
+	for part: Control in [_tab_bar, _body, _board, _labyrinth, _roster, _adventurer, _level_up, _armory, _reception, _swap_pick, _convert_panel, _picker]:
 		_portrait_places[part] = [
 			Vector4(part.anchor_left, part.anchor_top, part.anchor_right, part.anchor_bottom),
 			Vector4(part.offset_left, part.offset_top, part.offset_right, part.offset_bottom),
 		]
+	_picker_from = _board
 	get_window().size_changed.connect(_lay_out)
 	_lay_out()
-	_start.show_start(FileAccess.file_exists(SAVE_PATH))
+	_start.show_start(FileAccess.file_exists(save_path))
 
 
 func _on_new_game() -> void:
-	DirAccess.remove_absolute(SAVE_PATH)
+	DirAccess.remove_absolute(save_path)
 	_open_game()
 
 
 # Loads the saved guild, or starts a fresh one when there is no save, and starts the tick.
 func _open_game() -> void:
 	_start.queue_free()
-	_clock = GameClock.load_or_start(SAVE_PATH)
+	_clock = GameClock.load_or_start(save_path)
 	var now := _now()
-	_gold = Gold.load_or_start(SAVE_PATH)
-	_hall = Hall.load_or_start(SAVE_PATH, now)
-	_dispatch = Dispatch.load_or_start(SAVE_PATH, now)
+	_gold = Gold.load_or_start(save_path)
+	_hall = Hall.load_or_start(save_path, now)
+	_dispatch = Dispatch.load_or_start(save_path, now)
 	_dispatch.gold = _gold
 	QuestBoard.worn = _dispatch.adventurers.gear.worn
-	_quest_board = Board.load_or_start(SAVE_PATH)
-	_recruits = Recruits.load_or_start(SAVE_PATH)
-	_walk_ins = WalkIns.load_or_start(SAVE_PATH)
-	_goals = Goals.load_or_start(SAVE_PATH)
+	_quest_board = Board.load_or_start(save_path)
+	_recruits = Recruits.load_or_start(save_path)
+	_walk_ins = WalkIns.load_or_start(save_path)
+	_goals = Goals.load_or_start(save_path)
 	# What the Reception gives the guild depends on the hall the save holds; the stash's size
 	# follows the hall at each checkpoint.
 	_quest_board.reception_slots = _hall.reception("board_slots")
@@ -272,8 +281,8 @@ func _checkpoint(now: int) -> void:
 	_recruits.write(file)
 	_walk_ins.write(file)
 	_goals.write(file)
-	if file.save(SAVE_PATH) != OK:
-		push_error("Could not save to " + SAVE_PATH)
+	if file.save(save_path) != OK:
+		push_error("Could not save to " + save_path)
 	_gold_label.text = str(_gold.amount)
 	_rail_gold_label.text = _gold_label.text
 	_parties_label.text = str(_dispatch.outings.size())
@@ -285,7 +294,10 @@ func _checkpoint(now: int) -> void:
 	_hall_view.goals_card.show_goals(_goals, _dispatch, _hall, _dispatch.story_done, now)
 	var story := _dispatch.open_story_quests(_goals.unlocked)
 	_board.show_board(_quest_board, _dispatch, now, _goals.is_unlocked(Goals.AUTO), story)
-	_picker.show_board(_quest_board, story)
+	_picker.show_board(_quest_board, story, _dispatch.open_floors(_goals.unlocked))
+	_labyrinth_tab.disabled = not _goals.is_unlocked(Labyrinth.UNLOCK)
+	if _labyrinth.visible:
+		_labyrinth.show_labyrinth(_dispatch, _goals.unlocked, now)
 	_roster.show_dispatch(_dispatch, now)
 	_roster.show_recruits(_recruits, _dispatch.adventurers, _gold, _hall.beds(now), _hall, now)
 	_roster.show_walk_in(_walk_ins.walk_in, _dispatch.adventurers.roster.size() < _hall.beds(now))
@@ -466,12 +478,17 @@ func _close_reception() -> void:
 func _on_send_pressed(quest: String) -> void:
 	var now := _now()
 	_picker.open(quest, _dispatch, now)
-	_show_quests(true)
+	_show_with_picker(_board, true)
+
+
+func _on_floor_pressed(floor_id: String) -> void:
+	_picker.open(floor_id, _dispatch, _now())
+	_show_with_picker(_labyrinth, true)
 
 
 # The seed comes from the global generator; the outcome it fixes is rolled from the seed alone. The
 # outing, the last to leave, counts towards Goals' hand sends once it is home. A story quest goes
-# while it is open, with no board slot.
+# while it is open, and a floor while it is open, with no board slot.
 func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
 	# Auto sends due by now go first, and a Quest hall finished since the last tick adds its slot.
@@ -479,6 +496,8 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var sent := false
 	if Dispatch.is_story(quest):
 		sent = quest in _dispatch.open_story_quests(_goals.unlocked) and _dispatch.send(quest, party, randi(), now, _hall.first_done_at("infirmary"))
+	elif Dispatch.is_floor(quest):
+		sent = quest in _dispatch.open_floors(_goals.unlocked) and _dispatch.send(quest, party, randi(), now, _hall.first_done_at("infirmary"))
 	else:
 		sent = _quest_board.send(_dispatch, quest, party, randi(), now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank)
 	if sent:
@@ -487,11 +506,11 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	_checkpoint(now)
 
 
-# Back to the Quests screen, or, in landscape, its "Pick a quest" prompt; when another screen shows
-# instead, it stays.
+# Back to the Quests or Labyrinth screen it was opened from, or, in landscape, its prompt; when
+# another screen shows instead, it stays.
 func _close_picker() -> void:
 	_picker.close()
-	_show_quests(_board.visible or _picker.visible)
+	_show_with_picker(_picker_from, _picker_from.visible or _picker.visible)
 
 
 # Opens `adventurer` from `from`, the Roster, which Back returns to. In landscape the roster stays
@@ -646,7 +665,7 @@ func _on_level_up_pressed(adventurer: String) -> void:
 	_level_up.show_level_up(adventurer, gains, _dispatch.adventurers)
 	_roster.hide()
 	_adventurer.hide()
-	_show_quests(false)
+	_show_with_picker(_board, false)
 	_level_up.show()
 	_checkpoint(_now())
 
@@ -716,7 +735,7 @@ func _show_visitor(now: int) -> void:
 func _on_level_up_continue() -> void:
 	_level_up.hide()
 	if _adventurer_from == _board:
-		_show_quests(true)
+		_show_with_picker(_board, true)
 	else:
 		_open_adventurer(_shown_adventurer, _adventurer_from)
 
@@ -738,7 +757,11 @@ func _on_tab_pressed(tab: BaseButton) -> void:
 	_swap_pick.hide()
 	_convert_panel.hide()
 	_picker.close()
-	_show_quests(tab == $TabBar/Tabs/Quests)
+	if tab == _labyrinth_tab:
+		_labyrinth.show_labyrinth(_dispatch, _goals.unlocked, _now())
+		_show_with_picker(_labyrinth, true)
+	else:
+		_show_with_picker(_board, tab == $TabBar/Tabs/Quests)
 	if tab == $TabBar/Tabs/Roster:
 		_show_roster()
 
@@ -766,6 +789,7 @@ func _lay_out() -> void:
 	_adventurer.set_landscape(landscape)
 	_picker.set_landscape(landscape)
 	_reception.set_landscape(landscape)
+	_labyrinth.set_landscape(landscape)
 	if not landscape:
 		for part: Control in _portrait_places:
 			_place(part, _portrait_places[part][0], _portrait_places[part][1])
@@ -774,6 +798,7 @@ func _lay_out() -> void:
 		_place(_tab_bar, Vector4(0, 0, 0, 1), Vector4(0, 0, RAIL_WIDTH_PX, 0))
 		_place(_body, full, Vector4(RAIL_WIDTH_PX + SIDE_MARGIN_PX, END_MARGIN_PX, -SIDE_MARGIN_PX, -END_MARGIN_PX))
 		_place(_board, Vector4(0, 0, BOARD_SHARE, 1), Vector4(0, 0, -SIDE_MARGIN_PX / 2, 0))
+		_place(_labyrinth, Vector4(0, 0, BOARD_SHARE, 1), Vector4(0, 0, -SIDE_MARGIN_PX / 2, 0))
 		_place(_adventurer, full, Vector4.ZERO)
 		_place(_reception, full, Vector4.ZERO)
 		# Where the Adventurer screen keeps its left column.
@@ -781,7 +806,7 @@ func _lay_out() -> void:
 		for column: Control in [_level_up, _armory, _swap_pick, _convert_panel]:
 			_place(column, Vector4(0.5, 0, 0.5, 1), Vector4(-COLUMN_WIDTH_PX / 2, 0, COLUMN_WIDTH_PX / 2, 0))
 		_place(_picker, Vector4(BOARD_SHARE, 0, 1, 1), Vector4(SIDE_MARGIN_PX / 2, 0, 0, 0))
-	_show_quests(_board.visible or _picker.visible)
+	_show_with_picker(_picker_from, _picker_from.visible or _picker.visible)
 	# The Roster tab keeps the adventurer, candidate or walk-in it shows: beside the roster in
 	# landscape, on their own screen with Back in portrait.
 	if roster_tab and _adventurer.visible and _shown_visitor != Roster.NO_VISITOR:
@@ -801,11 +826,14 @@ static func _place(control: Control, anchors: Vector4, offsets: Vector4) -> void
 	control.set_anchor_and_offset(SIDE_BOTTOM, anchors.w, offsets.w, true)
 
 
-# Shows the Quests screen, or hides it when `shown` is false. In landscape the party picker sits
-# beside the board, prompting for a quest until one is picked; in portrait it takes the board's
-# place while a quest is picked.
-func _show_quests(shown: bool) -> void:
-	_board.visible = shown and (_landscape or not _picker.has_quest())
+# Shows `screen`, the Quests board or the Labyrinth, with the party picker, hiding the other; or
+# hides them all when `shown` is false. In landscape the picker sits beside `screen`, prompting for a
+# quest or a floor until one is picked; in portrait it takes `screen`'s place while one is picked.
+func _show_with_picker(screen: Control, shown: bool) -> void:
+	_picker_from = screen
+	_picker.set_prompt("Pick a floor" if screen == _labyrinth else "Pick a quest")
+	for each: Control in [_board, _labyrinth]:
+		each.visible = shown and each == screen and (_landscape or not _picker.has_quest())
 	_picker.visible = shown and (_landscape or _picker.has_quest())
 
 

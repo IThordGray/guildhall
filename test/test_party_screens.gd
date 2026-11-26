@@ -417,3 +417,30 @@ func test_the_picker_keeps_a_story_quest_while_it_is_open_and_drops_it_once_it_i
 	picker.show_board(Board.new(), PackedStringArray())
 	assert_false(picker.has_quest())
 	assert_eq(left, [true] as Array[bool])
+
+
+func test_the_picker_on_a_floor_shows_its_floor_tag_and_what_an_expedition_brings_and_on_a_board_or_story_quest_neither() -> void:
+	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
+	picker.open("floor_2", _dispatch, 1_000)
+	var card := picker.get_node("Root/Quest")
+	assert_eq(_shown_texts(card).slice(0, 4), ["The Drowned Stair", "Floor 2", "E · 1:30 · 60g · fail 0g", "Expedition · success explores +20% and brings 3 Riverglass; failure +5% and 1"] as Array[String])
+	assert_does_not_have(_shown_texts(card), "Story")
+	picker.open("sealed_gate", _dispatch, 1_000)
+	assert_eq(_shown_texts(card).slice(0, 4), ["The sealed gate", "Story", "F · 0:10 · 30g · fail 0g", "Story quest · stays until done"] as Array[String])
+	picker.open("mouth", _dispatch, 1_000)
+	assert_eq(_shown_texts(card).slice(0, 2), ["Chart the labyrinth's mouth", "F · 0:05 · 8g · fail 0g"] as Array[String])
+	for text: String in _shown_texts(card):
+		assert_false(text.begins_with("Floor") or text.begins_with("Expedition"), text)
+
+
+func test_the_picker_keeps_a_floor_while_it_is_open_and_drops_it_once_it_is_not() -> void:
+	var picker := _screen("res://screens/party_picker.tscn") as PartyPicker
+	var left: Array[bool] = []
+	picker.quest_left.connect(func() -> void: left.append(true))
+	picker.open("floor_1", _dispatch, 1_000)
+	picker.show_board(Board.new(), PackedStringArray(), PackedStringArray(["floor_1"]))
+	assert_true(picker.has_quest())
+	assert_eq(left, [] as Array[bool])
+	picker.show_board(Board.new(), PackedStringArray(), PackedStringArray())
+	assert_false(picker.has_quest())
+	assert_eq(left, [true] as Array[bool])
