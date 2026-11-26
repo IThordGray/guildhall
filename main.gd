@@ -699,13 +699,13 @@ func _on_take_off_pressed(adventurer: String, slot: String) -> void:
 
 func _on_train_pressed(adventurer: String) -> void:
 	var now := _now()
-	_dispatch.train(adventurer, _hall.rooms_done("training_room", now), now)
+	_dispatch.train(adventurer, _hall.training_places(now), now)
 	_checkpoint(now)
 
 
 func _on_stop_training_pressed(adventurer: String) -> void:
 	var now := _now()
-	_dispatch.stop_training(adventurer, now)
+	_dispatch.stop_training(adventurer, now, _hall.stint_xp(now))
 	_checkpoint(now)
 
 
@@ -715,7 +715,7 @@ func _show_adventurer(now: int) -> void:
 	if _shown_visitor != Roster.NO_VISITOR:
 		_show_visitor(now)
 		return
-	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _hall.rooms_done("training_room", now), now)
+	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _hall.training_places(now), now, _hall.stint_xp(now))
 	_roster.mark(_shown_adventurer if _landscape and _adventurer_from == _roster else "")
 
 

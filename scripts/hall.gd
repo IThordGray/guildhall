@@ -58,27 +58,25 @@ const EXTENSION: String = "first_floor"
 ## the guild has that rank. Every type is upgraded by the builder from tier 1, each entry of
 ## "upgrades" the cost and time of reaching the next tier, as far as UPGRADE_RANKS allows unless
 ## "upgrades_any_rank", and its "blurb", where it has one, what that tier adds. A type that adds to a
-## capacity in LAYOUTS ("beds", "stash", "candidate_slots" or "board_slots") has it as a key: how
-## much one finished room adds by its tier, the first entry tier 1, and so on (stand-ins); see
-## `capacity`. The save and the art refer to a type by its id. What any other type does is applied
+## capacity ("beds", "stash", "candidate_slots" or "board_slots" in LAYOUTS, or "training_places",
+## which the Reception gives none of) has it as a key: how much one finished room adds by its tier,
+## the first entry tier 1, and so on (stand-ins); see `capacity`. A Tavern's "gold_per_minute" and
+## "holds" and a Training room's "stint_xp" are by tier the same way; see `tavern_gold` and
+## `stint_xp`. The save and the art refer to a type by its id. What any other type does is applied
 ## where its effect is: see Dispatch.
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
 	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "board_slots": [1, 2, 2], "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4}, {"gold": 300, "seconds": 10}]},
 	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4}, {"gold": 300, "seconds": 10}]},
 	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "beds": [2, 4, 8], "gold": 30, "seconds": 2, "second_rank": "D", "upgrades": [{"gold": 60, "seconds": 4, "blurb": "+2 beds"}, {"gold": 120, "seconds": 10, "blurb": "+4 beds"}], "upgrades_any_rank": true},
-	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4}, {"gold": 450, "seconds": 10}]},
+	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "gold_per_minute": [20, 40, 60], "holds": [40, 120, 300], "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4, "blurb": "+20 g a minute, holds more"}, {"gold": 450, "seconds": 10, "blurb": "+20 g a minute, holds more"}]},
 	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4}, {"gold": 450, "seconds": 10}]},
-	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4}, {"gold": 450, "seconds": 10}]},
+	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "training_places": [1, 1, 2], "stint_xp": [Dispatch.TRAINING_MAX_XP, 40, 40], "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4, "blurb": "40 XP a stint"}, {"gold": 450, "seconds": 10, "blurb": "A second trainee"}]},
 	"common_room": {"name": "Common room", "blurb": "more candidates visit", "candidate_slots": [1, 2, 2], "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4}, {"gold": 220, "seconds": 10}]},
 	"storeroom": {"name": "Storeroom", "blurb": "6 more stash slots", "stash": [6, 12, 20], "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4, "blurb": "+6 stash slots"}, {"gold": 220, "seconds": 10, "blurb": "+8 stash slots"}]},
 }
 ## The guild rank upgrading a room to each tier from 2 needs: the first entry tier 2, and so on. The
 ## guild's rank is how far its rooms grow.
 const UPGRADE_RANKS: Array[String] = ["E", "D"]
-## A finished Tavern fills with gold at this rate from when it finished or was last collected, up
-## to TAVERN_CAP; the cap is the reason to come back before it is full (stand-ins).
-const TAVERN_GOLD_PER_MINUTE: int = 20
-const TAVERN_CAP: int = 40
 
 ## Which of LAYOUTS the hall is.
 var layout: int = NEW_LAYOUT
@@ -179,9 +177,9 @@ func tier_at(slot: String, at: int) -> int:
 
 
 ## What the Reception gives the guild of `what`, a capacity in LAYOUTS: "beds", "candidate_slots",
-## "board_slots" or "stash".
+## "board_slots" or "stash"; 0 for one it gives none of, such as "training_places".
 func reception(what: String) -> int:
-	return LAYOUTS[layout][what]
+	return LAYOUTS[layout].get(what, 0)
 
 
 ## Whether the guild's rank is at least `needed`.
@@ -265,8 +263,8 @@ func beds(now: int) -> int:
 	return capacity("beds", now)
 
 
-## How much of `what`, a capacity in LAYOUTS, the guild has at `now`: the Reception's, and what each
-## finished room adds by its tier then (ROOM_TYPES); a room under way counts once finished.
+## How much of `what`, a capacity (ROOM_TYPES), the guild has at `now`: the Reception's, and what
+## each finished room adds by its tier then; a room under way counts once finished.
 func capacity(what: String, now: int) -> int:
 	var total := reception(what)
 	for slot: String in converted:
@@ -317,14 +315,49 @@ func first_done_at(type: String) -> int:
 	return _done_at() if first not in converted else int(converted[first]["done_at"])
 
 
-## The gold the Tavern in `slot` holds at `now`: TAVERN_GOLD_PER_MINUTE for each minute since it
-## finished or was last collected, up to TAVERN_CAP; 0 for any other room. Computed from saved
-## times alone, so being away gives the same as watching.
+## How many adventurers can train at once at `now`: each finished Training room's places by its
+## tier then, as `capacity` gives it.
+func training_places(now: int) -> int:
+	return capacity("training_places", now)
+
+
+## The most XP a stint of training gives when read at `now`: the "stint_xp" of the highest tier any
+## finished Training room has then. A stint is short, so it takes the cap of the moment it is read,
+## not the tier it started at.
+func stint_xp(now: int) -> int:
+	var by_tier: Array = ROOM_TYPES["training_room"]["stint_xp"]
+	var most: int = by_tier[0]
+	for slot: String in converted:
+		if converted[slot]["type"] == "training_room":
+			most = maxi(most, int(by_tier[tier(slot, now) - 1]))
+	return most
+
+
+## The most gold the Tavern in `slot` holds at `now`: the "holds" of its tier then.
+func tavern_cap(slot: String, now: int) -> int:
+	return int(ROOM_TYPES["tavern"]["holds"][tier(slot, now) - 1])
+
+
+## The gold the Tavern in `slot` holds at `now`: since it finished or was last collected, each
+## tier's "gold_per_minute" from the moment that tier was reached, never more than the "holds" of the
+## tier it was earned at, so gold a full Tavern would have earned is lost, as when watching; 0 for
+## any other room. Computed from saved times alone, so being away gives the same as watching.
 func tavern_gold(slot: String, now: int) -> int:
 	if room_type(slot) != "tavern" or state(slot, now) != State.CONVERTED:
 		return 0
-	var since: int = _done_at() if slot not in converted else int(converted[slot].get("collected_at", converted[slot]["done_at"]))
-	return mini(TAVERN_CAP, (maxi(now, checked_at) - since) * TAVERN_GOLD_PER_MINUTE / 60)
+	var at := maxi(now, checked_at)
+	var reached := _tier_times(slot)
+	var since: int = reached[0] if slot not in converted else int(converted[slot].get("collected_at", reached[0]))
+	var info: Dictionary = ROOM_TYPES["tavern"]
+	# Gold a minute times seconds, divided once at the end so no tier's part is rounded alone.
+	var earned := 0
+	for index: int in reached.size():
+		if reached[index] > at:
+			break
+		var until := at if index + 1 == reached.size() else mini(reached[index + 1], at)
+		earned += maxi(0, until - maxi(reached[index], since)) * int(info["gold_per_minute"][index])
+		earned = mini(earned, int(info["holds"][index]) * 60)
+	return earned / 60
 
 
 ## Moves all the gold the Tavern in `slot` holds at `now` into `gold` and starts it filling again
@@ -535,6 +568,19 @@ func _start(slot: String, into: String, to_tier: int, cost: int, gold: Gold, now
 
 func _done_at() -> int:
 	return building_since + job_seconds()
+
+
+# Unix seconds the room `slot`, converted or being converted, reached each tier, tier 1 first; an
+# upgrade under way counts at the time it will finish.
+func _tier_times(slot: String) -> Array[int]:
+	if slot not in converted:
+		return [_done_at()]
+	var times: Array[int] = [int(converted[slot]["done_at"])]
+	for upgraded_at: int in converted[slot].get("upgraded_at", []):
+		times.append(upgraded_at)
+	if slot == building and building_tier > 0:
+		times.append(_done_at())
+	return times
 
 
 ## Puts the hall into `file`, which other state shares, so one save holds the whole game.

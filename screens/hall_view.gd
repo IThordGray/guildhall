@@ -543,7 +543,7 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: in
 				# A Tavern with gold offers collecting before upgrading.
 				var held := hall.tavern_gold(slot, now)
 				room.bar.theme_type_variation = &"GoldBar"
-				room.bar.max_value = Hall.TAVERN_CAP
+				room.bar.max_value = hall.tavern_cap(slot, now)
 				room.bar.value = held
 				if held > 0:
 					kind = "collect"
@@ -645,11 +645,12 @@ func _show_progress(hall: Hall, dispatch: Dispatch, quests_on_board: int, now: i
 			waits.append(Vector3i(dispatch.injury_seconds(adventurer), dispatch.injury_seconds(adventurer) - injury_left, injury_left))
 			lines.append("")
 		elif dispatch.training.has(adventurer):
-			var gained := dispatch.training_xp(adventurer, now)
-			if gained < Dispatch.TRAINING_MAX_XP:
+			var stint_xp := hall.stint_xp(now)
+			var gained := dispatch.training_xp(adventurer, now, stint_xp)
+			if gained < stint_xp:
 				entries.append({"tokens": [adventurer], "title": roster[adventurer]["name"], "bar": &"OwnBar", "line": true})
-				waits.append(Vector3i(Dispatch.TRAINING_MAX_XP, gained, dispatch.training_seconds_left(adventurer, now)))
-				lines.append("Training · +%d / %d XP" % [gained, Dispatch.TRAINING_MAX_XP])
+				waits.append(Vector3i(stint_xp, gained, dispatch.training_seconds_left(adventurer, now, stint_xp)))
+				lines.append("Training · +%d / %d XP" % [gained, stint_xp])
 			else:
 				entries.append({"tokens": [adventurer], "title": roster[adventurer]["name"], "sub": "Full — stop to bank", "sub_style": &"GoldText"})
 		elif dispatch.can_go(adventurer, now):

@@ -49,7 +49,8 @@ const INFIRMARY_INJURY_SECONDS: int = 5
 const HEAL_POINTS: int = 3
 const HEAL_SECONDS: int = 2
 ## An adventurer in training gains one XP per whole TRAINING_SECONDS_PER_XP since their stint
-## started, at most TRAINING_MAX_XP a stint; the cap is the reason to come back (stand-ins).
+## started, at most a stint's cap: Hall.stint_xp by the Training room's tier, TRAINING_MAX_XP at
+## tier 1 and when none is given; the cap is the reason to come back (stand-ins).
 const TRAINING_SECONDS_PER_XP: int = 6
 const TRAINING_MAX_XP: int = 20
 ## Once an adventurer has trained this many seconds in all, the Training room hints at their growth.
@@ -401,8 +402,8 @@ func status(adventurer: String, now: int) -> String:
 	return "Resting"
 
 
-## Why `adventurer` can't start training at `now` with `places` finished Training rooms, one place
-## each, in words for the player; "" when they can.
+## Why `adventurer` can't start training at `now` with `places` training places (Hall.training_places),
+## in words for the player; "" when they can.
 func training_refusal(adventurer: String, places: int, now: int) -> String:
 	if training.has(adventurer):
 		return "Already training"
@@ -427,28 +428,28 @@ func train(adventurer: String, places: int, now: int) -> bool:
 
 
 ## The XP `adventurer`'s current stint has earned by `now`: one per whole TRAINING_SECONDS_PER_XP,
-## at most TRAINING_MAX_XP; 0 when not training.
-func training_xp(adventurer: String, now: int) -> int:
+## at most `max_xp` (Hall.stint_xp); 0 when not training.
+func training_xp(adventurer: String, now: int, max_xp: int = TRAINING_MAX_XP) -> int:
 	if not training.has(adventurer):
 		return 0
-	return mini(TRAINING_MAX_XP, floori((maxi(now, checked_at) - training[adventurer]) / float(TRAINING_SECONDS_PER_XP)))
+	return mini(max_xp, floori((maxi(now, checked_at) - training[adventurer]) / float(TRAINING_SECONDS_PER_XP)))
 
 
-## Seconds from `now` until `adventurer`'s stint reaches TRAINING_MAX_XP; 0 once capped or when not
-## training.
-func training_seconds_left(adventurer: String, now: int) -> int:
+## Seconds from `now` until `adventurer`'s stint reaches `max_xp` (Hall.stint_xp); 0 once capped or
+## when not training.
+func training_seconds_left(adventurer: String, now: int, max_xp: int = TRAINING_MAX_XP) -> int:
 	if not training.has(adventurer):
 		return 0
-	var full_at := training[adventurer] + TRAINING_MAX_XP * TRAINING_SECONDS_PER_XP
+	var full_at := training[adventurer] + max_xp * TRAINING_SECONDS_PER_XP
 	return maxi(0, full_at - maxi(now, checked_at))
 
 
-## Ends `adventurer`'s stint at `now` and banks its XP into theirs; the XP banked. Not training
-## gives 0, with nothing changed.
-func stop_training(adventurer: String, now: int) -> int:
+## Ends `adventurer`'s stint at `now` and banks its XP, at most `max_xp` (Hall.stint_xp), into
+## theirs; the XP banked. Not training gives 0, with nothing changed.
+func stop_training(adventurer: String, now: int, max_xp: int = TRAINING_MAX_XP) -> int:
 	if not training.has(adventurer):
 		return 0
-	var xp := training_xp(adventurer, now)
+	var xp := training_xp(adventurer, now, max_xp)
 	trained_seconds[adventurer] = _seconds_trained(adventurer, now)
 	training.erase(adventurer)
 	adventurers.gain_xp(adventurer, xp)

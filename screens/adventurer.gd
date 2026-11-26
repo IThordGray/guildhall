@@ -326,10 +326,10 @@ func _by_layout(values: Vector2i) -> int:
 
 ## Shows `adventurer` as `dispatch` has them at `now`: progress toward their next promotion while
 ## there is one; Promote only when promoting them would succeed; Train only when one of
-## `training_places` would take them now; Dismiss while they are
-## home and not the last, disabled with the reason while something else keeps them.
+## `training_places` would take them now, and a stint's XP up to `stint_xp` (Hall.stint_xp); Dismiss
+## while they are home and not the last, disabled with the reason while something else keeps them.
 ## Another adventurer closes the tray; the same one keeps it as it is.
-func show_adventurer(adventurer: String, dispatch: Dispatch, training_places: int, now: int) -> void:
+func show_adventurer(adventurer: String, dispatch: Dispatch, training_places: int, now: int, stint_xp: int = Dispatch.TRAINING_MAX_XP) -> void:
 	if adventurer != _adventurer:
 		_set_tray("", -1)
 	_adventurer = adventurer
@@ -364,7 +364,7 @@ func show_adventurer(adventurer: String, dispatch: Dispatch, training_places: in
 	_hire_reason.visible = false
 	var training := dispatch.training.has(adventurer)
 	_training_xp.visible = training
-	_training_xp.text = "Training · +%d XP" % dispatch.training_xp(adventurer, now)
+	_training_xp.text = "Training · +%d XP" % dispatch.training_xp(adventurer, now, stint_xp)
 	_stop.visible = training
 	# Train shows only when training would start now.
 	_train.visible = dispatch.training_refusal(adventurer, training_places, now).is_empty()
