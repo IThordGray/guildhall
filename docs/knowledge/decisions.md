@@ -18,8 +18,7 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next** (decided on the next-batch page and the reference sheet, linked from the spec): M4 the town (a Hall/Town
-  switch, the Market); M5 rank C (C quests; death only on elite expeditions).
+- **Next** (decided on the next-batch page and the reference sheet, linked from the spec): M5 rank C (C quests; death only on elite expeditions).
 - Single-player for good: no multiplayer is planned.
 - **Later, not planned yet:** battery use (a phone emptied in a day of play: frames drawn while
   nothing moves, low-processor mode, pausing when hidden); Quest hall extras, the labyrinth.
@@ -86,7 +85,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   10 quests sent by hand; story quests above the board; The sealed gate; F → E also needs 2 parties
   and the gate). · M2 the labyrinth (a Labyrinth tab after The sealed gate; three floors explored by
   expeditions for materials and a clear bonus; labyrinth quests tagged on the board). · M3 G3 (every room type at any rank; tiers 2–3 for every room,
-  capped by rank; Bunk 2/4/8 beds, no roster cap; chapter 2 with the Kitchen; E → D by metrics).
+  capped by rank; Bunk 2/4/8 beds, no roster cap; chapter 2 with the Kitchen; E → D by metrics). · M4 the town (a Hall | Town switch after rank E; the Market sells 4
+  items a day and buys materials).
 
 ## Stack
 

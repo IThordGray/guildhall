@@ -26,7 +26,7 @@ it merges. Screens and wording live in the code.
   picker docks beside the board or the labyrinth's floors, and the chosen adventurer beside the roster list). Gear changes in
   place on the Adventurer screen: tapping a slot or a stash item swaps the stash strip (in landscape
   the left column) for that slot's tray; nothing slides over the screen. The one exception: an action that spends (restore, upgrade, extend, rank up), lets an
-  adventurer go (dismiss, swap) or gives up an item (sell, swap loot in, let loot go) confirms in a small centred
+  adventurer go (dismiss, swap) or gives up an item (sell, swap loot in, let loot go, sell materials) or buys (the Market) confirms in a small centred
   card showing only its cost and time, what leaves, or the gold it brings, with Cancel and the action. Any scroll scrolls by dragging anywhere on it, and a control fires
   only on a tap that stayed within about 10 dp; a press that turns into a drag never fires. A card
   with only one action does it from a tap anywhere on it; a candidate's or the walk-in's card opens
@@ -123,6 +123,16 @@ it merges. Screens and wording live in the code.
 - A party home from a floor explores 20% of it and brings 3 of its material on a success, 5% and 1
   on a failure, up to 100%. The first time a floor reaches 100% it pays its clear bonus, once.
 - Materials are counted apart from the stash and never fill it.
+
+## Town
+
+- The player never builds the town; places open as the guild grows. Once "Rank up to E" is
+  claimed, a Hall | Town switch on the Hall shows the Town view in the Hall's place; each place
+  opens as a full screen with Back. The first place is the Market.
+- The Market sells 4 gear items a "day" (2880 s stand-in), Standard or Fine, at 4 times their sell
+  price; the stock is drawn from saved state and the day alone, so away equals watching, and a
+  bought item stays sold until the next day. It buys labyrinth materials (Glowmoss 4, Riverglass
+  6, Bone silver 10 each), all of one at a time. Buying is spending and selling is not gold earned.
 
 ## Quests
 
