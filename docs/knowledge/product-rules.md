@@ -68,21 +68,22 @@ it merges. Screens and wording live in the code.
 
 - The guild has a rank, F to S. A new game is rank F: one floor (Reception in order, a side room
   and a backroom damaged), Bram and Tobin, and what the Reception gives (2 beds, 1 candidate slot,
-  2 board slots, a stash of 6). A room type or Extend above the guild's rank is refused. Saves from
+  2 board slots, a stash of 6). Extend above the guild's rank is refused; every room type can be built at any rank. Saves from
   before ranks keep their rooms, roster, stash and capacities.
 - Hall rooms show their name, their fill, faint furniture and one icon for what can be done; no
   status text and no adventurer faces. Unbuilt parts of the building are not drawn.
-- Each room type is built at most once; more of one comes from upgrading it, not a copy. A Bunk
-  room upgrades twice, at any rank, by the builder: 2, 3, then 4 beds. Old saves keep any copies
-  they have.
+- Each room type is built at most once, except a second Bunk room from rank D; more of one comes
+  from upgrading it. Every room upgrades twice, by the builder, each type at its own price: tier 2
+  needs rank E and tier 3 rank D, except the Bunk room (any rank: 2, 3, then 4 beds). A room's
+  upgrade icon shows only when the rank allows its next tier. A tier counts from when its upgrade
+  finished. Old saves keep any copies they have.
 - Reputation changes only when a party comes home: +1, +2 or +3 for a success at rank F, E or D,
   −1 for a failure, never below 0; a story quest may set its own (The sealed gate: +3). Ranking up
   doesn't spend it.
 - The guild ranks up at the Reception when the player presses Rank up, never automatically. F → E
   needs 15 reputation, every room that can take a job in use, 2 parties, The sealed gate done, and
   150 gold. Rank E adds the
-  Entrance hall and three damaged rooms (north-east, east, front) and opens the Storeroom, Infirmary
-  and Quest hall. Ranking up brings the board, candidates and walk-ins up to date first; rules that
+  Entrance hall and three damaged rooms (north-east, east, front). Ranking up brings the board, candidates and walk-ins up to date first; rules that
   change with rank count from the moment it was reached. The Reception shows its icon only when
   ranking up is allowed.
 - A Storeroom adds 6 to the stash. Extending to the upper floor needs rank D.
