@@ -89,6 +89,10 @@ it merges. Screens and wording live in the code.
   Entrance hall and three damaged rooms (north-east, east, front). Ranking up brings the board, candidates and walk-ins up to date first; rules that
   change with rank count from the moment it was reached. The Reception shows its icon only when
   ranking up is allowed.
+- By tier an Infirmary heals 2×, 3×, then 4× as fast with injuries of 5, 3, then 2 s (10 s and
+  1× without one); a Map room shows unknown challenges 10 s, 5 s, then at once after a quest reaches
+  the board; a tier-3 Quest hall or Common room makes its slots refill twice as fast. Each counts
+  from the moment its tier was reached.
 - A Storeroom adds 6, 12, then 20 to the stash by tier, a Quest hall 1, 2, then 2 board slots;
   each extra slot exists from the moment its tier was reached. Extending to the upper floor needs rank D.
 
