@@ -89,6 +89,8 @@ it merges. Screens and wording live in the code.
   Entrance hall and three damaged rooms (north-east, east, front). Ranking up brings the board, candidates and walk-ins up to date first; rules that
   change with rank count from the moment it was reached. The Reception shows its icon only when
   ranking up is allowed.
+- A Kitchen raises a returning party's quest XP total by 10, 20, then 30% by its tier at the
+  return, rounded down, before it is shared.
 - By tier an Infirmary heals 2×, 3×, then 4× as fast with injuries of 5, 3, then 2 s (10 s and
   1× without one); a Map room shows unknown challenges 10 s, 5 s, then at once after a quest reaches
   the board; a tier-3 Quest hall or Common room makes its slots refill twice as fast. Each counts
@@ -102,6 +104,8 @@ it merges. Screens and wording live in the code.
   done when its count is met; its progress is computed from saved state, so time away can finish a
   goal but only the player claims it. Claiming pays its reward and unlocks what it names, once.
 - The story chain is the guided start. Side goals run beside it and never block it.
+- A goal's unlock can open a story quest, the labyrinth or a room type (the Kitchen, after The cook's
+  debt); a save that claimed a goal before it unlocked anything still gets the unlock.
 - Auto unlocks with the side goal "Send 10 quests by hand": quests the player sends, counted when
   they come home. Until then parties can't use Auto and its switch is hidden. Saves from before
   goals keep Auto.
