@@ -1414,7 +1414,7 @@ func test_the_rank_up_checklist_of_a_six_room_hall_counts_its_four_rooms_and_a_g
 	var hall := Hall.new(1_000)
 	hall.layout = Hall.OLD_LAYOUT
 	assert_eq(hall.rank_up_checklist(_guild(0, Gold.new(0), 2, SEALED_GATE_DONE), 1_000)[1], {"what": "rooms", "has": 0, "needs": 4, "met": false})
-	hall.rank = "D"
+	hall.rank = "C"
 	assert_eq(hall.rank_up_checklist(_guild(100, Gold.new(10_000), 2, SEALED_GATE_DONE), 1_000), [])
 
 
@@ -1447,7 +1447,7 @@ func test_each_rank_up_refusal_changes_nothing_reputation_first_then_every_room_
 	_assert_rank_up_refused(hall, 15, Gold.new(100), 1_000, "Every room in use first")
 	hall = _rank_f_hall_in_use(Gold.new(1_000))
 	_assert_rank_up_refused(hall, 15, Gold.new(120), 1_010, "Need 30 more gold")
-	hall.rank = "D"
+	hall.rank = "C"
 	_assert_rank_up_refused(hall, 100, Gold.new(10_000), 1_010, "Highest rank for now")
 
 
@@ -1483,8 +1483,8 @@ func test_with_all_of_it_met_ranking_up_works_as_before() -> void:
 	assert_eq(hall.rank, "E")
 	assert_eq(hall.ranked_at, {"E": 1_020})
 	assert_eq(hall.state("front_right", 1_020), Hall.State.DAMAGED)
-	# A rank-D guild has nothing more to meet, whatever its parties.
-	hall.rank = "D"
+	# A rank-C guild has nothing more to meet, whatever its parties.
+	hall.rank = "C"
 	assert_eq(hall.rank_up_refusal(_guild(100, Gold.new(10_000), 0, PackedStringArray()), 1_030), "Highest rank for now")
 	assert_eq(hall.rank_up_checklist(_guild(100, Gold.new(10_000), 0, PackedStringArray()), 1_030), [])
 

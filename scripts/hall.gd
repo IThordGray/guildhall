@@ -45,6 +45,7 @@ const STARTING_RANK: String = "F"
 const RANK_UPS: Dictionary[String, Dictionary] = {
 	"F": {"to": "E", "reputation": 15, "rooms": true, "parties": 2, "story": ["sealed_gate"], "gold": 150},
 	"E": {"to": "D", "reputation": 60, "parties": 3, "party_size": 3, "hall_level": 10, "earned": 400, "explored": 60, "cleared": ["floor_1"], "story": ["cooks_debt", "lost_survey"], "gold": 500},
+	"D": {"to": "C", "reputation": 150, "cleared": ["floor_3"], "gold": 1_000},
 }
 ## The lines a RANK_UPS row can have, in the order a checklist lists them.
 const RANK_UP_LINES: Array[String] = ["reputation", "rooms", "parties", "hall_level", "earned", "explored", "cleared", "story", "gold"]

@@ -97,7 +97,8 @@ func test_at_rank_e_with_all_nine_met_rank_up_pays_500_and_the_guild_is_rank_d_w
 	# Rank D grows no new rooms.
 	assert_eq(hall.layout, Hall.NEW_LAYOUT_E)
 	assert_eq(dispatch.reputation, 60)
-	assert_eq(hall.rank_up_refusal(dispatch, 2_000), "Highest rank for now")
+	# Rank D's own lines apply from now on.
+	assert_eq(hall.rank_up_refusal(dispatch, 2_000), "Need 90 more reputation")
 
 
 func test_at_rank_e_with_any_one_line_unmet_ranking_up_is_refused_with_that_lines_reason_and_nothing_changes() -> void:
@@ -329,7 +330,7 @@ func test_the_reception_at_rank_e_lists_the_nine_lines_with_has_needs_and_ticks_
 	assert_eq(rank_up.text, "Rank up · 500g")
 
 
-func test_tapping_rank_up_at_rank_e_ranks_the_guild_up_to_d_and_the_reception_then_shows_only_its_rank() -> void:
+func test_tapping_rank_up_at_rank_e_ranks_the_guild_up_to_d_and_the_reception_then_shows_rank_d_and_what_rank_c_needs() -> void:
 	var reception := _screen("res://screens/reception.tscn") as Reception
 	var hall := _rank_e_hall()
 	var dispatch := _ready_guild()
@@ -344,6 +345,6 @@ func test_tapping_rank_up_at_rank_e_ranks_the_guild_up_to_d_and_the_reception_th
 	assert_eq(hall.rank, "D")
 	assert_eq(dispatch.gold.amount, 0)
 	assert_eq((reception.get_node("Box/Scroll/Columns/Side/Card/Rank/Words/Name") as Label).text, "Rank D guild")
-	assert_false(reception.get_node("Box/Scroll/Columns/Needs").visible)
+	assert_eq((reception.get_node("Box/Scroll/Columns/Needs/Section") as Label).text, "TO RANK C")
 	assert_false(reception.get_node("Box/Buttons/RankUp").visible)
 	assert_true(reception.get_node("Box/Buttons/Back").visible)

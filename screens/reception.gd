@@ -10,6 +10,7 @@ signal rank_up_pressed
 const OPENS: Dictionary[String, PackedStringArray] = {
 	"E": ["Ground-floor wing: 3 rooms", "Storeroom, Infirmary, Quest hall", "Mostly rank-E quests", "Rank-E recruits", "Walk-ins sooner"],
 	"D": ["Tier-3 room upgrades", "A second Bunk room", "Extend: the First floor"],
+	"C": ["Elite expeditions in the labyrinth"],
 }
 ## Each checklist line's name, by what Hall.rank_up_checklist calls it, for the lines not named by
 ## what they need (`_need_row`).

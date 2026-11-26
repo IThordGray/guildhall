@@ -121,9 +121,9 @@ func test_the_reception_rebuilds_when_reputation_or_gold_changes_while_it_is_ope
 func test_a_guild_at_its_last_rank_shows_only_its_rank_and_back() -> void:
 	var reception := _screen("res://screens/reception.tscn") as Reception
 	var hall := Hall.new(1_000)
-	hall.rank = "D"
+	hall.rank = "C"
 	reception.show_guild(hall, _guild(30, 500), 1_000)
-	assert_has(_texts(reception), "Rank D guild")
+	assert_has(_texts(reception), "Rank C guild")
 	assert_false(reception.get_node("Box/Scroll/Columns/Needs").visible)
 	assert_false(reception.get_node("Box/Scroll/Columns/Opens").visible)
 	assert_true(reception.get_node("Box/Buttons/Back").visible)

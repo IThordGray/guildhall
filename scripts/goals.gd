@@ -14,7 +14,7 @@ const SIDE: String = "side"
 ## What claiming "hand_quests" unlocks: Auto (see Auto.checkpoint).
 const AUTO: String = "auto"
 
-## Chapters 1 and 2, in the order the story tells them. Each goal: "name", what the player sees it
+## The goals, in the order the story tells them. Each goal: "name", what the player sees it
 ## called; "kind", STORY or SIDE; "openers", the goals that must be claimed before it opens; "counts",
 ## what it counts (`progress`), with "rank", "quest" or "floor" where that needs one, and "need", the
 ## target; "line", what the clerk says; "gold" and, for some, "reputation", its reward; "unlocks", the
@@ -33,6 +33,7 @@ const GOALS: Dictionary[String, Dictionary] = {
 	"clear_floor_1": {"name": "Clear The Galleries", "kind": STORY, "openers": ["first_expedition"], "counts": "floor_explored", "floor": "floor_1", "need": 100, "line": "Map every corner of the first floor before you go deeper.", "gold": 40, "unlocks": ["lost_survey"]},
 	"lost_survey": {"name": "Recover the lost survey", "kind": STORY, "openers": ["clear_floor_1"], "counts": "story_quest", "quest": "lost_survey", "need": 1, "line": "Bring me back the survey a lost cartographer left below.", "gold": 50, "unlocks": []},
 	"rank_d": {"name": "Rank up to D", "kind": STORY, "openers": ["cooks_debt", "lost_survey", "rank_e"], "counts": "guild_rank", "rank": "D", "need": 1, "line": "The whole town talks of you now, so rank the guild up to D.", "gold": 100, "unlocks": []},
+	"rank_c": {"name": "Rank up to C", "kind": STORY, "openers": ["rank_d"], "counts": "guild_rank", "rank": "C", "need": 1, "line": "The deep floors are calling, so rank the guild up to C.", "gold": 150, "unlocks": []},
 	"hand_quests": {"name": "Send 10 quests by hand", "kind": SIDE, "openers": [], "counts": "hand_quests", "need": 10, "line": "Send ten quests out yourself, then your parties may go alone.", "gold": 20, "unlocks": [AUTO]},
 }
 
