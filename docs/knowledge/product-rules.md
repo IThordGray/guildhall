@@ -66,6 +66,7 @@ it merges. Screens and wording live in the code.
   across an upgrade); a Training room gives up to 20, 40, then 40 XP a stint, with two trainees at
   tier 3. Gold held changes only by
   rewards (paid when the party is back, a floor's clear bonus included), goal claims, spending, collecting and selling.
+  Gold earned is everything but selling, counted for good from when each rank was reached.
 
 ## Hall
 
@@ -85,7 +86,9 @@ it merges. Screens and wording live in the code.
   doesn't spend it.
 - The guild ranks up at the Reception when the player presses Rank up, never automatically. F → E
   needs 15 reputation, every room that can take a job in use, 2 parties, The sealed gate done, and
-  150 gold. Rank E adds the
+  150 gold. E → D needs 60 reputation, 3 parties of 3 or more, hall level 10 (every room's tier
+  added up), 400 gold earned since rank E, labyrinth floors 1–3 explored 60% on average with The
+  Galleries cleared, The cook's debt and The lost survey done, and 500 gold. Rank E adds the
   Entrance hall and three damaged rooms (north-east, east, front). Ranking up brings the board, candidates and walk-ins up to date first; rules that
   change with rank count from the moment it was reached. The Reception shows its icon only when
   ranking up is allowed.
