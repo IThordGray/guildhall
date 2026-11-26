@@ -58,7 +58,7 @@ it merges. Screens and wording live in the code.
   walk-in can be swapped for a current adventurer. Dismissing returns gear to the stash where it
   fits; nobody out, training or waiting on loot to be decided, and never the last adventurer, can go.
 - Candidates are rank F until the guild reaches rank E; from that moment 70% are rank E (180
-  gold, level 3). The Common room adds candidate slots only.
+  gold, level 3). The Common room adds candidate slots only: 1, 2, then 2 by tier.
 - Candidate slots refill from saved timestamps only, like the quest board: being away gives the same
   candidates as watching.
 - Taverns and training fill from saved timestamps only, up to their cap. Gold held changes only by
@@ -74,7 +74,7 @@ it merges. Screens and wording live in the code.
   status text and no adventurer faces. Unbuilt parts of the building are not drawn.
 - Each room type is built at most once, except a second Bunk room from rank D; more of one comes
   from upgrading it. Every room upgrades twice, by the builder, each type at its own price: tier 2
-  needs rank E and tier 3 rank D, except the Bunk room (any rank: 2, 3, then 4 beds). A room's
+  needs rank E and tier 3 rank D, except the Bunk room (any rank: 2, 4, then 8 beds). A room's
   upgrade icon shows only when the rank allows its next tier. A tier counts from when its upgrade
   finished. Old saves keep any copies they have.
 - Reputation changes only when a party comes home: +1, +2 or +3 for a success at rank F, E or D,
@@ -86,7 +86,8 @@ it merges. Screens and wording live in the code.
   Entrance hall and three damaged rooms (north-east, east, front). Ranking up brings the board, candidates and walk-ins up to date first; rules that
   change with rank count from the moment it was reached. The Reception shows its icon only when
   ranking up is allowed.
-- A Storeroom adds 6 to the stash. Extending to the upper floor needs rank D.
+- A Storeroom adds 6, 12, then 20 to the stash by tier, a Quest hall 1, 2, then 2 board slots;
+  each extra slot exists from the moment its tier was reached. Extending to the upper floor needs rank D.
 
 ## Goals
 
@@ -127,7 +128,7 @@ it merges. Screens and wording live in the code.
   still be sent by hand.
 - Auto sends, returns, healing, refills and quests leaving all happen in time order from saved
   timestamps, so one check after an absence gives the same as checking every second.
-- The board has a fixed number of slots. Sending a quest empties its slot, which refills after its
+- The board has a set number of slots (the Reception's and the Quest hall's). Sending a quest empties its slot, which refills after its
   own countdown with a quest not on the board and not out, whatever the outcome. A quest left on the
   board leaves after a time by its rank, and its slot refills the same way; each row shows its time
   left. Refills and leaving depend only on saved timestamps, so being away gives the same board as
