@@ -61,7 +61,10 @@ it merges. Screens and wording live in the code.
   gold, level 3). The Common room adds candidate slots only: 1, 2, then 2 by tier.
 - Candidate slots refill from saved timestamps only, like the quest board: being away gives the same
   candidates as watching.
-- Taverns and training fill from saved timestamps only, up to their cap. Gold held changes only by
+- Taverns and training fill from saved timestamps only, up to their cap. By tier a Tavern earns
+  20, 40, then 60 gold a minute and holds 40, 120, then 300 (gold earned while full is lost, also
+  across an upgrade); a Training room gives up to 20, 40, then 40 XP a stint, with two trainees at
+  tier 3. Gold held changes only by
   rewards (paid when the party is back, a floor's clear bonus included), goal claims, spending, collecting and selling.
 
 ## Hall
