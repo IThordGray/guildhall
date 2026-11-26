@@ -23,7 +23,7 @@ it merges. Screens and wording live in the code.
 - Portrait 9:16 and landscape, picked by the window's shape. Gold and how many parties are out are
   always on screen: in portrait in the top bar, in landscape in the left rail and screen headers.
 - No dialogs or overlay panels: everything opens as a full screen with Back (in landscape the party
-  picker docks beside the board, and the chosen adventurer beside the roster list). Gear changes in
+  picker docks beside the board or the labyrinth's floors, and the chosen adventurer beside the roster list). Gear changes in
   place on the Adventurer screen: tapping a slot or a stash item swaps the stash strip (in landscape
   the left column) for that slot's tray; nothing slides over the screen. The one exception: an action that spends (restore, upgrade, extend, rank up), lets an
   adventurer go (dismiss, swap) or gives up an item (sell, swap loot in, let loot go) confirms in a small centred
@@ -62,7 +62,7 @@ it merges. Screens and wording live in the code.
 - Candidate slots refill from saved timestamps only, like the quest board: being away gives the same
   candidates as watching.
 - Taverns and training fill from saved timestamps only, up to their cap. Gold held changes only by
-  rewards (paid when the party is back), goal claims, spending, collecting and selling.
+  rewards (paid when the party is back, a floor's clear bonus included), goal claims, spending, collecting and selling.
 
 ## Hall
 
@@ -97,8 +97,20 @@ it merges. Screens and wording live in the code.
   they come home. Until then parties can't use Auto and its switch is hidden. Saves from before
   goals keep Auto.
 
+## Labyrinth
+
+- The labyrinth opens when the goal "Finish The sealed gate" is claimed. Floor 1 is open from then;
+  each floor after opens once the floor above is 50% explored.
+- An expedition sends a whole party to an open floor, one party per floor at a time. A floor is
+  never on the board, never expires, Auto never takes it, and it can be explored again after it is
+  cleared. Its chance, damage, XP, gold, loot and reputation work as for a quest.
+- A party home from a floor explores 20% of it and brings 3 of its material on a success, 5% and 1
+  on a failure, up to 100%. The first time a floor reaches 100% it pays its clear bonus, once.
+- Materials are counted apart from the stash and never fill it.
+
 ## Quests
 
+- Labyrinth quests are ordinary board quests shown with a Labyrinth tag.
 - Story quests sit in a Story row above the board while open (a goal's unlock opens them). They
   don't expire or use a slot, their challenges are all known, and Auto never takes them. A failed
   one can be tried again; a success marks it done for good.

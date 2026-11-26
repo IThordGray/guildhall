@@ -18,8 +18,7 @@ Elsewhere: what must stay true → `product-rules.md` · rejected for good → `
 Each milestone is the thinnest slice that makes the core loop more complete, is played locally in
 the browser, then ends deployed. Later milestones get a `/to-spec` when they start.
 
-- **Next** (decided on the next-batch page and the reference sheet, linked from the spec): M2 the
-  labyrinth (expeditions, floors, labyrinth quests on the board); M3 G3 (room tiers per room, types
+- **Next** (decided on the next-batch page and the reference sheet, linked from the spec): M3 G3 (room tiers per room, types
   not tied to rank, roster follows beds, the E → D checklist of metrics); M4 the town (a Hall/Town
   switch, the Market); M5 rank C (C quests; death only on elite expeditions).
 - Single-player for good: no multiplayer is planned.
@@ -86,7 +85,8 @@ the browser, then ends deployed. Later milestones get a `/to-spec` when they sta
   upgrades twice; restores 60, 60 then dearer, Bunk room 30 to build; promotion progress shown). · M1 goals and story
   quests (a Goals card on the Hall with Claim; the guided start as the story chain; Auto unlocked by
   10 quests sent by hand; story quests above the board; The sealed gate; F → E also needs 2 parties
-  and the gate).
+  and the gate). · M2 the labyrinth (a Labyrinth tab after The sealed gate; three floors explored by
+  expeditions for materials and a clear bonus; labyrinth quests tagged on the board).
 
 ## Stack
 
