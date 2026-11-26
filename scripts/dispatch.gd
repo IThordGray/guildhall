@@ -146,8 +146,9 @@ var _infirmary_tiers: PackedInt64Array = PackedInt64Array()
 ## "kept" (the loot already swapped into the stash).
 var _unpaid: Array[Dictionary] = []
 ## Everyone who has died, in the order they did: {"name": their name, "quest": the elite's quest id,
-## "at": unix seconds their party came home}. Only a failed elite kills; if it kills everyone, the
-## game goes on with nobody, and walk-ins and candidates still come.
+## "at": unix seconds their party came home}, and "seen" true once the player has seen it in Needs
+## you (`see_fallen`). Only a failed elite kills; if it kills everyone, the game goes on with nobody,
+## and walk-ins and candidates still come.
 var fallen: Array[Dictionary] = []
 
 
@@ -467,9 +468,24 @@ func ready_to_level() -> PackedStringArray:
 	return ready
 
 
-## How many things wait for the player: each loot waiting, and every level-up ready together as one.
+## How many things wait for the player: each loot waiting, each death not yet seen, and every
+## level-up ready together as one.
 func needs_you_count() -> int:
-	return waiting_loot.size() + (0 if ready_to_level().is_empty() else 1)
+	return waiting_loot.size() + unseen_fallen().size() + (0 if ready_to_level().is_empty() else 1)
+
+
+## Where in `fallen` each death the player has not seen yet is, oldest first.
+func unseen_fallen() -> PackedInt32Array:
+	var unseen := PackedInt32Array()
+	for at: int in fallen.size():
+		if not fallen[at].get("seen", false):
+			unseen.append(at)
+	return unseen
+
+
+## Marks the death at `index` in `fallen` seen, so Needs you no longer shows it.
+func see_fallen(index: int) -> void:
+	fallen[index]["seen"] = true
 
 
 ## What `adventurer` is doing at `now`, in words for the player.

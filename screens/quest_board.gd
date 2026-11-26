@@ -10,6 +10,8 @@ signal swap_pressed(index: int, stash_item: String)
 signal let_go_pressed(index: int)
 ## The player asked to level up `adventurer`, the first with a level-up ready.
 signal level_up_pressed(adventurer: String)
+## The player saw the death at `index` in Dispatch.fallen.
+signal fallen_seen(index: int)
 ## The player turned Auto on or off for the party with `party`, its id (Parties).
 signal auto_toggled(party: String, on: bool)
 ## The player asked to switch the Auto mode of the party with `party` between Safe and Bold.
@@ -53,8 +55,9 @@ var _unknown_shown: Dictionary[String, int] = {}
 var _meta: Dictionary[String, Label] = {}
 ## The board's slots shown, so the rows change only when the board does.
 var _shown: PackedStringArray = PackedStringArray()
-## What the Needs you rows were built from: the loot waiting, who has a level-up ready, the decision
-## open and, while one is, the stash. They are rebuilt only when one of those changes.
+## What the Needs you rows were built from: the loot waiting, the deaths not yet seen, who has a
+## level-up ready, the decision open and, while one is, the stash. They are rebuilt only when one of
+## those changes.
 var _needs_you_shown: Array = []
 ## The loot waiting as last shown, and where in it the loot whose decision is open is; -1 for none.
 var _loot_shown: Array[Dictionary] = []
@@ -191,11 +194,11 @@ func set_landscape(landscape: bool) -> void:
 		show_board(_board, _dispatch, _now, _auto_unlocked, _story)
 
 
-## Shows what needs the player in `dispatch` (loot that found the stash full, and level-ups ready)
-## and every party with where it is at `now` and its Auto, then the open story quests in `story`
-## (Dispatch.open_story_quests) in a Story band, hidden with none, then the quests in `board`'s
-## slots in order, each with the time until it leaves the board, and beside the board's label,
-## while a slot is empty, the soonest refill. An unknown challenge shows the time to its reveal
+## Shows what needs the player in `dispatch` (deaths not yet seen, loot that found the stash full,
+## and level-ups ready) and every party with where it is at `now` and its Auto, then the open story
+## quests in `story` (Dispatch.open_story_quests) in a Story band, hidden with none, then the quests
+## in `board`'s slots in order, each with the time until it leaves the board, and beside the board's
+## label, while a slot is empty, the soonest refill. An unknown challenge shows the time to its reveal
 ## while the Map room is revealing it. Each party's Auto shows only once the guild has
 ## `auto_unlocked` it.
 func show_board(board: Board, dispatch: Dispatch, now: int, auto_unlocked: bool = true, story: PackedStringArray = PackedStringArray()) -> void:
@@ -456,7 +459,8 @@ func _show_needs_you(dispatch: Dispatch) -> void:
 		_deciding = waiting.find(_loot_shown[_deciding])
 	var ready := dispatch.ready_to_level()
 	var stash := dispatch.adventurers.gear.stash if _deciding >= 0 else PackedStringArray()
-	var shown := [waiting.duplicate(), ready, _deciding, stash.duplicate()]
+	var unseen := dispatch.unseen_fallen()
+	var shown := [waiting.duplicate(), unseen, ready, _deciding, stash.duplicate()]
 	if shown == _needs_you_shown:
 		return
 	_needs_you_shown = shown
@@ -464,6 +468,8 @@ func _show_needs_you(dispatch: Dispatch) -> void:
 	for row: Node in _needs_you.get_children():
 		_needs_you.remove_child(row)
 		row.queue_free()
+	for i: int in unseen:
+		_needs_you.add_child(_fallen_row(i, dispatch.fallen[i]))
 	for i: int in waiting.size():
 		_needs_you.add_child(_decision(i, dispatch) if i == _deciding else _loot_row(i, waiting[i]))
 	if not ready.is_empty():
@@ -489,6 +495,17 @@ func _loot_row(index: int, waiting: Dictionary) -> Control:
 	decide.pressed.connect(_decide.bind(index))
 	var sub := "%s brought %s" % [Dispatch.QUESTS[waiting["quest"]]["name"], Gear.ITEMS[item]["name"]]
 	return Touch.whole_card(_needs_you_row(Adventurer.item_icon(item, 3), _label("Stash full", &"AlertTitle"), sub, decide), decide)
+
+
+# The row saying who died in `death`, the death at `index` in Dispatch.fallen, and on which elite,
+# with OK, which marks it seen.
+func _fallen_row(index: int, death: Dictionary) -> Control:
+	var ok := Button.new()
+	ok.text = "OK"
+	ok.theme_type_variation = &"GoldLink"
+	ok.pressed.connect(fallen_seen.emit.bind(index))
+	var who: String = death["name"]
+	return Touch.whole_card(_needs_you_row(token(who.left(1), {}), _label(who + " fell", &"AlertTitle"), Dispatch.QUESTS[death["quest"]]["name"], ok), ok)
 
 
 # A closed Needs you row: `picture`, then `title` over `sub` on one line, then `action`.
@@ -518,7 +535,12 @@ func _decision(index: int, dispatch: Dispatch) -> Control:
 	var item: String = waiting["item"]
 	var title := _label("Stash full", &"AlertTitle")
 	title.autowrap_mode = TextServer.AUTOWRAP_OFF
-	var who := _label("%s · %s" % [Dispatch.QUESTS[waiting["quest"]]["name"], _names(waiting["party"], dispatch.adventurers.roster)], &"Secondary")
+	var who_text: String = Dispatch.QUESTS[waiting["quest"]]["name"]
+	# A party all dead names nobody.
+	var names := _names(waiting["party"], dispatch.adventurers.roster)
+	if not names.is_empty():
+		who_text += " · " + names
+	var who := _label(who_text, &"Secondary")
 	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	who.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	var top := HBoxContainer.new()

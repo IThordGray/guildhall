@@ -153,6 +153,9 @@ func _ready() -> void:
 	_board.swap_pressed.connect(_on_loot_swap_pressed)
 	_board.let_go_pressed.connect(_on_let_go_pressed)
 	_board.level_up_pressed.connect(_on_quests_level_up_pressed)
+	_board.fallen_seen.connect(func(index: int) -> void:
+		_dispatch.see_fallen(index)
+		_checkpoint(_now()))
 	# The checkpoint before brings the party up to now as it was set; the one after sends it at once
 	# when it is ready.
 	_board.auto_toggled.connect(func(party: String, on: bool) -> void:
@@ -327,10 +330,10 @@ func _checkpoint(now: int) -> void:
 		_market_screen.show_market(_market, _dispatch.adventurers.gear, _dispatch.labyrinth, _dispatch.outings.size(), now)
 	var story := _dispatch.open_story_quests(_goals.unlocked)
 	_board.show_board(_quest_board, _dispatch, now, _goals.is_unlocked(Goals.AUTO), story)
-	_picker.show_board(_quest_board, story, _dispatch.open_floors(_goals.unlocked))
+	_picker.show_board(_quest_board, story, _dispatch.open_floors(_goals.unlocked), _dispatch.open_elites(_hall.ranked_at.get("C", -1), now))
 	_labyrinth_tab.disabled = not _goals.is_unlocked(Labyrinth.UNLOCK)
 	if _labyrinth.visible:
-		_labyrinth.show_labyrinth(_dispatch, _goals.unlocked, now)
+		_labyrinth.show_labyrinth(_dispatch, _goals.unlocked, now, _hall.ranked_at.get("C", -1))
 	_roster.show_dispatch(_dispatch, now)
 	_roster.show_recruits(_recruits, _dispatch.adventurers, _gold, _hall.beds(now), _hall, now)
 	_roster.show_walk_in(_walk_ins.walk_in, _dispatch.adventurers.roster.size() < _hall.beds(now))
@@ -362,7 +365,8 @@ func _confirm(what: String) -> void:
 
 # What `_confirming` costs and takes, and why it can't be done at `now`.
 func _offer(now: int) -> void:
-	if _confirming == SWAP and _walk_ins.walk_in.is_empty():
+	# The walk-in may have left, or the one to send away died, since the sheet opened.
+	if (_confirming == SWAP and _walk_ins.walk_in.is_empty()) or ((_confirming == DISMISS or _confirming == SWAP) and not _dispatch.adventurers.roster.has(_leaving)):
 		_confirm_sheet.close()
 	elif _confirming == DISMISS or _confirming == SWAP:
 		var leaving: String = _dispatch.adventurers.roster[_leaving]["name"]
@@ -554,7 +558,7 @@ func _on_floor_pressed(floor_id: String) -> void:
 
 # The seed comes from the global generator; the outcome it fixes is rolled from the seed alone. The
 # outing, the last to leave, counts towards Goals' hand sends once it is home. A story quest goes
-# while it is open, and a floor while it is open, with no board slot.
+# while it is open, and a floor or an elite while it is open, with no board slot.
 func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	var now := _now()
 	# Auto sends due by now go first, and a Quest hall finished since the last tick adds its slot.
@@ -564,6 +568,8 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 		sent = quest in _dispatch.open_story_quests(_goals.unlocked) and _dispatch.send(quest, party, randi(), now, _hall.tier_times("infirmary"))
 	elif Dispatch.is_floor(quest):
 		sent = quest in _dispatch.open_floors(_goals.unlocked) and _dispatch.send(quest, party, randi(), now, _hall.tier_times("infirmary"))
+	elif Dispatch.is_elite(quest):
+		sent = quest in _dispatch.open_elites(_hall.ranked_at.get("C", -1), now) and _dispatch.send(quest, party, randi(), now, _hall.tier_times("infirmary"))
 	else:
 		sent = _quest_board.send(_dispatch, quest, party, randi(), now, _hall.added_at("board_slots"), _hall.tier_times("infirmary"), _hall.tier_times("map_room"), _hall.tier_times("quest_hall"), _hall.rank)
 	if sent:
@@ -580,8 +586,13 @@ func _close_picker() -> void:
 
 
 # Opens `adventurer` from `from`, the Roster, which Back returns to. In landscape the roster stays
-# beside them, without Back, unless their tray is open.
+# beside them, without Back, unless their tray is open. One gone from the guild, such as one who
+# died, opens the Roster tab instead.
 func _open_adventurer(adventurer: String, from: Control) -> void:
+	if not _dispatch.adventurers.roster.has(adventurer):
+		_adventurer.hide()
+		_show_roster()
+		return
 	_shown_visitor = Roster.NO_VISITOR
 	_shown_adventurer = adventurer
 	_adventurer_from = from
@@ -593,13 +604,15 @@ func _open_adventurer(adventurer: String, from: Control) -> void:
 
 
 # The Roster tab. In landscape, the roster beside the adventurer last shown while they are still in
-# the guild, else the first in roster order; in portrait, the roster alone.
+# the guild, else the first in roster order; in portrait, or with nobody in the guild, the roster
+# alone, nobody marked.
 func _show_roster() -> void:
 	_shown_visitor = Roster.NO_VISITOR
-	if not _landscape:
+	var roster := _dispatch.adventurers.roster
+	if not _landscape or roster.is_empty():
+		_roster.mark("")
 		_roster.show()
 		return
-	var roster := _dispatch.adventurers.roster
 	_open_adventurer(_shown_adventurer if roster.has(_shown_adventurer) else roster.keys()[0], _roster)
 
 
@@ -621,14 +634,14 @@ func _visitor(visitor: int) -> Dictionary:
 
 
 # Back to the roster once the candidate or walk-in shown has gone: in landscape beside the first
-# adventurer.
+# adventurer, while there is one.
 func _leave_visitor() -> void:
 	_shown_visitor = Roster.NO_VISITOR
-	if _landscape:
+	if _landscape and not _dispatch.adventurers.roster.is_empty():
 		_open_adventurer(_dispatch.adventurers.roster.keys()[0], _roster)
 	else:
 		_adventurer.hide()
-		_roster.show()
+		_show_roster()
 
 
 # Beside the roster, the open tray takes the roster's column and gives it back when it closes.
@@ -775,10 +788,14 @@ func _on_stop_training_pressed(adventurer: String) -> void:
 
 
 # Shows the adventurer the Adventurer screen is on, as they are at `now`, their row marked while
-# the roster is beside them.
+# the roster is beside them; once they have gone from the guild, such as by dying, the Roster tab.
 func _show_adventurer(now: int) -> void:
 	if _shown_visitor != Roster.NO_VISITOR:
 		_show_visitor(now)
+		return
+	if not _dispatch.adventurers.roster.has(_shown_adventurer):
+		_adventurer.hide()
+		_show_roster()
 		return
 	_adventurer.show_adventurer(_shown_adventurer, _dispatch, _hall.training_places(now), now, _hall.stint_xp(now))
 	_roster.mark(_shown_adventurer if _landscape and _adventurer_from == _roster else "")
@@ -828,7 +845,7 @@ func _on_tab_pressed(tab: BaseButton) -> void:
 	_convert_panel.hide()
 	_picker.close()
 	if tab == _labyrinth_tab:
-		_labyrinth.show_labyrinth(_dispatch, _goals.unlocked, _now())
+		_labyrinth.show_labyrinth(_dispatch, _goals.unlocked, _now(), _hall.ranked_at.get("C", -1))
 		_show_with_picker(_labyrinth, true)
 	else:
 		_show_with_picker(_board, tab == $TabBar/Tabs/Quests)

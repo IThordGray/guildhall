@@ -74,6 +74,17 @@ theme_type_variation = &"CardTight"
 layout_mode = 2
 theme_override_constants/separation = 22
 
+[node name="DeadlySection" type="Label" parent="Scroll/Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"SectionAlert"
+text = "DEADLY"
+
+[node name="Deadly" type="VBoxContainer" parent="Scroll/Box"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"RowList"
+
 [node name="FloorsSection" type="Label" parent="Scroll/Box"]
 layout_mode = 2
 theme_type_variation = &"Section"

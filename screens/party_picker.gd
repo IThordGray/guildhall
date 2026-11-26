@@ -42,10 +42,11 @@ var _now: int = 0
 ## open shows at once and nothing else rebuilds them.
 var _forecast_unknown: PackedStringArray = PackedStringArray()
 ## The Story tag beside a story quest's name; the Floor tag beside a floor's; the Labyrinth tag
-## beside a board quest's set in the labyrinth.
+## beside a board quest's set in the labyrinth; the Deadly tag beside an elite's.
 var _story_tag: Label
 var _floor_tag: Label
 var _labyrinth_tag: Label
+var _deadly_tag: Label
 
 @onready var _heading: HBoxContainer = $Root/Quest/Box/Heading
 @onready var _title: Label = $Root/Quest/Box/Heading/Title
@@ -54,6 +55,8 @@ var _labyrinth_tag: Label
 @onready var _story_line: Label = $Root/Quest/Box/StoryLine
 ## Under the meta line of a floor: what an expedition brings home.
 @onready var _floor_line: Label = $Root/Quest/Box/FloorLine
+## Under the meta line of an elite: that a failure can kill.
+@onready var _deadly_line: Label = $Root/Quest/Box/DeadlyLine
 @onready var _coverage: HFlowContainer = $Root/Quest/Box/Coverage
 @onready var _slots: HBoxContainer = $Root/Quest/Box/Party/Slots
 @onready var _odds: Label = $Root/Quest/Box/Party/Chance/Line/Odds
@@ -81,6 +84,9 @@ func _ready() -> void:
 	_heading.add_child(_floor_tag)
 	_labyrinth_tag = QuestBoard.labyrinth_tag()
 	_heading.add_child(_labyrinth_tag)
+	_deadly_tag = QuestBoard.chip("Deadly", &"PillUncovered")
+	_deadly_tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_heading.add_child(_deadly_tag)
 
 
 ## Landscape docks the picker beside the board, where Cancel drops the quest; portrait makes it a
@@ -180,10 +186,10 @@ func close() -> void:
 
 
 ## Drops the quest picked once neither `board` shows it nor it is among the open story quests in
-## `story` (Dispatch.open_story_quests) or the open floors in `floors` (Dispatch.open_floors), since
-## it can't be sent.
-func show_board(board: Board, story: PackedStringArray = PackedStringArray(), floors: PackedStringArray = PackedStringArray()) -> void:
-	if has_quest() and not board.slots.has(_quest) and not story.has(_quest) and not floors.has(_quest):
+## `story` (Dispatch.open_story_quests), the open floors in `floors` (Dispatch.open_floors) or the
+## open elites in `elites` (Dispatch.open_elites), since it can't be sent.
+func show_board(board: Board, story: PackedStringArray = PackedStringArray(), floors: PackedStringArray = PackedStringArray(), elites: Dictionary[String, int] = {}) -> void:
+	if has_quest() and not board.slots.has(_quest) and not story.has(_quest) and not floors.has(_quest) and not elites.has(_quest):
 		close()
 		quest_left.emit()
 
@@ -195,7 +201,8 @@ func set_prompt(text: String) -> void:
 
 ## Opens the picker for `quest` with no party picked; a story quest with its Story tag and a line
 ## saying it stays until done; a floor with its number and a line saying what an expedition brings;
-## a quest set in the labyrinth with its Labyrinth tag.
+## a quest set in the labyrinth with its Labyrinth tag; an elite with its Deadly tag and a line saying
+## a failure can kill.
 func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	_quest = quest
 	_prompt.hide()
@@ -210,6 +217,8 @@ func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	_floor_tag.visible = Dispatch.is_floor(quest)
 	_floor_line.visible = _floor_tag.visible
 	_labyrinth_tag.visible = Dispatch.is_labyrinth(quest)
+	_deadly_tag.visible = Dispatch.is_elite(quest)
+	_deadly_line.visible = _deadly_tag.visible
 	if _floor_tag.visible:
 		_floor_tag.text = "Floor %d" % info["floor"]
 		_floor_line.text = "Expedition · success explores +%d%% and brings %d %s; failure +%d%% and %d" % [Labyrinth.SUCCESS_EXPLORED, Labyrinth.SUCCESS_MATERIAL, Labyrinth.FLOORS[quest]["material"], Labyrinth.FAILURE_EXPLORED, Labyrinth.FAILURE_MATERIAL]

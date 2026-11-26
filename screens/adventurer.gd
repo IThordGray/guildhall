@@ -311,11 +311,12 @@ func set_landscape(landscape: bool, beside_roster: bool = false) -> void:
 	if not landscape:
 		words.move_child(_hire_reason, actions.get_index() + 1)
 	_hire_reason.autowrap_mode = TextServer.AUTOWRAP_OFF if landscape else TextServer.AUTOWRAP_WORD_SMART
-	# The gear, the stash and the tray are sized by the layout, so each is built again.
+	# The gear, the stash and the tray are sized by the layout, so each is built again; the next
+	# show_adventurer builds them for one gone from the guild since, such as by dying.
 	_gear_shown = []
 	_stash_shown = []
 	_tray_shown = []
-	if _dispatch != null and not _adventurer.is_empty():
+	if _dispatch != null and _dispatch.adventurers.roster.has(_adventurer):
 		_show_gear_choice()
 
 
