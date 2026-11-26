@@ -71,7 +71,7 @@ func test_the_six_rank_c_quests_exist_with_their_numbers_and_none_is_a_labyrinth
 	var found := {}
 	for quest: String in Dispatch.QUESTS:
 		var info: Dictionary = Dispatch.QUESTS[quest]
-		if info["rank"] == "C":
+		if info["rank"] == "C" and not Dispatch.is_elite(quest):
 			found[quest] = [info["name"], info["rank"], info["seconds"], info["gold"], info["xp"], info["difficulty"], info["challenges"]]
 			assert_false(info.get("labyrinth", false), quest)
 			assert_false(Dispatch.is_story(quest), quest)

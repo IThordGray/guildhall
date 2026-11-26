@@ -13,7 +13,10 @@ extends RefCounted
 ## a quest has it, is what a success earns in place of REPUTATION for its rank. A quest with a "floor"
 ## number is a floor of the labyrinth (Labyrinth): the board never offers it, but it can be gone on
 ## again and again; floor 1 is open once Goals unlocks Labyrinth.UNLOCK, and each floor after once
-## the one above is Labyrinth.NEXT_FLOOR_AT explored (`open_floors`).
+## the one above is Labyrinth.NEXT_FLOOR_AT explored (`open_floors`). A quest with "elite", the floor
+## quest id it is set on, is an elite expedition: the board never offers it and Auto never takes it;
+## it is open only in its windows from rank C (`open_elites`), every challenge of it is known, and on a
+## failure it is the only quest that kills. Its gold is 3 times its floor's and its XP twice.
 const QUESTS: Dictionary[String, Dictionary] = {
 	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 2, "gold": 3, "xp": 4, "difficulty": 11, "challenges": ["Brute force"]},
 	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 3, "gold": 5, "xp": 5, "difficulty": 0, "challenges": ["Curse"]},
@@ -47,6 +50,9 @@ const QUESTS: Dictionary[String, Dictionary] = {
 	"floor_1": {"name": "The Galleries", "rank": "E", "seconds": 60, "gold": 45, "xp": 32, "difficulty": 48, "challenges": ["Traps", "Navigation", "Attrition"], "floor": 1},
 	"floor_2": {"name": "The Drowned Stair", "rank": "E", "seconds": 90, "gold": 60, "xp": 45, "difficulty": 56, "challenges": ["Curse", "Navigation", "Attrition"], "floor": 2},
 	"floor_3": {"name": "The Third Ring", "rank": "D", "seconds": 120, "gold": 130, "xp": 85, "difficulty": 74, "challenges": ["Brute force", "Traps", "Curse"], "floor": 3},
+	"elite_1": {"name": "The sealed vault of The Galleries", "rank": "C", "seconds": 150, "gold": 135, "xp": 64, "difficulty": 105, "challenges": ["Traps", "Navigation", "Attrition"], "elite": "floor_1"},
+	"elite_2": {"name": "The flooded crypt of The Drowned Stair", "rank": "C", "seconds": 150, "gold": 180, "xp": 90, "difficulty": 105, "challenges": ["Curse", "Navigation", "Attrition"], "elite": "floor_2"},
+	"elite_3": {"name": "The bone throne of The Third Ring", "rank": "C", "seconds": 150, "gold": 390, "xp": 170, "difficulty": 105, "challenges": ["Brute force", "Traps", "Curse"], "elite": "floor_3"},
 }
 const MAX_PARTY_SIZE: int = 4
 ## How long an injury lasts, counted from the moment the party returns.
@@ -139,6 +145,10 @@ var _infirmary_tiers: PackedInt64Array = PackedInt64Array()
 ## "party", "gold", "xp", "loot" (item ids), "xp_given" (whether coming home gave the XP) and
 ## "kept" (the loot already swapped into the stash).
 var _unpaid: Array[Dictionary] = []
+## Everyone who has died, in the order they did: {"name": their name, "quest": the elite's quest id,
+## "at": unix seconds their party came home}. Only a failed elite kills; if it kills everyone, the
+## game goes on with nobody, and walk-ins and candidates still come.
+var fallen: Array[Dictionary] = []
 
 
 func _init(at: int) -> void:
@@ -197,11 +207,11 @@ func try_points(quest_id: String) -> int:
 
 
 ## The challenges of `quest_id` the player doesn't know yet. A quest's last challenge starts
-## unknown, unless it is its only one or the quest is a story quest; a party back from the quest
-## makes them known for good.
+## unknown, unless it is its only one or the quest is a story quest or an elite; a party back from
+## the quest makes them known for good.
 func unknown_challenges(quest_id: String) -> PackedStringArray:
 	var challenges: Array = QUESTS[quest_id]["challenges"]
-	if quest_id in revealed or challenges.size() < 2 or is_story(quest_id):
+	if quest_id in revealed or challenges.size() < 2 or is_story(quest_id) or is_elite(quest_id):
 		return PackedStringArray()
 	return PackedStringArray([challenges[-1]])
 
@@ -245,6 +255,30 @@ func open_floors(unlocked: PackedStringArray) -> PackedStringArray:
 		if not open.is_empty() and labyrinth.explored_percent(open[-1]) < Labyrinth.NEXT_FLOOR_AT:
 			break
 		open.append(quest)
+	return open
+
+
+## True when `quest_id` is an elite expedition (QUESTS "elite").
+static func is_elite(quest_id: String) -> bool:
+	return QUESTS[quest_id].has("elite")
+
+
+## The elite expeditions open at `now` to a guild that reached rank C at `rank_c_at` (Hall.ranked_at;
+## negative for not yet), each with the unix seconds it closes at: at most one, in the window of
+## `now`'s period (Labyrinth.ELITE_EVERY, ELITE_WINDOW) when that period starts at or after
+## `rank_c_at` and no party was sent on its elite, whether or not one is still out on it. `now` is
+## read as no earlier than the latest time seen, so a clock set back never reopens a window.
+func open_elites(rank_c_at: int, now: int) -> Dictionary[String, int]:
+	var open: Dictionary[String, int] = {}
+	var at := maxi(now, checked_at)
+	var period := Labyrinth.elite_period(at)
+	var opens := period * Labyrinth.ELITE_EVERY
+	if rank_c_at < 0 or opens < rank_c_at or at >= opens + Labyrinth.ELITE_WINDOW or period == labyrinth.elite_taken:
+		return open
+	var floor_id := labyrinth.elite_floor(period)
+	for quest: String in QUESTS:
+		if QUESTS[quest].get("elite", "") == floor_id:
+			open[quest] = opens + Labyrinth.ELITE_WINDOW
 	return open
 
 
@@ -550,23 +584,28 @@ func dismiss_refusal(adventurer: String) -> String:
 func dismiss(adventurer: String) -> bool:
 	if not dismiss_refusal(adventurer).is_empty():
 		return false
+	_forget(adventurer)
+	return true
+
+
+# Takes `adventurer` out of the guild for good, gear to the stash where it fits (Adventurers.remove).
+func _forget(adventurer: String) -> void:
 	wounds.erase(adventurer)
 	injured_until.erase(adventurer)
 	injury_lengths.erase(adventurer)
 	trained_seconds.erase(adventurer)
 	adventurers.remove(adventurer)
-	return true
 
 
 ## Why `party` can't be sent on `quest_id` at `now`, in words for the player; "" when it can.
 ## However many parties are out, a party goes whole or not at all: `party` must be exactly one
 ## party's members, each home and well, and the party's rank (Parties.rank) must allow the quest
-## (Challenges.can_join). Reserves never go. A story quest or a floor goes once at a time, and a
-## story quest never once done.
+## (Challenges.can_join). Reserves never go. A story quest, a floor or an elite goes once at a time,
+## and a story quest never once done.
 func party_refusal(quest_id: String, party: PackedStringArray, now: int) -> String:
 	if is_story(quest_id) and quest_id in story_done:
 		return "Already done"
-	if is_story(quest_id) or is_floor(quest_id):
+	if is_story(quest_id) or is_floor(quest_id) or is_elite(quest_id):
 		for outing: Dictionary in outings:
 			if outing["quest"] == quest_id:
 				return "A party is out on it"
@@ -597,8 +636,8 @@ func party_id_of(party: PackedStringArray) -> String:
 
 ## Sends `party` on `quest_id` at `now`, its outcome fixed by `roll_seed`; false, with nothing
 ## started, when `party_refusal` gives a reason. Which board quests can be sent is Board's rule;
-## which story quests, `open_story_quests`; which floors, `open_floors`.
-## `infirmary_tiers` is as for `checkpoint`.
+## which story quests, `open_story_quests`; which floors, `open_floors`; which elites, `open_elites`.
+## Sending an elite takes it for its period. `infirmary_tiers` is as for `checkpoint`.
 func send(quest_id: String, party: PackedStringArray, roll_seed: int, now: int, infirmary_tiers: PackedInt64Array = PackedInt64Array()) -> bool:
 	checkpoint(now, infirmary_tiers)
 	if not party_refusal(quest_id, party, now).is_empty():
@@ -613,6 +652,8 @@ func send(quest_id: String, party: PackedStringArray, roll_seed: int, now: int, 
 	# A lucky break is decided by the seed now, and only counts when it lifts the weakest challenge.
 	var luck := party_stat(party, "luck")
 	var lucky: bool = Outcome.lucky_break(roll_seed, luck) and challenge_chances(quest_id, party).min() < Outcome.EVEN_CHANCE
+	if is_elite(quest_id):
+		labyrinth.elite_taken = Labyrinth.elite_period(checked_at)
 	outings.append({"quest": quest_id, "since": checked_at, "party": party.duplicate(), "party_id": party_id_of(party), "seed": roll_seed, "chance": success_chance(quest_id, party, lucky), "spirit": party_stat(party, "spirit"), "luck": luck, "health": health_left_with, "max_health": max_left_with})
 	return true
 
@@ -630,7 +671,9 @@ func returned_since_checkpoint(now: int) -> bool:
 ## brings every returned party home, once, in the order they returned: gives each member damage and
 ## XP and, on a success, counts it for them (Adventurers.successes), gives the guild its reputation
 ## (REPUTATION, or the quest's own) and marks a story quest done, adds a floor's exploring and
-## material (Labyrinth.bring_home), injures those it leaves under a
+## material (Labyrinth.bring_home) or an elite's material (Labyrinth.bring_home_elite), on a failed
+## elite takes those it brings to 0 health or below out of the guild for good (`fallen`), injures
+## those it leaves under a
 ## quarter of their health, reveals the quest's challenges, puts the gold it earned into `gold` and
 ## its loot into the stash, where loot that finds it full waits (`waiting_loot`); XP is raised by
 ## the Kitchen's tier at the return (`kitchen_tiers`, `xp_share`). Debriefs a save from before held unread are paid first, the same way.
@@ -673,6 +716,7 @@ func _bring_home(outing: Dictionary) -> void:
 	# Spirit and Luck are the party's when it left, so a level-up while out changes nothing. One sent
 	# before they were kept counts the party's now.
 	var luck: int = outing.get("luck", party_stat(party, "luck"))
+	var dying := PackedStringArray()
 	# A party sent before adventurers existed has no members: it comes home as it was sent then,
 	# earning its reward in full.
 	if not party.is_empty():
@@ -691,7 +735,10 @@ func _bring_home(outing: Dictionary) -> void:
 			# One sent before health was kept left with what they have now.
 			var left_with: int = outing.get("health", {}).get(adventurer, _health_at(adventurer, returns_at))
 			var most: int = outing.get("max_health", {}).get(adventurer, adventurers.max_health(adventurer))
-			# Nobody dies yet: damage leaves at least 1 health.
+			if not success and is_elite(outing["quest"]) and left_with - int(damage[adventurer]) <= 0:
+				dying.append(adventurer)
+				continue
+			# Anywhere else damage leaves at least 1 health.
 			var back_with := maxi(1, left_with - int(damage[adventurer]))
 			if back_with < adventurers.max_health(adventurer):
 				wounds[adventurer] = {"health": back_with, "at": returns_at}
@@ -716,6 +763,13 @@ func _bring_home(outing: Dictionary) -> void:
 		story_done.append(outing["quest"])
 	if is_floor(outing["quest"]):
 		labyrinth.bring_home(outing["quest"], success, gold)
+	if is_elite(outing["quest"]):
+		labyrinth.bring_home_elite(quest["elite"], success)
+	# Before the loot, so their gear takes the stash's room first: loot that finds it full waits,
+	# while gear that does is lost.
+	for adventurer: String in dying:
+		fallen.append({"name": adventurers.roster[adventurer]["name"], "quest": outing["quest"], "at": returns_at})
+		_forget(adventurer)
 	# Loot comes whatever the outcome, from the seed the party left with.
 	var item := Gear.loot(outing["seed"], quest["rank"], luck)
 	if not item.is_empty():
@@ -764,6 +818,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("dispatch", "tries", tries)
 	file.set_value("dispatch", "reputation", reputation)
 	file.set_value("dispatch", "checked_at", checked_at)
+	file.set_value("dispatch", "fallen", fallen)
 	adventurers.write(file)
 	labyrinth.write(file)
 
@@ -809,4 +864,6 @@ static func load_or_start(path: String, now: int) -> Dispatch:
 	# A save from before reputation has earned none.
 	dispatch.reputation = int(file.get_value("dispatch", "reputation", 0))
 	dispatch.checked_at = int(file.get_value("dispatch", "checked_at", now))
+	# A save from before elites has lost nobody.
+	dispatch.fallen.assign(file.get_value("dispatch", "fallen", []))
 	return dispatch
