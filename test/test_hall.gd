@@ -1364,13 +1364,26 @@ func _tap(at: Vector2) -> void:
 		Input.flush_buffered_events()
 
 
+# A guild with `reputation` earned, `gold`, `parties` parties of one and the story quests
+# `story_done`, as the rank-up functions read it.
+func _guild(reputation: int, gold: Gold, parties: int, story_done: PackedStringArray) -> Dispatch:
+	var dispatch := Dispatch.new(1_000)
+	dispatch.reputation = reputation
+	dispatch.gold = gold
+	dispatch.adventurers.parties.parties.clear()
+	for party: int in parties:
+		dispatch.adventurers.parties.parties.append({"id": "party_%d" % party, "name": "", "members": PackedStringArray(["adventurer_%d" % party])})
+	dispatch.story_done = story_done
+	return dispatch
+
+
 func test_the_rank_up_checklist_reports_reputation_rooms_in_use_counting_only_rooms_that_take_a_job_and_gold_each_with_whether_it_is_met() -> void:
 	var hall := Hall.new(1_000)
-	assert_eq(hall.rank_up_checklist(9, 120, 2, SEALED_GATE_DONE, 1_000), [
+	assert_eq(hall.rank_up_checklist(_guild(9, Gold.new(120), 2, SEALED_GATE_DONE), 1_000), [
 		{"what": "reputation", "has": 9, "needs": 15, "met": false},
 		{"what": "rooms", "has": 0, "needs": 2, "met": false},
 		{"what": "parties", "has": 2, "needs": 2, "met": true},
-		{"what": "story", "has": 1, "needs": 1, "met": true},
+		{"what": "story", "quest": "sealed_gate", "has": 1, "needs": 1, "met": true},
 		{"what": "gold", "has": 120, "needs": 150, "met": false},
 	])
 	# The side room becomes a Bunk room, finished at 1_007; the backroom a Common room, under way
@@ -1380,19 +1393,19 @@ func test_the_rank_up_checklist_reports_reputation_rooms_in_use_counting_only_ro
 	assert_true(hall.restore("back_left", gold, 1_001))
 	assert_true(hall.convert_room("side_left", "bunk_room", gold, 1_005))
 	assert_true(hall.convert_room("back_left", "common_room", gold, 1_007))
-	assert_eq(hall.rank_up_checklist(15, 150, 2, SEALED_GATE_DONE, 1_008), [
+	assert_eq(hall.rank_up_checklist(_guild(15, Gold.new(150), 2, SEALED_GATE_DONE), 1_008), [
 		{"what": "reputation", "has": 15, "needs": 15, "met": true},
 		{"what": "rooms", "has": 1, "needs": 2, "met": false},
 		{"what": "parties", "has": 2, "needs": 2, "met": true},
-		{"what": "story", "has": 1, "needs": 1, "met": true},
+		{"what": "story", "quest": "sealed_gate", "has": 1, "needs": 1, "met": true},
 		{"what": "gold", "has": 150, "needs": 150, "met": true},
 	])
 	# Finished, though no checkpoint has recorded it yet.
-	assert_eq(hall.rank_up_checklist(14, 149, 2, SEALED_GATE_DONE, 1_009), [
+	assert_eq(hall.rank_up_checklist(_guild(14, Gold.new(149), 2, SEALED_GATE_DONE), 1_009), [
 		{"what": "reputation", "has": 14, "needs": 15, "met": false},
 		{"what": "rooms", "has": 2, "needs": 2, "met": true},
 		{"what": "parties", "has": 2, "needs": 2, "met": true},
-		{"what": "story", "has": 1, "needs": 1, "met": true},
+		{"what": "story", "quest": "sealed_gate", "has": 1, "needs": 1, "met": true},
 		{"what": "gold", "has": 149, "needs": 150, "met": false},
 	])
 
@@ -1400,9 +1413,9 @@ func test_the_rank_up_checklist_reports_reputation_rooms_in_use_counting_only_ro
 func test_the_rank_up_checklist_of_a_six_room_hall_counts_its_four_rooms_and_a_guild_at_its_last_rank_has_none() -> void:
 	var hall := Hall.new(1_000)
 	hall.layout = Hall.OLD_LAYOUT
-	assert_eq(hall.rank_up_checklist(0, 0, 2, SEALED_GATE_DONE, 1_000)[1], {"what": "rooms", "has": 0, "needs": 4, "met": false})
-	hall.rank = "E"
-	assert_eq(hall.rank_up_checklist(100, 10_000, 2, SEALED_GATE_DONE, 1_000), [])
+	assert_eq(hall.rank_up_checklist(_guild(0, Gold.new(0), 2, SEALED_GATE_DONE), 1_000)[1], {"what": "rooms", "has": 0, "needs": 4, "met": false})
+	hall.rank = "D"
+	assert_eq(hall.rank_up_checklist(_guild(100, Gold.new(10_000), 2, SEALED_GATE_DONE), 1_000), [])
 
 
 ## A new game's hall at 1_000 with its side room a Bunk room and its backroom a Common room, both
@@ -1420,8 +1433,8 @@ func _rank_f_hall_in_use(gold: Gold) -> Hall:
 func _assert_rank_up_refused(hall: Hall, reputation: int, gold: Gold, now: int, reason: String, parties: int = 2, story_done: PackedStringArray = SEALED_GATE_DONE) -> void:
 	var held := gold.amount
 	var rank := hall.rank
-	assert_eq(hall.rank_up_refusal(reputation, gold, parties, story_done, now), reason)
-	assert_false(hall.rank_up(reputation, gold, parties, story_done, now), reason)
+	assert_eq(hall.rank_up_refusal(_guild(reputation, gold, parties, story_done), now), reason)
+	assert_false(hall.rank_up(_guild(reputation, gold, parties, story_done), now), reason)
 	assert_eq(gold.amount, held, reason)
 	assert_eq(hall.rank, rank, reason)
 	assert_true(hall.ranked_at.is_empty(), reason)
@@ -1434,7 +1447,7 @@ func test_each_rank_up_refusal_changes_nothing_reputation_first_then_every_room_
 	_assert_rank_up_refused(hall, 15, Gold.new(100), 1_000, "Every room in use first")
 	hall = _rank_f_hall_in_use(Gold.new(1_000))
 	_assert_rank_up_refused(hall, 15, Gold.new(120), 1_010, "Need 30 more gold")
-	hall.rank = "E"
+	hall.rank = "D"
 	_assert_rank_up_refused(hall, 100, Gold.new(10_000), 1_010, "Highest rank for now")
 
 
@@ -1451,35 +1464,36 @@ func test_with_2_parties_but_the_sealed_gate_not_done_ranking_up_is_refused_with
 	_assert_rank_up_refused(hall, 15, Gold.new(200), 1_010, "Finish The sealed gate first", 2, PackedStringArray())
 	# Before gold.
 	_assert_rank_up_refused(hall, 15, Gold.new(100), 1_010, "Finish The sealed gate first", 2, PackedStringArray())
-	var checklist := hall.rank_up_checklist(15, 200, 2, PackedStringArray(), 1_010)
+	var checklist := hall.rank_up_checklist(_guild(15, Gold.new(200), 2, PackedStringArray()), 1_010)
 	assert_eq(checklist.map(func(line: Dictionary) -> String: return line["what"]), ["reputation", "rooms", "parties", "story", "gold"])
 	assert_eq(checklist[2], {"what": "parties", "has": 2, "needs": 2, "met": true})
-	assert_eq(checklist[3], {"what": "story", "has": 0, "needs": 1, "met": false})
-	assert_eq(hall.rank_up_checklist(15, 200, 1, SEALED_GATE_DONE, 1_010).slice(2, 4), [
+	assert_eq(checklist[3], {"what": "story", "quest": "sealed_gate", "has": 0, "needs": 1, "met": false})
+	assert_eq(hall.rank_up_checklist(_guild(15, Gold.new(200), 1, SEALED_GATE_DONE), 1_010).slice(2, 4), [
 		{"what": "parties", "has": 1, "needs": 2, "met": false},
-		{"what": "story", "has": 1, "needs": 1, "met": true},
+		{"what": "story", "quest": "sealed_gate", "has": 1, "needs": 1, "met": true},
 	])
 
 
 func test_with_all_of_it_met_ranking_up_works_as_before() -> void:
 	var hall := _rank_f_hall_in_use(Gold.new(1_000))
 	var gold := Gold.new(200)
-	assert_eq(hall.rank_up_refusal(15, gold, 2, SEALED_GATE_DONE, 1_020), "")
-	assert_true(hall.rank_up(15, gold, 2, SEALED_GATE_DONE, 1_020))
+	assert_eq(hall.rank_up_refusal(_guild(15, gold, 2, SEALED_GATE_DONE), 1_020), "")
+	assert_true(hall.rank_up(_guild(15, gold, 2, SEALED_GATE_DONE), 1_020))
 	assert_eq(gold.amount, 50)
 	assert_eq(hall.rank, "E")
 	assert_eq(hall.ranked_at, {"E": 1_020})
 	assert_eq(hall.state("front_right", 1_020), Hall.State.DAMAGED)
-	# A rank-E guild has nothing more to meet, whatever its parties.
-	assert_eq(hall.rank_up_refusal(100, Gold.new(10_000), 0, PackedStringArray(), 1_030), "Highest rank for now")
-	assert_eq(hall.rank_up_checklist(100, 10_000, 0, PackedStringArray(), 1_030), [])
+	# A rank-D guild has nothing more to meet, whatever its parties.
+	hall.rank = "D"
+	assert_eq(hall.rank_up_refusal(_guild(100, Gold.new(10_000), 0, PackedStringArray()), 1_030), "Highest rank for now")
+	assert_eq(hall.rank_up_checklist(_guild(100, Gold.new(10_000), 0, PackedStringArray()), 1_030), [])
 
 
 func test_ranking_up_pays_150_sets_rank_e_records_when_and_grows_the_wing_damaged_beside_a_usable_entrance_hall() -> void:
 	var hall := _rank_f_hall_in_use(Gold.new(1_000))
 	var gold := Gold.new(200)
-	assert_eq(hall.rank_up_refusal(15, gold, 2, SEALED_GATE_DONE, 1_020), "")
-	assert_true(hall.rank_up(15, gold, 2, SEALED_GATE_DONE, 1_020))
+	assert_eq(hall.rank_up_refusal(_guild(15, gold, 2, SEALED_GATE_DONE), 1_020), "")
+	assert_true(hall.rank_up(_guild(15, gold, 2, SEALED_GATE_DONE), 1_020))
 	assert_eq(gold.amount, 50)
 	assert_eq(hall.rank, "E")
 	assert_eq(hall.ranked_at, {"E": 1_020})
@@ -1517,7 +1531,7 @@ func test_a_hall_from_before_guild_ranks_ranks_up_gaining_only_the_front_room_an
 	assert_eq(file.save(SAVE_PATH), OK)
 	var hall := Hall.load_or_start(SAVE_PATH, 2_000)
 	var gold := Gold.new(150)
-	assert_true(hall.rank_up(15, gold, 2, SEALED_GATE_DONE, 2_000))
+	assert_true(hall.rank_up(_guild(15, gold, 2, SEALED_GATE_DONE), 2_000))
 	assert_eq(gold.amount, 0)
 	assert_eq(hall.rank, "E")
 	assert_eq(hall.state("front_right", 2_000), Hall.State.DAMAGED)
@@ -1538,7 +1552,7 @@ func test_a_ranked_up_hall_survives_save_and_load() -> void:
 		old.restored.append(slot)
 	old.converted.assign({"back_left": {"type": "bunk_room", "done_at": 1_000}, "back_right": {"type": "common_room", "done_at": 1_000}, "side_left": {"type": "tavern", "done_at": 1_000}, "side_right": {"type": "infirmary", "done_at": 1_000}})
 	for start: Hall in [_rank_f_hall_in_use(Gold.new(1_000)), old]:
-		assert_true(start.rank_up(15, Gold.new(150), 2, SEALED_GATE_DONE, 1_020))
+		assert_true(start.rank_up(_guild(15, Gold.new(150), 2, SEALED_GATE_DONE), 1_020))
 		var file := ConfigFile.new()
 		start.write(file)
 		assert_eq(file.save(SAVE_PATH), OK)
@@ -1550,7 +1564,7 @@ func test_a_ranked_up_hall_survives_save_and_load() -> void:
 			assert_eq(loaded.state(slot, 1_030), start.state(slot, 1_030), slot)
 		for capacity: String in ["beds", "candidate_slots", "board_slots", "stash"]:
 			assert_eq(loaded.reception(capacity), start.reception(capacity), capacity)
-		assert_eq(loaded.rank_up_refusal(100, Gold.new(10_000), 2, SEALED_GATE_DONE, 1_030), "Highest rank for now")
+		assert_eq(loaded.rank_up_refusal(_guild(100, Gold.new(10_000), 2, SEALED_GATE_DONE), 1_030), "Form 3 parties of 3 first")
 	assert_eq(old.reception("stash"), 20)
 
 

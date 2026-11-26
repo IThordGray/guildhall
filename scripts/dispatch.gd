@@ -638,7 +638,7 @@ func checkpoint(now: int, infirmary_tiers: PackedInt64Array = PackedInt64Array()
 	while not waiting_loot.is_empty() and adventurers.gear.stow(waiting_loot[0]["item"]):
 		waiting_loot.remove_at(0)
 	for debrief: Dictionary in _unpaid:
-		gold.amount += int(debrief["gold"])
+		gold.earn(int(debrief["gold"]))
 		if not debrief.get("xp_given", false):
 			for adventurer: String in debrief["party"]:
 				adventurers.gain_xp(adventurer, int(debrief["xp"]))
@@ -704,7 +704,7 @@ func _bring_home(outing: Dictionary) -> void:
 			adventurers.gain_xp(adventurer, xp)
 			if success:
 				adventurers.add_successes(adventurer, quest["rank"], 1)
-	gold.amount += reward
+	gold.earn(reward)
 	reputation = maxi(0, reputation + (int(quest.get("reputation", REPUTATION[quest["rank"]])) if success else -FAILURE_REPUTATION))
 	if success and is_story(outing["quest"]) and outing["quest"] not in story_done:
 		story_done.append(outing["quest"])

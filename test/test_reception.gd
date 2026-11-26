@@ -1,8 +1,5 @@
 extends GutTest
 
-## The story quests done once The sealed gate is, which ranking up to E needs.
-const SEALED_GATE_DONE: PackedStringArray = ["sealed_gate"]
-
 ## The screens are put on a layer above GUT's own output window, with Touch as main.tscn has it.
 var _layer: CanvasLayer
 
@@ -124,9 +121,9 @@ func test_the_reception_rebuilds_when_reputation_or_gold_changes_while_it_is_ope
 func test_a_guild_at_its_last_rank_shows_only_its_rank_and_back() -> void:
 	var reception := _screen("res://screens/reception.tscn") as Reception
 	var hall := Hall.new(1_000)
-	hall.rank = "E"
+	hall.rank = "D"
 	reception.show_guild(hall, _guild(30, 500), 1_000)
-	assert_has(_texts(reception), "Rank E guild")
+	assert_has(_texts(reception), "Rank D guild")
 	assert_false(reception.get_node("Box/Scroll/Columns/Needs").visible)
 	assert_false(reception.get_node("Box/Scroll/Columns/Opens").visible)
 	assert_true(reception.get_node("Box/Buttons/Back").visible)
@@ -165,7 +162,7 @@ func test_a_rank_e_hall_draws_the_front_split_with_the_three_new_rooms_and_a_ran
 	for absent: String in ["North-east room", "East room", "Entrance hall", "Front room"]:
 		assert_does_not_have(texts, absent)
 
-	assert_true(hall.rank_up(15, Gold.new(150), 2, SEALED_GATE_DONE, 1_020))
+	assert_true(hall.rank_up(_with(_guild(15, 150), 2, true), 1_020))
 	hall_view.show_state(hall, Dispatch.new(1_020), 0, 1_020)
 	await wait_process_frames(1)
 	assert_eq(summary.text, "Rank E guild · 3 of 6 rooms in use")
@@ -259,9 +256,9 @@ func test_pressing_rank_up_opens_the_confirm_card_and_confirming_ranks_up_and_re
 	var dispatch := _with(_guild(15, 200), 2, true)
 	# The same as main.gd does with the signals.
 	reception.rank_up_pressed.connect(func() -> void:
-		sheet.ask("Rank up to E", "150 gold", "Rank up", hall.rank_up_refusal(dispatch.reputation, dispatch.gold, dispatch.adventurers.parties.parties.size(), dispatch.story_done, 1_020)))
+		sheet.ask("Rank up to E", "150 gold", "Rank up", hall.rank_up_refusal(dispatch, 1_020)))
 	sheet.confirmed.connect(func() -> void:
-		hall.rank_up(dispatch.reputation, dispatch.gold, dispatch.adventurers.parties.parties.size(), dispatch.story_done, 1_020)
+		hall.rank_up(dispatch, 1_020)
 		sheet.close()
 		reception.show_guild(hall, dispatch, 1_020))
 	reception.show_guild(hall, dispatch, 1_010)
@@ -281,7 +278,7 @@ func test_pressing_rank_up_opens_the_confirm_card_and_confirming_ranks_up_and_re
 	assert_eq(hall.rank, "E")
 	assert_eq(dispatch.gold.amount, 50)
 	assert_has(_texts(reception), "Rank E guild")
-	assert_false(reception.get_node("Box/Scroll/Columns/Needs").visible)
+	assert_eq((reception.get_node("Box/Scroll/Columns/Needs/Section") as Label).text, "TO RANK D")
 	assert_false(reception.get_node("Box/Buttons/RankUp").visible)
 	assert_true(reception.get_node("Box/Buttons/Back").visible)
 

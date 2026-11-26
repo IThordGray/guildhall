@@ -9,9 +9,10 @@ signal rank_up_pressed
 ## What reaching each rank opens, in words for the player, by rank.
 const OPENS: Dictionary[String, PackedStringArray] = {
 	"E": ["Ground-floor wing: 3 rooms", "Storeroom, Infirmary, Quest hall", "Mostly rank-E quests", "Rank-E recruits", "Walk-ins sooner"],
+	"D": ["Tier-3 room upgrades", "A second Bunk room", "Extend: the First floor"],
 }
-## Each checklist line's name, by what Hall.rank_up_checklist calls it; the gold line is named by
-## the gold it needs.
+## Each checklist line's name, by what Hall.rank_up_checklist calls it, for the lines not named by
+## what they need (`_need_row`).
 const NEED_NAMES: Dictionary[String, String] = {"reputation": "Reputation", "rooms": "Rooms in use"}
 ## In landscape, the width of the column with the rank card and Back.
 const SIDE_WIDTH_PX: float = 554.0
@@ -72,8 +73,7 @@ func set_landscape(landscape: bool) -> void:
 ## line is met; at the last rank, only the rank.
 func show_guild(hall: Hall, dispatch: Dispatch, now: int) -> void:
 	_parties_count.text = str(dispatch.outings.size())
-	var parties := dispatch.adventurers.parties.parties.size()
-	var checklist := hall.rank_up_checklist(dispatch.reputation, dispatch.gold.amount, parties, dispatch.story_done, now)
+	var checklist := hall.rank_up_checklist(dispatch, now)
 	var shown := [hall.rank, dispatch.reputation, checklist]
 	if shown == _shown:
 		return
@@ -81,7 +81,7 @@ func show_guild(hall: Hall, dispatch: Dispatch, now: int) -> void:
 	_letter.text = hall.rank
 	_name.text = "Rank %s guild" % hall.rank
 	_reputation_count.text = str(dispatch.reputation)
-	_rank_up.visible = hall.rank_up_refusal(dispatch.reputation, dispatch.gold, parties, dispatch.story_done, now).is_empty()
+	_rank_up.visible = hall.rank_up_refusal(dispatch, now).is_empty()
 	var next: String = Hall.RANK_UPS.get(hall.rank, {}).get("to", "")
 	_needs.visible = not next.is_empty()
 	_opens.visible = not next.is_empty()
@@ -94,7 +94,7 @@ func show_guild(hall: Hall, dispatch: Dispatch, now: int) -> void:
 		row.get_parent().remove_child(row)
 		row.queue_free()
 	for line: Dictionary in checklist:
-		_need_rows.add_child(_need_row(line, Hall.RANK_UPS[hall.rank]["story"]))
+		_need_rows.add_child(_need_row(line))
 	for text: String in OPENS.get(next, PackedStringArray()):
 		var pip := ColorRect.new()
 		pip.custom_minimum_size = Vector2(PIP_PX, PIP_PX)
@@ -107,11 +107,11 @@ func show_guild(hall: Hall, dispatch: Dispatch, now: int) -> void:
 		_open_rows.add_child(_row(line))
 
 
-# A checklist line: its name, the story line's its quest `story`'s; for reputation, and for parties
-# while unmet, a small bar; what the guild has of what it needs, which the parties and gold lines
-# show only while unmet and the story line never; "not done" on the story line while unmet; and a
-# green tick, named Tick, once met.
-func _need_row(line: Dictionary, story: String) -> PanelContainer:
+# A checklist line: its name, a story line's its quest's and a cleared line's its floor's; for
+# reputation, and for parties while unmet, a small bar; what the guild has of what it needs, which
+# the reputation and rooms lines always show, a story line never and every other line only while
+# unmet; "not done" on a story line while unmet; and a green tick, named Tick, once met.
+func _need_row(line: Dictionary) -> PanelContainer:
 	var what: String = line["what"]
 	var has: int = line["has"]
 	var needs: int = line["needs"]
@@ -121,9 +121,17 @@ func _need_row(line: Dictionary, story: String) -> PanelContainer:
 	var name_text: String
 	match what:
 		"parties":
-			name_text = "%d parties" % needs
+			name_text = "%d parties" % needs + (" of %d" % line["size"] if line.has("size") else "")
+		"hall_level":
+			name_text = "Hall level %d" % needs
+		"earned":
+			name_text = "%d gold earned" % needs
+		"explored":
+			name_text = "Labyrinth %d%% explored" % needs
+		"cleared":
+			name_text = "%s cleared" % Dispatch.QUESTS[line["floor"]]["name"]
 		"story":
-			name_text = Dispatch.QUESTS[story]["name"]
+			name_text = Dispatch.QUESTS[line["quest"]]["name"]
 		"gold":
 			name_text = "%d gold" % needs
 		_:

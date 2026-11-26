@@ -263,7 +263,7 @@ static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String
 			plan["stopped"] = true
 	for plan: Dictionary in plans:
 		var cycles: float = plan["cycles"]
-		dispatch.gold.amount += roundi(cycles * plan["gold"])
+		dispatch.gold.earn(roundi(cycles * plan["gold"]))
 		dispatch.reputation = maxi(0, dispatch.reputation + floori(cycles * plan["reputation"]))
 		for member: String in plan["members"]:
 			dispatch.adventurers.gain_xp(member, roundi(cycles * plan["xp"]))

@@ -44,7 +44,7 @@ func bring_home(floor_id: String, success: bool, gold: Gold) -> void:
 	var material: String = FLOORS[floor_id]["material"]
 	materials[material] = int(materials.get(material, 0)) + (SUCCESS_MATERIAL if success else FAILURE_MATERIAL)
 	if before < 100 and explored[floor_id] == 100:
-		gold.amount += int(FLOORS[floor_id]["clear_bonus"])
+		gold.earn(int(FLOORS[floor_id]["clear_bonus"]))
 
 
 ## Puts the labyrinth into `file`, which other state shares, so one save holds the whole game.

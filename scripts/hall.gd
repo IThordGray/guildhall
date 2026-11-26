@@ -35,12 +35,19 @@ const LAYOUTS: Array[Dictionary] = [
 ]
 ## The rank a new guild starts at.
 const STARTING_RANK: String = "F"
-## What ranking up from each rank needs: the rank it leads "to", the "reputation" earned, how many
-## "parties" the guild has, the "story" quest done (a Dispatch.QUESTS id) and the "gold" held, and
-## every room in use (`rank_up_checklist`). A rank with no row is the last.
+## What ranking up from each rank needs: the rank it leads "to", then each line it has, as
+## `rank_up_checklist` reads it: the "reputation" earned; with "rooms", every room in use; how many
+## "parties" the guild has of at least "party_size" members (any size without it); the "hall_level",
+## every converted room's tier added up; the gold "earned" since reaching the rank; how far the
+## labyrinth's floors are "explored" on average, in percent; the floors "cleared" (Dispatch.QUESTS
+## ids); the "story" quests done (Dispatch.QUESTS ids); and the "gold" held, which ranking up spends.
+## A rank with no row is the last. Numbers past F are stand-ins.
 const RANK_UPS: Dictionary[String, Dictionary] = {
-	"F": {"to": "E", "reputation": 15, "parties": 2, "story": "sealed_gate", "gold": 150},
+	"F": {"to": "E", "reputation": 15, "rooms": true, "parties": 2, "story": ["sealed_gate"], "gold": 150},
+	"E": {"to": "D", "reputation": 60, "parties": 3, "party_size": 3, "hall_level": 10, "earned": 400, "explored": 60, "cleared": ["floor_1"], "story": ["cooks_debt", "lost_survey"], "gold": 500},
 }
+## The lines a RANK_UPS row can have, in the order a checklist lists them.
+const RANK_UP_LINES: Array[String] = ["reputation", "rooms", "parties", "hall_level", "earned", "explored", "cleared", "story", "gold"]
 ## Extending the hall builds the First floor: what it costs and takes, done by the builder like a
 ## restoration, and how many rooms must be restored first (stand-ins).
 const EXTEND_GOLD: int = 400
@@ -88,6 +95,9 @@ var rank: String = STARTING_RANK
 ## Unix seconds the guild reached each rank it ranked up to: {rank: at}. A rank missing is not
 ## reached.
 var ranked_at: Dictionary[String, int] = {}
+## The gold the guild had earned (Gold.earned) when it reached each rank it ranked up to:
+## {rank: earned}. A rank missing counts from 0, as one reached before earnings were counted.
+var earned_at: Dictionary[String, int] = {}
 ## Slots the builder has finished restoring, converted or not.
 var restored: PackedStringArray = PackedStringArray()
 ## Whether the builder has finished extending the hall.
@@ -190,64 +200,119 @@ func has_rank(needed: String) -> bool:
 	return Challenges.RANKS.find(rank) >= Challenges.RANKS.find(needed)
 
 
-## What ranking up from the guild's rank needs (RANK_UPS) against what a guild with `reputation`,
-## `gold` held, `parties` (Parties.parties) and the story quests `story_done` (Dispatch.story_done)
-## has at `now`, in order: {"what": "reputation", "rooms", "parties", "story" or "gold", "has",
-## "needs", "met"}; the story line has 1 of 1 once its quest is done. Rooms count those on the
-## layout's ground floor that can take a job, the Reception and the entrance hall not among them;
-## one is in use once its conversion has finished. Empty at the last rank.
-func rank_up_checklist(reputation: int, gold: int, parties: int, story_done: PackedStringArray, now: int) -> Array[Dictionary]:
+## What ranking up from the guild's rank needs (RANK_UPS) against what `dispatch`'s guild has at
+## `now`: a line for each its row has, in RANK_UP_LINES order, each {"what": the line, "has",
+## "needs", "met"}. A story line, one for each quest, also gives its "quest" and has 1 of 1 once it
+## is done; a cleared line, one for each floor, gives its "floor" and has its explored percent of
+## 100; a parties line of a row with "party_size" gives it as "size". Rooms count those on the
+## layout's ground floor that can take a job, the Reception and the entrance hall not among them; one
+## is in use once its conversion has finished. The hall level adds up every converted room's tier, a
+## conversion or upgrade under way counting once finished. Gold earned counts from when the guild
+## reached its rank (`earned_at`). Empty at the last rank.
+func rank_up_checklist(dispatch: Dispatch, now: int) -> Array[Dictionary]:
 	var checklist: Array[Dictionary] = []
 	if not RANK_UPS.has(rank):
 		return checklist
-	var rooms := 0
-	var in_use := 0
-	for slot: String in LAYOUTS[layout]["ground_floor"]:
-		if slot in STARTING_USABLE:
-			continue
-		rooms += 1
-		if state(slot, now) == State.CONVERTED:
-			in_use += 1
 	var needs: Dictionary = RANK_UPS[rank]
-	var story := 1 if needs["story"] in story_done else 0
-	for line: Array in [["reputation", reputation, needs["reputation"]], ["rooms", in_use, rooms], ["parties", parties, needs["parties"]], ["story", story, 1], ["gold", gold, needs["gold"]]]:
-		checklist.append({"what": line[0], "has": line[1], "needs": line[2], "met": line[1] >= line[2]})
+	for what: String in RANK_UP_LINES:
+		if not needs.has(what):
+			continue
+		match what:
+			"reputation":
+				checklist.append(_line(what, dispatch.reputation, needs[what]))
+			"rooms":
+				var rooms := 0
+				var in_use := 0
+				for slot: String in LAYOUTS[layout]["ground_floor"]:
+					if slot in STARTING_USABLE:
+						continue
+					rooms += 1
+					if state(slot, now) == State.CONVERTED:
+						in_use += 1
+				checklist.append(_line(what, in_use, rooms))
+			"parties":
+				var size: int = needs.get("party_size", 1)
+				var big_enough := 0
+				for party: Dictionary in dispatch.adventurers.parties.parties:
+					if party["members"].size() >= size:
+						big_enough += 1
+				var line := _line(what, big_enough, needs[what])
+				if needs.has("party_size"):
+					line["size"] = size
+				checklist.append(line)
+			"hall_level":
+				var level := 1 if _converting() and seconds_left(now) == 0 else 0
+				for slot: String in converted:
+					level += tier(slot, now)
+				checklist.append(_line(what, level, needs[what]))
+			"earned":
+				checklist.append(_line(what, dispatch.gold.earned - earned_at.get(rank, 0), needs[what]))
+			"explored":
+				var explored := 0
+				for floor_id: String in Labyrinth.FLOORS:
+					explored += dispatch.labyrinth.explored_percent(floor_id)
+				checklist.append(_line(what, explored / Labyrinth.FLOORS.size(), needs[what]))
+			"cleared":
+				for floor_id: String in needs[what]:
+					var line := _line(what, dispatch.labyrinth.explored_percent(floor_id), 100)
+					line["floor"] = floor_id
+					checklist.append(line)
+			"story":
+				for quest: String in needs[what]:
+					var line := _line(what, 1 if quest in dispatch.story_done else 0, 1)
+					line["quest"] = quest
+					checklist.append(line)
+			"gold":
+				checklist.append(_line(what, dispatch.gold.amount, needs[what]))
 	return checklist
 
 
-## Why the guild, with `reputation` earned, `gold` held, and `parties` and `story_done` as for
-## `rank_up_checklist`, can't rank up at `now`, in words for the player; "" when it can: the first
+static func _line(what: String, has: int, needs: int) -> Dictionary:
+	return {"what": what, "has": has, "needs": needs, "met": has >= needs}
+
+
+## Why `dispatch`'s guild can't rank up at `now`, in words for the player; "" when it can: the first
 ## unmet line of `rank_up_checklist`.
-func rank_up_refusal(reputation: int, gold: Gold, parties: int, story_done: PackedStringArray, now: int) -> String:
+func rank_up_refusal(dispatch: Dispatch, now: int) -> String:
 	if not RANK_UPS.has(rank):
 		return "Highest rank for now"
-	for line: Dictionary in rank_up_checklist(reputation, gold.amount, parties, story_done, now):
+	for line: Dictionary in rank_up_checklist(dispatch, now):
 		if line["met"]:
 			continue
 		match line["what"]:
 			"rooms":
 				return "Every room in use first"
 			"parties":
-				# RANK_UPS' one row needs 2.
-				return "Form a second party first"
+				if line.has("size"):
+					return "Form %d parties of %d first" % [line["needs"], line["size"]]
+				return "Form a second party first" if line["needs"] == 2 else "Form %d parties first" % line["needs"]
+			"hall_level":
+				return "Hall level %d first" % line["needs"]
+			"earned":
+				return "Earn %d more gold first" % (line["needs"] - line["has"])
+			"explored":
+				return "Explore the labyrinth further first"
+			"cleared":
+				return "Clear %s first" % Dispatch.QUESTS[line["floor"]]["name"]
 			"story":
-				return "Finish %s first" % Dispatch.QUESTS[RANK_UPS[rank]["story"]]["name"]
+				return "Finish %s first" % Dispatch.QUESTS[line["quest"]]["name"]
 		return "Need %d more %s" % [line["needs"] - line["has"], line["what"]]
 	return ""
 
 
-## Pays and ranks the guild up at `now`, with what it has as for `rank_up_refusal`, growing the hall
-## into its layout's "rank_up" and recording when; false, with nothing changed, when
+## Pays from `dispatch`'s gold and ranks the guild up at `now`, growing the hall into its layout's
+## "rank_up" and recording when and the gold earned by then; false, with nothing changed, when
 ## `rank_up_refusal` gives a reason. Reputation is not spent. Rooms the hall already has keep their
 ## state; the ones the new layout adds start damaged.
-func rank_up(reputation: int, gold: Gold, parties: int, story_done: PackedStringArray, now: int) -> bool:
-	if not rank_up_refusal(reputation, gold, parties, story_done, now).is_empty():
+func rank_up(dispatch: Dispatch, now: int) -> bool:
+	if not rank_up_refusal(dispatch, now).is_empty():
 		return false
 	checkpoint(now)
-	gold.spend(RANK_UPS[rank]["gold"])
+	dispatch.gold.spend(RANK_UPS[rank]["gold"])
 	rank = RANK_UPS[rank]["to"]
 	layout = LAYOUTS[layout].get("rank_up", layout)
 	ranked_at[rank] = checked_at
+	earned_at[rank] = dispatch.gold.earned
 	return true
 
 
@@ -394,7 +459,7 @@ func collect(slot: String, gold: Gold, now: int) -> int:
 	# A Tavern finished since the last checkpoint is among the converted rooms after it.
 	checkpoint(now)
 	converted[slot]["collected_at"] = checked_at
-	gold.amount += amount
+	gold.earn(amount)
 	return amount
 
 
@@ -623,6 +688,7 @@ func write(file: ConfigFile) -> void:
 	file.set_value("hall", "layout", layout)
 	file.set_value("hall", "rank", rank)
 	file.set_value("hall", "ranked_at", ranked_at)
+	file.set_value("hall", "earned_at", earned_at)
 	file.set_value("hall", "restored", restored)
 	file.set_value("hall", "converted", converted)
 	file.set_value("hall", "restoring", building)
@@ -644,6 +710,7 @@ static func load_or_start(path: String, now: int) -> Hall:
 	hall.layout = int(file.get_value("hall", "layout", OLD_LAYOUT))
 	hall.rank = file.get_value("hall", "rank", STARTING_RANK)
 	hall.ranked_at.assign(file.get_value("hall", "ranked_at", {}))
+	hall.earned_at.assign(file.get_value("hall", "earned_at", {}))
 	if not file.has_section("hall"):
 		return hall
 	hall.restored = file.get_value("hall", "restored", PackedStringArray())

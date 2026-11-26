@@ -119,7 +119,7 @@ func claim(id: String, dispatch: Dispatch, hall: Hall, story_done: PackedStringA
 	if state(id, dispatch, hall, story_done, now) != State.DONE:
 		return false
 	var goal: Dictionary = GOALS[id]
-	dispatch.gold.amount += int(goal["gold"])
+	dispatch.gold.earn(int(goal["gold"]))
 	dispatch.reputation += int(goal.get("reputation", 0))
 	claimed.append(id)
 	if not goal["unlocks"].is_empty() and not is_unlocked(goal["unlocks"]):
