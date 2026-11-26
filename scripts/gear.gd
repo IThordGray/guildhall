@@ -120,11 +120,17 @@ static func _draw_item(rng: RandomNumberGenerator, luck: int) -> String:
 		roll -= shares[each]
 		if roll <= 0:
 			break
-	var choices := PackedStringArray()
+	var choices := of_quality(quality)
+	return choices[rng.randi_range(0, choices.size() - 1)]
+
+
+## The items of `quality`, in ITEMS order.
+static func of_quality(quality: String) -> PackedStringArray:
+	var found := PackedStringArray()
 	for item: String in ITEMS:
 		if ITEMS[item]["quality"] == quality:
-			choices.append(item)
-	return choices[rng.randi_range(0, choices.size() - 1)]
+			found.append(item)
+	return found
 
 
 ## How likely loot is of each quality for a party with `luck` in all, in whole percent, as

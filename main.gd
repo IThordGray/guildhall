@@ -44,6 +44,7 @@ var _quest_board: Board
 var _recruits: Recruits
 var _walk_ins: WalkIns
 var _goals: Goals
+var _market: Market
 ## The slot the Give it a job screen is open for.
 var _chosen_slot: String = ""
 ## What the confirmation sheet asks about: the damaged slot to restore, Hall.EXTENSION, UPGRADE,
@@ -217,6 +218,7 @@ func _open_game() -> void:
 	_recruits = Recruits.load_or_start(save_path)
 	_walk_ins = WalkIns.load_or_start(save_path)
 	_goals = Goals.load_or_start(save_path)
+	_market = Market.load_or_start(save_path)
 	# What the Reception gives the guild depends on the hall the save holds; the stash's size
 	# follows the hall at each checkpoint.
 	_quest_board.reception_slots = _hall.reception("board_slots")
@@ -282,6 +284,7 @@ func _checkpoint(now: int) -> void:
 	_recruits.write(file)
 	_walk_ins.write(file)
 	_goals.write(file)
+	_market.write(file)
 	if file.save(save_path) != OK:
 		push_error("Could not save to " + save_path)
 	_gold_label.text = str(_gold.amount)

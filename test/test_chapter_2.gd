@@ -126,7 +126,7 @@ func test_an_old_save_that_claimed_rank_up_to_e_gets_the_cooks_debt_on_load() ->
 	file.set_value("goals", "unlocked", PackedStringArray(["sealed_gate", "labyrinth"]))
 	assert_eq(file.save(SAVE_PATH), OK)
 	var loaded := Goals.load_or_start(SAVE_PATH)
-	assert_eq(loaded.unlocked, PackedStringArray(["sealed_gate", "labyrinth", "cooks_debt"]))
+	assert_eq(loaded.unlocked, PackedStringArray(["sealed_gate", "labyrinth", "cooks_debt", "town"]))
 	assert_eq(_dispatch.open_story_quests(loaded.unlocked), PackedStringArray(["sealed_gate", "cooks_debt"]))
 	# One that hasn't claimed it yet doesn't.
 	file.set_value("goals", "claimed", PackedStringArray(CHAPTER_1))
@@ -136,8 +136,7 @@ func test_an_old_save_that_claimed_rank_up_to_e_gets_the_cooks_debt_on_load() ->
 
 func test_the_goals_card_names_every_unlock_and_the_chapter_2_ones_sensibly() -> void:
 	for id: String in Goals.GOALS:
-		var unlock: String = Goals.GOALS[id]["unlocks"]
-		if not unlock.is_empty():
+		for unlock: String in Goals.GOALS[id]["unlocks"]:
 			assert_has(GoalsCard.UNLOCK_NAMES, unlock, id)
 	assert_eq([GoalsCard.UNLOCK_NAMES["cooks_debt"], GoalsCard.UNLOCK_NAMES["kitchen"], GoalsCard.UNLOCK_NAMES["lost_survey"]], ["The cook's debt", "Kitchen", "The lost survey"])
 

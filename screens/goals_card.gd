@@ -8,7 +8,7 @@ extends VBoxContainer
 signal claim_pressed(goal: String, from: Vector2)
 
 ## What the player sees a goal's unlock called, by Goals' "unlocks".
-const UNLOCK_NAMES: Dictionary[String, String] = {Goals.AUTO: "Auto", "sealed_gate": "The sealed gate", Labyrinth.UNLOCK: "Labyrinth", "cooks_debt": "The cook's debt", "kitchen": "Kitchen", "lost_survey": "The lost survey"}
+const UNLOCK_NAMES: Dictionary[String, String] = {Goals.AUTO: "Auto", "sealed_gate": "The sealed gate", Labyrinth.UNLOCK: "Labyrinth", "cooks_debt": "The cook's debt", "kitchen": "Kitchen", "lost_survey": "The lost survey", Market.UNLOCK: "The town"}
 const BAR_SIZE_PX: Vector2 = Vector2(332, 12)
 ## How far Odile's lines lean, as a share of their height.
 const ITALIC_SLANT: float = 0.2
@@ -74,7 +74,10 @@ func _row(id: String, state: Goals.State, have_need: Vector2i) -> PanelContainer
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(title)
 	if not goal["unlocks"].is_empty():
-		var unlocks := QuestBoard.chip("Unlocks " + UNLOCK_NAMES[goal["unlocks"]], &"Pill")
+		var names := PackedStringArray()
+		for unlock: String in goal["unlocks"]:
+			names.append(UNLOCK_NAMES[unlock])
+		var unlocks := QuestBoard.chip("Unlocks " + ", ".join(names), &"Pill")
 		unlocks.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		top.add_child(unlocks)
 	elif not done:
