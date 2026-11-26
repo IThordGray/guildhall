@@ -246,7 +246,7 @@ const FURNITURE: Dictionary[String, Array] = {
 }
 ## What a room's icon offers: a damaged room or the stairs to build, an empty room to give a job, a
 ## Tavern's gold to collect, the Reception's crest when the guild can rank up; a room with a next
-## tier shows "build" too, to upgrade it. Each a pixel
+## tier its rank allows shows "build" too, to upgrade it. Each a pixel
 ## image, a row of characters per line, coloured by ICON_COLORS; "." is see-through.
 const ICONS: Dictionary[String, PackedStringArray] = {
 	"build": [
@@ -535,18 +535,20 @@ func _show_room(room: Room, slot: String, state: Hall.State, hall: Hall, now: in
 		Hall.State.CONVERTED:
 			room.title.text = Hall.ROOM_TYPES[type]["name"]
 			furniture = type
-			if type == "tavern":
+			if slot == hall.building and hall.seconds_left(now) > 0:
+				# Being upgraded: it stays in use, with the builder's bar.
+				room.bar.theme_type_variation = &"PlanBar"
+				building = true
+			elif type == "tavern":
+				# A Tavern with gold offers collecting before upgrading.
 				var held := hall.tavern_gold(slot, now)
 				room.bar.theme_type_variation = &"GoldBar"
 				room.bar.max_value = Hall.TAVERN_CAP
 				room.bar.value = held
 				if held > 0:
 					kind = "collect"
-			elif slot == hall.building and hall.seconds_left(now) > 0:
-				# Being upgraded: it stays in use, with the builder's bar.
-				room.bar.theme_type_variation = &"PlanBar"
-				building = true
-			elif not hall.next_upgrade(slot, now).is_empty():
+			# Short gold or a busy builder still shows it, and the card says why.
+			if kind.is_empty() and not building and hall.rank_allows_upgrade(slot, now):
 				kind = "upgrade"
 		Hall.State.RESTORED:
 			kind = "job"

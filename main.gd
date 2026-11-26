@@ -353,7 +353,8 @@ func _offer(now: int) -> void:
 		_confirm_sheet.ask("Rank up to " + rank_up["to"], "%d gold" % rank_up["gold"], "Rank up", _hall.rank_up_refusal(_dispatch.reputation, _gold, _dispatch.adventurers.parties.parties.size(), _dispatch.story_done, now))
 	elif _confirming == UPGRADE:
 		var next := _hall.next_upgrade(_upgrading, now)
-		_confirm_sheet.offer("Upgrade " + Hall.ROOM_TYPES[_hall.room_type(_upgrading)]["name"], next["gold"], next["seconds"], "Upgrade", _hall.upgrade_refusal(_upgrading, _gold, now), "+1 bed")
+		var info: Dictionary = Hall.ROOM_TYPES[_hall.room_type(_upgrading)]
+		_confirm_sheet.offer("Upgrade " + info["name"], next["gold"], next["seconds"], "Upgrade", _hall.upgrade_refusal(_upgrading, _gold, now), info.get("upgrade_blurb", ""))
 	else:
 		var next := _hall.next_restore()
 		_confirm_sheet.offer("Restore " + HallView.slot_name(_hall, _confirming), next["gold"], next["seconds"], "Restore", _hall.refusal(_confirming, _gold, now))

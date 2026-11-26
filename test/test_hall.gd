@@ -706,30 +706,6 @@ func test_an_old_save_loads_with_no_tavern_and_its_rooms_hold_no_gold() -> void:
 	assert_eq(hall.tavern_gold("side_left", 2_002 + 60), 20)
 
 
-func test_at_rank_f_only_a_bunk_room_and_a_common_room_can_be_built_and_any_other_type_is_refused_with_nothing_changed() -> void:
-	var gold := Gold.new(1_000)
-	var hall := Hall.new(1_000)
-	assert_true(hall.restore("side_left", gold, 1_000))
-	hall.checkpoint(1_030)
-	assert_eq(hall.open_types(), PackedStringArray(["bunk_room", "common_room"]))
-	var needs := {"quest_hall": "E", "infirmary": "E", "tavern": "D", "map_room": "D", "training_room": "D"}
-	for type: String in needs:
-		assert_eq(hall.convert_refusal("side_left", type, gold, 1_030), "Guild rank %s" % needs[type], type)
-		assert_false(hall.convert_room("side_left", type, gold, 1_030), type)
-	assert_eq(gold.amount, 940)
-	assert_eq(hall.state("side_left", 1_030), Hall.State.RESTORED)
-	assert_eq(hall.building, "")
-	for type: String in ["bunk_room", "common_room"]:
-		assert_eq(hall.convert_refusal("side_left", type, gold, 1_030), "", type)
-	# Rank E opens its own types, and rank D the rest.
-	hall.rank = "E"
-	assert_eq(hall.open_types(), PackedStringArray(["quest_hall", "infirmary", "bunk_room", "common_room", "storeroom"]))
-	assert_eq(hall.convert_refusal("side_left", "tavern", gold, 1_030), "Guild rank D")
-	assert_true(hall.convert_room("side_left", "quest_hall", gold, 1_030))
-	hall.rank = "D"
-	assert_eq(hall.open_types(), PackedStringArray(Hall.ROOM_TYPES.keys()))
-
-
 func test_extending_is_refused_at_rank_f_with_nothing_changed() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_restores(3, gold)
@@ -1256,7 +1232,7 @@ func test_every_upgrade_refusal_changes_nothing_builder_busy_short_gold_highest_
 	hall.checkpoint(1_009)
 	assert_true(hall.convert_room("back_left", "common_room", gold, 1_009))
 	hall.checkpoint(1_011)
-	_assert_upgrade_refused(hall, "back_left", gold, 1_011, "Not upgradable")
+	_assert_upgrade_refused(hall, "back_left", gold, 1_011, "Guild rank E")
 	_assert_upgrade_refused(hall, "reception", gold, 1_011, "Not upgradable")
 	assert_true(hall.upgrade("side_left", gold, 1_011))
 	hall.checkpoint(1_021)
@@ -1578,18 +1554,15 @@ func test_a_ranked_up_hall_survives_save_and_load() -> void:
 	assert_eq(old.reception("stash"), 20)
 
 
-func test_a_storeroom_can_be_built_only_at_rank_e_and_once_finished_adds_6_to_the_stash_cap() -> void:
+func test_a_storeroom_can_be_built_at_rank_f_and_once_finished_adds_6_to_the_stash_cap() -> void:
 	var gold := Gold.new(1_000)
 	var hall := Hall.new(1_000)
 	assert_true(hall.restore("side_left", gold, 1_000))
 	hall.checkpoint(1_030)
 	assert_eq(Hall.ROOM_TYPES["storeroom"]["name"], "Storeroom")
 	assert_eq(Hall.ROOM_TYPES["storeroom"]["blurb"], "6 more stash slots")
-	assert_eq(hall.convert_refusal("side_left", "storeroom", gold, 1_030), "Guild rank E")
-	assert_false(hall.convert_room("side_left", "storeroom", gold, 1_030))
 	assert_eq(gold.amount, 940)
-	assert_eq(hall.state("side_left", 1_030), Hall.State.RESTORED)
-	hall.rank = "E"
+	assert_eq(hall.convert_refusal("side_left", "storeroom", gold, 1_030), "")
 	assert_eq(hall.stash_cap(1_030), 6)
 	assert_true(hall.convert_room("side_left", "storeroom", gold, 1_030))
 	assert_eq(gold.amount, 880)

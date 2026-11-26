@@ -52,21 +52,27 @@ const EXTEND_RANK: String = "D"
 const FIRST_FLOOR: Array[String] = ["upper_nw", "upper_ne", "upper_sw", "upper_se"]
 ## What `building` holds while the builder extends the hall; not a slot.
 const EXTENSION: String = "first_floor"
-## What an empty restored room can be converted into, in panel order, and the guild rank that opens
-## each, and what building it costs and takes; the hall has at most one room of each type, so growth
-## comes from upgrading a room, not building another. A type with "upgrades" can be upgraded by the
-## builder from tier 1, each entry the cost and time of reaching the next tier. The save and the art
-## refer to a type by its id. What a type does is applied where its effect is: see Dispatch.
+## What an empty restored room can be converted into, in panel order, at any guild rank, and what
+## building it costs and takes. The hall has at most one room of each type, so growth comes from
+## upgrading a room, not building another; a type with "second_rank" may be built a second time once
+## the guild has that rank. Every type is upgraded by the builder from tier 1, each entry of
+## "upgrades" the cost and time of reaching the next tier, as far as UPGRADE_RANKS allows unless
+## "upgrades_any_rank"; "upgrade_blurb", where a type has one, is what an upgrade adds. The Bunk
+## room's "rank", the starting rank, is the one Recruits checks before suggesting one. The save and
+## the art refer to a type by its id. What a type does is applied where its effect is: see Dispatch.
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
-	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "rank": "E", "gold": 60, "seconds": 2},
-	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "rank": "E", "gold": 60, "seconds": 2},
-	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "rank": "F", "gold": 30, "seconds": 2, "upgrades": [{"gold": 60, "seconds": 4}, {"gold": 120, "seconds": 10}]},
-	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "rank": "D", "gold": 60, "seconds": 2},
-	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "rank": "D", "gold": 60, "seconds": 2},
-	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "rank": "D", "gold": 60, "seconds": 2},
-	"common_room": {"name": "Common room", "blurb": "more candidates visit", "rank": "F", "gold": 60, "seconds": 2},
-	"storeroom": {"name": "Storeroom", "blurb": "6 more stash slots", "rank": "E", "gold": 60, "seconds": 2},
+	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4}, {"gold": 300, "seconds": 10}]},
+	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4}, {"gold": 300, "seconds": 10}]},
+	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "rank": STARTING_RANK, "gold": 30, "seconds": 2, "second_rank": "D", "upgrades": [{"gold": 60, "seconds": 4}, {"gold": 120, "seconds": 10}], "upgrades_any_rank": true, "upgrade_blurb": "+1 bed"},
+	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4}, {"gold": 450, "seconds": 10}]},
+	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4}, {"gold": 450, "seconds": 10}]},
+	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4}, {"gold": 450, "seconds": 10}]},
+	"common_room": {"name": "Common room", "blurb": "more candidates visit", "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4}, {"gold": 220, "seconds": 10}]},
+	"storeroom": {"name": "Storeroom", "blurb": "6 more stash slots", "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4}, {"gold": 220, "seconds": 10}]},
 }
+## The guild rank upgrading a room to each tier from 2 needs: the first entry tier 2, and so on. The
+## guild's rank is how far its rooms grow.
+const UPGRADE_RANKS: Array[String] = ["E", "D"]
 ## A finished Tavern fills with gold at this rate from when it finished or was last collected, up
 ## to TAVERN_CAP; the cap is the reason to come back before it is full (stand-ins).
 const TAVERN_GOLD_PER_MINUTE: int = 20
@@ -90,9 +96,9 @@ var restored: PackedStringArray = PackedStringArray()
 ## Whether the builder has finished extending the hall.
 var first_floor: bool = false
 ## Rooms the builder has finished converting: slot -> {"type": a ROOM_TYPES id, "done_at": unix
-## seconds the conversion finished, for a room upgraded at least once "tier": the tier it reached
-## (none is tier 1), and for a Tavern collected at least once "collected_at": unix seconds it was
-## last collected}.
+## seconds the conversion finished, which is when it reached tier 1, for a room upgraded at least
+## once "upgraded_at": the unix seconds it reached each tier from 2, in order, and for a Tavern
+## collected at least once "collected_at": unix seconds it was last collected}.
 var converted: Dictionary[String, Dictionary] = {}
 ## The slot the builder is working on, or "" when the builder is free. One builder, so one
 ## restoration, conversion, upgrade or extension at a time.
@@ -161,9 +167,19 @@ func rooms_done(type: String, now: int) -> int:
 
 ## The tier of the converted room `slot` at `now`; an upgrade under way counts once finished.
 func tier(slot: String, now: int) -> int:
-	if slot == building and building_tier > 0 and seconds_left(now) == 0:
-		return building_tier
-	return int(converted.get(slot, {}).get("tier", 1))
+	return tier_at(slot, maxi(now, checked_at))
+
+
+## The tier the converted room `slot` has at `at`, a moment past or to come: 1, and one more for each
+## upgrade finished by then, one under way included.
+func tier_at(slot: String, at: int) -> int:
+	var reached := 1
+	for upgraded_at: int in converted.get(slot, {}).get("upgraded_at", []):
+		if upgraded_at <= at:
+			reached += 1
+	if slot == building and building_tier > 0 and _done_at() <= at:
+		reached += 1
+	return reached
 
 
 ## What the Reception gives the guild of `what`, a capacity in LAYOUTS: "beds", "candidate_slots",
@@ -175,15 +191,6 @@ func reception(what: String) -> int:
 ## Whether the guild's rank is at least `needed`.
 func has_rank(needed: String) -> bool:
 	return Challenges.RANKS.find(rank) >= Challenges.RANKS.find(needed)
-
-
-## The room types the guild's rank opens, in ROOM_TYPES order.
-func open_types() -> PackedStringArray:
-	var open := PackedStringArray()
-	for type: String in ROOM_TYPES:
-		if has_rank(ROOM_TYPES[type]["rank"]):
-			open.append(type)
-	return open
 
 
 ## What ranking up from the guild's rank needs (RANK_UPS) against what a guild with `reputation`,
@@ -287,7 +294,8 @@ func first_done_at(type: String) -> int:
 	var first := first_room(type)
 	if first.is_empty():
 		return -1
-	return _done_at() if first == building else int(converted[first]["done_at"])
+	# A room being upgraded is among the converted ones.
+	return _done_at() if first not in converted else int(converted[first]["done_at"])
 
 
 ## The gold the Tavern in `slot` holds at `now`: TAVERN_GOLD_PER_MINUTE for each minute since it
@@ -296,7 +304,7 @@ func first_done_at(type: String) -> int:
 func tavern_gold(slot: String, now: int) -> int:
 	if room_type(slot) != "tavern" or state(slot, now) != State.CONVERTED:
 		return 0
-	var since: int = _done_at() if slot == building else int(converted[slot].get("collected_at", converted[slot]["done_at"]))
+	var since: int = _done_at() if slot not in converted else int(converted[slot].get("collected_at", converted[slot]["done_at"]))
 	return mini(TAVERN_CAP, (maxi(now, checked_at) - since) * TAVERN_GOLD_PER_MINUTE / 60)
 
 
@@ -375,17 +383,18 @@ static func _restore_after(before: int) -> Dictionary:
 
 
 ## Why `slot` can't be converted into `type` at `now`, in words for the player; "" when it can.
-## A type already built, or being built, can't be built again; rooms of a type a save already holds
-## twice stay as they are.
+## A type already built, or being built, can't be built again, but for a second room of a type with
+## "second_rank" at that rank; rooms of a type a save already holds twice stay as they are.
 func convert_refusal(slot: String, type: String, gold: Gold, now: int) -> String:
 	if state(slot, now) != State.RESTORED:
 		return "Not an empty room"
-	if not has_rank(ROOM_TYPES[type]["rank"]):
-		return "Guild rank %s" % ROOM_TYPES[type]["rank"]
 	if _converting() and building_into == type and seconds_left(now) > 0:
 		return "Being built"
-	if rooms_done(type, now) > 0:
+	var done := rooms_done(type, now)
+	if done > 1 or (done == 1 and not ROOM_TYPES[type].has("second_rank")):
 		return "Already built"
+	if done == 1 and not has_rank(ROOM_TYPES[type]["second_rank"]):
+		return "Guild rank %s" % ROOM_TYPES[type]["second_rank"]
 	return _builder_refusal(ROOM_TYPES[type]["gold"], gold, now)
 
 
@@ -408,14 +417,25 @@ func next_upgrade(slot: String, now: int) -> Dictionary:
 	return upgrades[at - 1]
 
 
-## Why `slot` can't be upgraded at `now`, in words for the player; "" when it can. Any guild rank
-## can upgrade.
+## Whether the guild's rank allows the converted room `slot` its next tier at `now`: the tier's rank
+## in UPGRADE_RANKS, or any rank for a type with "upgrades_any_rank"; false at its highest tier.
+func rank_allows_upgrade(slot: String, now: int) -> bool:
+	if next_upgrade(slot, now).is_empty():
+		return false
+	return ROOM_TYPES[room_type(slot)].get("upgrades_any_rank", false) or has_rank(UPGRADE_RANKS[tier(slot, now) - 1])
+
+
+## Why `slot` can't be upgraded at `now`, in words for the player; "" when it can. The next tier
+## needs `rank_allows_upgrade`.
 func upgrade_refusal(slot: String, gold: Gold, now: int) -> String:
-	if not ROOM_TYPES.get(room_type(slot), {}).has("upgrades"):
+	var info: Dictionary = ROOM_TYPES.get(room_type(slot), {})
+	if not info.has("upgrades"):
 		return "Not upgradable"
 	var next := next_upgrade(slot, now)
 	if next.is_empty():
 		return "Highest tier"
+	if not rank_allows_upgrade(slot, now):
+		return "Guild rank %s" % UPGRADE_RANKS[tier(slot, now) - 1]
 	return _builder_refusal(next["gold"], gold, now)
 
 
@@ -465,7 +485,7 @@ func checkpoint(now: int) -> void:
 		elif building_into.is_empty():
 			restored.append(building)
 		elif building_tier > 0:
-			converted[building]["tier"] = building_tier
+			converted[building]["upgraded_at"] = converted[building].get("upgraded_at", []) + [_done_at()]
 		else:
 			converted[building] = {"type": building_into, "done_at": _done_at()}
 		building = ""
@@ -529,6 +549,14 @@ static func load_or_start(path: String, now: int) -> Hall:
 		return hall
 	hall.restored = file.get_value("hall", "restored", PackedStringArray())
 	hall.converted.assign(file.get_value("hall", "converted", {}))
+	# A save from before tier times kept only the tier reached: each tier counts from the conversion.
+	for room: Dictionary in hall.converted.values():
+		if room.has("tier"):
+			var upgraded_at := []
+			upgraded_at.resize(int(room["tier"]) - 1)
+			upgraded_at.fill(int(room["done_at"]))
+			room["upgraded_at"] = upgraded_at
+			room.erase("tier")
 	hall.building = file.get_value("hall", "restoring", "")
 	hall.building_since = int(file.get_value("hall", "restoring_since", 0))
 	hall.building_into = file.get_value("hall", "converting_into", "")
