@@ -14,11 +14,12 @@ const SIDE: String = "side"
 ## What claiming "hand_quests" unlocks: Auto (see Auto.checkpoint).
 const AUTO: String = "auto"
 
-## Chapter 1, in the order the story tells it. Each goal: "name", what the player sees it called;
-## "kind", STORY or SIDE; "openers", the goals that must be claimed before it opens; "counts", what
-## it counts (`progress`), with "rank" or "quest" where that needs one, and "need", the target;
-## "line", what the clerk says; "gold" and, for some, "reputation", its reward; "unlocks", a flag or
-## story quest claiming it turns on, "" for none. The save refers to a goal by its id.
+## Chapters 1 and 2, in the order the story tells them. Each goal: "name", what the player sees it
+## called; "kind", STORY or SIDE; "openers", the goals that must be claimed before it opens; "counts",
+## what it counts (`progress`), with "rank", "quest" or "floor" where that needs one, and "need", the
+## target; "line", what the clerk says; "gold" and, for some, "reputation", its reward; "unlocks", a
+## flag or story quest claiming it turns on, "" for none (Hall.ROOM_TYPES "unlock" names the room
+## types one turns on). The save refers to a goal by its id.
 const GOALS: Dictionary[String, Dictionary] = {
 	"first_quest": {"name": "Send a party on a quest", "kind": STORY, "openers": [], "counts": "quests_home", "need": 1, "line": "Pick a quest from the board and see your party home.", "gold": 10, "unlocks": ""},
 	"first_restore": {"name": "Restore a room", "kind": STORY, "openers": ["first_quest"], "counts": "rooms_restored", "need": 1, "line": "This old hall needs work. Have the builder restore a room.", "gold": 15, "unlocks": ""},
@@ -27,7 +28,11 @@ const GOALS: Dictionary[String, Dictionary] = {
 	"second_party": {"name": "Form a second party", "kind": STORY, "openers": ["first_recruit"], "counts": "parties", "need": 2, "line": "Two parties can work at once. Form a second one.", "gold": 20, "unlocks": "sealed_gate"},
 	"sealed_gate": {"name": "Finish The sealed gate", "kind": STORY, "openers": ["second_party"], "counts": "story_quest", "quest": "sealed_gate", "need": 1, "line": "The town wants the sealed gate opened. I think you're ready.", "gold": 30, "reputation": 3, "unlocks": Labyrinth.UNLOCK},
 	"first_expedition": {"name": "Send a party into the labyrinth", "kind": STORY, "openers": ["sealed_gate"], "counts": "floors_home", "need": 1, "line": "The gate is open. Send a party down and see what they find.", "gold": 20, "unlocks": ""},
-	"rank_e": {"name": "Rank up to E", "kind": STORY, "openers": ["sealed_gate"], "counts": "guild_rank", "rank": "E", "need": 1, "line": "You've earned the town's trust. Rank the guild up to E.", "gold": 50, "unlocks": ""},
+	"rank_e": {"name": "Rank up to E", "kind": STORY, "openers": ["sealed_gate"], "counts": "guild_rank", "rank": "E", "need": 1, "line": "You've earned the town's trust. Rank the guild up to E.", "gold": 50, "unlocks": "cooks_debt"},
+	"cooks_debt": {"name": "Pay the cook's debt", "kind": STORY, "openers": ["rank_e"], "counts": "story_quest", "quest": "cooks_debt", "need": 1, "line": "Settle the old cook's debts and she'll cook for your guild.", "gold": 40, "unlocks": "kitchen"},
+	"clear_floor_1": {"name": "Clear The Galleries", "kind": STORY, "openers": ["first_expedition"], "counts": "floor_explored", "floor": "floor_1", "need": 100, "line": "Map every corner of the first floor before you go deeper.", "gold": 40, "unlocks": "lost_survey"},
+	"lost_survey": {"name": "Recover the lost survey", "kind": STORY, "openers": ["clear_floor_1"], "counts": "story_quest", "quest": "lost_survey", "need": 1, "line": "Bring me back the survey a lost cartographer left below.", "gold": 50, "unlocks": ""},
+	"rank_d": {"name": "Rank up to D", "kind": STORY, "openers": ["cooks_debt", "lost_survey", "rank_e"], "counts": "guild_rank", "rank": "D", "need": 1, "line": "The whole town talks of you now, so rank the guild up to D.", "gold": 100, "unlocks": ""},
 	"hand_quests": {"name": "Send 10 quests by hand", "kind": SIDE, "openers": [], "counts": "hand_quests", "need": 10, "line": "Send ten quests out yourself, then your parties may go alone.", "gold": 20, "unlocks": AUTO},
 }
 
@@ -75,8 +80,8 @@ func shown(dispatch: Dispatch, hall: Hall, story_done: PackedStringArray, now: i
 
 ## What goal `id` counts, as [have, need], from the game as it is at `now`: parties home from any
 ## quest or from any floor of the labyrinth (Dispatch.tries), rooms on the ground floor restored or with a job, adventurers, parties,
-## whether its story quest is in `story_done` or the guild has its rank, or quests sent by hand
-## home (`hand_quests`).
+## whether its story quest is in `story_done` or the guild has its rank, how much of its floor is
+## explored in percent, or quests sent by hand home (`hand_quests`).
 func progress(id: String, dispatch: Dispatch, hall: Hall, story_done: PackedStringArray, now: int) -> Vector2i:
 	var goal: Dictionary = GOALS[id]
 	var have := 0
@@ -100,6 +105,8 @@ func progress(id: String, dispatch: Dispatch, hall: Hall, story_done: PackedStri
 			have = 1 if goal["quest"] in story_done else 0
 		"guild_rank":
 			have = 1 if hall.has_rank(goal["rank"]) else 0
+		"floor_explored":
+			have = dispatch.labyrinth.explored_percent(goal["floor"])
 		"hand_quests":
 			have = hand_quests
 	return Vector2i(have, goal["need"])
@@ -152,7 +159,8 @@ func write(file: ConfigFile) -> void:
 
 ## The goals saved at `path`; a new game's, with nothing unlocked, when there is no save. A save
 ## without goals is from before them: its guild has had Auto all along, so it keeps it, and with
-## nothing claimed, the goals it already meets are done.
+## nothing claimed, the goals it already meets are done. A goal claimed before what it unlocks was
+## added gets that unlock now.
 static func load_or_start(path: String) -> Goals:
 	var goals := Goals.new()
 	var file := ConfigFile.new()
@@ -165,4 +173,8 @@ static func load_or_start(path: String) -> Goals:
 	goals.unlocked = file.get_value("goals", "unlocked", PackedStringArray())
 	goals.hand_quests = int(file.get_value("goals", "hand_quests", 0))
 	goals.out_by_hand = file.get_value("goals", "out_by_hand", PackedStringArray())
+	for id: String in goals.claimed:
+		var unlock: String = GOALS.get(id, {}).get("unlocks", "")
+		if not unlock.is_empty() and not goals.is_unlocked(unlock):
+			goals.unlocked.append(unlock)
 	return goals

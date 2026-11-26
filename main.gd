@@ -268,6 +268,7 @@ func _on_tick() -> void:
 func _checkpoint(now: int) -> void:
 	_hall.checkpoint(now)
 	_dispatch.adventurers.gear.stash_cap = _hall.stash_cap(now)
+	_dispatch.kitchen_tiers = _hall.tier_times("kitchen")
 	Auto.checkpoint(_dispatch, _quest_board, now, _hall.added_at("board_slots"), _hall.tier_times("infirmary"), _hall.tier_times("map_room"), _hall.tier_times("quest_hall"), _hall.rank, _goals.is_unlocked(Goals.AUTO))
 	_goals.count_home(_dispatch)
 	_recruits.refill(_dispatch.adventurers, now, _hall.added_at("candidate_slots"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1))
@@ -316,7 +317,7 @@ func _checkpoint(now: int) -> void:
 	if _picker.visible and _picker.has_quest():
 		_picker.show_dispatch(_dispatch, now)
 	if _convert_panel.visible:
-		_convert_panel.show_hall(_hall, _chosen_slot, _gold, now)
+		_convert_panel.show_hall(_hall, _chosen_slot, _gold, now, _goals.unlocked)
 	if _confirm_sheet.visible:
 		_offer(now)
 
@@ -448,14 +449,14 @@ func _show_collected(amount: int, from: Vector2) -> void:
 
 func _on_job_pressed(slot: String) -> void:
 	_chosen_slot = slot
-	_convert_panel.show_hall(_hall, slot, _gold, _now())
+	_convert_panel.show_hall(_hall, slot, _gold, _now(), _goals.unlocked)
 	_hall_view.hide()
 	_convert_panel.show()
 
 
 func _on_convert_pressed(type: String) -> void:
 	var now := _now()
-	if _hall.convert_room(_chosen_slot, type, _gold, now):
+	if _hall.convert_room(_chosen_slot, type, _gold, now, _goals.unlocked):
 		_close_convert()
 	_checkpoint(now)
 

@@ -53,7 +53,8 @@ const FIRST_FLOOR: Array[String] = ["upper_nw", "upper_ne", "upper_sw", "upper_s
 ## What `building` holds while the builder extends the hall; not a slot.
 const EXTENSION: String = "first_floor"
 ## What an empty restored room can be converted into, in panel order, at any guild rank, and what
-## building it costs and takes. The hall has at most one room of each type, so growth comes from
+## building it costs and takes. A type with "unlock" can be built only once Goals has unlocked that
+## flag (`convert_refusal`). The hall has at most one room of each type, so growth comes from
 ## upgrading a room, not building another; a type with "second_rank" may be built a second time once
 ## the guild has that rank. Every type is upgraded by the builder from tier 1, each entry of
 ## "upgrades" the cost and time of reaching the next tier, as far as UPGRADE_RANKS allows unless
@@ -63,8 +64,8 @@ const EXTENSION: String = "first_floor"
 ## the first entry tier 1, and so on (stand-ins); see `capacity`. A Tavern's "gold_per_minute" and
 ## "holds" and a Training room's "stint_xp" are by tier the same way; see `tavern_gold` and
 ## `stint_xp`. The save and the art refer to a type by its id. What any other type does, and what its
-## tiers change, is applied where its effect is, from `tier_times`: see Dispatch (Infirmary), Board
-## (Map room, Quest hall tier 3) and Recruits (Common room tier 3).
+## tiers change, is applied where its effect is, from `tier_times`: see Dispatch (Infirmary,
+## Kitchen), Board (Map room, Quest hall tier 3) and Recruits (Common room tier 3).
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
 	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "board_slots": [1, 2, 2], "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4}, {"gold": 300, "seconds": 10, "blurb": "Slots refill twice as fast"}]},
 	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4, "blurb": "Heals faster, shorter injuries"}, {"gold": 300, "seconds": 10, "blurb": "Heals faster, shorter injuries"}]},
@@ -74,6 +75,7 @@ const ROOM_TYPES: Dictionary[String, Dictionary] = {
 	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "training_places": [1, 1, 2], "stint_xp": [Dispatch.TRAINING_MAX_XP, 40, 40], "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4, "blurb": "40 XP a stint"}, {"gold": 450, "seconds": 10, "blurb": "A second trainee"}]},
 	"common_room": {"name": "Common room", "blurb": "more candidates visit", "candidate_slots": [1, 2, 2], "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4}, {"gold": 220, "seconds": 10, "blurb": "Slots refill twice as fast"}]},
 	"storeroom": {"name": "Storeroom", "blurb": "6 more stash slots", "stash": [6, 12, 20], "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4, "blurb": "+6 stash slots"}, {"gold": 220, "seconds": 10, "blurb": "+8 stash slots"}]},
+	"kitchen": {"name": "Kitchen", "blurb": "+10% XP from quests", "unlock": "kitchen", "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4, "blurb": "+10% XP"}, {"gold": 300, "seconds": 10, "blurb": "+10% XP"}]},
 }
 ## The guild rank upgrading a room to each tier from 2 needs: the first entry tier 2, and so on. The
 ## guild's rank is how far its rooms grow.
@@ -457,10 +459,11 @@ static func _restore_after(before: int) -> Dictionary:
 	return RESTORES[mini(before, RESTORES.size() - 1)]
 
 
-## Why `slot` can't be converted into `type` at `now`, in words for the player; "" when it can.
-## A type already built, or being built, can't be built again, but for a second room of a type with
-## "second_rank" at that rank; rooms of a type a save already holds twice stay as they are.
-func convert_refusal(slot: String, type: String, gold: Gold, now: int) -> String:
+## Why `slot` can't be converted into `type` at `now`, for a guild whose goals have unlocked
+## `unlocked` (Goals.unlocked), in words for the player; "" when it can. A type with "unlock" needs it
+## unlocked. A type already built, or being built, can't be built again, but for a second room of a
+## type with "second_rank" at that rank; rooms of a type a save already holds twice stay as they are.
+func convert_refusal(slot: String, type: String, gold: Gold, now: int, unlocked: PackedStringArray = PackedStringArray()) -> String:
 	if state(slot, now) != State.RESTORED:
 		return "Not an empty room"
 	if _converting() and building_into == type and seconds_left(now) > 0:
@@ -470,13 +473,21 @@ func convert_refusal(slot: String, type: String, gold: Gold, now: int) -> String
 		return "Already built"
 	if done == 1 and not has_rank(ROOM_TYPES[type]["second_rank"]):
 		return "Guild rank %s" % ROOM_TYPES[type]["second_rank"]
+	if not is_unlocked(type, unlocked):
+		return "Not unlocked yet"
 	return _builder_refusal(ROOM_TYPES[type]["gold"], gold, now)
 
 
+## Whether room type `type` can be built by a guild whose goals have unlocked `unlocked`
+## (Goals.unlocked): one without "unlock" always can.
+static func is_unlocked(type: String, unlocked: PackedStringArray) -> bool:
+	return not ROOM_TYPES[type].has("unlock") or ROOM_TYPES[type]["unlock"] in unlocked
+
+
 ## Pays and starts converting `slot` into `type` at `now`; false, with nothing paid, when
-## `convert_refusal` gives a reason.
-func convert_room(slot: String, type: String, gold: Gold, now: int) -> bool:
-	if not convert_refusal(slot, type, gold, now).is_empty():
+## `convert_refusal`, with `unlocked` as there, gives a reason.
+func convert_room(slot: String, type: String, gold: Gold, now: int, unlocked: PackedStringArray = PackedStringArray()) -> bool:
+	if not convert_refusal(slot, type, gold, now, unlocked).is_empty():
 		return false
 	_start(slot, type, 0, ROOM_TYPES[type]["gold"], gold, now)
 	return true

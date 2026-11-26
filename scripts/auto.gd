@@ -153,8 +153,9 @@ static func _settle(dispatch: Dispatch, board: Board, to: int, quest_halls_done:
 # each Infirmary tier on, Dispatch.INFIRMARY_HEAL_RATES), then a wait for the next such quest to
 # come up. It takes each quest as often as it comes up, and what it takes is gone for the parties
 # after it. Quests taken count as learned (`_takes`). It earns the cycles' gold, the guild their
-# expected reputation rounded down (never taking it below 0), and each member their XP and their
-# expected successes by quest rank, each rounded down, and adds their tries,
+# expected reputation rounded down (never taking it below 0), and each member their XP, each cycle's
+# as the Kitchen's tier then has it (Dispatch.kitchen_tiers), and their expected successes by quest
+# rank, each rounded down, and adds their tries,
 # revealing the quests tried. Its loot is the expected number of items, each drawn by a seed of the
 # party, its first ready moment and the cycle, put into the stash in time order across parties until
 # it is full; the first that doesn't fit waits for the player and ends that party's questing from
@@ -188,35 +189,55 @@ static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String
 		if rate == 0.0 or start >= to:
 			continue
 		# A cycle is a try, then a wait for the next quest it would take to come up: over each span
-		# between Infirmary tiers, the seconds a try takes on average, as they come up, healing at
-		# that span's rate.
+		# between Infirmary and Kitchen tiers, the seconds a try takes on average, as they come up,
+		# healing at that span's rate; and how many of the cycles fall at each Kitchen tier.
 		var cycles := 0.0
+		var kitchen_cycles: Array[float] = []
+		kitchen_cycles.resize(Dispatch.KITCHEN_XP_PERCENT.size() + 1)
+		kitchen_cycles.fill(0.0)
+		var breaks: Array[int] = []
+		for time: int in infirmary_tiers + dispatch.kitchen_tiers:
+			breaks.append(time)
+		breaks.sort()
+		breaks.append(to)
 		var since := start
-		for index: int in infirmary_tiers.size() + 1:
-			var until := to if index == infirmary_tiers.size() else clampi(infirmary_tiers[index], since, to)
-			var heal_rate: int = 1 if index == 0 else Dispatch.INFIRMARY_HEAL_RATES[index - 1]
+		for at: int in breaks:
+			var until := clampi(at, since, to)
+			var infirmary := Dispatch.tier_at(infirmary_tiers, since)
+			var heal_rate: int = 1 if infirmary == 0 else Dispatch.INFIRMARY_HEAL_RATES[infirmary - 1]
 			var seconds := 0.0
 			for quest: String in take:
 				seconds += offered.get(quest, 0.0) * (take[quest]["seconds"] + take[quest]["heal"] / heal_rate)
-			cycles += (until - since) / (seconds / rate + 1.0 / rate)
+			var span := (until - since) / (seconds / rate + 1.0 / rate)
+			cycles += span
+			kitchen_cycles[Dispatch.tier_at(dispatch.kitchen_tiers, since)] += span
 			since = until
 		var plan := {"id": id, "start": start, "members": party["members"], "luck": dispatch.party_stat(party["members"], "luck"), "cycles": cycles, "share": {}, "quest": "", "gold": 0.0, "xp": 0.0, "drops": 0.0, "reputation": 0.0, "successes": {}}
 		var share: Dictionary = plan["share"]
 		# It takes each quest as often as it comes up, and what it takes is gone for the parties
 		# after it.
 		var used := cycles / (to - start) / rate
+		# A cycle's XP at each Kitchen tier.
+		var xp_by_tier: Array[float] = []
+		xp_by_tier.resize(kitchen_cycles.size())
+		xp_by_tier.fill(0.0)
 		for quest: String in take:
 			var each: float = offered.get(quest, 0.0)
 			if each == 0.0:
 				continue
 			offered[quest] = each * (1.0 - used)
 			share[quest] = each / rate
-			for key: String in ["gold", "xp", "drops", "reputation"]:
+			for key: String in ["gold", "drops", "reputation"]:
 				plan[key] += share[quest] * take[quest][key]
+			for tier: int in xp_by_tier.size():
+				xp_by_tier[tier] += share[quest] * take[quest]["xp"][tier]
 			var rank: String = Dispatch.QUESTS[quest]["rank"]
 			plan["successes"][rank] = plan["successes"].get(rank, 0.0) + share[quest] * take[quest]["chance"]
 			if plan["quest"] == "" or share[quest] > share[plan["quest"]]:
 				plan["quest"] = quest
+		# Each cycle's XP is as the Kitchen's tier then has it, averaged over the cycles.
+		for tier: int in xp_by_tier.size():
+			plan["xp"] += kitchen_cycles[tier] / cycles * xp_by_tier[tier]
 		plans.append(plan)
 	var gear := dispatch.adventurers.gear
 	# However the drops fall, no party's drop after the stash's room plus one is ever reached.
@@ -261,9 +282,9 @@ static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String
 # offers that its rank allows and whose shown chance's low end its mode takes, each quest in
 # `learned` counted with its challenges known and the most try points (Dispatch.MOST_TRY_POINTS).
 # Each with what a try at it can be expected to bring: {"seconds": the quest's, "heal": the healing
-# back to full from its expected damage with no Infirmary, in seconds, "gold",
-# "xp": each member's, "drops": items, "reputation": the guild's (Dispatch.REPUTATION), "chance": of
-# success, 0 to 1}.
+# back to full from its expected damage with no Infirmary, in seconds, "gold", "xp": each member's
+# by the Kitchen's tier, none first (Dispatch.xp_share), "drops": items, "reputation": the guild's
+# (Dispatch.REPUTATION), "chance": of success, 0 to 1}.
 static func _takes(dispatch: Dispatch, id: String, guild_rank: String, learned: Dictionary) -> Dictionary:
 	var parties := dispatch.adventurers.parties
 	var members: PackedStringArray = parties.party(id)["members"]
@@ -285,11 +306,14 @@ static func _takes(dispatch: Dispatch, id: String, guild_rank: String, learned: 
 			continue
 		var chance := percent / 100.0
 		var heal := _expected_damage(chance, Outcome.MOST_DAMAGE[info["rank"]], spirit, luck) * Dispatch.HEAL_SECONDS / Dispatch.HEAL_POINTS
+		var xp: Array[float] = []
+		for kitchen: int in Dispatch.KITCHEN_XP_PERCENT.size() + 1:
+			xp.append(chance * Dispatch.xp_share(info["xp"], true, members.size(), kitchen) + (1.0 - chance) * Dispatch.xp_share(info["xp"], false, members.size(), kitchen))
 		takes[quest] = {
 			"seconds": info["seconds"],
 			"heal": heal,
 			"gold": chance * info["gold"] + (1.0 - chance) * Dispatch.failure_gold(quest),
-			"xp": chance * Dispatch.xp_share(info["xp"], true, members.size()) + (1.0 - chance) * Dispatch.xp_share(info["xp"], false, members.size()),
+			"xp": xp,
 			"drops": Gear.loot_percent(info["rank"], luck) / 100.0,
 			"reputation": chance * Dispatch.REPUTATION[info["rank"]] - (1.0 - chance) * Dispatch.FAILURE_REPUTATION,
 			"chance": chance,

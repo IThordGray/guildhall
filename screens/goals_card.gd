@@ -8,7 +8,7 @@ extends VBoxContainer
 signal claim_pressed(goal: String, from: Vector2)
 
 ## What the player sees a goal's unlock called, by Goals' "unlocks".
-const UNLOCK_NAMES: Dictionary[String, String] = {Goals.AUTO: "Auto", "sealed_gate": "The sealed gate", Labyrinth.UNLOCK: "Labyrinth"}
+const UNLOCK_NAMES: Dictionary[String, String] = {Goals.AUTO: "Auto", "sealed_gate": "The sealed gate", Labyrinth.UNLOCK: "Labyrinth", "cooks_debt": "The cook's debt", "kitchen": "Kitchen", "lost_survey": "The lost survey"}
 const BAR_SIZE_PX: Vector2 = Vector2(332, 12)
 ## How far Odile's lines lean, as a share of their height.
 const ITALIC_SLANT: float = 0.2

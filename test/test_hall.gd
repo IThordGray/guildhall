@@ -235,7 +235,7 @@ func _hall_with_empty_room(slot: String, gold: Gold) -> Hall:
 
 
 func test_the_convert_choices_are_every_room_type_each_60_gold_but_a_bunk_room_30_and_2_seconds() -> void:
-	assert_eq(Hall.ROOM_TYPES.keys(), ["quest_hall", "infirmary", "bunk_room", "tavern", "map_room", "training_room", "common_room", "storeroom"])
+	assert_eq(Hall.ROOM_TYPES.keys(), ["quest_hall", "infirmary", "bunk_room", "tavern", "map_room", "training_room", "common_room", "storeroom", "kitchen"])
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["name"], "Quest hall")
 	assert_eq(Hall.ROOM_TYPES["quest_hall"]["blurb"], "adds a slot to the quest board")
 	assert_eq(Hall.ROOM_TYPES["infirmary"]["name"], "Infirmary")

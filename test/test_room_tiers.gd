@@ -11,7 +11,10 @@ const UPGRADE_GOLD: Dictionary[String, Array] = {
 	"tavern": [180, 450],
 	"training_room": [180, 450],
 	"map_room": [180, 450],
+	"kitchen": [120, 300],
 }
+## What goals unlock that some room types need, so every type can be built.
+const UNLOCKED: PackedStringArray = ["kitchen"]
 
 
 func after_each() -> void:
@@ -26,21 +29,21 @@ func _hall_with_room(type: String, gold: Gold) -> Hall:
 	hall.checkpoint(1_001)
 	assert_true(hall.restore("back_left", gold, 1_001))
 	hall.checkpoint(1_003)
-	assert_true(hall.convert_room("side_left", type, gold, 1_003), type)
+	assert_true(hall.convert_room("side_left", type, gold, 1_003, UNLOCKED), type)
 	hall.checkpoint(1_005)
 	return hall
 
 
 func test_at_rank_f_every_type_can_be_converted_into_a_free_restored_room() -> void:
-	assert_eq(Hall.ROOM_TYPES.size(), 8)
+	assert_eq(Hall.ROOM_TYPES.size(), 9)
 	for type: String in Hall.ROOM_TYPES:
 		var gold := Gold.new(1_000)
 		var hall := Hall.new(1_000)
 		assert_true(hall.restore("side_left", gold, 1_000))
 		hall.checkpoint(1_001)
 		assert_eq(hall.rank, "F")
-		assert_eq(hall.convert_refusal("side_left", type, gold, 1_001), "", type)
-		assert_true(hall.convert_room("side_left", type, gold, 1_001), type)
+		assert_eq(hall.convert_refusal("side_left", type, gold, 1_001, UNLOCKED), "", type)
+		assert_true(hall.convert_room("side_left", type, gold, 1_001, UNLOCKED), type)
 		assert_eq(hall.state("side_left", 1_010), Hall.State.CONVERTED, type)
 		assert_eq(hall.room_type("side_left"), type)
 
@@ -364,7 +367,7 @@ func test_the_convert_panel_lists_every_type_at_rank_f_and_offers_a_second_bunk_
 	var hall := _hall_with_room("bunk_room", gold)
 	var panel := (load("res://screens/convert_panel.tscn") as PackedScene).instantiate() as ConvertPanel
 	add_child_autofree(panel)
-	panel.show_hall(hall, "back_left", gold, 1_005)
+	panel.show_hall(hall, "back_left", gold, 1_005, UNLOCKED)
 	for type: String in Hall.ROOM_TYPES:
 		assert_true(panel._choices[type].visible, type)
 	assert_false(panel._choices["common_room"].disabled)

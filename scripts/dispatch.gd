@@ -35,6 +35,9 @@ const QUESTS: Dictionary[String, Dictionary] = {
 	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 60, "gold": 150, "xp": 100, "difficulty": 83, "challenges": ["Curse", "Traps", "Protect"]},
 	# A new game's Bram and Tobin, at level 1 in their starting gear, have about 60%.
 	"sealed_gate": {"name": "The sealed gate", "rank": "F", "seconds": 10, "gold": 30, "xp": 15, "difficulty": 17, "challenges": ["Curse", "Traps"], "story": true, "reputation": 3},
+	# Tuned like the other rank E quests: the four starters together have fair odds.
+	"cooks_debt": {"name": "The cook's debt", "rank": "E", "seconds": 20, "gold": 60, "xp": 40, "difficulty": 50, "challenges": ["Protect", "Brute force"], "story": true, "reputation": 4},
+	"lost_survey": {"name": "The lost survey", "rank": "E", "seconds": 30, "gold": 80, "xp": 55, "difficulty": 56, "challenges": ["Navigation", "Traps", "Attrition"], "story": true, "reputation": 5},
 	"floor_1": {"name": "The Galleries", "rank": "E", "seconds": 60, "gold": 45, "xp": 32, "difficulty": 48, "challenges": ["Traps", "Navigation", "Attrition"], "floor": 1},
 	"floor_2": {"name": "The Drowned Stair", "rank": "E", "seconds": 90, "gold": 60, "xp": 45, "difficulty": 56, "challenges": ["Curse", "Navigation", "Attrition"], "floor": 2},
 	"floor_3": {"name": "The Third Ring", "rank": "D", "seconds": 120, "gold": 130, "xp": 85, "difficulty": 74, "challenges": ["Brute force", "Traps", "Curse"], "floor": 3},
@@ -52,6 +55,9 @@ const INFIRMARY_INJURY_SECONDS: Array[int] = [5, 3, 2]
 const HEAL_POINTS: int = 3
 const HEAL_SECONDS: int = 2
 const INFIRMARY_HEAL_RATES: Array[int] = [2, 3, 4]
+## How much more XP, in percent, a returning party's quest gives by the tier the guild's Kitchen has
+## at the moment of return (`kitchen_tiers`), tier 1 first; more Kitchens add nothing (stand-ins).
+const KITCHEN_XP_PERCENT: Array[int] = [10, 20, 30]
 ## An adventurer in training gains one XP per whole TRAINING_SECONDS_PER_XP since their stint
 ## started, at most a stint's cap: Hall.stint_xp by the Training room's tier, TRAINING_MAX_XP at
 ## tier 1 and when none is given; the cap is the reason to come back (stand-ins).
@@ -116,6 +122,9 @@ var reputation: int = 0
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back neither
 ## adds time to a quest or an injury nor brings back a party that has returned.
 var checked_at: int
+## The unix seconds the guild's Kitchen reached each tier (Hall.tier_times); empty for none. Whoever
+## loads the game sets it from the hall before each checkpoint, as with `gold`.
+var kitchen_tiers: PackedInt64Array = PackedInt64Array()
 ## The unix seconds the guild's Infirmary reached each tier, as the last checkpoint was told
 ## (Hall.tier_times); empty for none.
 var _infirmary_tiers: PackedInt64Array = PackedInt64Array()
@@ -239,10 +248,14 @@ static func failure_gold(_quest_id: String) -> int:
 
 
 ## The XP each member of a party of `size` gains back from a quest whose whole party shares `xp` on
-## a success: an equal part of what the outcome gives (Adventurers.quest_xp), rounded down, but at
-## least 1, so nobody comes back from a quest with nothing.
-static func xp_share(xp: int, success: bool, size: int) -> int:
-	return maxi(1, floori(Adventurers.quest_xp(xp, success) / float(size)))
+## a success, coming home to a Kitchen of `kitchen_tier` (0 for none): an equal part of what the
+## outcome gives (Adventurers.quest_xp), raised by KITCHEN_XP_PERCENT for that tier and rounded down
+## before it is split, rounded down, but at least 1, so nobody comes back from a quest with nothing.
+static func xp_share(xp: int, success: bool, size: int, kitchen_tier: int = 0) -> int:
+	var total := Adventurers.quest_xp(xp, success)
+	if kitchen_tier > 0:
+		total = total * (100 + KITCHEN_XP_PERCENT[kitchen_tier - 1]) / 100
+	return maxi(1, floori(total / float(size)))
 
 
 ## Seconds until `outing` returns; 0 when it has returned.
@@ -329,10 +342,11 @@ func _heal_units(from: int, to: int) -> int:
 	return units + rate * (to - since)
 
 
-# The tier the guild's Infirmary has at `at`, as the last checkpoint was told; 0 for none.
-func _infirmary_tier(at: int) -> int:
+## The tier a room whose type reached its tiers at `tier_times` (Hall.tier_times) has at `at`; 0 for
+## none.
+static func tier_at(tier_times: PackedInt64Array, at: int) -> int:
 	var reached := 0
-	for time: int in _infirmary_tiers:
+	for time: int in tier_times:
 		if time <= at:
 			reached += 1
 	return reached
@@ -612,7 +626,8 @@ func returned_since_checkpoint(now: int) -> bool:
 ## (REPUTATION, or the quest's own) and marks a story quest done, adds a floor's exploring and
 ## material (Labyrinth.bring_home), injures those it leaves under a
 ## quarter of their health, reveals the quest's challenges, puts the gold it earned into `gold` and
-## its loot into the stash, where loot that finds it full waits (`waiting_loot`). Debriefs a save from before held unread are paid first, the same way.
+## its loot into the stash, where loot that finds it full waits (`waiting_loot`); XP is raised by
+## the Kitchen's tier at the return (`kitchen_tiers`, `xp_share`). Debriefs a save from before held unread are paid first, the same way.
 ## `infirmary_tiers` is the unix seconds the guild's Infirmary reached each tier (Hall.tier_times),
 ## empty for none: from each on, healing is faster (INFIRMARY_HEAL_RATES), and an injury from a
 ## return then is shorter (INFIRMARY_INJURY_SECONDS). Records the time seen.
@@ -664,7 +679,7 @@ func _bring_home(outing: Dictionary) -> void:
 		if not success:
 			reward = failure_gold(outing["quest"])
 		var damage := outcome.damage
-		var infirmary := _infirmary_tier(returns_at)
+		var infirmary := tier_at(_infirmary_tiers, returns_at)
 		var healed_in := INJURY_SECONDS if infirmary == 0 else INFIRMARY_INJURY_SECONDS[infirmary - 1]
 		for adventurer: String in party:
 			# One sent before health was kept left with what they have now.
@@ -684,7 +699,7 @@ func _bring_home(outing: Dictionary) -> void:
 	tries[outing["quest"]] = int(tries.get(outing["quest"], 0)) + 1
 	# A party with no members gains nothing.
 	if not party.is_empty():
-		var xp := xp_share(quest["xp"], success, party.size())
+		var xp := xp_share(quest["xp"], success, party.size(), tier_at(kitchen_tiers, returns_at))
 		for adventurer: String in party:
 			adventurers.gain_xp(adventurer, xp)
 			if success:

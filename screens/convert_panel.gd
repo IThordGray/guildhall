@@ -30,10 +30,13 @@ func _ready() -> void:
 	($Box/Back as Button).pressed.connect(back_pressed.emit)
 
 
-## Shows which types `slot` can be converted into at `now`, and why not for the others.
-func show_hall(hall: Hall, slot: String, gold: Gold, now: int) -> void:
+## Shows which types `slot` can be converted into at `now`, and why not for the others, for a guild
+## whose goals have unlocked `unlocked` (Goals.unlocked); a type not unlocked yet isn't shown.
+func show_hall(hall: Hall, slot: String, gold: Gold, now: int, unlocked: PackedStringArray = PackedStringArray()) -> void:
 	for type: String in _choices:
-		var reason := hall.convert_refusal(slot, type, gold, now)
+		var reason := hall.convert_refusal(slot, type, gold, now, unlocked)
+		var shown := Hall.is_unlocked(type, unlocked)
+		_choices[type].visible = shown
 		_choices[type].disabled = not reason.is_empty()
 		_reasons[type].text = reason
-		_reasons[type].visible = not reason.is_empty()
+		_reasons[type].visible = shown and not reason.is_empty()
