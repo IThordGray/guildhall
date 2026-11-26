@@ -70,17 +70,17 @@ func test_a_promotion_is_refused_with_nothing_changed_short_of_the_level_or_the_
 	assert_true(adventurers.promote("bram", false))
 
 
-func test_no_promotion_goes_past_d() -> void:
+func test_no_promotion_goes_past_c() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	assert_eq(adventurers.next_rank("bram"), "E")
-	adventurers.roster["bram"]["rank"] = "D"
+	adventurers.roster["bram"]["rank"] = "C"
 	adventurers.levels["bram"] = 99
-	adventurers.add_successes("bram", "D", 50)
 	adventurers.add_successes("bram", "C", 50)
+	adventurers.add_successes("bram", "B", 50)
 	assert_eq(adventurers.next_rank("bram"), "")
 	assert_false(adventurers.can_promote("bram", false))
 	assert_false(adventurers.promote("bram", false))
-	assert_eq(adventurers.roster["bram"]["rank"], "D")
+	assert_eq(adventurers.roster["bram"]["rank"], "C")
 
 
 func test_promotion_is_earned_at_the_level_and_successes_the_next_rank_needs_and_never_at_the_highest_rank() -> void:
@@ -381,7 +381,7 @@ func test_a_rank_f_adventurer_with_3_rank_e_successes_at_level_2_shows_3_of_5_to
 	assert_true((sheet.get_node("Box/Scroll/Content/Card/Header/Row/Words/Actions/Promote") as Button).visible)
 
 
-func test_after_promotion_to_e_the_line_shows_progress_to_d_and_at_a_rank_with_no_further_promotion_it_hides() -> void:
+func test_after_promotion_to_e_the_line_shows_progress_to_d_then_c_and_at_a_rank_with_no_further_promotion_it_hides() -> void:
 	var dispatch := _guild(START)
 	var adventurers := dispatch.adventurers
 	adventurers.levels["bram"] = 4
@@ -404,11 +404,18 @@ func test_after_promotion_to_e_the_line_shows_progress_to_d_and_at_a_rank_with_n
 	assert_true(adventurers.promote("bram", false))
 	sheet.show_adventurer("bram", dispatch, 0, START)
 	assert_eq(adventurers.roster["bram"]["rank"], "D")
+	assert_true(progress.visible)
+	assert_eq(text.text, "To rank C · 0 / 5 rank-C quests · level 10")
+	adventurers.levels["bram"] = 10
+	adventurers.add_successes("bram", "C", 5)
+	assert_true(adventurers.promote("bram", false))
+	sheet.show_adventurer("bram", dispatch, 0, START)
+	assert_eq(adventurers.roster["bram"]["rank"], "C")
 	assert_false(progress.visible)
 	# The header around it still shows.
 	var details := sheet.get_node("Box/Scroll/Content/Card/Header/Row/Words/Details") as Label
 	assert_true(details.visible)
-	assert_string_contains(details.text, "rank D")
+	assert_string_contains(details.text, "rank C")
 
 
 func test_a_candidates_or_walk_ins_sheet_shows_no_progress_line() -> void:

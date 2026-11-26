@@ -24,8 +24,8 @@ func test_the_quests_old_saves_name_keep_their_rank_and_challenges() -> void:
 		assert_eq([Dispatch.QUESTS[quest]["rank"], Dispatch.QUESTS[quest]["challenges"]], expected[quest], quest)
 
 
-func test_every_quest_has_one_to_three_challenges_and_every_challenge_appears_at_ranks_f_e_and_d_negotiation_at_f_and_d() -> void:
-	var seen := {"F": {}, "E": {}, "D": {}}
+func test_every_quest_has_one_to_three_challenges_and_every_challenge_appears_at_ranks_f_e_d_and_c_negotiation_at_f_d_and_c() -> void:
+	var seen := {"F": {}, "E": {}, "D": {}, "C": {}}
 	for quest: String in Dispatch.QUESTS:
 		var challenges: Array = Dispatch.QUESTS[quest]["challenges"]
 		assert_between(challenges.size(), 1, 3, quest)

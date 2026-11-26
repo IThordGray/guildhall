@@ -84,7 +84,7 @@ const HEALTH_PER_LEVEL: int = 3
 ## Each rank an adventurer can be promoted to, one rank at a time, with the level it needs and how
 ## many quests of that rank they must have come home from successful. Promotion is earned, never
 ## bought. No promotion reaches a rank missing here.
-const PROMOTIONS: Dictionary[String, Dictionary] = {"E": {"level": 3, "quests": 5}, "D": {"level": 6, "quests": 5}}
+const PROMOTIONS: Dictionary[String, Dictionary] = {"E": {"level": 3, "quests": 5}, "D": {"level": 6, "quests": 5}, "C": {"level": 10, "quests": 5}}
 
 ## Who is in the guild, in roster order: each one's {"name", "rank"} and, for a recruit,
 ## "face_seed", their face's (Faces.seed_of). The save refers to an adventurer by their id here.

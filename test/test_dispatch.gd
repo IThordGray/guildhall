@@ -76,13 +76,13 @@ func _statuses(dispatch: Dispatch, now: int) -> Array[String]:
 	return statuses
 
 
-func test_the_pool_has_7_f_6_e_and_5_d_quests_longer_and_richer_by_rank_each_paying_its_gold_after_its_duration() -> void:
+func test_the_pool_has_7_f_6_e_5_d_and_6_c_quests_longer_and_richer_by_rank_each_paying_its_gold_after_its_duration() -> void:
 	# Old saves refer to these by id.
 	for quest: String in ["rats", "moonherbs", "goblins", "letters", "wolves", "crypt"]:
 		assert_has(Dispatch.QUESTS, quest)
-	var count := {"F": 0, "E": 0, "D": 0}
-	var shortest := {"F": 2, "E": 10, "D": 30}
-	var longest := {"F": 6, "E": 20, "D": 60}
+	var count := {"F": 0, "E": 0, "D": 0, "C": 0}
+	var shortest := {"F": 2, "E": 10, "D": 30, "C": 80}
+	var longest := {"F": 6, "E": 20, "D": 60, "C": 120}
 	var least_gold := {}
 	var most_gold := {}
 	for quest: String in Dispatch.QUESTS:
@@ -94,21 +94,22 @@ func test_the_pool_has_7_f_6_e_and_5_d_quests_longer_and_richer_by_rank_each_pay
 		assert_between(int(info["seconds"]), int(shortest[rank]), int(longest[rank]), quest)
 		least_gold[rank] = mini(least_gold.get(rank, info["gold"]), info["gold"])
 		most_gold[rank] = maxi(most_gold.get(rank, info["gold"]), info["gold"])
-		# A rank D quest needs a party of rank E or higher.
+		# A rank D quest needs a party of rank E or higher, a rank C quest one of rank D.
 		var gold := Gold.new(0)
 		var dispatch := _guild(1_000)
 		dispatch.gold = gold
 		for adventurer: String in PARTY:
-			dispatch.adventurers.roster[adventurer]["rank"] = "E"
+			dispatch.adventurers.roster[adventurer]["rank"] = "D" if rank == "C" else "E"
 		assert_true(_send_to_succeed(dispatch, quest, 1_000), quest)
 		assert_eq(dispatch.seconds_left(dispatch.outings[0], 1_000), info["seconds"], quest)
 		dispatch.checkpoint(1_000 + info["seconds"] - 1)
 		assert_eq(gold.amount, 0, quest)
 		dispatch.checkpoint(1_000 + info["seconds"])
 		assert_eq(gold.amount, info["gold"], quest)
-	assert_eq(count, {"F": 7, "E": 6, "D": 5})
+	assert_eq(count, {"F": 7, "E": 6, "D": 5, "C": 6})
 	assert_lt(most_gold["F"], least_gold["E"])
 	assert_lt(most_gold["E"], least_gold["D"])
+	assert_lt(most_gold["D"], least_gold["C"])
 
 
 ## Every pair of the four starters.
@@ -120,11 +121,11 @@ func _pairs() -> Array[PackedStringArray]:
 	return pairs
 
 
-func test_the_four_starters_have_good_odds_on_every_f_quest_fair_odds_together_on_e_and_little_hope_on_d() -> void:
+func test_the_four_starters_have_good_odds_on_every_f_quest_fair_odds_together_on_e_and_little_hope_on_d_and_c() -> void:
 	var dispatch := _guild(1_000)
 	var all_four := PackedStringArray(EVERYONE)
 	assert_eq(_pairs().size(), 6)
-	var checked := {"F": 0, "E": 0, "D": 0}
+	var checked := {"F": 0, "E": 0, "D": 0, "C": 0}
 	for quest: String in Dispatch.QUESTS:
 		if Dispatch.is_story(quest) or Dispatch.is_floor(quest):
 			continue
@@ -139,10 +140,10 @@ func test_the_four_starters_have_good_odds_on_every_f_quest_fair_odds_together_o
 			"E":
 				assert_between(together, 45, 75, quest)
 				assert_lte(pair_chances.max(), 40, quest)
-			"D":
+			"D", "C":
 				assert_lte(together, 25, quest)
 		checked[Dispatch.QUESTS[quest]["rank"]] += 1
-	assert_eq(checked, {"F": 7, "E": 6, "D": 5})
+	assert_eq(checked, {"F": 7, "E": 6, "D": 5, "C": 6})
 
 
 ## How many of `seeds` returns of `party` from `quest`, sent from full health and made to end as
@@ -1116,14 +1117,14 @@ func test_a_failure_pays_no_gold_and_a_quarter_of_the_xp_but_at_least_1_shared_b
 
 
 func test_a_success_pays_each_quests_new_gold() -> void:
-	var expected := {"rats": 3, "well": 5, "letters": 7, "spiders": 7, "cartographer": 8, "mouth": 8, "moonherbs": 10, "wolves": 22, "sealed_door": 25, "lurker": 30, "crypt": 33, "pilgrims": 38, "goblins": 42, "maze": 87, "chapel": 100, "minotaur": 113, "envoy": 125, "vault": 150}
+	var expected := {"rats": 3, "well": 5, "letters": 7, "spiders": 7, "cartographer": 8, "mouth": 8, "moonherbs": 10, "wolves": 22, "sealed_door": 25, "lurker": 30, "crypt": 33, "pilgrims": 38, "goblins": 42, "maze": 87, "chapel": 100, "minotaur": 113, "envoy": 125, "vault": 150, "wyrm": 210, "witch": 230, "deeproad": 250, "heirs": 240, "lich": 270, "giants": 300}
 	var paid := {}
 	for quest: String in Dispatch.QUESTS:
 		if Dispatch.is_story(quest) or Dispatch.is_floor(quest):
 			continue
 		var dispatch := _guild(1_000)
 		for adventurer: String in PARTY:
-			dispatch.adventurers.roster[adventurer]["rank"] = "E"
+			dispatch.adventurers.roster[adventurer]["rank"] = "D" if Dispatch.QUESTS[quest]["rank"] == "C" else "E"
 		assert_true(_send_to_succeed(dispatch, quest, 1_000), quest)
 		dispatch.checkpoint(1_000 + int(Dispatch.QUESTS[quest]["seconds"]))
 		paid[quest] = dispatch.gold.amount
@@ -1131,16 +1132,16 @@ func test_a_success_pays_each_quests_new_gold() -> void:
 
 
 func test_each_quest_takes_its_own_seconds_and_a_success_gives_its_party_its_own_xp() -> void:
-	var seconds := {"rats": 2, "well": 3, "letters": 4, "spiders": 4, "cartographer": 5, "mouth": 5, "moonherbs": 6, "wolves": 10, "sealed_door": 12, "lurker": 14, "crypt": 16, "pilgrims": 18, "goblins": 20, "maze": 30, "chapel": 36, "minotaur": 40, "envoy": 50, "vault": 60}
-	var xp := {"rats": 4, "well": 5, "letters": 6, "spiders": 6, "cartographer": 7, "mouth": 7, "moonherbs": 8, "wolves": 15, "sealed_door": 18, "lurker": 21, "crypt": 24, "pilgrims": 27, "goblins": 30, "maze": 50, "chapel": 60, "minotaur": 67, "envoy": 83, "vault": 100}
+	var seconds := {"rats": 2, "well": 3, "letters": 4, "spiders": 4, "cartographer": 5, "mouth": 5, "moonherbs": 6, "wolves": 10, "sealed_door": 12, "lurker": 14, "crypt": 16, "pilgrims": 18, "goblins": 20, "maze": 30, "chapel": 36, "minotaur": 40, "envoy": 50, "vault": 60, "wyrm": 80, "witch": 90, "deeproad": 100, "heirs": 90, "lich": 110, "giants": 120}
+	var xp := {"rats": 4, "well": 5, "letters": 6, "spiders": 6, "cartographer": 7, "mouth": 7, "moonherbs": 8, "wolves": 15, "sealed_door": 18, "lurker": 21, "crypt": 24, "pilgrims": 27, "goblins": 30, "maze": 50, "chapel": 60, "minotaur": 67, "envoy": 83, "vault": 100, "wyrm": 140, "witch": 150, "deeproad": 165, "heirs": 155, "lich": 180, "giants": 200}
 	var took := {}
 	var gave := {}
 	for quest: String in Dispatch.QUESTS:
 		if Dispatch.is_story(quest) or Dispatch.is_floor(quest):
 			continue
 		var dispatch := _guild(1_000)
-		# Alone, so his share is the whole; rank E, so rank D quests take him.
-		dispatch.adventurers.roster["bram"]["rank"] = "E"
+		# Alone, so his share is the whole; rank E, so rank D quests take him, and rank D for rank C.
+		dispatch.adventurers.roster["bram"]["rank"] = "D" if Dispatch.QUESTS[quest]["rank"] == "C" else "E"
 		assert_true(dispatch.send(quest, Fixtures.party(dispatch, ["bram"]), _seed(quest, ["bram"], true), 1_000), quest)
 		took[quest] = dispatch.seconds_left(dispatch.outings[0], 1_000)
 		dispatch.checkpoint(1_000 + took[quest])
@@ -1415,6 +1416,12 @@ const STARTING_UNKNOWN: Dictionary = {
 	"minotaur": ["Attrition"],
 	"envoy": ["Navigation"],
 	"vault": ["Protect"],
+	"wyrm": ["Protect"],
+	"witch": ["Negotiation"],
+	"deeproad": ["Attrition"],
+	"heirs": ["Protect"],
+	"lich": ["Protect"],
+	"giants": ["Attrition"],
 }
 
 

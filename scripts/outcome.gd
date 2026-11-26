@@ -16,7 +16,7 @@ const CHANCE_PER_POINT: int = 2
 const HIDDEN_DIFFICULTY_POINTS: int = 10
 ## The most damage a failed quest of each rank deals a member (stand-ins): enough that a failed E
 ## quest can injure from full health, while a successful F quest never does.
-const MOST_DAMAGE: Dictionary[String, int] = {"F": 16, "E": 30, "D": 48}
+const MOST_DAMAGE: Dictionary[String, int] = {"F": 16, "E": 30, "D": 48, "C": 70}
 ## The party's total Spirit takes this many percent off the damage each member takes, at most
 ## MOST_SPIRIT_CUT (stand-ins): the four starters together take about what a party with a Healer
 ## once did.

@@ -4,11 +4,11 @@ extends RefCounted
 ## How long a slot takes to refill after its quest is sent, by the rank of the quest sent from it:
 ## short for easy quests, longer for hard ones (stand-ins). A slot emptied once a Quest hall has
 ## reached FAST_REFILL_TIER refills in half that, rounded down (`refill_seconds`).
-const REFILL_SECONDS: Dictionary[String, int] = {"F": 20, "E": 60, "D": 120}
+const REFILL_SECONDS: Dictionary[String, int] = {"F": 20, "E": 60, "D": 120, "C": 180}
 const FAST_REFILL_TIER: int = 3
 ## How long a quest stays on the board once put there, by its rank, before it leaves unsent and its
 ## slot refills as after a send (stand-ins).
-const EXPIRE_SECONDS: Dictionary[String, int] = {"F": 60, "E": 120, "D": 240}
+const EXPIRE_SECONDS: Dictionary[String, int] = {"F": 60, "E": 120, "D": 240, "C": 360}
 ## Once the guild has a Map room, each quest on the board has its unknown challenges revealed this
 ## long after the later of when it was put on the board and when the Map room reached its tier, by
 ## that tier, tier 1 first; a quest on the board when the room reaches a higher tier is revealed at

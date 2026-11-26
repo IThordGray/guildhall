@@ -33,6 +33,12 @@ const QUESTS: Dictionary[String, Dictionary] = {
 	"minotaur": {"name": "Slay the minotaur of the third ring", "rank": "D", "seconds": 40, "gold": 113, "xp": 67, "difficulty": 70, "challenges": ["Brute force", "Attrition"], "labyrinth": true},
 	"envoy": {"name": "Escort the envoy to the deep market", "rank": "D", "seconds": 50, "gold": 125, "xp": 83, "difficulty": 91, "challenges": ["Protect", "Negotiation", "Navigation"]},
 	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 60, "gold": 150, "xp": 100, "difficulty": 83, "challenges": ["Curse", "Traps", "Protect"]},
+	"wyrm": {"name": "Drive off the ash wyrm", "rank": "C", "seconds": 80, "gold": 210, "xp": 140, "difficulty": 98, "challenges": ["Brute force", "Attrition", "Protect"]},
+	"witch": {"name": "Break the witch-queen's circle", "rank": "C", "seconds": 90, "gold": 230, "xp": 150, "difficulty": 100, "challenges": ["Curse", "Negotiation"]},
+	"deeproad": {"name": "Reopen the deep road", "rank": "C", "seconds": 100, "gold": 250, "xp": 165, "difficulty": 96, "challenges": ["Navigation", "Traps", "Attrition"]},
+	"heirs": {"name": "Ransom the baron's heirs", "rank": "C", "seconds": 90, "gold": 240, "xp": 155, "difficulty": 102, "challenges": ["Negotiation", "Protect"]},
+	"lich": {"name": "Lay the lich of the drowned keep", "rank": "C", "seconds": 110, "gold": 270, "xp": 180, "difficulty": 105, "challenges": ["Curse", "Traps", "Protect"]},
+	"giants": {"name": "Hold the pass against the hill giants", "rank": "C", "seconds": 120, "gold": 300, "xp": 200, "difficulty": 100, "challenges": ["Brute force", "Navigation", "Attrition"]},
 	# A new game's Bram and Tobin, at level 1 in their starting gear, have about 60%.
 	"sealed_gate": {"name": "The sealed gate", "rank": "F", "seconds": 10, "gold": 30, "xp": 15, "difficulty": 17, "challenges": ["Curse", "Traps"], "story": true, "reputation": 3},
 	# Tuned like the other rank E quests: the four starters together have fair odds.
@@ -71,7 +77,7 @@ const POINTS_PER_TRY: int = 1
 const MOST_TRY_POINTS: int = 15
 ## The reputation a party coming home earns the guild on a success, by the quest's rank; a failure
 ## takes FAILURE_REPUTATION. Reputation never goes below 0.
-const REPUTATION: Dictionary[String, int] = {"F": 1, "E": 2, "D": 3}
+const REPUTATION: Dictionary[String, int] = {"F": 1, "E": 2, "D": 3, "C": 4}
 const FAILURE_REPUTATION: int = 1
 ## Why an adventurer can't start training while every Training room's one place is taken.
 const NO_TRAINING_PLACE: String = "No free training place — convert a Training room"

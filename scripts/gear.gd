@@ -15,7 +15,7 @@ const QUALITY_PERCENT: Dictionary[String, int] = {"Standard": 80, "Fine": 18, "L
 ## The gold a stash item of each quality sells for (stand-ins).
 const SELL_GOLD: Dictionary[String, int] = {"Standard": 3, "Fine": 15, "Legendary": 60}
 ## The whole-percent chance that a party back from a quest of each rank brings an item (stand-ins).
-const LOOT_PERCENT: Dictionary[String, int] = {"F": 25, "E": 50, "D": 75}
+const LOOT_PERCENT: Dictionary[String, int] = {"F": 25, "E": 50, "D": 75, "C": 90}
 ## A party's total Luck adds a point to its loot chance per point, at most MOST_LUCK_LOOT_POINTS.
 ## Each point also moves a point of quality odds from Standard to Fine, and every
 ## LUCK_PER_LEGENDARY_POINT points one more to Legendary (stand-ins).
