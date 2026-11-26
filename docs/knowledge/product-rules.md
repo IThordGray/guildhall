@@ -44,7 +44,7 @@ it merges. Screens and wording live in the code.
   the player can type over it (blank keeps the old name, at most 24 characters).
 - A party's rank is its members' ranks averaged, rounded down (F=0 … S=6).
 - Promotion is earned and free: rank E after 5 successful rank-E quests at level 3 or higher, rank
-  D after 5 successful rank-D quests at level 6 or higher; the player presses Promote, never
+  D after 5 successful rank-D quests at level 6 or higher, rank C after 5 rank-C quests at level 10; the player presses Promote, never
   automatic, and not while out. Each member counts the quests they succeeded on by rank (averaged
   absences count their expected successes, rounded down). A promotion raises the adventurer's two
   highest stats by 1, shown like a level-up. The Adventurer screen shows progress towards the
@@ -88,7 +88,8 @@ it merges. Screens and wording live in the code.
   needs 15 reputation, every room that can take a job in use, 2 parties, The sealed gate done, and
   150 gold. E → D needs 60 reputation, 3 parties of 3 or more, hall level 10 (every room's tier
   added up), 400 gold earned since rank E, labyrinth floors 1–3 explored 60% on average with The
-  Galleries cleared, The cook's debt and The lost survey done, and 500 gold. Rank E adds the
+  Galleries cleared, The cook's debt and The lost survey done, and 500 gold. D → C needs 150
+  reputation, The Third Ring cleared and 1,000 gold; rank C opens elite expeditions. Rank E adds the
   Entrance hall and three damaged rooms (north-east, east, front). Ranking up brings the board, candidates and walk-ins up to date first; rules that
   change with rank count from the moment it was reached. The Reception shows its icon only when
   ranking up is allowed.
@@ -123,6 +124,13 @@ it merges. Screens and wording live in the code.
 - A party home from a floor explores 20% of it and brings 3 of its material on a success, 5% and 1
   on a failure, up to 100%. The first time a floor reaches 100% it pays its clear bonus, once.
 - Materials are counted apart from the stash and never fill it.
+- Elite expeditions open from guild rank C: one every 720 s (stand-in) on a floor drawn from saved
+  state, for 240 s, unless a party is sent; marked Deadly. They pay more, bring 3 of the floor's
+  material on a success and never explore. On a failure, every member it brings to 0 health dies:
+  gone for good, worn gear back to the stash where it fits, named in Needs you until seen. Nothing
+  else ever kills: every other quest leaves at least 1 health.
+- Each party has an Elite switch, off by default: with it and Auto on, Auto may take an open elite
+  by its usual rule. The averaged part of a long absence never takes one.
 
 ## Town
 
