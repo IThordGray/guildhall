@@ -10,7 +10,10 @@ extends RefCounted
 ## reward matters. "xp" is the XP the whole party shares on a success. A quest with "story" true is a
 ## story quest: the board never offers it; it is open once Goals unlocks its id, until a party comes
 ## home from it successfully (`story_done`), and every challenge of it is known. "reputation", where
-## a quest has it, is what a success earns in place of REPUTATION for its rank.
+## a quest has it, is what a success earns in place of REPUTATION for its rank. A quest with a "floor"
+## number is a floor of the labyrinth (Labyrinth): the board never offers it, but it can be gone on
+## again and again; floor 1 is open once Goals unlocks Labyrinth.UNLOCK, and each floor after once
+## the one above is Labyrinth.NEXT_FLOOR_AT explored (`open_floors`).
 const QUESTS: Dictionary[String, Dictionary] = {
 	"rats": {"name": "Rats in the cellar", "rank": "F", "seconds": 2, "gold": 3, "xp": 4, "difficulty": 11, "challenges": ["Brute force"]},
 	"well": {"name": "Lift the hex on the town well", "rank": "F", "seconds": 3, "gold": 5, "xp": 5, "difficulty": 0, "challenges": ["Curse"]},
@@ -32,6 +35,9 @@ const QUESTS: Dictionary[String, Dictionary] = {
 	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 60, "gold": 150, "xp": 100, "difficulty": 83, "challenges": ["Curse", "Traps", "Protect"]},
 	# A new game's Bram and Tobin, at level 1 in their starting gear, have about 60%.
 	"sealed_gate": {"name": "The sealed gate", "rank": "F", "seconds": 10, "gold": 30, "xp": 15, "difficulty": 17, "challenges": ["Curse", "Traps"], "story": true, "reputation": 3},
+	"floor_1": {"name": "The Galleries", "rank": "E", "seconds": 60, "gold": 45, "xp": 32, "difficulty": 48, "challenges": ["Traps", "Navigation", "Attrition"], "floor": 1},
+	"floor_2": {"name": "The Drowned Stair", "rank": "E", "seconds": 90, "gold": 60, "xp": 45, "difficulty": 56, "challenges": ["Curse", "Navigation", "Attrition"], "floor": 2},
+	"floor_3": {"name": "The Third Ring", "rank": "D", "seconds": 120, "gold": 130, "xp": 85, "difficulty": 74, "challenges": ["Brute force", "Traps", "Curse"], "floor": 3},
 }
 const MAX_PARTY_SIZE: int = 4
 ## How long an injury lasts, counted from the moment the party returns.
@@ -83,6 +89,8 @@ var gold: Gold = Gold.new(0)
 ## Who is in the guild, and each one's stats, level, XP and gear: their stats decide quests, and
 ## returns grow them.
 var adventurers: Adventurers = Adventurers.new()
+## How far each floor of the labyrinth is explored and the materials brought back from it.
+var labyrinth: Labyrinth = Labyrinth.new()
 ## The health each adventurer below their maximum came home with: {"health": points, "at": unix
 ## seconds they came home}. Their health at home is computed from it; anyone missing is at full
 ## health.
@@ -189,6 +197,27 @@ func open_story_quests(unlocked: PackedStringArray) -> PackedStringArray:
 	for quest: String in QUESTS:
 		if is_story(quest) and quest in unlocked and quest not in story_done:
 			open.append(quest)
+	return open
+
+
+## True when `quest_id` is a floor of the labyrinth (QUESTS "floor").
+static func is_floor(quest_id: String) -> bool:
+	return QUESTS[quest_id].has("floor")
+
+
+## The floors open to a guild whose goals have unlocked the ids in `unlocked` (Goals.unlocked), from
+## the top: none until Labyrinth.UNLOCK is unlocked, then floor 1 and each floor after whose floor
+## above is at least Labyrinth.NEXT_FLOOR_AT explored, whether or not a party is out on it.
+func open_floors(unlocked: PackedStringArray) -> PackedStringArray:
+	var open := PackedStringArray()
+	if Labyrinth.UNLOCK not in unlocked:
+		return open
+	for quest: String in QUESTS:
+		if not is_floor(quest):
+			continue
+		if not open.is_empty() and labyrinth.explored_percent(open[-1]) < Labyrinth.NEXT_FLOOR_AT:
+			break
+		open.append(quest)
 	return open
 
 
@@ -474,11 +503,12 @@ func dismiss(adventurer: String) -> bool:
 ## Why `party` can't be sent on `quest_id` at `now`, in words for the player; "" when it can.
 ## However many parties are out, a party goes whole or not at all: `party` must be exactly one
 ## party's members, each home and well, and the party's rank (Parties.rank) must allow the quest
-## (Challenges.can_join). Reserves never go. A story quest goes once at a time and never once done.
+## (Challenges.can_join). Reserves never go. A story quest or a floor goes once at a time, and a
+## story quest never once done.
 func party_refusal(quest_id: String, party: PackedStringArray, now: int) -> String:
-	if is_story(quest_id):
-		if quest_id in story_done:
-			return "Already done"
+	if is_story(quest_id) and quest_id in story_done:
+		return "Already done"
+	if is_story(quest_id) or is_floor(quest_id):
 		for outing: Dictionary in outings:
 			if outing["quest"] == quest_id:
 				return "A party is out on it"
@@ -509,7 +539,7 @@ func party_id_of(party: PackedStringArray) -> String:
 
 ## Sends `party` on `quest_id` at `now`, its outcome fixed by `roll_seed`; false, with nothing
 ## started, when `party_refusal` gives a reason. Which board quests can be sent is Board's rule;
-## which story quests, `open_story_quests`.
+## which story quests, `open_story_quests`; which floors, `open_floors`.
 ## `infirmary_from` is as for `checkpoint`.
 func send(quest_id: String, party: PackedStringArray, roll_seed: int, now: int, infirmary_from: int = -1) -> bool:
 	checkpoint(now, infirmary_from)
@@ -541,7 +571,8 @@ func returned_since_checkpoint(now: int) -> bool:
 ## Stows the loot waiting, oldest first, as far as the stash has room, freeing its parties. Then
 ## brings every returned party home, once, in the order they returned: gives each member damage and
 ## XP and, on a success, counts it for them (Adventurers.successes), gives the guild its reputation
-## (REPUTATION, or the quest's own) and marks a story quest done, injures those it leaves under a
+## (REPUTATION, or the quest's own) and marks a story quest done, adds a floor's exploring and
+## material (Labyrinth.bring_home), injures those it leaves under a
 ## quarter of their health, reveals the quest's challenges, puts the gold it earned into `gold` and
 ## its loot into the stash, where loot that finds it full waits (`waiting_loot`). Debriefs a save from before held unread are paid first, the same way.
 ## `infirmary_from` is the unix seconds the first Infirmary is finished at, -1 for none: from then
@@ -623,6 +654,8 @@ func _bring_home(outing: Dictionary) -> void:
 	reputation = maxi(0, reputation + (int(quest.get("reputation", REPUTATION[quest["rank"]])) if success else -FAILURE_REPUTATION))
 	if success and is_story(outing["quest"]) and outing["quest"] not in story_done:
 		story_done.append(outing["quest"])
+	if is_floor(outing["quest"]):
+		labyrinth.bring_home(outing["quest"], success, gold)
 	# Loot comes whatever the outcome, from the seed the party left with.
 	var item := Gear.loot(outing["seed"], quest["rank"], luck)
 	if not item.is_empty():
@@ -672,12 +705,14 @@ func write(file: ConfigFile) -> void:
 	file.set_value("dispatch", "reputation", reputation)
 	file.set_value("dispatch", "checked_at", checked_at)
 	adventurers.write(file)
+	labyrinth.write(file)
 
 
 ## The dispatch saved at `path`, or everyone home and well at `now` when the save has none.
 static func load_or_start(path: String, now: int) -> Dispatch:
 	var dispatch := Dispatch.new(now)
 	dispatch.adventurers = Adventurers.load_or_start(path)
+	dispatch.labyrinth = Labyrinth.load_or_start(path)
 	var file := ConfigFile.new()
 	if file.load(path) != OK or not file.has_section("dispatch"):
 		return dispatch
