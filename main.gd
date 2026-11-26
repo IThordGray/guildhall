@@ -268,9 +268,9 @@ func _on_tick() -> void:
 func _checkpoint(now: int) -> void:
 	_hall.checkpoint(now)
 	_dispatch.adventurers.gear.stash_cap = _hall.stash_cap(now)
-	Auto.checkpoint(_dispatch, _quest_board, now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank, _goals.is_unlocked(Goals.AUTO))
+	Auto.checkpoint(_dispatch, _quest_board, now, _hall.added_at("board_slots"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank, _goals.is_unlocked(Goals.AUTO))
 	_goals.count_home(_dispatch)
-	_recruits.refill(_dispatch.adventurers, now, _rooms_done("common_room"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1))
+	_recruits.refill(_dispatch.adventurers, now, _hall.added_at("candidate_slots"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1))
 	_walk_ins.refill(_dispatch.adventurers, _recruits, now, _hall.ranked_at.get("E", -1))
 	var file := ConfigFile.new()
 	_clock.write(file, Time.get_unix_time_from_system())
@@ -354,7 +354,7 @@ func _offer(now: int) -> void:
 	elif _confirming == UPGRADE:
 		var next := _hall.next_upgrade(_upgrading, now)
 		var info: Dictionary = Hall.ROOM_TYPES[_hall.room_type(_upgrading)]
-		_confirm_sheet.offer("Upgrade " + info["name"], next["gold"], next["seconds"], "Upgrade", _hall.upgrade_refusal(_upgrading, _gold, now), info.get("upgrade_blurb", ""))
+		_confirm_sheet.offer("Upgrade " + info["name"], next["gold"], next["seconds"], "Upgrade", _hall.upgrade_refusal(_upgrading, _gold, now), next.get("blurb", ""))
 	else:
 		var next := _hall.next_restore()
 		_confirm_sheet.offer("Restore " + HallView.slot_name(_hall, _confirming), next["gold"], next["seconds"], "Restore", _hall.refusal(_confirming, _gold, now))
@@ -500,7 +500,7 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	elif Dispatch.is_floor(quest):
 		sent = quest in _dispatch.open_floors(_goals.unlocked) and _dispatch.send(quest, party, randi(), now, _hall.first_done_at("infirmary"))
 	else:
-		sent = _quest_board.send(_dispatch, quest, party, randi(), now, _rooms_done("quest_hall"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank)
+		sent = _quest_board.send(_dispatch, quest, party, randi(), now, _hall.added_at("board_slots"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank)
 	if sent:
 		_goals.sent_by_hand(_dispatch.outings.back())
 		_close_picker()
@@ -604,7 +604,7 @@ func _on_hire_pressed(slot: int) -> void:
 	var now := _now()
 	# A Common room finished since the last tick adds its slot before the hire.
 	_hall.checkpoint(now)
-	if _recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now, _rooms_done("common_room"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1)):
+	if _recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now, _hall.added_at("candidate_slots"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1)):
 		_open_newcomer()
 	_checkpoint(now)
 
@@ -836,15 +836,6 @@ func _show_with_picker(screen: Control, shown: bool) -> void:
 	for each: Control in [_board, _labyrinth]:
 		each.visible = shown and each == screen and (_landscape or not _picker.has_quest())
 	_picker.visible = shown and (_landscape or _picker.has_quest())
-
-
-# When each room of `type` the hall's last checkpoint saw finished, in unix seconds.
-func _rooms_done(type: String) -> PackedInt64Array:
-	var done := PackedInt64Array()
-	for room: Dictionary in _hall.converted.values():
-		if room["type"] == type:
-			done.append(room["done_at"])
-	return done
 
 
 func _now() -> int:

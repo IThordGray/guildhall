@@ -47,7 +47,7 @@ func _names(adventurers: Adventurers) -> Array[String]:
 
 ## Hires from `slot` with plenty of gold and beds, at `at`.
 func _hire(recruits: Recruits, slot: int, adventurers: Adventurers, at: int) -> void:
-	assert_true(recruits.hire(slot, adventurers, Gold.new(1_000), Hall.MAX_ROSTER, at))
+	assert_true(recruits.hire(slot, adventurers, Gold.new(1_000), 8, at))
 
 
 func test_a_new_guild_starts_with_one_candidate_and_a_save_from_before_candidates_with_two() -> void:
@@ -276,7 +276,7 @@ func test_a_hire_is_refused_with_nothing_changed_when_gold_is_short_or_every_bed
 	assert_eq(adventurers.roster.size(), 5)
 
 
-func test_with_every_bed_taken_a_bunk_room_is_suggested_only_while_one_can_still_be_built() -> void:
+func test_with_every_bed_taken_a_bunk_room_is_suggested_while_none_is_built_and_its_upgrade_once_it_is() -> void:
 	var adventurers := Adventurers.new(EVERYONE)
 	var recruits := _recruits(adventurers)
 	var gold := Gold.new(1_000)
@@ -292,13 +292,13 @@ func test_with_every_bed_taken_a_bunk_room_is_suggested_only_while_one_can_still
 	var hall := Hall.new(START)
 	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 4, Recruits.HIRE_GOLD, hall), "No free bed — convert a Bunk room")
 	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 6, Recruits.HIRE_GOLD, hall), "")
-	# Once one is being built, and once it is built, it can't be built again.
+	# Once one is being built it can't be built again; once built, it can be upgraded.
 	hall.restored.append("side_left")
 	assert_true(hall.convert_room("side_left", "bunk_room", Gold.new(1_000), START))
 	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 4, Recruits.HIRE_GOLD, hall), "No free bed")
 	hall.checkpoint(START + 3_600)
 	assert_eq(hall.rooms_done("bunk_room", START + 3_600), 1)
-	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 4, Recruits.HIRE_GOLD, hall), "No free bed")
+	assert_eq(Recruits.refusal(Adventurers.new(EVERYONE), gold, 4, Recruits.HIRE_GOLD, hall), "No free bed — upgrade the Bunk room")
 
 
 func test_a_hired_fighter_can_be_sent_on_a_quest_with_their_sword_counting() -> void:
@@ -521,8 +521,8 @@ func test_one_refill_after_an_absence_equals_refilling_every_second_with_common_
 	for hire: Vector2i in hires:
 		for at: int in range(watched.checked_at, hire.x):
 			watched.refill(watched_guild, at, _done_by(rooms, at), "", _reached(rank_e_at, at))
-		assert_true(watched.hire(hire.y, watched_guild, Gold.new(1_000), Hall.MAX_ROSTER, hire.x, _done_by(rooms, hire.x), "", _reached(rank_e_at, hire.x)))
-		assert_true(away.hire(hire.y, away_guild, Gold.new(1_000), Hall.MAX_ROSTER, hire.x, _done_by(rooms, hire.x), "", _reached(rank_e_at, hire.x)))
+		assert_true(watched.hire(hire.y, watched_guild, Gold.new(1_000), 8, hire.x, _done_by(rooms, hire.x), "", _reached(rank_e_at, hire.x)))
+		assert_true(away.hire(hire.y, away_guild, Gold.new(1_000), 8, hire.x, _done_by(rooms, hire.x), "", _reached(rank_e_at, hire.x)))
 	for at: int in range(watched.checked_at, START + 6_000):
 		watched.refill(watched_guild, at, _done_by(rooms, at), "", _reached(rank_e_at, at))
 	watched.refill(watched_guild, START + 6_000, PackedInt64Array(rooms), "", rank_e_at)

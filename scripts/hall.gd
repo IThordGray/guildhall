@@ -57,18 +57,20 @@ const EXTENSION: String = "first_floor"
 ## upgrading a room, not building another; a type with "second_rank" may be built a second time once
 ## the guild has that rank. Every type is upgraded by the builder from tier 1, each entry of
 ## "upgrades" the cost and time of reaching the next tier, as far as UPGRADE_RANKS allows unless
-## "upgrades_any_rank"; "upgrade_blurb", where a type has one, is what an upgrade adds. The Bunk
-## room's "rank", the starting rank, is the one Recruits checks before suggesting one. The save and
-## the art refer to a type by its id. What a type does is applied where its effect is: see Dispatch.
+## "upgrades_any_rank", and its "blurb", where it has one, what that tier adds. A type that adds to a
+## capacity in LAYOUTS ("beds", "stash", "candidate_slots" or "board_slots") has it as a key: how
+## much one finished room adds by its tier, the first entry tier 1, and so on (stand-ins); see
+## `capacity`. The save and the art refer to a type by its id. What any other type does is applied
+## where its effect is: see Dispatch.
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
-	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4}, {"gold": 300, "seconds": 10}]},
+	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "board_slots": [1, 2, 2], "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4}, {"gold": 300, "seconds": 10}]},
 	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4}, {"gold": 300, "seconds": 10}]},
-	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "rank": STARTING_RANK, "gold": 30, "seconds": 2, "second_rank": "D", "upgrades": [{"gold": 60, "seconds": 4}, {"gold": 120, "seconds": 10}], "upgrades_any_rank": true, "upgrade_blurb": "+1 bed"},
+	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "beds": [2, 4, 8], "gold": 30, "seconds": 2, "second_rank": "D", "upgrades": [{"gold": 60, "seconds": 4, "blurb": "+2 beds"}, {"gold": 120, "seconds": 10, "blurb": "+4 beds"}], "upgrades_any_rank": true},
 	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4}, {"gold": 450, "seconds": 10}]},
 	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4}, {"gold": 450, "seconds": 10}]},
 	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4}, {"gold": 450, "seconds": 10}]},
-	"common_room": {"name": "Common room", "blurb": "more candidates visit", "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4}, {"gold": 220, "seconds": 10}]},
-	"storeroom": {"name": "Storeroom", "blurb": "6 more stash slots", "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4}, {"gold": 220, "seconds": 10}]},
+	"common_room": {"name": "Common room", "blurb": "more candidates visit", "candidate_slots": [1, 2, 2], "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4}, {"gold": 220, "seconds": 10}]},
+	"storeroom": {"name": "Storeroom", "blurb": "6 more stash slots", "stash": [6, 12, 20], "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4, "blurb": "+6 stash slots"}, {"gold": 220, "seconds": 10, "blurb": "+8 stash slots"}]},
 }
 ## The guild rank upgrading a room to each tier from 2 needs: the first entry tier 2, and so on. The
 ## guild's rank is how far its rooms grow.
@@ -77,12 +79,6 @@ const UPGRADE_RANKS: Array[String] = ["E", "D"]
 ## to TAVERN_CAP; the cap is the reason to come back before it is full (stand-ins).
 const TAVERN_GOLD_PER_MINUTE: int = 20
 const TAVERN_CAP: int = 40
-## Beds a finished Bunk room adds to the Reception's, by its tier: the first entry tier 1, and so on.
-const BUNK_ROOM_BEDS: Array[int] = [2, 3, 4]
-## The most adventurers the guild can have, however many Bunk rooms it has.
-const MAX_ROSTER: int = 8
-## Stash slots a finished Storeroom adds to the Reception's.
-const STOREROOM_STASH: int = 6
 
 ## Which of LAYOUTS the hall is.
 var layout: int = NEW_LAYOUT
@@ -259,21 +255,44 @@ func from_before_ranks() -> bool:
 	return layout == OLD_LAYOUT or layout == OLD_LAYOUT_E
 
 
-## How many items the stash holds at most at `now`: the Reception's, and STOREROOM_STASH for each
-## finished Storeroom.
+## How many items the stash holds at most at `now`, as `capacity` gives it.
 func stash_cap(now: int) -> int:
-	return reception("stash") + STOREROOM_STASH * rooms_done("storeroom", now)
+	return capacity("stash", now)
 
 
-## How many adventurers the guild has beds for at `now`.
+## How many adventurers the guild has beds for at `now`, as `capacity` gives it.
 func beds(now: int) -> int:
-	var total := reception("beds")
+	return capacity("beds", now)
+
+
+## How much of `what`, a capacity in LAYOUTS, the guild has at `now`: the Reception's, and what each
+## finished room adds by its tier then (ROOM_TYPES); a room under way counts once finished.
+func capacity(what: String, now: int) -> int:
+	var total := reception(what)
 	for slot: String in converted:
-		if converted[slot]["type"] == "bunk_room":
-			total += BUNK_ROOM_BEDS[tier(slot, now) - 1]
-	if _converting() and building_into == "bunk_room" and seconds_left(now) == 0:
-		total += BUNK_ROOM_BEDS[0]
-	return mini(MAX_ROSTER, total)
+		var adds: Array = ROOM_TYPES[converted[slot]["type"]].get(what, [])
+		if not adds.is_empty():
+			total += int(adds[tier(slot, now) - 1])
+	if _converting() and seconds_left(now) == 0:
+		total += int(ROOM_TYPES[building_into].get(what, [0])[0])
+	return total
+
+
+## When each slot of `what`, "candidate_slots" or "board_slots", that rooms add came, in unix
+## seconds, one entry a slot: a room's tier-1 slots at its conversion, and the ones each later tier
+## adds at the time that tier was reached, so no slot exists before its tier. Only rooms and tiers
+## the last checkpoint saw count.
+func added_at(what: String) -> PackedInt64Array:
+	var times := PackedInt64Array()
+	for room: Dictionary in converted.values():
+		var adds: Array = ROOM_TYPES[room["type"]].get(what, [])
+		var reached: Array = [room["done_at"]] + room.get("upgraded_at", [])
+		var before := 0
+		for at: int in mini(adds.size(), reached.size()):
+			for slot: int in int(adds[at]) - before:
+				times.append(int(reached[at]))
+			before = int(adds[at])
+	return times
 
 
 ## The slot of the first room of `type` to be converted, on any floor, counting one under way,

@@ -275,7 +275,7 @@ func test_a_new_guild_has_2_beds_and_a_bunk_room_makes_4_and_a_common_room_2_can
 	assert_false(recruits.candidates[1].is_empty())
 
 
-func test_a_six_room_hall_has_4_beds_and_each_finished_bunk_room_adds_2_up_to_8() -> void:
+func test_a_six_room_hall_has_4_beds_and_each_finished_bunk_room_adds_2_with_no_cap() -> void:
 	var gold := Gold.new(1_000)
 	var hall := _hall_with_empty_room("back_left", gold)
 	assert_eq(hall.beds(1_120), 4)
@@ -288,7 +288,7 @@ func test_a_six_room_hall_has_4_beds_and_each_finished_bunk_room_adds_2_up_to_8(
 	hall.converted["back_right"] = {"type": "bunk_room", "done_at": 1_000}
 	assert_eq(hall.beds(1_122), 8)
 	hall.converted["side_right"] = {"type": "bunk_room", "done_at": 1_000}
-	assert_eq(hall.beds(1_122), 8)
+	assert_eq(hall.beds(1_122), 10)
 
 
 func test_converting_an_empty_room_takes_60_gold_at_once_and_finishes_exactly_2_seconds_later() -> void:
@@ -1194,16 +1194,16 @@ func test_a_finished_bunk_room_upgrades_to_tier_2_then_3_paid_at_the_start_and_i
 	assert_eq(hall.state("side_left", 1_006), Hall.State.CONVERTED)
 	assert_eq(hall.room_type("side_left"), "bunk_room")
 	assert_eq(hall.beds(1_008), 4)
-	assert_eq(hall.beds(1_009), 5)
+	assert_eq(hall.beds(1_009), 6)
 	hall.checkpoint(1_009)
 	assert_eq(hall.tier("side_left", 1_009), 2)
-	assert_eq(hall.beds(1_009), 5)
+	assert_eq(hall.beds(1_009), 6)
 	assert_true(hall.upgrade("side_left", gold, 1_009))
 	assert_eq(gold.amount, 170)
 	assert_eq(hall.seconds_left(1_009), 10)
-	assert_eq(hall.beds(1_018), 5)
+	assert_eq(hall.beds(1_018), 6)
 	# Finished, not yet checkpointed: the beds and the tier count already.
-	assert_eq(hall.beds(1_019), 6)
+	assert_eq(hall.beds(1_019), 10)
 	assert_eq(hall.tier("side_left", 1_019), 3)
 	assert_eq(hall.upgrade_refusal("side_left", gold, 1_019), "Highest tier")
 	assert_false(hall.upgrade("side_left", gold, 1_019))
@@ -1212,7 +1212,7 @@ func test_a_finished_bunk_room_upgrades_to_tier_2_then_3_paid_at_the_start_and_i
 	assert_false(hall.upgrade("side_left", gold, 1_019))
 	assert_eq(gold.amount, 170)
 	assert_eq(hall.building, "")
-	assert_eq(hall.beds(1_019), 6)
+	assert_eq(hall.beds(1_019), 10)
 
 
 func test_every_upgrade_refusal_changes_nothing_builder_busy_short_gold_highest_tier_and_not_upgradable() -> void:
@@ -1237,7 +1237,7 @@ func test_every_upgrade_refusal_changes_nothing_builder_busy_short_gold_highest_
 	assert_true(hall.upgrade("side_left", gold, 1_011))
 	hall.checkpoint(1_021)
 	_assert_upgrade_refused(hall, "side_left", gold, 1_021, "Highest tier")
-	assert_eq(hall.beds(1_021), 6)
+	assert_eq(hall.beds(1_021), 10)
 
 
 # Asserts upgrading `slot` at `now` is refused for `reason`, and that trying leaves the gold, the
@@ -1262,20 +1262,20 @@ func test_a_bunk_rooms_tier_and_an_upgrade_under_way_survive_save_and_load() -> 
 
 	var loaded := Hall.load_or_start(SAVE_PATH, 99_999)
 	assert_eq(loaded.tier("side_left", 1_012), 2)
-	assert_eq(loaded.beds(1_012), 5)
+	assert_eq(loaded.beds(1_012), 6)
 	assert_eq(loaded.building, "side_left")
 	assert_eq(loaded.seconds_left(1_012), 7)
 	assert_eq(loaded.state("side_left", 1_012), Hall.State.CONVERTED)
 	assert_eq(loaded.upgrade_refusal("side_left", Gold.new(1_000), 1_012), "Builder busy")
-	assert_eq(loaded.beds(1_018), 5)
-	assert_eq(loaded.beds(1_019), 6)
+	assert_eq(loaded.beds(1_018), 6)
+	assert_eq(loaded.beds(1_019), 10)
 	loaded.checkpoint(1_019)
 	file = ConfigFile.new()
 	loaded.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
 	var reloaded := Hall.load_or_start(SAVE_PATH, 99_999)
 	assert_eq(reloaded.tier("side_left", 1_019), 3)
-	assert_eq(reloaded.beds(1_019), 6)
+	assert_eq(reloaded.beds(1_019), 10)
 	assert_eq(reloaded.building, "")
 	assert_eq(reloaded.upgrade_refusal("side_left", Gold.new(1_000), 1_019), "Highest tier")
 
@@ -1305,7 +1305,7 @@ func test_a_save_without_tiers_loads_its_bunk_rooms_at_tier_1_with_the_same_beds
 	var gold := Gold.new(60)
 	assert_true(hall.upgrade("side_left", gold, 1_202))
 	assert_eq(gold.amount, 0)
-	assert_eq(hall.beds(1_206), 5)
+	assert_eq(hall.beds(1_206), 6)
 
 
 func test_on_the_hall_an_upgradable_bunk_rooms_icon_opens_the_confirm_card_and_confirming_starts_the_upgrade() -> void:

@@ -449,7 +449,7 @@ func test_a_tap_on_a_candidate_or_the_walk_in_opens_them_and_a_tap_on_their_butt
 	layer.add_child(roster)
 	var recruits := Recruits.new()
 	recruits.refill(_dispatch.adventurers, 1_000)
-	roster.show_recruits(recruits, _dispatch.adventurers, Gold.new(1_000), Hall.MAX_ROSTER, Hall.new(1_000), 1_000)
+	roster.show_recruits(recruits, _dispatch.adventurers, Gold.new(1_000), 8, Hall.new(1_000), 1_000)
 	roster.show_walk_in(WalkIns.walk_in_for(5_000, PackedStringArray()), true)
 	var opened: Array[int] = []
 	var hired: Array[int] = []
@@ -485,7 +485,7 @@ func test_a_marked_candidate_stays_marked_when_the_candidates_are_rebuilt_and_th
 	var recruits := Recruits.new()
 	recruits.refill(_dispatch.adventurers, 1_000)
 	roster.show_dispatch(_dispatch, 1_000)
-	roster.show_recruits(recruits, _dispatch.adventurers, Gold.new(0), Hall.MAX_ROSTER, Hall.new(1_000), 1_000)
+	roster.show_recruits(recruits, _dispatch.adventurers, Gold.new(0), 8, Hall.new(1_000), 1_000)
 	roster.show_walk_in(WalkIns.walk_in_for(5_000, PackedStringArray()), true)
 	roster.mark("", 0)
 	var first := _visitor_card(roster, "Candidates", 0)
@@ -493,7 +493,7 @@ func test_a_marked_candidate_stays_marked_when_the_candidates_are_rebuilt_and_th
 	assert_eq(_visitor_card(roster, "WalkIn", 1).theme_type_variation, &"")
 	# A Common room brings a second candidate: the cards are built again, the first still marked.
 	recruits.refill(_dispatch.adventurers, 1_001, PackedInt64Array([1_000]))
-	roster.show_recruits(recruits, _dispatch.adventurers, Gold.new(0), Hall.MAX_ROSTER, Hall.new(1_000), 1_001)
+	roster.show_recruits(recruits, _dispatch.adventurers, Gold.new(0), 8, Hall.new(1_000), 1_001)
 	assert_ne(_visitor_card(roster, "Candidates", 0), first)
 	assert_eq(_visitor_card(roster, "Candidates", 0).theme_type_variation, &"RowCardChosen")
 	assert_eq(_visitor_card(roster, "Candidates", 1).theme_type_variation, &"")

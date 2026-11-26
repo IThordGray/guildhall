@@ -55,14 +55,14 @@ var refill_at: PackedInt64Array = PackedInt64Array()
 ## Latest unix seconds the slots have been refilled up to.
 var checked_at: int = 0
 ## How many candidates visit at once with no Common room, as the Reception gives it
-## (Hall.reception); each finished one adds a slot, up to MAX_CANDIDATE_SLOTS in all. Not saved:
-## whoever loads the game sets it from the hall.
+## (Hall.reception); a Common room adds more by its tier, up to MAX_CANDIDATE_SLOTS in all. Not
+## saved: whoever loads the game sets it from the hall.
 var reception_slots: int = Hall.LAYOUTS[Hall.NEW_LAYOUT]["candidate_slots"]
 
 
-## Brings the slots up to `now`: adds a slot for each Common room finished, its first candidate due
-## at the room's finish time in `common_rooms_done`, and fills each empty slot whose time has come,
-## in the order their time comes. Each candidate is drawn from their slot and arrival time alone,
+## Brings the slots up to `now`: adds a slot for each time in `common_rooms_done` (Hall.added_at:
+## when a Common room or its tier added it), its first candidate due then, and fills each empty slot
+## whose time has come, in the order their time comes. Each candidate is drawn from their slot and arrival time alone,
 ## never the global generator, so refilling once after an absence gives the same candidates as
 ## refilling every second through it; one arriving at or after `rank_e_at`, the moment the guild
 ## reached rank E (-1 for not yet), may be rank E. Nobody arriving is named after `walk_in_name`, the
@@ -114,8 +114,7 @@ static func hire_gold(candidate: Dictionary) -> int:
 
 
 ## Why nobody costing `cost` can be hired into `adventurers` with `gold` and `beds`, in words for
-## the player; "" when they can. A Bunk room is suggested only while `hall` can still build one:
-## none built or being built, and the guild's rank opens it.
+## the player; "" when they can. With every bed taken, `bed_refusal` says why.
 static func refusal(adventurers: Adventurers, gold: Gold, beds: int, cost: int = HIRE_GOLD, hall: Hall = null) -> String:
 	var no_bed := bed_refusal(adventurers, beds, hall)
 	if not no_bed.is_empty():
@@ -126,12 +125,26 @@ static func refusal(adventurers: Adventurers, gold: Gold, beds: int, cost: int =
 
 
 ## Why nobody can join `adventurers` with `beds`, in words for the player; "" while a bed is free.
-## `hall` is as for `refusal`.
+## With `hall`, as its last checkpoint saw it, it says what would add beds: a Bunk room when none is
+## built or being built, else upgrading one its rank allows and the builder isn't already on, else a
+## second one once the rank allows it; nothing when none of those can.
 static func bed_refusal(adventurers: Adventurers, beds: int, hall: Hall = null) -> String:
-	if adventurers.roster.size() >= beds:
-		var bunk_room_open := hall != null and hall.has_rank(Hall.ROOM_TYPES["bunk_room"]["rank"]) and hall.first_room("bunk_room").is_empty()
-		return "No free bed — convert a Bunk room" if bunk_room_open else "No free bed"
-	return ""
+	if adventurers.roster.size() < beds:
+		return ""
+	if hall == null:
+		return "No free bed"
+	if hall.first_room("bunk_room").is_empty():
+		return "No free bed — convert a Bunk room"
+	var bunk_rooms := 1 if hall.building_into == "bunk_room" and hall.building_tier == 0 else 0
+	for slot: String in hall.converted:
+		if hall.converted[slot]["type"] != "bunk_room":
+			continue
+		bunk_rooms += 1
+		if slot != hall.building and hall.rank_allows_upgrade(slot, hall.checked_at):
+			return "No free bed — upgrade the Bunk room"
+	if bunk_rooms < 2 and hall.has_rank(Hall.ROOM_TYPES["bunk_room"]["second_rank"]):
+		return "No free bed — convert a second Bunk room"
+	return "No free bed"
 
 
 ## Pays `hire_gold` and brings the candidate in `slot` at `now` into `adventurers`, emptying the

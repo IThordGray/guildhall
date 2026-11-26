@@ -94,7 +94,7 @@ func _assert_drag_scrolls_and_does_not_fire(scroll: ScrollContainer, button: Bas
 func _roster() -> Roster:
 	var roster := _screen("res://screens/roster.tscn") as Roster
 	var dispatch := Dispatch.new(1_000)
-	for i: int in Hall.MAX_ROSTER - dispatch.adventurers.roster.size():
+	for i: int in 8 - dispatch.adventurers.roster.size():
 		dispatch.adventurers.add("recruit_%d" % i, {"name": "Recruit %d" % i, "rank": "F"}, Adventurers.STARTING_STATS["bram"], Adventurers.GROWTH["bram"])
 	roster.show_dispatch(dispatch, 1_000)
 	roster.adventurer_pressed.connect(func(_adventurer: String) -> void: _fire())
@@ -414,7 +414,7 @@ func test_a_tap_on_a_candidate_away_from_hire_opens_them_and_hires_nothing_wheth
 	var adventurers := Adventurers.new()
 	var recruits := Recruits.new()
 	recruits.refill(adventurers, 1_000)
-	roster.show_recruits(recruits, adventurers, Gold.new(0), Hall.MAX_ROSTER, Hall.new(1_000), 1_000)
+	roster.show_recruits(recruits, adventurers, Gold.new(0), 8, Hall.new(1_000), 1_000)
 	var hired: Array[int] = []
 	roster.hire_pressed.connect(func(slot: int) -> void: hired.append(slot))
 	roster.visitor_pressed.connect(func(_slot: int) -> void: _fire())
@@ -432,7 +432,7 @@ func test_a_tap_on_a_candidate_away_from_hire_opens_them_and_hires_nothing_wheth
 	await _touch_drag(_middle(name_label), _middle(name_label))
 	assert_eq(_fired, 1)
 	assert_eq(hired, [] as Array[int])
-	roster.show_recruits(recruits, adventurers, Gold.new(1_000), Hall.MAX_ROSTER, Hall.new(1_000), 1_000)
+	roster.show_recruits(recruits, adventurers, Gold.new(1_000), 8, Hall.new(1_000), 1_000)
 	# Without the refusal's line, the card is laid out shorter on the next frame.
 	await wait_process_frames(1)
 	await _touch_drag(_middle(name_label), _middle(name_label))

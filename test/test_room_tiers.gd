@@ -176,8 +176,8 @@ func test_a_save_from_before_tier_times_has_its_rooms_at_their_saved_tier_from_t
 	assert_eq(hall.tier_at("side_left", 1_099), 1)
 	assert_eq(hall.tier_at("side_left", 1_100), 3)
 	assert_eq(hall.tier_at("back_left", 1_200), 1)
-	# The Reception's 2 beds and a tier-3 Bunk room's 4.
-	assert_eq(hall.beds(1_400), 6)
+	# The Reception's 2 beds and a tier-3 Bunk room's 8.
+	assert_eq(hall.beds(1_400), 10)
 	assert_eq(hall.upgrade_refusal("side_left", Gold.new(1_000), 1_400), "Highest tier")
 	file = ConfigFile.new()
 	hall.write(file)
@@ -235,7 +235,7 @@ func _hall_screen(hall: Hall, gold: Gold, now: Array) -> Array:
 		upgrading[0] = slot
 		var next := hall.next_upgrade(slot, now[0])
 		var info: Dictionary = Hall.ROOM_TYPES[hall.room_type(slot)]
-		sheet.offer("Upgrade " + info["name"], next["gold"], next["seconds"], "Upgrade", hall.upgrade_refusal(slot, gold, now[0]), info.get("upgrade_blurb", "")))
+		sheet.offer("Upgrade " + info["name"], next["gold"], next["seconds"], "Upgrade", hall.upgrade_refusal(slot, gold, now[0]), next.get("blurb", "")))
 	sheet.confirmed.connect(func() -> void:
 		hall.upgrade(upgrading[0], gold, now[0])
 		sheet.close())

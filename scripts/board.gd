@@ -39,9 +39,9 @@ func filled() -> int:
 	return slots.size() - slots.count("")
 
 
-## Brings the board up to `now`: adds a slot for each Quest hall finished, due at the hall's finish
-## time in `quest_halls_done`, then, in the order their time comes, fills the empty slots and
-## empties each slot whose quest has been on it EXPIRE_SECONDS for its rank, its refill then due
+## Brings the board up to `now`: adds a slot for each time in `quest_halls_done` (Hall.added_at:
+## when a Quest hall or its tier added it), due then, then, in the order their time comes, fills the
+## empty slots and empties each slot whose quest has been on it EXPIRE_SECONDS for its rank, its refill then due
 ## REFILL_SECONDS for that rank later, as after a send; at the same second, quests leave before
 ## slots fill. Each slot is judged at its own time from saved timestamps alone, so refilling once
 ## after an absence gives the same board as refilling every second through it: it takes a quest
