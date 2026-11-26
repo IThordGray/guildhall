@@ -41,9 +41,11 @@ var _now: int = 0
 ## The quest's unknown challenges the pills were last built with, so a reveal while the picker is
 ## open shows at once and nothing else rebuilds them.
 var _forecast_unknown: PackedStringArray = PackedStringArray()
-## The Story tag beside a story quest's name; the Floor tag beside a floor's.
+## The Story tag beside a story quest's name; the Floor tag beside a floor's; the Labyrinth tag
+## beside a board quest's set in the labyrinth.
 var _story_tag: Label
 var _floor_tag: Label
+var _labyrinth_tag: Label
 
 @onready var _heading: HBoxContainer = $Root/Quest/Box/Heading
 @onready var _title: Label = $Root/Quest/Box/Heading/Title
@@ -77,6 +79,8 @@ func _ready() -> void:
 	_floor_tag = QuestBoard.chip("", &"PillCovered")
 	_floor_tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_heading.add_child(_floor_tag)
+	_labyrinth_tag = QuestBoard.labyrinth_tag()
+	_heading.add_child(_labyrinth_tag)
 
 
 ## Landscape docks the picker beside the board, where Cancel drops the quest; portrait makes it a
@@ -190,7 +194,8 @@ func set_prompt(text: String) -> void:
 
 
 ## Opens the picker for `quest` with no party picked; a story quest with its Story tag and a line
-## saying it stays until done; a floor with its number and a line saying what an expedition brings.
+## saying it stays until done; a floor with its number and a line saying what an expedition brings;
+## a quest set in the labyrinth with its Labyrinth tag.
 func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	_quest = quest
 	_prompt.hide()
@@ -204,6 +209,7 @@ func open(quest: String, dispatch: Dispatch, now: int) -> void:
 	_story_line.visible = _story_tag.visible
 	_floor_tag.visible = Dispatch.is_floor(quest)
 	_floor_line.visible = _floor_tag.visible
+	_labyrinth_tag.visible = Dispatch.is_labyrinth(quest)
 	if _floor_tag.visible:
 		_floor_tag.text = "Floor %d" % info["floor"]
 		_floor_line.text = "Expedition · success explores +%d%% and brings %d %s; failure +%d%% and %d" % [Labyrinth.SUCCESS_EXPLORED, Labyrinth.SUCCESS_MATERIAL, Labyrinth.FLOORS[quest]["material"], Labyrinth.FAILURE_EXPLORED, Labyrinth.FAILURE_MATERIAL]

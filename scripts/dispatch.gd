@@ -26,11 +26,11 @@ const QUESTS: Dictionary[String, Dictionary] = {
 	"sealed_door": {"name": "Break the curse on the sealed door", "rank": "E", "seconds": 12, "gold": 25, "xp": 18, "difficulty": 54, "challenges": ["Curse", "Navigation"]},
 	"lurker": {"name": "Hunt the cave lurker", "rank": "E", "seconds": 14, "gold": 30, "xp": 21, "difficulty": 44, "challenges": ["Brute force", "Curse"]},
 	"crypt": {"name": "Clear the old crypt", "rank": "E", "seconds": 16, "gold": 33, "xp": 24, "difficulty": 55, "challenges": ["Curse", "Traps", "Attrition"]},
-	"pilgrims": {"name": "Guard pilgrims through the low halls", "rank": "E", "seconds": 18, "gold": 38, "xp": 27, "difficulty": 56, "challenges": ["Protect", "Attrition"]},
+	"pilgrims": {"name": "Guard pilgrims through the low halls", "rank": "E", "seconds": 18, "gold": 38, "xp": 27, "difficulty": 56, "challenges": ["Protect", "Attrition"], "labyrinth": true},
 	"goblins": {"name": "Goblin camp", "rank": "E", "seconds": 20, "gold": 42, "xp": 30, "difficulty": 53, "challenges": ["Brute force", "Traps", "Navigation"]},
-	"maze": {"name": "Map the shifting maze", "rank": "D", "seconds": 30, "gold": 87, "xp": 50, "difficulty": 72, "challenges": ["Navigation", "Traps"]},
+	"maze": {"name": "Map the shifting maze", "rank": "D", "seconds": 30, "gold": 87, "xp": 50, "difficulty": 72, "challenges": ["Navigation", "Traps"], "labyrinth": true},
 	"chapel": {"name": "Unbind the drowned chapel", "rank": "D", "seconds": 36, "gold": 100, "xp": 60, "difficulty": 76, "challenges": ["Curse", "Attrition"]},
-	"minotaur": {"name": "Slay the minotaur of the third ring", "rank": "D", "seconds": 40, "gold": 113, "xp": 67, "difficulty": 70, "challenges": ["Brute force", "Attrition"]},
+	"minotaur": {"name": "Slay the minotaur of the third ring", "rank": "D", "seconds": 40, "gold": 113, "xp": 67, "difficulty": 70, "challenges": ["Brute force", "Attrition"], "labyrinth": true},
 	"envoy": {"name": "Escort the envoy to the deep market", "rank": "D", "seconds": 50, "gold": 125, "xp": 83, "difficulty": 91, "challenges": ["Protect", "Negotiation", "Navigation"]},
 	"vault": {"name": "Raid the bone king's vault", "rank": "D", "seconds": 60, "gold": 150, "xp": 100, "difficulty": 83, "challenges": ["Curse", "Traps", "Protect"]},
 	# A new game's Bram and Tobin, at level 1 in their starting gear, have about 60%.
@@ -198,6 +198,12 @@ func open_story_quests(unlocked: PackedStringArray) -> PackedStringArray:
 		if is_story(quest) and quest in unlocked and quest not in story_done:
 			open.append(quest)
 	return open
+
+
+## True when `quest_id` is a board quest set in the labyrinth (QUESTS "labyrinth"), tagged so on
+## the board and in the picker; otherwise an ordinary board quest.
+static func is_labyrinth(quest_id: String) -> bool:
+	return QUESTS[quest_id].get("labyrinth", false)
 
 
 ## True when `quest_id` is a floor of the labyrinth (QUESTS "floor").

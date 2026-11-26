@@ -154,7 +154,15 @@ func _ready() -> void:
 			_story_rows[quest] = _story_row(quest, words)
 			_story_list.add_child(_story_rows[quest].row)
 			continue
-		words.add_child(one_line(Dispatch.QUESTS[quest]["name"], &"RowTitle"))
+		var title := one_line(Dispatch.QUESTS[quest]["name"], &"RowTitle")
+		if Dispatch.is_labyrinth(quest):
+			var top := HBoxContainer.new()
+			top.add_theme_constant_override("separation", 16)
+			top.add_child(title)
+			top.add_child(labyrinth_tag())
+			words.add_child(top)
+		else:
+			words.add_child(title)
 		words.add_child(chips)
 		var more := _label("›", &"Secondary")
 		more.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -315,6 +323,13 @@ static func story_tag(themed: Control) -> Label:
 	var tag := chip("Story", &"Pill")
 	tag.add_theme_stylebox_override(&"normal", style)
 	tag.add_theme_color_override(&"font_color", gold)
+	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return tag
+
+
+## The "Labyrinth" tag after the name of a quest set in the labyrinth (Dispatch.is_labyrinth).
+static func labyrinth_tag() -> Label:
+	var tag := chip("Labyrinth", &"PillCovered")
 	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	return tag
 
