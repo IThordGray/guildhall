@@ -6,10 +6,13 @@ extends RefCounted
 ## takes the board quest its rank allows that pays the most gold among those whose shown chance's low
 ## end (Dispatch.chance_range) is at least LOWEST_LOW_END for its mode, ties going to the higher low
 ## end, then the earlier slot. With none, it waits and tries again whenever the board changes or it
-## is ready again. It all happens in `checkpoint`, from saved timestamps alone: the last
+## is ready again. A party whose Elite is on too (Parties.elite_auto) also weighs, by the same rule,
+## the elite expedition open at that moment (Dispatch.open_elites), which can kill; only the first
+## such party ready takes it. It all happens in `checkpoint`, from saved timestamps alone: the last
 ## REPLAY_SECONDS of an absence give the same as watching, and anything before them is settled by
 ## averages that track what playing gives, and the board drawn afresh, so a long absence stays
-## quick.
+## quick. The averages never take an elite: the windows that open and close before the last
+## REPLAY_SECONDS pass unseen.
 
 ## The lowest low end of a quest's shown chance, in whole percent, a party with Auto on takes, by its
 ## mode (Parties.mode).
@@ -23,14 +26,15 @@ const REPLAY_SECONDS: int = 3 * 3_600
 ## up to REPLAY_SECONDS before `now` (`_settle`), with or without Auto parties. The rest is played
 ## out in time order: each party's
 ## return (Dispatch.checkpoint), each refill, quest leaving and reveal (Board.refill), and at each of
-## those moments and each moment an Auto party becomes ready, the sends of the Auto parties ready
-## then, in party order, a quest taken by one gone for the next. Each Auto send's outcome is fixed by
-## a seed of the party, the quest and the time it leaves, never the global generator, so the same
-## save always plays out the same way. Checkpointing once after an absence of up to REPLAY_SECONDS
+## those moments, each moment an Auto party becomes ready and each elite window opening, the sends
+## of the Auto parties ready then, in party order, a quest taken by one gone for the next, an elite
+## among them for a guild that reached rank C at `rank_c_at` (Hall.ranked_at; negative for not yet).
+## Each Auto send's outcome is fixed by a seed of the party, the quest and the time it leaves, never
+## the global generator, so the same save always plays out the same way. Checkpointing once after an absence of up to REPLAY_SECONDS
 ## gives the same as checkpointing every second through it. Until the guild has unlocked Auto
 ## (`unlocked` false, see Goals), no party goes by itself, exactly or averaged, whatever its Auto. The
 ## other arguments are as for Board.send.
-static func checkpoint(dispatch: Dispatch, board: Board, now: int, quest_halls_done: PackedInt64Array, infirmary_tiers: PackedInt64Array = PackedInt64Array(), map_room_tiers: PackedInt64Array = PackedInt64Array(), quest_hall_tiers: PackedInt64Array = PackedInt64Array(), guild_rank: String = Hall.STARTING_RANK, unlocked: bool = true) -> void:
+static func checkpoint(dispatch: Dispatch, board: Board, now: int, quest_halls_done: PackedInt64Array, infirmary_tiers: PackedInt64Array = PackedInt64Array(), map_room_tiers: PackedInt64Array = PackedInt64Array(), quest_hall_tiers: PackedInt64Array = PackedInt64Array(), guild_rank: String = Hall.STARTING_RANK, unlocked: bool = true, rank_c_at: int = -1) -> void:
 	var at := maxi(now, dispatch.checked_at)
 	if at - REPLAY_SECONDS > dispatch.checked_at:
 		_settle(dispatch, board, at - REPLAY_SECONDS, quest_halls_done, infirmary_tiers, map_room_tiers, quest_hall_tiers, guild_rank, unlocked)
@@ -43,12 +47,19 @@ static func checkpoint(dispatch: Dispatch, board: Board, now: int, quest_halls_d
 			var id: String = party["id"]
 			if not unlocked or not parties.auto(id) or seconds_to_ready(dispatch, id, time) != 0:
 				continue
-			var quest := pick(dispatch, board, id, time)
-			if not quest.is_empty():
+			var elites: Dictionary[String, int] = {}
+			if parties.elite_auto(id):
+				elites = dispatch.open_elites(rank_c_at, time)
+			var quest := pick(dispatch, board, id, time, elites)
+			if quest.is_empty():
+				continue
+			if Dispatch.is_elite(quest):
+				dispatch.send(quest, party["members"], hash([id, quest, time]), time, infirmary_tiers)
+			else:
 				board.send(dispatch, quest, party["members"], hash([id, quest, time]), time, quest_halls_done, infirmary_tiers, map_room_tiers, quest_hall_tiers, guild_rank)
 		if time >= at:
 			return
-		var next := _next_change(dispatch, board, time)
+		var next := _next_change(dispatch, board, time, rank_c_at)
 		time = at if next == -1 or next > at else next
 
 
@@ -64,15 +75,17 @@ static func seconds_to_ready(dispatch: Dispatch, id: String, now: int) -> int:
 	return left
 
 
-## The quest on `board` the party with `id` takes at `now` with Auto, as its mode has it; "" for none.
-static func pick(dispatch: Dispatch, board: Board, id: String, now: int) -> String:
+## The quest on `board`, or of the open `elites` (Dispatch.open_elites), the party with `id` takes at
+## `now` with Auto, as its mode has it; "" for none.
+static func pick(dispatch: Dispatch, board: Board, id: String, now: int, elites: Dictionary[String, int] = {}) -> String:
 	var parties := dispatch.adventurers.parties
 	var members: PackedStringArray = parties.party(id)["members"]
 	var lowest: int = LOWEST_LOW_END[parties.mode(id)]
 	var picked := ""
 	var picked_gold := 0
 	var picked_low := 0
-	for quest: String in board.slots:
+	# The elites after the slots, so a tie goes to the board.
+	for quest: String in Array(board.slots) + elites.keys():
 		if quest.is_empty() or not dispatch.party_refusal(quest, members, now).is_empty():
 			continue
 		var low := dispatch.chance_range(quest, members).x
@@ -86,8 +99,9 @@ static func pick(dispatch: Dispatch, board: Board, id: String, now: int) -> Stri
 
 
 # The soonest unix seconds after `now` at which anything an Auto party's pick depends on may change by
-# time alone: a party's return, the board changing, or an Auto party becoming ready. -1 for none.
-static func _next_change(dispatch: Dispatch, board: Board, now: int) -> int:
+# time alone: a party's return, the board changing, an Auto party becoming ready, or, while one has
+# Elite on in a guild that reached rank C at `rank_c_at`, an elite window opening. -1 for none.
+static func _next_change(dispatch: Dispatch, board: Board, now: int, rank_c_at: int) -> int:
 	var times: Array[int] = [board.next_change(dispatch, now)]
 	for outing: Dictionary in dispatch.outings:
 		times.append(dispatch.back_at(outing))
@@ -96,6 +110,8 @@ static func _next_change(dispatch: Dispatch, board: Board, now: int) -> int:
 		var left := seconds_to_ready(dispatch, party["id"], now)
 		if parties.auto(party["id"]) and left > 0:
 			times.append(now + left)
+		if rank_c_at >= 0 and parties.auto(party["id"]) and parties.elite_auto(party["id"]):
+			times.append((Labyrinth.elite_period(now) + 1) * Labyrinth.ELITE_EVERY)
 	var soonest := -1
 	for time: int in times:
 		if time > now and (soonest == -1 or time < soonest):
@@ -103,7 +119,8 @@ static func _next_change(dispatch: Dispatch, board: Board, now: int) -> int:
 	return soonest
 
 
-# Brings `dispatch` and `board` up to `to` with no Auto send: parties out come home as their quests
+# Brings `dispatch` and `board` up to `to` with no Auto send, so never an elite, whatever a party's
+# Elite (Parties.elite_auto): parties out come home as their quests
 # decide, at their own time; each Auto party's questing from its first ready moment on is settled by
 # `_average`, while Auto is `unlocked`, with the slower refill up to the moment the Quest hall
 # reaches Board.FAST_REFILL_TIER and the faster from then on; and the board is drawn afresh at `to`

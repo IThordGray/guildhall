@@ -169,6 +169,11 @@ func _ready() -> void:
 		var parties := _dispatch.adventurers.parties
 		parties.set_mode(party, Parties.BOLD if parties.mode(party) == Parties.SAFE else Parties.SAFE)
 		_checkpoint(now))
+	_board.elite_toggled.connect(func(party: String, on: bool) -> void:
+		var now := _now()
+		_checkpoint(now)
+		_dispatch.adventurers.parties.set_elite_auto(party, on)
+		_checkpoint(now))
 	_picker.send_pressed.connect(_on_party_sent)
 	_picker.back_pressed.connect(_close_picker)
 	_picker.quest_left.connect(_close_picker)
@@ -299,7 +304,7 @@ func _checkpoint(now: int) -> void:
 	_hall.checkpoint(now)
 	_dispatch.adventurers.gear.stash_cap = _hall.stash_cap(now)
 	_dispatch.kitchen_tiers = _hall.tier_times("kitchen")
-	Auto.checkpoint(_dispatch, _quest_board, now, _hall.added_at("board_slots"), _hall.tier_times("infirmary"), _hall.tier_times("map_room"), _hall.tier_times("quest_hall"), _hall.rank, _goals.is_unlocked(Goals.AUTO))
+	Auto.checkpoint(_dispatch, _quest_board, now, _hall.added_at("board_slots"), _hall.tier_times("infirmary"), _hall.tier_times("map_room"), _hall.tier_times("quest_hall"), _hall.rank, _goals.is_unlocked(Goals.AUTO), _hall.ranked_at.get("C", -1))
 	_goals.count_home(_dispatch)
 	_recruits.refill(_dispatch.adventurers, now, _hall.added_at("candidate_slots"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1))
 	_walk_ins.refill(_dispatch.adventurers, _recruits, now, _hall.ranked_at.get("E", -1))
@@ -329,7 +334,7 @@ func _checkpoint(now: int) -> void:
 	if _market_screen.visible:
 		_market_screen.show_market(_market, _dispatch.adventurers.gear, _dispatch.labyrinth, _dispatch.outings.size(), now)
 	var story := _dispatch.open_story_quests(_goals.unlocked)
-	_board.show_board(_quest_board, _dispatch, now, _goals.is_unlocked(Goals.AUTO), story)
+	_board.show_board(_quest_board, _dispatch, now, _goals.is_unlocked(Goals.AUTO), story, _hall.ranked_at.has("C"))
 	_picker.show_board(_quest_board, story, _dispatch.open_floors(_goals.unlocked), _dispatch.open_elites(_hall.ranked_at.get("C", -1), now))
 	_labyrinth_tab.disabled = not _goals.is_unlocked(Labyrinth.UNLOCK)
 	if _labyrinth.visible:

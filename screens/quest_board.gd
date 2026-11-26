@@ -16,6 +16,9 @@ signal fallen_seen(index: int)
 signal auto_toggled(party: String, on: bool)
 ## The player asked to switch the Auto mode of the party with `party` between Safe and Bold.
 signal mode_toggled(party: String)
+## The player turned Elite on or off for the party with `party`: whether Auto may send it on an
+## elite expedition (Parties.elite_auto).
+signal elite_toggled(party: String, on: bool)
 
 ## The length of each dash in an unknown challenge's chip border.
 const DASH_LENGTH: float = 12.0
@@ -28,6 +31,8 @@ const FIGURE_SCALE: int = 7
 const PARTY_BAR_PX: int = 11
 ## The Auto switch's size, and how far its knob sits inside its track.
 const SWITCH_SIZE_PX: Vector2 = Vector2(100, 56)
+## The smaller Elite switch's size.
+const ELITE_SWITCH_SIZE_PX: Vector2 = Vector2(76, 42)
 const KNOB_INSET_PX: float = 7.0
 ## In portrait, how wide the column of the Auto switch and what is under it is, so the faces line up
 ## from row to row whether it reads Auto or the mode.
@@ -72,6 +77,9 @@ var _story: PackedStringArray = PackedStringArray()
 ## Whether the guild has unlocked Auto (Goals.AUTO), as last shown: until it has, no party row shows
 ## its Auto switch or mode, and a party saved with Auto on shows as home.
 var _auto_unlocked: bool = true
+## Whether the guild has reached rank C, as last shown: until it has, with Auto unlocked, no party
+## row shows its Elite switch.
+var _rank_c: bool = false
 ## The parties the Parties rows were built for (Parties.groups), so they are rebuilt only when a
 ## party is made, goes or changes members; and each row's parts that change, by the party's id.
 var _parties_shown: Array = []
@@ -112,6 +120,9 @@ class PartyRow extends RefCounted:
 	## Under the switch: "Auto" while it is off; the Safe/Bold toggle while it is on.
 	var off: Label
 	var mode: Button
+	## After them, the Elite switch and its label.
+	var elite: Button
+	var elite_label: Label
 
 
 ## A story quest's row: the whole row, and what shows while it is home or while a party is out on
@@ -191,7 +202,7 @@ func set_landscape(landscape: bool) -> void:
 	for id: String in _party_rows:
 		_place_parts(_party_rows[id])
 	if _board != null:
-		show_board(_board, _dispatch, _now, _auto_unlocked, _story)
+		show_board(_board, _dispatch, _now, _auto_unlocked, _story, _rank_c)
 
 
 ## Shows what needs the player in `dispatch` (deaths not yet seen, loot that found the stash full,
@@ -200,12 +211,13 @@ func set_landscape(landscape: bool) -> void:
 ## in `board`'s slots in order, each with the time until it leaves the board, and beside the board's
 ## label, while a slot is empty, the soonest refill. An unknown challenge shows the time to its reveal
 ## while the Map room is revealing it. Each party's Auto shows only once the guild has
-## `auto_unlocked` it.
-func show_board(board: Board, dispatch: Dispatch, now: int, auto_unlocked: bool = true, story: PackedStringArray = PackedStringArray()) -> void:
+## `auto_unlocked` it, and its Elite only once the guild has also reached `rank_c`.
+func show_board(board: Board, dispatch: Dispatch, now: int, auto_unlocked: bool = true, story: PackedStringArray = PackedStringArray(), rank_c: bool = false) -> void:
 	_dispatch = dispatch
 	_board = board
 	_now = now
 	_auto_unlocked = auto_unlocked
+	_rank_c = rank_c
 	_story = story
 	_parties_count.text = str(dispatch.outings.size())
 	_show_needs_you(dispatch)
@@ -652,7 +664,7 @@ func _show_parties(dispatch: Dispatch, now: int) -> void:
 
 
 # The row of party `id` of `members` in `roster`: its rank pill, name and faces over where it is in
-# its cycle, and at the right its Auto switch over its mode.
+# its cycle, and at the right its Auto switch over its mode, then its Elite switch.
 func _party_row(id: String, members: PackedStringArray, roster: Dictionary) -> PanelContainer:
 	var parts := PartyRow.new()
 	parts.rank = chip("", &"Pill")
@@ -707,12 +719,25 @@ func _party_row(id: String, members: PackedStringArray, roster: Dictionary) -> P
 	parts.mode = Button.new()
 	parts.mode.theme_type_variation = &"SmallLink"
 	parts.mode.pressed.connect(mode_toggled.emit.bind(id))
+	parts.elite = Button.new()
+	parts.elite.theme_type_variation = &"Switch"
+	parts.elite.toggle_mode = true
+	parts.elite.custom_minimum_size = ELITE_SWITCH_SIZE_PX
+	parts.elite.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	parts.elite.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	parts.elite.draw.connect(_draw_knob.bind(parts.elite))
+	parts.elite.toggled.connect(func(on: bool) -> void: elite_toggled.emit(id, on))
+	parts.elite_label = _label("Elite", &"Caption")
+	parts.elite_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	parts.elite_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	parts.right = BoxContainer.new()
 	parts.right.alignment = BoxContainer.ALIGNMENT_CENTER
 	parts.right.add_theme_constant_override("separation", 16)
 	parts.right.add_child(parts.auto)
 	parts.right.add_child(parts.off)
 	parts.right.add_child(parts.mode)
+	parts.right.add_child(parts.elite)
+	parts.right.add_child(parts.elite_label)
 	parts.line = HBoxContainer.new()
 	parts.line.add_theme_constant_override("separation", ROW_GAP_PX)
 	parts.line.add_child(words)
@@ -762,6 +787,9 @@ func _show_party(parts: PartyRow, id: String, dispatch: Dispatch, now: int) -> v
 	parts.off.visible = not on
 	parts.mode.visible = on
 	parts.mode.text = "Auto · Bold" if parties.mode(id) == Parties.BOLD else "Auto · Safe"
+	parts.elite.visible = _rank_c
+	parts.elite_label.visible = _rank_c
+	parts.elite.set_pressed_no_signal(parties.elite_auto(id))
 	var outing := {}
 	for each: Dictionary in dispatch.outings:
 		if members[0] in each["party"]:

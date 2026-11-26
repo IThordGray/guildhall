@@ -25,7 +25,8 @@ const BOLD: String = "bold"
 
 ## The parties, in the order they were made. Each is {"id", "name": drawn or typed, "seed": what the
 ## name was last drawn from, "members": adventurer ids in the order they joined, and once set,
-## "auto": whether it goes questing by itself (see Auto), "mode": SAFE or BOLD}.
+## "auto": whether it goes questing by itself (see Auto), "mode": SAFE or BOLD, "elite_auto": whether
+## Auto may send it on an elite expedition}.
 var parties: Array[Dictionary] = []
 ## The number in the next new party's id, so no id is ever used twice.
 var next_id: int = 1
@@ -74,6 +75,16 @@ func mode(id: String) -> String:
 
 func set_mode(id: String, picked: String) -> void:
 	party(id)["mode"] = picked
+
+
+## Whether Auto may send the party with `id` on an open elite expedition, which can kill (see Auto):
+## off until turned on, as in a save from before it.
+func elite_auto(id: String) -> bool:
+	return party(id).get("elite_auto", false)
+
+
+func set_elite_auto(id: String, on: bool) -> void:
+	party(id)["elite_auto"] = on
 
 
 ## Everyone in `roster` (Adventurers.roster) in no party, in roster order.
