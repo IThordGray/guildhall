@@ -14,7 +14,7 @@ extends RefCounted
 ## number is a floor of the labyrinth (Labyrinth): the board never offers it, but it can be gone on
 ## again and again; floor 1 is open once Goals unlocks Labyrinth.UNLOCK, and each floor after once
 ## the one above is Labyrinth.NEXT_FLOOR_AT explored (`open_floors`). A quest with "elite", the floor
-## quest id it is set on, is an elite expedition: the board never offers it and Auto never takes it;
+## quest id it is set on, is an elite expedition: the board never offers it and Auto takes it only for a party with Elite on (Auto);
 ## it is open only in its windows from rank C (`open_elites`), every challenge of it is known, and on a
 ## failure it is the only quest that kills. Its gold is 3 times its floor's and its XP twice.
 const QUESTS: Dictionary[String, Dictionary] = {
