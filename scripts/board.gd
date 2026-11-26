@@ -2,15 +2,19 @@ class_name Board
 extends RefCounted
 
 ## How long a slot takes to refill after its quest is sent, by the rank of the quest sent from it:
-## short for easy quests, longer for hard ones (stand-ins).
+## short for easy quests, longer for hard ones (stand-ins). A slot emptied once a Quest hall has
+## reached FAST_REFILL_TIER refills in half that, rounded down (`refill_seconds`).
 const REFILL_SECONDS: Dictionary[String, int] = {"F": 20, "E": 60, "D": 120}
+const FAST_REFILL_TIER: int = 3
 ## How long a quest stays on the board once put there, by its rank, before it leaves unsent and its
 ## slot refills as after a send (stand-ins).
 const EXPIRE_SECONDS: Dictionary[String, int] = {"F": 60, "E": 120, "D": 240}
-## Once the first Map room is finished, each quest on the board has its unknown challenges revealed
-## this long after the later of when it was put on the board and when that room finished; more Map
-## rooms don't speed it (stand-in).
-const MAP_REVEAL_SECONDS: int = 10
+## Once the guild has a Map room, each quest on the board has its unknown challenges revealed this
+## long after the later of when it was put on the board and when the Map room reached its tier, by
+## that tier, tier 1 first; a quest on the board when the room reaches a higher tier is revealed at
+## the earlier of its old time and the new tier's (`_reveal_time`). More Map rooms don't speed it
+## (stand-ins).
+const MAP_REVEAL_SECONDS: Array[int] = [10, 5, 0]
 ## How a filling slot picks its quest's rank, by the guild's rank (Hall.rank): weights for one rank
 ## below it, its own and one above, so most of the board is at the guild's rank. No other rank is
 ## offered.
@@ -30,8 +34,11 @@ var checked_at: int = 0
 ## How many slots the board has without a Quest hall, as the Reception gives it (Hall.reception);
 ## each finished one adds one. Not saved: whoever loads the game sets it from the hall.
 var reception_slots: int = Hall.LAYOUTS[Hall.NEW_LAYOUT]["board_slots"]
-## The unix seconds the first Map room is finished at, as the last refill was told; -1 for none.
-var _map_room_from: int = -1
+## The unix seconds the guild's Map room reached each tier, as the last refill was told
+## (Hall.tier_times); empty for none.
+var _map_room_tiers: PackedInt64Array = PackedInt64Array()
+## The same for its Quest hall.
+var _quest_hall_tiers: PackedInt64Array = PackedInt64Array()
 
 
 ## How many slots hold a quest.
@@ -42,7 +49,7 @@ func filled() -> int:
 ## Brings the board up to `now`: adds a slot for each time in `quest_halls_done` (Hall.added_at:
 ## when a Quest hall or its tier added it), due then, then, in the order their time comes, fills the
 ## empty slots and empties each slot whose quest has been on it EXPIRE_SECONDS for its rank, its refill then due
-## REFILL_SECONDS for that rank later, as after a send; at the same second, quests leave before
+## `refill_seconds` for that rank later, as after a send; at the same second, quests leave before
 ## slots fill. Each slot is judged at its own time from saved timestamps alone, so refilling once
 ## after an absence gives the same board as refilling every second through it: it takes a quest
 ## neither on the board nor out with a party at that moment, or, with none free, the first freed
@@ -50,10 +57,11 @@ func filled() -> int:
 ## guild's highest-ranked party; and one whose rank is drawn by RANK_WEIGHTS around
 ## `guild_rank`, among the ranks with a quest free. Time is read from no earlier than `dispatch` or
 ## the board last saw, so a clock set back never undoes a refill, brings back a quest that left or
-## restarts a countdown. A new board starts with every slot filled. With the first Map room
-## finished at `map_room_from` (-1 for none), each quest still on the board MAP_REVEAL_SECONDS after
-## the later of its fill time and that has its unknown challenges revealed for good, all by `now`.
-func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, map_room_from: int = -1, guild_rank: String = Hall.STARTING_RANK) -> void:
+## restarts a countdown. A new board starts with every slot filled. With a Map room that reached
+## its tiers at `map_room_tiers` (Hall.tier_times, empty for none), each quest still on the board at
+## its reveal time (`_reveal_time`) has its unknown challenges revealed for good, all by `now`. A
+## Quest hall's `quest_hall_tiers` (Hall.tier_times) speed refills (`refill_seconds`).
+func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, map_room_tiers: PackedInt64Array = PackedInt64Array(), quest_hall_tiers: PackedInt64Array = PackedInt64Array(), guild_rank: String = Hall.STARTING_RANK) -> void:
 	var at := maxi(maxi(now, dispatch.checked_at), checked_at)
 	if slots.is_empty():
 		checked_at = at
@@ -64,7 +72,8 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, ma
 	for i: int in range(slots.size() - reception_slots, halls.size()):
 		_add_slot(halls[i])
 	_note_outings(dispatch)
-	_map_room_from = map_room_from
+	_map_room_tiers = map_room_tiers
+	_quest_hall_tiers = quest_hall_tiers
 	# The ranks now stand for every refill due up to `at`: a rank changes only by a player action,
 	# and whatever does that refills the board first, so fills due before it use the rank before it.
 	var top := _top_rank(dispatch.adventurers)
@@ -90,7 +99,7 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, ma
 			var reveal := _reveal_time(next)
 			if reveal >= 0 and reveal < next_time and not dispatch.unknown_challenges(slots[next]).is_empty():
 				dispatch.revealed.append(slots[next])
-			refill_at[next] = next_time + REFILL_SECONDS[Dispatch.QUESTS[slots[next]]["rank"]]
+			refill_at[next] = next_time + refill_seconds(Dispatch.QUESTS[slots[next]]["rank"], next_time)
 			slots[next] = ""
 		else:
 			slots[next] = _pick(next, next_time, top, guild_rank)
@@ -110,29 +119,48 @@ func refill(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, ma
 ## long to step through: as a new board, every slot the Reception and the Quest halls finished by
 ## then give is filled at once by `refill`'s rules, with a quest neither on the board nor out, drawn
 ## by a seed of the slot and `now`. The arguments are as for `refill`.
-func redraw(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, map_room_from: int = -1, guild_rank: String = Hall.STARTING_RANK) -> void:
+func redraw(dispatch: Dispatch, now: int, quest_halls_done: PackedInt64Array, map_room_tiers: PackedInt64Array = PackedInt64Array(), quest_hall_tiers: PackedInt64Array = PackedInt64Array(), guild_rank: String = Hall.STARTING_RANK) -> void:
 	checked_at = maxi(maxi(now, dispatch.checked_at), checked_at)
 	slots.clear()
 	refill_at.clear()
 	filled_at.clear()
-	refill(dispatch, now, quest_halls_done, map_room_from, guild_rank)
+	refill(dispatch, now, quest_halls_done, map_room_tiers, quest_hall_tiers, guild_rank)
 
 
 ## Sends `party` on `quest` through `dispatch`, empties its slot and starts that slot's countdown;
 ## false, with nothing sent, when the board at `now` doesn't show `quest` or `dispatch` refuses the
 ## party. The other arguments are as for `refill` and `Dispatch.send`.
-func send(dispatch: Dispatch, quest: String, party: PackedStringArray, roll_seed: int, now: int, quest_halls_done: PackedInt64Array, infirmary_from: int = -1, map_room_from: int = -1, guild_rank: String = Hall.STARTING_RANK) -> bool:
-	dispatch.checkpoint(now, infirmary_from)
-	refill(dispatch, now, quest_halls_done, map_room_from, guild_rank)
+func send(dispatch: Dispatch, quest: String, party: PackedStringArray, roll_seed: int, now: int, quest_halls_done: PackedInt64Array, infirmary_tiers: PackedInt64Array = PackedInt64Array(), map_room_tiers: PackedInt64Array = PackedInt64Array(), quest_hall_tiers: PackedInt64Array = PackedInt64Array(), guild_rank: String = Hall.STARTING_RANK) -> bool:
+	dispatch.checkpoint(now, infirmary_tiers)
+	refill(dispatch, now, quest_halls_done, map_room_tiers, quest_hall_tiers, guild_rank)
 	var slot := slots.find(quest)
 	if quest == "" or slot == -1:
 		return false
-	if not dispatch.send(quest, party, roll_seed, now, infirmary_from):
+	if not dispatch.send(quest, party, roll_seed, now, infirmary_tiers):
 		return false
 	_note_outings(dispatch)
 	slots[slot] = ""
-	refill_at[slot] = dispatch.checked_at + REFILL_SECONDS[Dispatch.QUESTS[quest]["rank"]]
+	refill_at[slot] = dispatch.checked_at + refill_seconds(Dispatch.QUESTS[quest]["rank"], dispatch.checked_at)
 	return true
+
+
+## How long a slot emptied at `at` of a quest of `rank` takes to refill: REFILL_SECONDS, halved,
+## rounded down, once the Quest hall has reached FAST_REFILL_TIER, as the last refill was told.
+func refill_seconds(rank: String, at: int) -> int:
+	var fast_from := fast_refill_from(_quest_hall_tiers)
+	return slot_refill_seconds(rank, fast_from >= 0 and fast_from <= at)
+
+
+## How long a slot emptied of a quest of `rank` takes to refill: REFILL_SECONDS, or half of it,
+## rounded down, when `fast`.
+static func slot_refill_seconds(rank: String, fast: bool) -> int:
+	return REFILL_SECONDS[rank] / 2 if fast else REFILL_SECONDS[rank]
+
+
+## The unix seconds slots start refilling twice as fast, for a Quest hall that reached its tiers at
+## `quest_hall_tiers` (Hall.tier_times): when it reached FAST_REFILL_TIER; -1 when it hasn't.
+static func fast_refill_from(quest_hall_tiers: PackedInt64Array) -> int:
+	return quest_hall_tiers[FAST_REFILL_TIER - 1] if quest_hall_tiers.size() >= FAST_REFILL_TIER else -1
 
 
 ## Seconds from `now` until empty slot `slot` refills; 0 once due, while no quest is free.
@@ -167,7 +195,7 @@ func seconds_to_leave(quest: String, dispatch: Dispatch, now: int) -> int:
 func seconds_to_reveal(quest: String, dispatch: Dispatch, now: int) -> int:
 	var slot := slots.find(quest)
 	var at := maxi(maxi(now, dispatch.checked_at), checked_at)
-	if quest == "" or slot == -1 or _map_room_from < 0 or _map_room_from > at or dispatch.unknown_challenges(quest).is_empty():
+	if quest == "" or slot == -1 or _map_room_tiers.is_empty() or _map_room_tiers[0] > at or dispatch.unknown_challenges(quest).is_empty():
 		return -1
 	return maxi(0, _reveal_time(slot) - at)
 
@@ -235,10 +263,16 @@ func _leave_time(slot: int) -> int:
 	return filled_at[slot] + EXPIRE_SECONDS[Dispatch.QUESTS[slots[slot]]["rank"]]
 
 
-# When the Map room reveals the quest in filled slot `slot`, as the last refill was told of it; -1
-# with no Map room.
+# When the Map room reveals the quest in filled slot `slot`, as the last refill was told of it: the
+# soonest, over the tiers it has reached or will, of the later of the fill time and the tier's time,
+# plus that tier's MAP_REVEAL_SECONDS; -1 with no Map room.
 func _reveal_time(slot: int) -> int:
-	return -1 if _map_room_from < 0 else maxi(filled_at[slot], _map_room_from) + MAP_REVEAL_SECONDS
+	var soonest := -1
+	for index: int in _map_room_tiers.size():
+		var time := maxi(filled_at[slot], _map_room_tiers[index]) + MAP_REVEAL_SECONDS[index]
+		if soonest == -1 or time < soonest:
+			soonest = time
+	return soonest
 
 
 # The highest rank of `adventurers`' parties (Parties.rank), only parties going on quests; F with no

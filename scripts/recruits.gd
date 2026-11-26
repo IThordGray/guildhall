@@ -6,8 +6,10 @@ extends RefCounted
 
 ## The most candidates who visit at once, however many Common rooms the guild has.
 const MAX_CANDIDATE_SLOTS: int = 4
-## How long a slot takes to refill after its candidate is hired.
+## How long a slot takes to refill after its candidate is hired; half that, rounded down, for a
+## slot emptied once the Common room has reached FAST_REFILL_TIER.
 const CANDIDATE_REFILL_SECONDS: int = 60
+const FAST_REFILL_TIER: int = 3
 ## What a hire costs.
 const HIRE_GOLD: int = 100
 ## The rank every candidate starts at.
@@ -148,10 +150,11 @@ static func bed_refusal(adventurers: Adventurers, beds: int, hall: Hall = null) 
 
 
 ## Pays `hire_gold` and brings the candidate in `slot` at `now` into `adventurers`, emptying the
-## slot until CANDIDATE_REFILL_SECONDS later; false, with nothing paid or hired, when the slot is
-## empty or `refusal` gives a reason. `common_rooms_done`, `walk_in_name` and `rank_e_at` are as for
-## `refill`.
-func hire(slot: int, adventurers: Adventurers, gold: Gold, beds: int, now: int, common_rooms_done: PackedInt64Array = PackedInt64Array(), walk_in_name: String = "", rank_e_at: int = -1) -> bool:
+## slot until CANDIDATE_REFILL_SECONDS later, or half that once the Common room, which reached its
+## tiers at `common_room_tiers` (Hall.tier_times), has reached FAST_REFILL_TIER; false, with nothing
+## paid or hired, when the slot is empty or `refusal` gives a reason. `common_rooms_done`,
+## `walk_in_name` and `rank_e_at` are as for `refill`.
+func hire(slot: int, adventurers: Adventurers, gold: Gold, beds: int, now: int, common_rooms_done: PackedInt64Array = PackedInt64Array(), walk_in_name: String = "", rank_e_at: int = -1, common_room_tiers: PackedInt64Array = PackedInt64Array()) -> bool:
 	refill(adventurers, now, common_rooms_done, walk_in_name, rank_e_at)
 	if candidates[slot].is_empty() or not refusal(adventurers, gold, beds, hire_gold(candidates[slot])).is_empty():
 		return false
@@ -160,7 +163,8 @@ func hire(slot: int, adventurers: Adventurers, gold: Gold, beds: int, now: int, 
 	# A slot and an arrival time belong to one candidate only.
 	join(adventurers, "recruit_%d_%d" % [slot, refill_at[slot]], hired)
 	candidates[slot] = {}
-	refill_at[slot] = checked_at + CANDIDATE_REFILL_SECONDS
+	var fast := common_room_tiers.size() >= FAST_REFILL_TIER and common_room_tiers[FAST_REFILL_TIER - 1] <= checked_at
+	refill_at[slot] = checked_at + (CANDIDATE_REFILL_SECONDS / 2 if fast else CANDIDATE_REFILL_SECONDS)
 	return true
 
 

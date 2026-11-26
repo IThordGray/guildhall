@@ -42,12 +42,16 @@ const QUESTS: Dictionary[String, Dictionary] = {
 const MAX_PARTY_SIZE: int = 4
 ## How long an injury lasts, counted from the moment the party returns.
 const INJURY_SECONDS: int = 10
-## The same with an Infirmary finished by the moment of return; more Infirmaries don't shorten it.
-const INFIRMARY_INJURY_SECONDS: int = 5
+## The same by the tier the guild's Infirmary has at the moment of return (Hall.tier_times), tier 1
+## first; more Infirmaries don't shorten it (stand-ins).
+const INFIRMARY_INJURY_SECONDS: Array[int] = [5, 3, 2]
 ## Health heals HEAL_POINTS points every HEAL_SECONDS seconds, counted in whole points from the
-## moment of return; from the moment the first Infirmary is finished, twice as fast.
+## moment of return; from the moment the guild's Infirmary reaches each tier, INFIRMARY_HEAL_RATES
+## times as fast, tier 1 first (stand-ins). Each second counts at the rate in force then, so a heal
+## spanning an upgrade is still worked out from saved times alone.
 const HEAL_POINTS: int = 3
 const HEAL_SECONDS: int = 2
+const INFIRMARY_HEAL_RATES: Array[int] = [2, 3, 4]
 ## An adventurer in training gains one XP per whole TRAINING_SECONDS_PER_XP since their stint
 ## started, at most a stint's cap: Hall.stint_xp by the Training room's tier, TRAINING_MAX_XP at
 ## tier 1 and when none is given; the cap is the reason to come back (stand-ins).
@@ -112,8 +116,9 @@ var reputation: int = 0
 ## Latest unix seconds seen. Time is read as never earlier than this, so a clock set back neither
 ## adds time to a quest or an injury nor brings back a party that has returned.
 var checked_at: int
-## The unix seconds the first Infirmary is finished at, as the last checkpoint was told; -1 for none.
-var _infirmary_from: int = -1
+## The unix seconds the guild's Infirmary reached each tier, as the last checkpoint was told
+## (Hall.tier_times); empty for none.
+var _infirmary_tiers: PackedInt64Array = PackedInt64Array()
 ## Debriefs a save from before returns paid at once still held unread: the next checkpoint pays
 ## them as if their parties had just come home. Each is as that save wrote it, with "quest",
 ## "party", "gold", "xp", "loot" (item ids), "xp_given" (whether coming home gave the XP) and
@@ -258,7 +263,8 @@ func injury_seconds(adventurer: String) -> int:
 
 ## `adventurer`'s health at `now`. Out on a quest, what they left with: nobody heals while out. At
 ## home, what their last return left them with, plus HEAL_POINTS per HEAL_SECONDS since, in whole
-## points (twice as fast from the moment the Infirmary is finished), up to their maximum.
+## points (faster from the moment the Infirmary reaches each tier: INFIRMARY_HEAL_RATES), up to
+## their maximum.
 func health(adventurer: String, now: int) -> int:
 	var outing := _outing_of(adventurer)
 	if outing.has("health"):
@@ -277,12 +283,18 @@ func seconds_to_full(adventurer: String, now: int) -> int:
 	var need := ceili(missing * HEAL_SECONDS / float(HEAL_POINTS)) - _heal_units(int(wound["at"]), at)
 	if need <= 0:
 		return 0
-	if _infirmary_from < 0:
-		return need
-	var slow := maxi(0, _infirmary_from - at)
-	if need <= slow:
-		return need
-	return slow + ceili((need - slow) / 2.0)
+	# Through each tier's span at its rate until what is left fits in one.
+	var since := at
+	var rate := 1
+	for index: int in _infirmary_tiers.size():
+		var reached := int(_infirmary_tiers[index])
+		if reached > since:
+			if need <= rate * (reached - since):
+				break
+			need -= rate * (reached - since)
+			since = reached
+		rate = INFIRMARY_HEAL_RATES[index]
+	return since - at + ceili(need / float(rate))
 
 
 ## True when `points` of health are under a quarter of `most`: coming home like that injures.
@@ -299,12 +311,31 @@ func _health_at(adventurer: String, at: int) -> int:
 
 
 # The healing from `from` to `to`, in seconds at the slow rate: each second from the moment the
-# Infirmary is finished counts twice.
+# Infirmary reaches a tier counts INFIRMARY_HEAL_RATES for that tier times.
 func _heal_units(from: int, to: int) -> int:
 	if to <= from:
 		return 0
-	var fast_from := to if _infirmary_from < 0 else clampi(_infirmary_from, from, to)
-	return (fast_from - from) + 2 * (to - fast_from)
+	var units := 0
+	var since := from
+	var rate := 1
+	for index: int in _infirmary_tiers.size():
+		var reached := int(_infirmary_tiers[index])
+		if reached >= to:
+			break
+		if reached > since:
+			units += rate * (reached - since)
+			since = reached
+		rate = INFIRMARY_HEAL_RATES[index]
+	return units + rate * (to - since)
+
+
+# The tier the guild's Infirmary has at `at`, as the last checkpoint was told; 0 for none.
+func _infirmary_tier(at: int) -> int:
+	var reached := 0
+	for time: int in _infirmary_tiers:
+		if time <= at:
+			reached += 1
+	return reached
 
 
 ## The quest `adventurer` is out on, or "" when home.
@@ -547,9 +578,9 @@ func party_id_of(party: PackedStringArray) -> String:
 ## Sends `party` on `quest_id` at `now`, its outcome fixed by `roll_seed`; false, with nothing
 ## started, when `party_refusal` gives a reason. Which board quests can be sent is Board's rule;
 ## which story quests, `open_story_quests`; which floors, `open_floors`.
-## `infirmary_from` is as for `checkpoint`.
-func send(quest_id: String, party: PackedStringArray, roll_seed: int, now: int, infirmary_from: int = -1) -> bool:
-	checkpoint(now, infirmary_from)
+## `infirmary_tiers` is as for `checkpoint`.
+func send(quest_id: String, party: PackedStringArray, roll_seed: int, now: int, infirmary_tiers: PackedInt64Array = PackedInt64Array()) -> bool:
+	checkpoint(now, infirmary_tiers)
 	if not party_refusal(quest_id, party, now).is_empty():
 		return false
 	# Health is fixed on leaving, like the chance, so a level-up while out changes nothing about how
@@ -582,12 +613,12 @@ func returned_since_checkpoint(now: int) -> bool:
 ## material (Labyrinth.bring_home), injures those it leaves under a
 ## quarter of their health, reveals the quest's challenges, puts the gold it earned into `gold` and
 ## its loot into the stash, where loot that finds it full waits (`waiting_loot`). Debriefs a save from before held unread are paid first, the same way.
-## `infirmary_from` is the unix seconds the first Infirmary is finished at, -1 for none: from then
-## on healing is faster, and an injury from a return at or after it is shorter. Records the time
-## seen.
-func checkpoint(now: int, infirmary_from: int = -1) -> void:
+## `infirmary_tiers` is the unix seconds the guild's Infirmary reached each tier (Hall.tier_times),
+## empty for none: from each on, healing is faster (INFIRMARY_HEAL_RATES), and an injury from a
+## return then is shorter (INFIRMARY_INJURY_SECONDS). Records the time seen.
+func checkpoint(now: int, infirmary_tiers: PackedInt64Array = PackedInt64Array()) -> void:
 	checked_at = maxi(checked_at, now)
-	_infirmary_from = infirmary_from
+	_infirmary_tiers = infirmary_tiers
 	# Before any return, so loot that has waited longest takes the room first.
 	while not waiting_loot.is_empty() and adventurers.gear.stow(waiting_loot[0]["item"]):
 		waiting_loot.remove_at(0)
@@ -633,7 +664,8 @@ func _bring_home(outing: Dictionary) -> void:
 		if not success:
 			reward = failure_gold(outing["quest"])
 		var damage := outcome.damage
-		var healed_in := INFIRMARY_INJURY_SECONDS if _infirmary_from >= 0 and _infirmary_from <= returns_at else INJURY_SECONDS
+		var infirmary := _infirmary_tier(returns_at)
+		var healed_in := INJURY_SECONDS if infirmary == 0 else INFIRMARY_INJURY_SECONDS[infirmary - 1]
 		for adventurer: String in party:
 			# One sent before health was kept left with what they have now.
 			var left_with: int = outing.get("health", {}).get(adventurer, _health_at(adventurer, returns_at))

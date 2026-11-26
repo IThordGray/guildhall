@@ -236,13 +236,13 @@ func test_one_checkpoint_after_hours_away_gives_exactly_what_checkpointing_every
 	var end := 1_000 + 3 * 3_600
 	var halls := PackedInt64Array([4_600])
 	var away := _two_auto_parties()
-	Auto.checkpoint(_dispatch, away, end, halls, 2_800, 1_600)
+	Auto.checkpoint(_dispatch, away, end, halls, PackedInt64Array([2_800]), PackedInt64Array([1_600]))
 	var once := _saved(away)
 	var watched := _two_auto_parties()
 	# The quests done when the full stash first stops a party.
 	var done_at_first_stop := -1
 	for second: int in range(1_000, end + 1):
-		Auto.checkpoint(_dispatch, watched, second, halls, 2_800, 1_600)
+		Auto.checkpoint(_dispatch, watched, second, halls, PackedInt64Array([2_800]), PackedInt64Array([1_600]))
 		if done_at_first_stop == -1 and not _dispatch.waiting_loot.is_empty():
 			done_at_first_stop = _quests_done()
 	assert_eq(_saved(watched), once)
@@ -274,7 +274,7 @@ func _tried() -> Array:
 func _new_board(at: int, guild_rank: String = "F") -> Board:
 	var board := Board.new()
 	board.reception_slots = 3
-	board.refill(_dispatch, at, PackedInt64Array(), -1, guild_rank)
+	board.refill(_dispatch, at, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), guild_rank)
 	return board
 
 
@@ -286,28 +286,28 @@ func test_a_long_absence_draws_the_board_afresh_three_hours_before_now_then_play
 	var away := _two_auto_parties()
 	_parties.set_auto(_first, false)
 	_parties.set_auto(_second, false)
-	assert_true(away.send(_dispatch, away.slots[0], PackedStringArray(["bram", "tobin"]), 3, 1_000, halls, 2_800, 1_600))
-	Auto.checkpoint(_dispatch, away, end, halls, 2_800, 1_600)
+	assert_true(away.send(_dispatch, away.slots[0], PackedStringArray(["bram", "tobin"]), 3, 1_000, halls, PackedInt64Array([2_800]), PackedInt64Array([1_600])))
+	Auto.checkpoint(_dispatch, away, end, halls, PackedInt64Array([2_800]), PackedInt64Array([1_600]))
 	var once := _saved(away)
 	var watched := _two_auto_parties()
 	_parties.set_auto(_first, false)
 	_parties.set_auto(_second, false)
-	assert_true(watched.send(_dispatch, watched.slots[0], PackedStringArray(["bram", "tobin"]), 3, 1_000, halls, 2_800, 1_600))
-	_dispatch.checkpoint(1_600, 2_800)
-	watched.redraw(_dispatch, 1_600, halls, 1_600)
+	assert_true(watched.send(_dispatch, watched.slots[0], PackedStringArray(["bram", "tobin"]), 3, 1_000, halls, PackedInt64Array([2_800]), PackedInt64Array([1_600])))
+	_dispatch.checkpoint(1_600, PackedInt64Array([2_800]))
+	watched.redraw(_dispatch, 1_600, halls, PackedInt64Array([1_600]))
 	var drawn := watched.slots.duplicate()
 	for second: int in range(1_600, end + 1, 5):
-		Auto.checkpoint(_dispatch, watched, second, halls, 2_800, 1_600)
+		Auto.checkpoint(_dispatch, watched, second, halls, PackedInt64Array([2_800]), PackedInt64Array([1_600]))
 	assert_eq(_saved(watched), once)
 	# The board changed through those hours, and the quest sent came back.
 	assert_ne(watched.slots, drawn)
 	assert_eq(_quests_done(), 1)
 	# With Auto, three hours and a second away settle that first second, which playing it doesn't.
 	var averaged := _two_auto_parties()
-	Auto.checkpoint(_dispatch, averaged, 1_001 + Auto.REPLAY_SECONDS, halls, 2_800, 1_600)
+	Auto.checkpoint(_dispatch, averaged, 1_001 + Auto.REPLAY_SECONDS, halls, PackedInt64Array([2_800]), PackedInt64Array([1_600]))
 	var stepped := _two_auto_parties()
-	Auto.checkpoint(_dispatch, stepped, 1_001, halls, 2_800, 1_600)
-	Auto.checkpoint(_dispatch, stepped, 1_001 + Auto.REPLAY_SECONDS, halls, 2_800, 1_600)
+	Auto.checkpoint(_dispatch, stepped, 1_001, halls, PackedInt64Array([2_800]), PackedInt64Array([1_600]))
+	Auto.checkpoint(_dispatch, stepped, 1_001 + Auto.REPLAY_SECONDS, halls, PackedInt64Array([2_800]), PackedInt64Array([1_600]))
 	assert_ne(_saved(stepped), _saved(averaged))
 
 
@@ -344,10 +344,10 @@ func _twelve_hours(scenario: String, start: int) -> Array[Vector2]:
 	var board := _new_board(start, guild_rank)
 	var played: Array[Vector2] = []
 	for hours: int in [3, 6, 9, 12, 15]:
-		Auto.checkpoint(_dispatch, board, start + hours * 3_600, PackedInt64Array(), -1, -1, guild_rank)
+		Auto.checkpoint(_dispatch, board, start + hours * 3_600, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), guild_rank)
 		played.append(_gold_and_quests())
 	guild_rank = _scenario(scenario, start)
-	Auto.checkpoint(_dispatch, _new_board(start, guild_rank), start + 15 * 3_600, PackedInt64Array(), -1, -1, guild_rank)
+	Auto.checkpoint(_dispatch, _new_board(start, guild_rank), start + 15 * 3_600, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), guild_rank)
 	return [played[3], _gold_and_quests() - (played[4] - played[3])]
 
 
@@ -374,10 +374,10 @@ func _twelve_hours_reputation(scenario: String, start: int) -> Vector2:
 	var board := _new_board(start, guild_rank)
 	var played: Array[int] = []
 	for hours: int in [3, 6, 9, 12, 15]:
-		Auto.checkpoint(_dispatch, board, start + hours * 3_600, PackedInt64Array(), -1, -1, guild_rank)
+		Auto.checkpoint(_dispatch, board, start + hours * 3_600, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), guild_rank)
 		played.append(_dispatch.reputation)
 	guild_rank = _scenario(scenario, start)
-	Auto.checkpoint(_dispatch, _new_board(start, guild_rank), start + 15 * 3_600, PackedInt64Array(), -1, -1, guild_rank)
+	Auto.checkpoint(_dispatch, _new_board(start, guild_rank), start + 15 * 3_600, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), guild_rank)
 	return Vector2(played[3], _dispatch.reputation - (played[4] - played[3]))
 
 
@@ -422,11 +422,11 @@ func test_healing_twice_as_fast_from_the_infirmary_on_fits_more_averaged_quests(
 	# Bram and Tobin on Bold take every rank F quest, one coming up every half minute or so, and heal
 	# for a few seconds after each.
 	var done: Array[int] = []
-	for infirmary_from: int in [-1, 1_000]:
+	for infirmary_tiers: PackedInt64Array in [PackedInt64Array(), PackedInt64Array([1_000])]:
 		before_each()
 		_auto(_first, Parties.BOLD)
 		_dispatch.adventurers.gear.stash_cap = 100_000
-		Auto.checkpoint(_dispatch, _new_board(1_000), 1_000 + 10 * 86_400, PackedInt64Array(), infirmary_from)
+		Auto.checkpoint(_dispatch, _new_board(1_000), 1_000 + 10 * 86_400, PackedInt64Array(), infirmary_tiers)
 		done.append(_quests_done())
 	assert_gt(done[0], 15_000)
 	assert_gt(done[1], done[0] + 400)
@@ -547,7 +547,7 @@ func test_a_long_absence_settles_the_same_way_for_the_same_save_and_time_whateve
 		var board := _two_auto_parties()
 		_dispatch.adventurers.gear.stash_cap = 1_000
 		seed(global_seed)
-		Auto.checkpoint(_dispatch, board, 1_000 + 7 * 86_400, PackedInt64Array([4_600]), 2_800, 1_600)
+		Auto.checkpoint(_dispatch, board, 1_000 + 7 * 86_400, PackedInt64Array([4_600]), PackedInt64Array([2_800]), PackedInt64Array([1_600]))
 		results.append(_saved(board))
 	assert_eq(results[0], results[1])
 	assert_gt(_quests_done(), 1_000)
@@ -557,11 +557,11 @@ func test_a_clock_set_back_after_a_long_absence_never_removes_progress_nor_settl
 	var board := _two_auto_parties()
 	_dispatch.adventurers.gear.stash_cap = 1_000
 	var end := 1_000 + 86_400
-	Auto.checkpoint(_dispatch, board, end, PackedInt64Array(), 2_800, 1_600)
+	Auto.checkpoint(_dispatch, board, end, PackedInt64Array(), PackedInt64Array([2_800]), PackedInt64Array([1_600]))
 	var after := _saved(board)
 	assert_gt(_dispatch.gold.amount, 0)
 	for back: int in [end - 1, end - Auto.REPLAY_SECONDS - 1, 1_000]:
-		Auto.checkpoint(_dispatch, board, back, PackedInt64Array(), 2_800, 1_600)
+		Auto.checkpoint(_dispatch, board, back, PackedInt64Array(), PackedInt64Array([2_800]), PackedInt64Array([1_600]))
 		assert_eq(_saved(board), after, str(back))
 
 
@@ -570,12 +570,12 @@ func test_with_auto_locked_a_party_saved_with_auto_on_is_never_sent_and_once_unl
 	_auto(_first)
 	_auto(_second, Parties.BOLD)
 	for at: int in [1_000, 1_001, 1_030]:
-		Auto.checkpoint(_dispatch, board, at, PackedInt64Array(), -1, -1, Hall.STARTING_RANK, false)
+		Auto.checkpoint(_dispatch, board, at, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), Hall.STARTING_RANK, false)
 	assert_eq(_out(_first), [])
 	assert_eq(_out(_second), [])
 	assert_eq(board.slots, PackedStringArray(["well", "moonherbs"]))
 	# Unlocked at the same check: the same parties go at once, as they would have all along.
-	Auto.checkpoint(_dispatch, board, 1_030, PackedInt64Array(), -1, -1, Hall.STARTING_RANK, true)
+	Auto.checkpoint(_dispatch, board, 1_030, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), Hall.STARTING_RANK, true)
 	assert_eq(_out(_first), ["well", 1_030])
 	assert_eq(_out(_second), ["moonherbs", 1_030])
 
@@ -584,7 +584,7 @@ func test_with_auto_locked_a_long_absence_averages_nothing_for_a_party_saved_wit
 	_auto(_second)
 	_dispatch.adventurers.gear.stash_cap = 5_000
 	var end := 1_000 + 86_400 + Auto.REPLAY_SECONDS
-	Auto.checkpoint(_dispatch, _new_board(1_000), end, PackedInt64Array(), -1, -1, Hall.STARTING_RANK, false)
+	Auto.checkpoint(_dispatch, _new_board(1_000), end, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), Hall.STARTING_RANK, false)
 	assert_eq(_quests_done(), 0)
 	assert_eq(_dispatch.gold.amount, 0)
 	assert_eq(_dispatch.adventurers.xp["ilse"], 0)
@@ -593,6 +593,6 @@ func test_with_auto_locked_a_long_absence_averages_nothing_for_a_party_saved_wit
 	before_each()
 	_auto(_second)
 	_dispatch.adventurers.gear.stash_cap = 5_000
-	Auto.checkpoint(_dispatch, _new_board(1_000), end, PackedInt64Array(), -1, -1, Hall.STARTING_RANK, true)
+	Auto.checkpoint(_dispatch, _new_board(1_000), end, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), Hall.STARTING_RANK, true)
 	assert_gt(_quests_done(), 100)
 	assert_gt(_dispatch.gold.amount, 0)

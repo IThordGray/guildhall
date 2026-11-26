@@ -128,31 +128,31 @@ func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_
 	Fixtures.party(dispatch, ["maren"])
 	var board := Board.new()
 	board.reception_slots = 3
-	board.refill(dispatch, START, NO_HALLS, -1, GUILD)
+	board.refill(dispatch, START, NO_HALLS, PackedInt64Array(), PackedInt64Array(), GUILD)
 	# The goblin camp (E) is sent from slot 1, which comes due 60 seconds later.
 	var sent_at := START + 9
 	assert_eq(board.slots[1], "goblins")
-	assert_true(board.send(dispatch, "goblins", ["bram"], 1, sent_at, NO_HALLS, -1, -1, GUILD))
+	assert_true(board.send(dispatch, "goblins", ["bram"], 1, sent_at, NO_HALLS, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), GUILD))
 	# Promoted a second after that slot refilled, before any other slot refills.
 	var promoted_at := START + 70
 	# Promoting first would let the slot due before it draw a rank D quest, so this case separates
 	# the two orders.
 	var wrong := Board.new()
 	wrong.reception_slots = 3
-	wrong.refill(_guild(START), START, NO_HALLS, -1, GUILD)
+	wrong.refill(_guild(START), START, NO_HALLS, PackedInt64Array(), PackedInt64Array(), GUILD)
 	var wrong_dispatch := _guild(START)
 	Fixtures.party(wrong_dispatch, ["bram"])
 	Fixtures.party(wrong_dispatch, ["maren"])
-	assert_true(wrong.send(wrong_dispatch, "goblins", ["bram"], 1, sent_at, NO_HALLS, -1, -1, GUILD))
+	assert_true(wrong.send(wrong_dispatch, "goblins", ["bram"], 1, sent_at, NO_HALLS, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), GUILD))
 	wrong_dispatch.adventurers.roster["maren"]["rank"] = "E"
-	wrong.refill(wrong_dispatch, promoted_at, NO_HALLS, -1, GUILD)
+	wrong.refill(wrong_dispatch, promoted_at, NO_HALLS, PackedInt64Array(), PackedInt64Array(), GUILD)
 	assert_eq(Dispatch.QUESTS[wrong.slots[1]]["rank"], "D")
 	# As main does it: the board is brought up to the moment, then the promotion.
 	dispatch.checkpoint(promoted_at)
-	board.refill(dispatch, promoted_at, NO_HALLS, -1, GUILD)
+	board.refill(dispatch, promoted_at, NO_HALLS, PackedInt64Array(), PackedInt64Array(), GUILD)
 	dispatch.adventurers.add_successes("maren", "E", 5)
 	assert_true(dispatch.adventurers.promote("maren", false))
-	board.refill(dispatch, promoted_at + 1, NO_HALLS, -1, GUILD)
+	board.refill(dispatch, promoted_at + 1, NO_HALLS, PackedInt64Array(), PackedInt64Array(), GUILD)
 	assert_ne(board.slots[1], "")
 	assert_ne(Dispatch.QUESTS[board.slots[1]]["rank"], "D")
 	# Refills after the promotion draw rank D quests too.
@@ -162,19 +162,19 @@ func test_a_slot_due_before_a_promotion_fills_at_the_old_rank_and_later_refills_
 		# The first filled slot from slot i % 3 on, once one is: every slot can be between its quest
 		# leaving and its refill at once.
 		now += 3_600
-		board.refill(dispatch, now, NO_HALLS, -1, GUILD)
+		board.refill(dispatch, now, NO_HALLS, PackedInt64Array(), PackedInt64Array(), GUILD)
 		while board.filled() == 0:
 			now += 1
-			board.refill(dispatch, now, NO_HALLS, -1, GUILD)
+			board.refill(dispatch, now, NO_HALLS, PackedInt64Array(), PackedInt64Array(), GUILD)
 		var sent := ""
 		for k: int in 3:
 			if sent == "":
 				sent = board.slots[(i + k) % 3]
-		assert_true(board.send(dispatch, sent, ["maren"], 1, now, NO_HALLS, -1, -1, GUILD), str(i))
+		assert_true(board.send(dispatch, sent, ["maren"], 1, now, NO_HALLS, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), GUILD), str(i))
 		now += 3_600
 		dispatch.checkpoint(now)
 		while not dispatch.waiting_loot.is_empty(): dispatch.let_loot_go(0)
-		board.refill(dispatch, now, NO_HALLS, -1, GUILD)
+		board.refill(dispatch, now, NO_HALLS, PackedInt64Array(), PackedInt64Array(), GUILD)
 		for quest: String in board.slots:
 			if quest != "":
 				ranks[Dispatch.QUESTS[quest]["rank"]] = true
@@ -218,7 +218,7 @@ func test_a_long_absence_counts_each_members_expected_successes_by_rank_rounded_
 	dispatch.adventurers.gear.stash_cap = 1
 	var board := Board.new()
 	board.reception_slots = 3
-	board.refill(dispatch, START, PackedInt64Array(), -1, "F")
+	board.refill(dispatch, START, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), "F")
 	Auto.checkpoint(dispatch, board, START + 52_050 + Auto.REPLAY_SECONDS, PackedInt64Array())
 	assert_eq(dispatch.tries, {"well": 7})
 	for member: String in ["ilse", "maren"]:

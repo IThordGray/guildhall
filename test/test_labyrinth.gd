@@ -169,7 +169,7 @@ func test_no_board_fill_draw_chance_or_auto_send_ever_picks_a_floor() -> void:
 	var drawn := {}
 	var board := Board.new()
 	for at: int in range(1_000, 40_000, 15):
-		board.refill(_dispatch, at, PackedInt64Array(), -1, "E")
+		board.refill(_dispatch, at, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), "E")
 		for quest: String in board.slots:
 			drawn[quest] = true
 	for quest: String in FLOORS:
@@ -183,13 +183,13 @@ func test_no_board_fill_draw_chance_or_auto_send_ever_picks_a_floor() -> void:
 		parties.set_mode(party["id"], Parties.BOLD)
 	board = Board.new()
 	# An hour played out exactly.
-	Auto.checkpoint(_dispatch, board, 4_600, PackedInt64Array(), -1, -1, "E")
+	Auto.checkpoint(_dispatch, board, 4_600, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), "E")
 	var tried := 0
 	for count: int in _dispatch.tries.values():
 		tried += count
 	assert_gt(tried, 0)
 	# Ten hours more, most of them averaged.
-	Auto.checkpoint(_dispatch, board, 4_600 + 36_000, PackedInt64Array(), -1, -1, "E")
+	Auto.checkpoint(_dispatch, board, 4_600 + 36_000, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), "E")
 	var tried_after := 0
 	for count: int in _dispatch.tries.values():
 		tried_after += count

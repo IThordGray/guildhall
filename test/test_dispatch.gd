@@ -719,7 +719,7 @@ func test_an_injury_lasts_5_seconds_with_an_infirmary_finished_before_the_return
 	# Returns at 1_220; the Infirmary finished at 1_122, while the app was away.
 	dispatch.send("goblins", Fixtures.party(dispatch, ["tobin"]), _seed("goblins", ["tobin"], false), 1_200)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_222, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_222, hall.tier_times("infirmary"))
 	assert_eq(dispatch.injury_left("tobin", 1_222), 3)
 	assert_eq(dispatch.injury_seconds("tobin"), 5)
 	assert_eq(dispatch.status("tobin", 1_222), "Injured · 0:03")
@@ -739,9 +739,9 @@ func test_an_injury_lasts_10_seconds_when_the_infirmary_finishes_after_the_retur
 	# Away until 1_022: the party returned at 1_020, the Infirmary finished at 1_021, and the hall
 	# took its checkpoint first.
 	hall.checkpoint(1_022)
-	dispatch.checkpoint(1_022, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_022, hall.tier_times("infirmary"))
 	assert_eq(dispatch.injury_left("tobin", 1_022), 8)
-	dispatch.checkpoint(1_025, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_025, hall.tier_times("infirmary"))
 	assert_eq(dispatch.injury_seconds("tobin"), 10)
 	assert_eq(dispatch.injury_left("tobin", 1_029), 1)
 	assert_true(dispatch.can_go("tobin", 1_030))
@@ -757,8 +757,8 @@ func test_an_injury_keeps_its_length_through_save_and_load() -> void:
 	_worn_out(dispatch, "tobin")
 	_worn_out(dispatch, "bram")
 	# Bram returned at 1_002, before the Infirmary; Tobin at 1_130, after it.
-	dispatch.checkpoint(1_100, hall.first_done_at("infirmary"))
-	dispatch.checkpoint(1_132, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_100, hall.tier_times("infirmary"))
+	dispatch.checkpoint(1_132, hall.tier_times("infirmary"))
 	var file := ConfigFile.new()
 	dispatch.write(file)
 	assert_eq(file.save(SAVE_PATH), OK)
@@ -793,7 +793,7 @@ func test_two_infirmaries_still_heal_in_5_seconds() -> void:
 	dispatch.gold = gold
 	dispatch.send("goblins", Fixtures.party(dispatch, ["tobin"]), _seed("goblins", ["tobin"], false), 1_400)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_421, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_421, hall.tier_times("infirmary"))
 	assert_eq(dispatch.injury_left("tobin", 1_421), 4)
 
 
@@ -829,17 +829,17 @@ func test_a_clock_set_back_never_changes_an_injury_already_decided() -> void:
 	hall.checkpoint(1_001)
 	hall.convert_room("back_left", "infirmary", gold, 1_019)
 	hall.checkpoint(1_025)
-	dispatch.checkpoint(1_025, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_025, hall.tier_times("infirmary"))
 	assert_eq(dispatch.injury_left("tobin", 1_025), 5)
 	assert_eq(gold.amount, 1_000 - 60 - 60)
 
 	# Set back to before the return and the Infirmary: nothing is re-decided, repaid or re-charged.
 	hall.checkpoint(1_015)
-	dispatch.checkpoint(1_015, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_015, hall.tier_times("infirmary"))
 	assert_eq(hall.state("back_left", 1_015), Hall.State.CONVERTED)
 	assert_eq(dispatch.injury_left("tobin", 1_015), 5)
 	assert_true(dispatch.outings.is_empty())
-	dispatch.checkpoint(1_027, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_027, hall.tier_times("infirmary"))
 	assert_eq(dispatch.injury_left("tobin", 1_029), 1)
 	assert_eq(gold.amount, 1_000 - 60 - 60)
 
@@ -851,10 +851,10 @@ func test_a_returning_partys_xp_damage_injury_reveal_and_loot_apply_the_moment_i
 	dispatch.gold = gold
 	dispatch.send("moonherbs", Fixtures.party(dispatch, PARTY), _seed("moonherbs", PARTY, false), 1_120)
 	_worn_out(dispatch, "tobin")
-	dispatch.checkpoint(1_125, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_125, hall.tier_times("infirmary"))
 	assert_eq(_xp(dispatch), [0, 0, 0, 0])
 	assert_eq(dispatch.unknown_challenges("moonherbs"), PackedStringArray(["Attrition"]))
-	dispatch.checkpoint(1_126, hall.first_done_at("infirmary"))
+	dispatch.checkpoint(1_126, hall.tier_times("infirmary"))
 	assert_true(dispatch.outings.is_empty())
 	# A failure's 2 XP shared by three would be 0 each, but every member gains at least 1.
 	assert_eq(_xp(dispatch), [1, 1, 1, 0])
@@ -1253,10 +1253,10 @@ func _healths(dispatch: Dispatch, now: int) -> Array[int]:
 
 ## Tobin, at 16 health, fails Gather moonherbs sent at 1_014 with seed 127, which deals him 11:
 ## back at 1_020 with 5.
-func _tobin_hurt(infirmary_from: int = -1) -> Dispatch:
+func _tobin_hurt(infirmary_tiers: PackedInt64Array = PackedInt64Array()) -> Dispatch:
 	var dispatch := _guild(1_000)
 	assert_true(dispatch.send("moonherbs", Fixtures.party(dispatch, ["tobin"]), 127, 1_014))
-	dispatch.checkpoint(1_020, infirmary_from)
+	dispatch.checkpoint(1_020, infirmary_tiers)
 	assert_eq(dispatch.health("tobin", 1_020), 5)
 	return dispatch
 
@@ -1291,7 +1291,7 @@ func test_an_infirmary_doubles_healing_from_the_moment_it_is_finished_not_before
 	hall.checkpoint(1_001)
 	hall.convert_room("back_left", "infirmary", gold, 1_020)
 	assert_eq(hall.first_done_at("infirmary"), 1_022)
-	var dispatch := _tobin_hurt(hall.first_done_at("infirmary"))
+	var dispatch := _tobin_hurt(hall.tier_times("infirmary"))
 	assert_eq(dispatch.seconds_to_full("tobin", 1_020), 5)
 	assert_eq(dispatch.health("tobin", 1_022), 8)
 	# 2 s slow, then 1 s at double speed: 4 s worth, where all-slow gives 3 and all-fast 6.

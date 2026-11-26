@@ -50,7 +50,7 @@ func _load_old_board() -> Board:
 ## halls finished by then.
 func _board(dispatch: Dispatch, quest_halls: int, guild_rank: String = "F") -> Board:
 	var board := _old_board()
-	board.refill(dispatch, START, _halls(quest_halls), -1, guild_rank)
+	board.refill(dispatch, START, _halls(quest_halls), PackedInt64Array(), PackedInt64Array(), guild_rank)
 	return board
 
 
@@ -86,27 +86,28 @@ func _seed(quest: String, party: PackedStringArray, success: bool) -> int:
 ## open; with 0, only at the sends and at `end`, as when the player is away in between. The first
 ## Map room finishes at `map_room`, -1 for none. The board at `end`.
 func _play(sends: Array, halls: PackedInt64Array, end: int, step: int, rank: String = "F", map_room: int = -1) -> Board:
+	var map_tiers := PackedInt64Array() if map_room < 0 else PackedInt64Array([map_room])
 	var dispatch := _guild(rank)
 	var board := _old_board()
-	board.refill(dispatch, START, _done_by(halls, START), map_room, rank)
+	board.refill(dispatch, START, _done_by(halls, START), map_tiers, PackedInt64Array(), rank)
 	var now := START
 	for send: Array in sends + [[end, -1, []]]:
 		while step > 0 and now + step < send[0]:
 			now += step
 			dispatch.checkpoint(now)
-			board.refill(dispatch, now, _done_by(halls, now), map_room, rank)
+			board.refill(dispatch, now, _done_by(halls, now), map_tiers, PackedInt64Array(), rank)
 		now = send[0]
 		if send[1] >= 0:
 			# The board the player picks from.
 			dispatch.checkpoint(now)
 			while not dispatch.waiting_loot.is_empty(): dispatch.let_loot_go(0)
-			board.refill(dispatch, now, _done_by(halls, now), map_room, rank)
+			board.refill(dispatch, now, _done_by(halls, now), map_tiers, PackedInt64Array(), rank)
 			var party: PackedStringArray = send[2]
 			var quest := board.slots[send[1]]
-			assert_true(board.send(dispatch, quest, Fixtures.party(dispatch, party), 1, now, _done_by(halls, now), -1, map_room, rank), str(send))
+			assert_true(board.send(dispatch, quest, Fixtures.party(dispatch, party), 1, now, _done_by(halls, now), PackedInt64Array(), map_tiers, PackedInt64Array(), rank), str(send))
 			_sent_ranks[Dispatch.QUESTS[quest]["rank"]] = true
 	dispatch.checkpoint(end)
-	board.refill(dispatch, end, _done_by(halls, end), map_room, rank)
+	board.refill(dispatch, end, _done_by(halls, end), map_tiers, PackedInt64Array(), rank)
 	_revealed.assign(dispatch.revealed)
 	_revealed.sort()
 	return board
@@ -182,7 +183,7 @@ func test_a_sent_quests_slot_refills_after_a_countdown_set_by_its_rank_f_20_seco
 	var ranked := _guild("E")
 	var ranked_board := _board(ranked, 0, "E")
 	assert_eq(Dispatch.QUESTS[ranked_board.slots[1]]["rank"], "D")
-	assert_true(ranked_board.send(ranked, ranked_board.slots[1], Fixtures.party(ranked, ["bram"]), 1, START + 100, NO_HALLS, -1, -1, "E"))
+	assert_true(ranked_board.send(ranked, ranked_board.slots[1], Fixtures.party(ranked, ["bram"]), 1, START + 100, NO_HALLS, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), "E"))
 	assert_eq(ranked_board.seconds_to_refill(1, ranked, START + 100), 120)
 
 
@@ -260,10 +261,10 @@ func test_a_quest_out_is_not_offered_and_an_empty_slot_takes_it_once_its_party_i
 ## quest: every slot can be between its quest leaving and its refill at once.
 func _until_a_quest(board: Board, dispatch: Dispatch, now: int, rank: String = "F") -> int:
 	var at := now
-	board.refill(dispatch, at, NO_HALLS, -1, rank)
+	board.refill(dispatch, at, NO_HALLS, PackedInt64Array(), PackedInt64Array(), rank)
 	while board.filled() == 0:
 		at += 1
-		board.refill(dispatch, at, NO_HALLS, -1, rank)
+		board.refill(dispatch, at, NO_HALLS, PackedInt64Array(), PackedInt64Array(), rank)
 	return at
 
 
@@ -310,11 +311,11 @@ func test_with_one_rank_e_party_rank_d_quests_reach_a_rank_e_guilds_board() -> v
 			if quest != "":
 				seen_ranks[Dispatch.QUESTS[quest]["rank"]] = true
 		now = _until_a_quest(board, dispatch, now + 3_600, "E")
-		assert_true(board.send(dispatch, _quest_from(board, i % 3), ["maren"], 1, now, NO_HALLS, -1, -1, "E"), str(i))
+		assert_true(board.send(dispatch, _quest_from(board, i % 3), ["maren"], 1, now, NO_HALLS, PackedInt64Array(), PackedInt64Array(), PackedInt64Array(), "E"), str(i))
 		now += 3_600
 		dispatch.checkpoint(now)
 		while not dispatch.waiting_loot.is_empty(): dispatch.let_loot_go(0)
-		board.refill(dispatch, now, NO_HALLS, -1, "E")
+		board.refill(dispatch, now, NO_HALLS, PackedInt64Array(), PackedInt64Array(), "E")
 	assert_eq(seen_ranks, {"F": true, "E": true, "D": true})
 
 
@@ -325,7 +326,7 @@ func _rank_d_drawn(dispatch: Dispatch) -> int:
 	for i: int in 200:
 		var board := Board.new()
 		board.reception_slots = 1
-		board.refill(dispatch, START + i, NO_HALLS, -1, "E")
+		board.refill(dispatch, START + i, NO_HALLS, PackedInt64Array(), PackedInt64Array(), "E")
 		if Dispatch.QUESTS[board.slots[0]]["rank"] == "D":
 			drawn += 1
 	return drawn
@@ -360,7 +361,7 @@ func _ranks_drawn(guild_rank: String, adventurer_rank: String) -> Dictionary:
 	for i: int in 1_000:
 		var board := Board.new()
 		board.reception_slots = 1
-		board.refill(dispatch, START + i, NO_HALLS, -1, guild_rank)
+		board.refill(dispatch, START + i, NO_HALLS, PackedInt64Array(), PackedInt64Array(), guild_rank)
 		drawn[Dispatch.QUESTS[board.slots[0]]["rank"]] += 1
 	return drawn
 
@@ -548,7 +549,7 @@ func test_a_save_from_before_ranked_countdowns_with_old_quests_on_the_board_and_
 
 
 ## When the first Map room finished in most tests below: before the board was first filled.
-const MAP_ROOM_EARLY: int = START - 1_000
+const MAP_ROOM_EARLY: PackedInt64Array = [START - 1_000]
 
 
 func test_without_a_finished_map_room_no_challenge_is_revealed_however_long_a_quest_waits() -> void:
@@ -557,12 +558,12 @@ func test_without_a_finished_map_room_no_challenge_is_revealed_however_long_a_qu
 	# As long as the quests stay on the board: the first leaves at START + 60.
 	board.refill(dispatch, START + 39, NO_HALLS)
 	# A Map room under way, finishing at START + 40.
-	board.refill(dispatch, START + 39, NO_HALLS, START + 40)
+	board.refill(dispatch, START + 39, NO_HALLS, PackedInt64Array([START + 40]))
 	for quest: String in START_SLOTS:
 		assert_eq(dispatch.unknown_challenges(quest).size(), 1, quest)
 		assert_eq(board.seconds_to_reveal(quest, dispatch, START + 39), -1, quest)
 	# Once it is finished, they are revealed in time.
-	board.refill(dispatch, START + 50, NO_HALLS, START + 40)
+	board.refill(dispatch, START + 50, NO_HALLS, PackedInt64Array([START + 40]))
 	for quest: String in START_SLOTS:
 		assert_true(dispatch.unknown_challenges(quest).is_empty(), quest)
 
@@ -582,7 +583,7 @@ func test_with_a_map_room_finished_a_quest_is_revealed_exactly_10_seconds_after_
 		assert_eq(board.seconds_to_reveal(quest, dispatch, START + 10), -1, quest)
 	# A quest put on the board later counts from when it was put there: crypt's slot refills at
 	# START + 80.
-	assert_true(board.send(dispatch, "crypt", Fixtures.party(dispatch, ["bram"]), 1, START + 20, NO_HALLS, -1, MAP_ROOM_EARLY))
+	assert_true(board.send(dispatch, "crypt", Fixtures.party(dispatch, ["bram"]), 1, START + 20, NO_HALLS, PackedInt64Array(), MAP_ROOM_EARLY))
 	dispatch.checkpoint(START + 89)
 	board.refill(dispatch, START + 89, NO_HALLS, MAP_ROOM_EARLY)
 	assert_eq(board.slots[2], "pilgrims")
@@ -595,7 +596,7 @@ func test_with_a_map_room_finished_a_quest_is_revealed_exactly_10_seconds_after_
 func test_a_quest_on_the_board_before_the_map_room_finished_is_revealed_10_seconds_after_the_room_finishes() -> void:
 	var dispatch := _four(START)
 	var board := _board(dispatch, 0)
-	var map_room := START + 1_000
+	var map_room := PackedInt64Array([START + 1_000])
 	board.refill(dispatch, START + 1_009, NO_HALLS, map_room)
 	assert_eq(board.seconds_to_reveal("wolves", dispatch, START + 1_009), 1)
 	assert_eq(dispatch.unknown_challenges("wolves"), PackedStringArray(["Attrition"]))
@@ -612,7 +613,7 @@ func test_a_quest_the_map_room_revealed_stays_revealed_while_out_and_back_on_the
 	board.refill(dispatch, START + 10, _halls(11), MAP_ROOM_EARLY)
 	assert_true(dispatch.unknown_challenges("sealed_door").is_empty())
 	# The sealed door takes twelve seconds: out from START + 20 to START + 32.
-	assert_true(board.send(dispatch, "sealed_door", Fixtures.party(dispatch, ["bram"]), 1, START + 20, _halls(11), -1, MAP_ROOM_EARLY))
+	assert_true(board.send(dispatch, "sealed_door", Fixtures.party(dispatch, ["bram"]), 1, START + 20, _halls(11), PackedInt64Array(), MAP_ROOM_EARLY))
 	dispatch.checkpoint(START + 31)
 	board.refill(dispatch, START + 31, _halls(11), MAP_ROOM_EARLY)
 	assert_false(board.slots.has("sealed_door"))
@@ -633,7 +634,7 @@ func test_a_quest_sent_before_its_reveal_is_not_revealed_by_the_map_room_but_by_
 	var board := _old_board()
 	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
 	# Moonherbs takes six seconds: out from START + 9 to START + 15.
-	assert_true(board.send(dispatch, "moonherbs", Fixtures.party(dispatch, ["bram"]), 1, START + 9, NO_HALLS, -1, MAP_ROOM_EARLY))
+	assert_true(board.send(dispatch, "moonherbs", Fixtures.party(dispatch, ["bram"]), 1, START + 9, NO_HALLS, PackedInt64Array(), MAP_ROOM_EARLY))
 	dispatch.checkpoint(START + 14)
 	board.refill(dispatch, START + 14, NO_HALLS, MAP_ROOM_EARLY)
 	assert_true(dispatch.unknown_challenges("wolves").is_empty())
@@ -685,7 +686,7 @@ func test_fill_times_and_reveals_survive_save_and_load() -> void:
 	board.refill(dispatch, START, NO_HALLS, MAP_ROOM_EARLY)
 	# The wolves are revealed at START + 10; crypt's slot takes pilgrims at START + 80, to be revealed
 	# at START + 90.
-	assert_true(board.send(dispatch, "crypt", Fixtures.party(dispatch, ["bram"]), 1, START + 20, NO_HALLS, -1, MAP_ROOM_EARLY))
+	assert_true(board.send(dispatch, "crypt", Fixtures.party(dispatch, ["bram"]), 1, START + 20, NO_HALLS, PackedInt64Array(), MAP_ROOM_EARLY))
 	dispatch.checkpoint(START + 85)
 	board.refill(dispatch, START + 85, NO_HALLS, MAP_ROOM_EARLY)
 	assert_eq(board.slots[2], "pilgrims")
@@ -748,9 +749,9 @@ func test_a_quest_left_on_the_board_leaves_after_its_ranks_time_f_60_e_120_and_d
 	var ranked_board := _board(ranked, 0, "E")
 	var rank_d := ranked_board.slots[1]
 	assert_eq(Dispatch.QUESTS[rank_d]["rank"], "D")
-	ranked_board.refill(ranked, START + 239, NO_HALLS, -1, "E")
+	ranked_board.refill(ranked, START + 239, NO_HALLS, PackedInt64Array(), PackedInt64Array(), "E")
 	assert_eq(ranked_board.slots[1], rank_d)
-	ranked_board.refill(ranked, START + 240, NO_HALLS, -1, "E")
+	ranked_board.refill(ranked, START + 240, NO_HALLS, PackedInt64Array(), PackedInt64Array(), "E")
 	assert_eq(ranked_board.slots[1], "")
 	assert_eq(ranked_board.seconds_to_refill(1, ranked, START + 240), 120)
 
@@ -836,8 +837,8 @@ func test_the_map_room_reveals_only_quests_still_on_the_board_at_their_reveal_ti
 	# A quest leaving the moment it would be revealed has left first.
 	var dispatch := _four(START)
 	var board := _old_board()
-	board.refill(dispatch, START, NO_HALLS, START + 50)
-	board.refill(dispatch, START + 61, NO_HALLS, START + 50)
+	board.refill(dispatch, START, NO_HALLS, PackedInt64Array([START + 50]))
+	board.refill(dispatch, START + 61, NO_HALLS, PackedInt64Array([START + 50]))
 	assert_eq(dispatch.unknown_challenges("moonherbs"), PackedStringArray(["Attrition"]))
 	assert_true(dispatch.unknown_challenges("wolves").is_empty())
 
@@ -887,7 +888,7 @@ func test_a_redrawn_board_fills_every_slot_its_halls_give_with_quests_the_guilds
 		for at: int in range(START + 10_000, START + 30_000, 997):
 			var dispatch := _guild(rank)
 			var board := _board(dispatch, 2, rank)
-			board.redraw(dispatch, at, _halls(2), -1, rank)
+			board.redraw(dispatch, at, _halls(2), PackedInt64Array(), PackedInt64Array(), rank)
 			assert_eq(board.slots.size(), 5)
 			assert_eq(board.filled(), 5)
 			for quest: String in board.slots:

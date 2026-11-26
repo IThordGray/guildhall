@@ -29,15 +29,15 @@ const REPLAY_SECONDS: int = 3 * 3_600
 ## save always plays out the same way. Checkpointing once after an absence of up to REPLAY_SECONDS
 ## gives the same as checkpointing every second through it. Until the guild has unlocked Auto
 ## (`unlocked` false, see Goals), no party goes by itself, exactly or averaged, whatever its Auto. The
-## other arguments are as for Board.refill and Dispatch.checkpoint.
-static func checkpoint(dispatch: Dispatch, board: Board, now: int, quest_halls_done: PackedInt64Array, infirmary_from: int = -1, map_room_from: int = -1, guild_rank: String = Hall.STARTING_RANK, unlocked: bool = true) -> void:
+## other arguments are as for Board.send.
+static func checkpoint(dispatch: Dispatch, board: Board, now: int, quest_halls_done: PackedInt64Array, infirmary_tiers: PackedInt64Array = PackedInt64Array(), map_room_tiers: PackedInt64Array = PackedInt64Array(), quest_hall_tiers: PackedInt64Array = PackedInt64Array(), guild_rank: String = Hall.STARTING_RANK, unlocked: bool = true) -> void:
 	var at := maxi(now, dispatch.checked_at)
 	if at - REPLAY_SECONDS > dispatch.checked_at:
-		_settle(dispatch, board, at - REPLAY_SECONDS, quest_halls_done, infirmary_from, map_room_from, guild_rank, unlocked)
+		_settle(dispatch, board, at - REPLAY_SECONDS, quest_halls_done, infirmary_tiers, map_room_tiers, quest_hall_tiers, guild_rank, unlocked)
 	var time := dispatch.checked_at
 	while true:
-		dispatch.checkpoint(time, infirmary_from)
-		board.refill(dispatch, time, quest_halls_done, map_room_from, guild_rank)
+		dispatch.checkpoint(time, infirmary_tiers)
+		board.refill(dispatch, time, quest_halls_done, map_room_tiers, quest_hall_tiers, guild_rank)
 		var parties := dispatch.adventurers.parties
 		for party: Dictionary in parties.parties:
 			var id: String = party["id"]
@@ -45,7 +45,7 @@ static func checkpoint(dispatch: Dispatch, board: Board, now: int, quest_halls_d
 				continue
 			var quest := pick(dispatch, board, id, time)
 			if not quest.is_empty():
-				board.send(dispatch, quest, party["members"], hash([id, quest, time]), time, quest_halls_done, infirmary_from, map_room_from, guild_rank)
+				board.send(dispatch, quest, party["members"], hash([id, quest, time]), time, quest_halls_done, infirmary_tiers, map_room_tiers, quest_hall_tiers, guild_rank)
 		if time >= at:
 			return
 		var next := _next_change(dispatch, board, time)
@@ -105,14 +105,15 @@ static func _next_change(dispatch: Dispatch, board: Board, now: int) -> int:
 
 # Brings `dispatch` and `board` up to `to` with no Auto send: parties out come home as their quests
 # decide, at their own time; each Auto party's questing from its first ready moment on is settled by
-# `_average`, while Auto is `unlocked`; and the board is drawn afresh at `to` (Board.redraw). The
-# other arguments are as for `checkpoint`.
-static func _settle(dispatch: Dispatch, board: Board, to: int, quest_halls_done: PackedInt64Array, infirmary_from: int, map_room_from: int, guild_rank: String, unlocked: bool) -> void:
+# `_average`, while Auto is `unlocked`, with the slower refill up to the moment the Quest hall
+# reaches Board.FAST_REFILL_TIER and the faster from then on; and the board is drawn afresh at `to`
+# (Board.redraw). The other arguments are as for `checkpoint`.
+static func _settle(dispatch: Dispatch, board: Board, to: int, quest_halls_done: PackedInt64Array, infirmary_tiers: PackedInt64Array, map_room_tiers: PackedInt64Array, quest_hall_tiers: PackedInt64Array, guild_rank: String, unlocked: bool) -> void:
 	var parties := dispatch.adventurers.parties
 	var ready_at: Dictionary[String, int] = {}
 	var time := dispatch.checked_at
 	while true:
-		dispatch.checkpoint(time, infirmary_from)
+		dispatch.checkpoint(time, infirmary_tiers)
 		for party: Dictionary in parties.parties:
 			var id: String = party["id"]
 			if not unlocked or not parties.auto(id) or ready_at.has(id):
@@ -128,17 +129,29 @@ static func _settle(dispatch: Dispatch, board: Board, to: int, quest_halls_done:
 		if next == -1:
 			break
 		time = next
-	dispatch.checkpoint(to, infirmary_from)
-	_average(dispatch, board.reception_slots + quest_halls_done.size(), ready_at, to, infirmary_from, guild_rank)
-	board.redraw(dispatch, to, quest_halls_done, map_room_from, guild_rank)
+	dispatch.checkpoint(to, infirmary_tiers)
+	var slots := board.reception_slots + quest_halls_done.size()
+	var fast_from := Board.fast_refill_from(quest_hall_tiers)
+	if fast_from < 0 or fast_from >= to:
+		_average(dispatch, slots, ready_at, to, infirmary_tiers, guild_rank, false)
+	else:
+		_average(dispatch, slots, ready_at, fast_from, infirmary_tiers, guild_rank, false)
+		# Questing on from then, but for a party its loot now waits on.
+		var ready_later: Dictionary[String, int] = {}
+		for id: String in ready_at:
+			if seconds_to_ready(dispatch, id, to) >= 0:
+				ready_later[id] = maxi(ready_at[id], fast_from)
+		_average(dispatch, slots, ready_later, to, infirmary_tiers, guild_rank, true)
+	board.redraw(dispatch, to, quest_halls_done, map_room_tiers, quest_hall_tiers, guild_rank)
 
 
 # Settles, by expected values, the questing of each party in `ready_at`, from the unix seconds it is
-# first ready there up to `to`, with a board of `slots` slots, in a guild of `guild_rank` whose first
-# Infirmary is finished at `infirmary_from` (-1 for none). In party order, each party takes its part
-# of what the board offers (`_offered`) of the quests it would take (`_takes`): a cycle is a quest
-# and the healing after it (twice as fast from the Infirmary on), then a wait for the next such quest
-# to come up. It takes each quest as often as it comes up, and what it takes is gone for the parties
+# first ready there up to `to`, with a board of `slots` slots refilling twice as fast when
+# `fast_refill`, in a guild of `guild_rank` whose Infirmary reached its tiers at `infirmary_tiers`
+# (Hall.tier_times). In party order, each party takes its part of what the board offers (`_offered`)
+# of the quests it would take (`_takes`): a cycle is a quest and the healing after it (faster from
+# each Infirmary tier on, Dispatch.INFIRMARY_HEAL_RATES), then a wait for the next such quest to
+# come up. It takes each quest as often as it comes up, and what it takes is gone for the parties
 # after it. Quests taken count as learned (`_takes`). It earns the cycles' gold, the guild their
 # expected reputation rounded down (never taking it below 0), and each member their XP and their
 # expected successes by quest rank, each rounded down, and adds their tries,
@@ -148,7 +161,7 @@ static func _settle(dispatch: Dispatch, board: Board, to: int, quest_halls_done:
 # that cycle on. The averages deal no damage, so its
 # members, ready when they began, end home, at full health and uninjured; nobody is injured, dies or
 # levels up in them.
-static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String, int], to: int, infirmary_from: int, guild_rank: String) -> void:
+static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String, int], to: int, infirmary_tiers: PackedInt64Array, guild_rank: String, fast_refill: bool) -> void:
 	var parties := dispatch.adventurers.parties
 	var takes := {}
 	var taken := {}
@@ -160,7 +173,7 @@ static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String
 		for id: String in ready_at:
 			takes[id] = _takes(dispatch, id, guild_rank, learned)
 			taken.merge(takes[id])
-	var offered := _offered(dispatch, slots, taken, guild_rank)
+	var offered := _offered(dispatch, slots, taken, guild_rank, fast_refill)
 	var plans: Array[Dictionary] = []
 	for party: Dictionary in parties.parties:
 		var id: String = party["id"]
@@ -168,21 +181,25 @@ static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String
 			continue
 		var take: Dictionary = takes[id]
 		var start: int = ready_at[id]
-		# How many quests it would take come up a second, and the seconds a try takes on average, as
-		# they come up.
+		# How many quests it would take come up a second.
 		var rate := 0.0
-		var seconds := 0.0
-		var fast_seconds := 0.0
 		for quest: String in take:
-			var each: float = offered.get(quest, 0.0)
-			rate += each
-			seconds += each * take[quest]["seconds"]
-			fast_seconds += each * take[quest]["fast_seconds"]
+			rate += offered.get(quest, 0.0)
 		if rate == 0.0 or start >= to:
 			continue
-		# A cycle is a try, then a wait for the next quest it would take to come up.
-		var fast_from := to if infirmary_from < 0 else clampi(infirmary_from, start, to)
-		var cycles := (fast_from - start) / (seconds / rate + 1.0 / rate) + (to - fast_from) / (fast_seconds / rate + 1.0 / rate)
+		# A cycle is a try, then a wait for the next quest it would take to come up: over each span
+		# between Infirmary tiers, the seconds a try takes on average, as they come up, healing at
+		# that span's rate.
+		var cycles := 0.0
+		var since := start
+		for index: int in infirmary_tiers.size() + 1:
+			var until := to if index == infirmary_tiers.size() else clampi(infirmary_tiers[index], since, to)
+			var heal_rate: int = 1 if index == 0 else Dispatch.INFIRMARY_HEAL_RATES[index - 1]
+			var seconds := 0.0
+			for quest: String in take:
+				seconds += offered.get(quest, 0.0) * (take[quest]["seconds"] + take[quest]["heal"] / heal_rate)
+			cycles += (until - since) / (seconds / rate + 1.0 / rate)
+			since = until
 		var plan := {"id": id, "start": start, "members": party["members"], "luck": dispatch.party_stat(party["members"], "luck"), "cycles": cycles, "share": {}, "quest": "", "gold": 0.0, "xp": 0.0, "drops": 0.0, "reputation": 0.0, "successes": {}}
 		var share: Dictionary = plan["share"]
 		# It takes each quest as often as it comes up, and what it takes is gone for the parties
@@ -243,8 +260,8 @@ static func _average(dispatch: Dispatch, slots: int, ready_at: Dictionary[String
 # The quests the party with `id` would take with Auto in a guild of `guild_rank`: those the board
 # offers that its rank allows and whose shown chance's low end its mode takes, each quest in
 # `learned` counted with its challenges known and the most try points (Dispatch.MOST_TRY_POINTS).
-# Each with what a try at it can be expected to bring: {"seconds": the quest and the healing back to
-# full from its expected damage, "fast_seconds": the same with the Infirmary's healing, "gold",
+# Each with what a try at it can be expected to bring: {"seconds": the quest's, "heal": the healing
+# back to full from its expected damage with no Infirmary, in seconds, "gold",
 # "xp": each member's, "drops": items, "reputation": the guild's (Dispatch.REPUTATION), "chance": of
 # success, 0 to 1}.
 static func _takes(dispatch: Dispatch, id: String, guild_rank: String, learned: Dictionary) -> Dictionary:
@@ -269,8 +286,8 @@ static func _takes(dispatch: Dispatch, id: String, guild_rank: String, learned: 
 		var chance := percent / 100.0
 		var heal := _expected_damage(chance, Outcome.MOST_DAMAGE[info["rank"]], spirit, luck) * Dispatch.HEAL_SECONDS / Dispatch.HEAL_POINTS
 		takes[quest] = {
-			"seconds": info["seconds"] + heal,
-			"fast_seconds": info["seconds"] + heal / 2.0,
+			"seconds": info["seconds"],
+			"heal": heal,
 			"gold": chance * info["gold"] + (1.0 - chance) * Dispatch.failure_gold(quest),
 			"xp": chance * Dispatch.xp_share(info["xp"], true, members.size()) + (1.0 - chance) * Dispatch.xp_share(info["xp"], false, members.size()),
 			"drops": Gear.loot_percent(info["rank"], luck) / 100.0,
@@ -280,12 +297,13 @@ static func _takes(dispatch: Dispatch, id: String, guild_rank: String, learned: 
 	return takes
 
 
-# Each quest the board offers a guild of `guild_rank` with `slots` slots, by how many come up a
-# second. A slot draws each with its Board.draw_chance; one in `taken`, which some party takes, goes
-# at once and its slot refills after REFILL_SECONDS, while any other sits until it leaves, after
-# EXPIRE_SECONDS, then refills. A slot draws only among quests not on the other slots, which mostly
+# Each quest the board offers a guild of `guild_rank` with `slots` slots, refilling twice as fast
+# when `fast_refill`, by how many come up a second. A slot draws each with its Board.draw_chance; one
+# in `taken`, which some party takes, goes at once and its slot refills after
+# Board.slot_refill_seconds, while any other sits until it leaves, after EXPIRE_SECONDS, then
+# refills. A slot draws only among quests not on the other slots, which mostly
 # hold quests nobody takes, sitting there: so within a rank, the quests taken come up more often.
-static func _offered(dispatch: Dispatch, slots: int, taken: Dictionary, guild_rank: String) -> Dictionary:
+static func _offered(dispatch: Dispatch, slots: int, taken: Dictionary, guild_rank: String, fast_refill: bool) -> Dictionary:
 	var chances := {}
 	# Each rank's quests offered and, of them, taken.
 	var ranks := {}
@@ -298,7 +316,7 @@ static func _offered(dispatch: Dispatch, slots: int, taken: Dictionary, guild_ra
 		ranks[rank] = ranks.get(rank, Vector2i()) + Vector2i(1, 1 if taken.has(quest) else 0)
 	# How many of the other slots hold a quest of each rank that nobody takes, on average.
 	var sitting := {}
-	var slot_seconds := _slot_seconds(chances, taken)
+	var slot_seconds := _slot_seconds(chances, taken, fast_refill)
 	for quest: String in chances:
 		var rank: String = Dispatch.QUESTS[quest]["rank"]
 		if not taken.has(quest):
@@ -310,19 +328,19 @@ static func _offered(dispatch: Dispatch, slots: int, taken: Dictionary, guild_ra
 		var rank_chance: float = chances[quest] * count.x
 		var free := maxf(count.x - sitting.get(rank, 0.0), maxf(count.y, 1.0))
 		offered[quest] = rank_chance / free if taken.has(quest) else rank_chance * (1.0 - count.y / free) / (count.x - count.y)
-	slot_seconds = _slot_seconds(offered, taken)
+	slot_seconds = _slot_seconds(offered, taken, fast_refill)
 	for quest: String in offered:
 		offered[quest] *= slots / slot_seconds
 	return offered
 
 
 # The seconds a slot takes on average from one draw to the next, drawing each quest with its
-# chance in `chances`, those in `taken` going at once.
-static func _slot_seconds(chances: Dictionary, taken: Dictionary) -> float:
+# chance in `chances`, those in `taken` going at once, refilling twice as fast when `fast_refill`.
+static func _slot_seconds(chances: Dictionary, taken: Dictionary, fast_refill: bool) -> float:
 	var seconds := 0.0
 	for quest: String in chances:
 		var rank: String = Dispatch.QUESTS[quest]["rank"]
-		seconds += chances[quest] * (Board.REFILL_SECONDS[rank] + (0 if taken.has(quest) else Board.EXPIRE_SECONDS[rank]))
+		seconds += chances[quest] * (Board.slot_refill_seconds(rank, fast_refill) + (0 if taken.has(quest) else Board.EXPIRE_SECONDS[rank]))
 	return seconds
 
 

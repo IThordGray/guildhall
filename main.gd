@@ -268,7 +268,7 @@ func _on_tick() -> void:
 func _checkpoint(now: int) -> void:
 	_hall.checkpoint(now)
 	_dispatch.adventurers.gear.stash_cap = _hall.stash_cap(now)
-	Auto.checkpoint(_dispatch, _quest_board, now, _hall.added_at("board_slots"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank, _goals.is_unlocked(Goals.AUTO))
+	Auto.checkpoint(_dispatch, _quest_board, now, _hall.added_at("board_slots"), _hall.tier_times("infirmary"), _hall.tier_times("map_room"), _hall.tier_times("quest_hall"), _hall.rank, _goals.is_unlocked(Goals.AUTO))
 	_goals.count_home(_dispatch)
 	_recruits.refill(_dispatch.adventurers, now, _hall.added_at("candidate_slots"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1))
 	_walk_ins.refill(_dispatch.adventurers, _recruits, now, _hall.ranked_at.get("E", -1))
@@ -496,11 +496,11 @@ func _on_party_sent(quest: String, party: PackedStringArray) -> void:
 	_checkpoint(now)
 	var sent := false
 	if Dispatch.is_story(quest):
-		sent = quest in _dispatch.open_story_quests(_goals.unlocked) and _dispatch.send(quest, party, randi(), now, _hall.first_done_at("infirmary"))
+		sent = quest in _dispatch.open_story_quests(_goals.unlocked) and _dispatch.send(quest, party, randi(), now, _hall.tier_times("infirmary"))
 	elif Dispatch.is_floor(quest):
-		sent = quest in _dispatch.open_floors(_goals.unlocked) and _dispatch.send(quest, party, randi(), now, _hall.first_done_at("infirmary"))
+		sent = quest in _dispatch.open_floors(_goals.unlocked) and _dispatch.send(quest, party, randi(), now, _hall.tier_times("infirmary"))
 	else:
-		sent = _quest_board.send(_dispatch, quest, party, randi(), now, _hall.added_at("board_slots"), _hall.first_done_at("infirmary"), _hall.first_done_at("map_room"), _hall.rank)
+		sent = _quest_board.send(_dispatch, quest, party, randi(), now, _hall.added_at("board_slots"), _hall.tier_times("infirmary"), _hall.tier_times("map_room"), _hall.tier_times("quest_hall"), _hall.rank)
 	if sent:
 		_goals.sent_by_hand(_dispatch.outings.back())
 		_close_picker()
@@ -604,7 +604,7 @@ func _on_hire_pressed(slot: int) -> void:
 	var now := _now()
 	# A Common room finished since the last tick adds its slot before the hire.
 	_hall.checkpoint(now)
-	if _recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now, _hall.added_at("candidate_slots"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1)):
+	if _recruits.hire(slot, _dispatch.adventurers, _gold, _hall.beds(now), now, _hall.added_at("candidate_slots"), _walk_ins.waiting_name(), _hall.ranked_at.get("E", -1), _hall.tier_times("common_room")):
 		_open_newcomer()
 	_checkpoint(now)
 

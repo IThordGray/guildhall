@@ -62,16 +62,17 @@ const EXTENSION: String = "first_floor"
 ## which the Reception gives none of) has it as a key: how much one finished room adds by its tier,
 ## the first entry tier 1, and so on (stand-ins); see `capacity`. A Tavern's "gold_per_minute" and
 ## "holds" and a Training room's "stint_xp" are by tier the same way; see `tavern_gold` and
-## `stint_xp`. The save and the art refer to a type by its id. What any other type does is applied
-## where its effect is: see Dispatch.
+## `stint_xp`. The save and the art refer to a type by its id. What any other type does, and what its
+## tiers change, is applied where its effect is, from `tier_times`: see Dispatch (Infirmary), Board
+## (Map room, Quest hall tier 3) and Recruits (Common room tier 3).
 const ROOM_TYPES: Dictionary[String, Dictionary] = {
-	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "board_slots": [1, 2, 2], "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4}, {"gold": 300, "seconds": 10}]},
-	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4}, {"gold": 300, "seconds": 10}]},
+	"quest_hall": {"name": "Quest hall", "blurb": "adds a slot to the quest board", "board_slots": [1, 2, 2], "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4}, {"gold": 300, "seconds": 10, "blurb": "Slots refill twice as fast"}]},
+	"infirmary": {"name": "Infirmary", "blurb": "injuries heal twice as fast", "gold": 60, "seconds": 2, "upgrades": [{"gold": 120, "seconds": 4, "blurb": "Heals faster, shorter injuries"}, {"gold": 300, "seconds": 10, "blurb": "Heals faster, shorter injuries"}]},
 	"bunk_room": {"name": "Bunk room", "blurb": "2 more beds", "beds": [2, 4, 8], "gold": 30, "seconds": 2, "second_rank": "D", "upgrades": [{"gold": 60, "seconds": 4, "blurb": "+2 beds"}, {"gold": 120, "seconds": 10, "blurb": "+4 beds"}], "upgrades_any_rank": true},
 	"tavern": {"name": "Tavern", "blurb": "earns gold while you're away", "gold_per_minute": [20, 40, 60], "holds": [40, 120, 300], "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4, "blurb": "+20 g a minute, holds more"}, {"gold": 450, "seconds": 10, "blurb": "+20 g a minute, holds more"}]},
-	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4}, {"gold": 450, "seconds": 10}]},
+	"map_room": {"name": "Map room", "blurb": "reveals quests' unknown challenges", "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4, "blurb": "Reveals sooner"}, {"gold": 450, "seconds": 10, "blurb": "Reveals at once"}]},
 	"training_room": {"name": "Training room", "blurb": "trains one adventurer at a time", "training_places": [1, 1, 2], "stint_xp": [Dispatch.TRAINING_MAX_XP, 40, 40], "gold": 60, "seconds": 2, "upgrades": [{"gold": 180, "seconds": 4, "blurb": "40 XP a stint"}, {"gold": 450, "seconds": 10, "blurb": "A second trainee"}]},
-	"common_room": {"name": "Common room", "blurb": "more candidates visit", "candidate_slots": [1, 2, 2], "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4}, {"gold": 220, "seconds": 10}]},
+	"common_room": {"name": "Common room", "blurb": "more candidates visit", "candidate_slots": [1, 2, 2], "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4}, {"gold": 220, "seconds": 10, "blurb": "Slots refill twice as fast"}]},
 	"storeroom": {"name": "Storeroom", "blurb": "6 more stash slots", "stash": [6, 12, 20], "gold": 60, "seconds": 2, "upgrades": [{"gold": 90, "seconds": 4, "blurb": "+6 stash slots"}, {"gold": 220, "seconds": 10, "blurb": "+8 stash slots"}]},
 }
 ## The guild rank upgrading a room to each tier from 2 needs: the first entry tier 2, and so on. The
@@ -313,6 +314,28 @@ func first_done_at(type: String) -> int:
 		return -1
 	# A room being upgraded is among the converted ones.
 	return _done_at() if first not in converted else int(converted[first]["done_at"])
+
+
+## The unix seconds the guild first had a room of `type` at each tier, tier 1 first: for each tier,
+## the earliest any room of that type reached it, a conversion or upgrade under way counted at the
+## time it will finish, which is fixed when it starts; empty when there is none. Rules that change by
+## a room's tier read it from these alone, so time away gives the same as watching.
+func tier_times(type: String) -> PackedInt64Array:
+	var rooms: Array[String] = []
+	for slot: String in converted:
+		if converted[slot]["type"] == type:
+			rooms.append(slot)
+	if _converting() and building_into == type:
+		rooms.append(building)
+	var times := PackedInt64Array()
+	for slot: String in rooms:
+		var reached := _tier_times(slot)
+		for index: int in reached.size():
+			if index == times.size():
+				times.append(reached[index])
+			else:
+				times[index] = mini(times[index], reached[index])
+	return times
 
 
 ## How many adventurers can train at once at `now`: each finished Training room's places by its
