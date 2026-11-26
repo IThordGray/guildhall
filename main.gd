@@ -10,7 +10,8 @@ const RAIL_WIDTH_PX: float = 200.0
 const SIDE_MARGIN_PX: float = 44.0
 ## In landscape, the space between the screens and the window's top and bottom.
 const END_MARGIN_PX: float = 32.0
-## In landscape, Level up, the Armory and the swap pick are a centred column at most this wide.
+## In landscape, Level up, the Armory, the swap pick and the Market are a centred column at most
+## this wide.
 const COLUMN_WIDTH_PX: float = 1100.0
 ## In landscape, the share of the body's width the quest board or the labyrinth takes; the party
 ## picker has the rest.
@@ -33,6 +34,10 @@ const SELL: String = "sell"
 const UPGRADE: String = "upgrade"
 ## What the confirmation sheet asks about when it confirms ranking the guild up.
 const RANK_UP: String = "rank_up"
+## What the confirmation sheet asks about when it confirms buying `_buying` at the Market, or
+## selling all of `_material` there.
+const BUY: String = "buy"
+const SELL_MATERIAL: String = "sell_material"
 ## Play-testing only: the speeds the Test speed control cycles through.
 const TEST_SPEEDS: Array[int] = [1, 10, 60]
 
@@ -48,7 +53,7 @@ var _market: Market
 ## The slot the Give it a job screen is open for.
 var _chosen_slot: String = ""
 ## What the confirmation sheet asks about: the damaged slot to restore, Hall.EXTENSION, UPGRADE,
-## RANK_UP, DISMISS, SWAP, SWAP_LOOT, LET_GO or SELL.
+## RANK_UP, DISMISS, SWAP, SWAP_LOOT, LET_GO, SELL, BUY or SELL_MATERIAL.
 var _confirming: String = ""
 ## The adventurer DISMISS or SWAP sends away.
 var _leaving: String = ""
@@ -58,6 +63,13 @@ var _loot: int = -1
 var _item: String = ""
 ## The room UPGRADE upgrades.
 var _upgrading: String = ""
+## The slot of the Market's stock BUY buys, and the item it showed when tapped: BUY buys only that.
+var _buy_slot: int = -1
+var _buying: String = ""
+## The labyrinth material SELL_MATERIAL sells all of.
+var _material: String = ""
+## Whether the Hall tab shows the town instead of the hall, for this session.
+var _in_town: bool = false
 ## The adventurer the Adventurer screen shows, or last showed.
 var _shown_adventurer: String = ""
 ## The candidate's slot, or Roster.WALK_IN, the Adventurer screen shows instead; Roster.NO_VISITOR
@@ -82,6 +94,8 @@ var _portrait_places: Dictionary[Control, Array] = {}
 @onready var _parties_label: Label = $TopBar/Row/PartiesLabel
 @onready var _body: Control = $Body
 @onready var _hall_view: HallView = $Body/HallView
+@onready var _town: TownScreen = $Body/Town
+@onready var _market_screen: MarketScreen = $Body/Market
 @onready var _board: QuestBoard = $Body/QuestBoard
 @onready var _tab_bar: PanelContainer = $TabBar
 @onready var _tabs: BoxContainer = $TabBar/Tabs
@@ -118,6 +132,17 @@ func _ready() -> void:
 		_confirm(UPGRADE))
 	_hall_view.reception_pressed.connect(_open_reception)
 	_hall_view.goals_card.claim_pressed.connect(_on_claim_pressed)
+	_hall_view.town_pressed.connect(_show_town.bind(true))
+	_town.hall_pressed.connect(_show_town.bind(false))
+	_town.market_pressed.connect(_open_market)
+	_market_screen.back_pressed.connect(_close_market)
+	_market_screen.buy_pressed.connect(func(slot: int, item: String) -> void:
+		_buy_slot = slot
+		_buying = item
+		_confirm(BUY))
+	_market_screen.sell_pressed.connect(func(material: String) -> void:
+		_material = material
+		_confirm(SELL_MATERIAL))
 	_reception.back_pressed.connect(_close_reception)
 	_reception.rank_up_pressed.connect(_confirm.bind(RANK_UP))
 	_confirm_sheet.confirmed.connect(_on_confirmed)
@@ -188,7 +213,7 @@ func _ready() -> void:
 	_test_speed.pressed.connect(_on_test_speed_pressed)
 	_start.continue_pressed.connect(_open_game)
 	_start.new_game_pressed.connect(_on_new_game)
-	for part: Control in [_tab_bar, _body, _board, _labyrinth, _roster, _adventurer, _level_up, _armory, _reception, _swap_pick, _convert_panel, _picker]:
+	for part: Control in [_tab_bar, _body, _board, _labyrinth, _roster, _adventurer, _level_up, _armory, _reception, _swap_pick, _convert_panel, _picker, _market_screen]:
 		_portrait_places[part] = [
 			Vector4(part.anchor_left, part.anchor_top, part.anchor_right, part.anchor_bottom),
 			Vector4(part.offset_left, part.offset_top, part.offset_right, part.offset_bottom),
@@ -296,6 +321,10 @@ func _checkpoint(now: int) -> void:
 	_walk_in_badge.visible = not _walk_ins.walk_in.is_empty()
 	_hall_view.show_state(_hall, _dispatch, _quest_board.filled(), now)
 	_hall_view.goals_card.show_goals(_goals, _dispatch, _hall, _dispatch.story_done, now)
+	_hall_view.show_town_switch(_goals.is_unlocked(Market.UNLOCK))
+	_town.show_town(_dispatch.outings.size())
+	if _market_screen.visible:
+		_market_screen.show_market(_market, _dispatch.adventurers.gear, _dispatch.labyrinth, _dispatch.outings.size(), now)
 	var story := _dispatch.open_story_quests(_goals.unlocked)
 	_board.show_board(_quest_board, _dispatch, now, _goals.is_unlocked(Goals.AUTO), story)
 	_picker.show_board(_quest_board, story, _dispatch.open_floors(_goals.unlocked))
@@ -350,6 +379,15 @@ func _offer(now: int) -> void:
 		_confirm_sheet.ask("Let the %s go" % Gear.ITEMS[_dispatch.waiting_loot[_loot]["item"]]["name"], "", "Let it go", "")
 	elif _confirming == SELL:
 		_confirm_sheet.ask("Sell " + Gear.ITEMS[_item]["name"], "+%d gold" % Gear.price(_item), "Sell", _dispatch.adventurers.gear.sell_refusal(_item))
+	elif _confirming == BUY:
+		# A new stock may have taken the item's place since it was tapped: the rows show it instead.
+		if _market.stock(now)[_buy_slot] != _buying:
+			_confirm_sheet.close()
+		else:
+			_confirm_sheet.ask("Buy " + Gear.ITEMS[_buying]["name"], "%d gold" % Market.price(_buying), "Buy", _market.buy_refusal(_buy_slot, _gold, _dispatch.adventurers.gear, now))
+	elif _confirming == SELL_MATERIAL:
+		var count := int(_dispatch.labyrinth.materials.get(_material, 0))
+		_confirm_sheet.ask("Sell %d %s" % [count, _material], "+%d gold" % (count * Market.MATERIAL_GOLD[_material]), "Sell", "")
 	elif _confirming == Hall.EXTENSION:
 		_confirm_sheet.offer("Build the first floor", Hall.EXTEND_GOLD, Hall.EXTEND_SECONDS, "Extend", _hall.extend_refusal(_gold, now))
 	elif _confirming == RANK_UP:
@@ -375,6 +413,11 @@ func _on_confirmed() -> void:
 		_dispatch.let_loot_go(_loot)
 	elif _confirming == SELL:
 		_dispatch.adventurers.gear.sell(_item, _gold)
+	elif _confirming == BUY:
+		if _market.stock(now)[_buy_slot] == _buying:
+			_market.buy(_buy_slot, _gold, _dispatch.adventurers.gear, now)
+	elif _confirming == SELL_MATERIAL:
+		_market.sell_all(_material, _dispatch.labyrinth, _gold)
 	elif _confirming == Hall.EXTENSION:
 		_hall.extend(_gold, now)
 	elif _confirming == RANK_UP:
@@ -478,6 +521,24 @@ func _open_reception() -> void:
 func _close_reception() -> void:
 	_reception.hide()
 	_hall_view.show()
+
+
+# Shows the town in the Hall tab's place when `town`, else the hall.
+func _show_town(town: bool) -> void:
+	_in_town = town
+	_hall_view.visible = not town
+	_town.visible = town
+
+
+func _open_market() -> void:
+	_market_screen.show_market(_market, _dispatch.adventurers.gear, _dispatch.labyrinth, _dispatch.outings.size(), _now())
+	_town.hide()
+	_market_screen.show()
+
+
+func _close_market() -> void:
+	_market_screen.hide()
+	_town.show()
 
 
 func _on_send_pressed(quest: String) -> void:
@@ -753,7 +814,11 @@ func _on_go_send() -> void:
 
 
 func _on_tab_pressed(tab: BaseButton) -> void:
-	_hall_view.visible = tab == $TabBar/Tabs/Hall
+	# The Hall tab keeps the hall or the town, whichever was shown last.
+	var hall_tab := tab == $TabBar/Tabs/Hall
+	_hall_view.visible = hall_tab and not _in_town
+	_town.visible = hall_tab and _in_town
+	_market_screen.hide()
 	_roster.hide()
 	_adventurer.hide()
 	_level_up.hide()
@@ -795,6 +860,8 @@ func _lay_out() -> void:
 	_picker.set_landscape(landscape)
 	_reception.set_landscape(landscape)
 	_labyrinth.set_landscape(landscape)
+	_town.set_landscape(landscape)
+	_market_screen.set_landscape(landscape)
 	if not landscape:
 		for part: Control in _portrait_places:
 			_place(part, _portrait_places[part][0], _portrait_places[part][1])
@@ -808,7 +875,7 @@ func _lay_out() -> void:
 		_place(_reception, full, Vector4.ZERO)
 		# Where the Adventurer screen keeps its left column.
 		_place(_roster, Vector4(0, 0, Adventurer.SIDE_SHARE, 1), Vector4(0, 0, -Adventurer.SIDE_GAP_PX / 2, 0))
-		for column: Control in [_level_up, _armory, _swap_pick, _convert_panel]:
+		for column: Control in [_level_up, _armory, _swap_pick, _convert_panel, _market_screen]:
 			_place(column, Vector4(0.5, 0, 0.5, 1), Vector4(-COLUMN_WIDTH_PX / 2, 0, COLUMN_WIDTH_PX / 2, 0))
 		_place(_picker, Vector4(BOARD_SHARE, 0, 1, 1), Vector4(SIDE_MARGIN_PX / 2, 0, 0, 0))
 	_show_with_picker(_picker_from, _picker_from.visible or _picker.visible)

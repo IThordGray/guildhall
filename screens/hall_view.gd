@@ -15,6 +15,8 @@ signal extend_pressed
 signal upgrade_pressed(slot: String)
 ## The player tapped the Reception, to see the guild's rank.
 signal reception_pressed
+## The player switched to the town, in the hall's place.
+signal town_pressed
 
 ## How a room is drawn on the plan. UNBUILT is a room the hall doesn't have yet: not drawn at all.
 enum Look { IN_USE, EMPTY, DAMAGED, RESTORING, CONVERTING, UNBUILT }
@@ -360,6 +362,7 @@ var _icons: Dictionary[String, Texture2D] = {}
 @onready var _summary: Label = $Scroll/Box/Top/Header/Summary
 @onready var _parties: Control = $Scroll/Box/Top/Header/Parties
 @onready var _parties_count: Label = $Scroll/Box/Top/Header/Parties/Count
+@onready var _town_switch: Control = $Scroll/Box/Top/Header/Switch
 @onready var _floors: Control = $Scroll/Box/Top/Floors
 @onready var _first_button: Button = $Scroll/Box/Top/Floors/Row/First
 @onready var _plan: Control = $Scroll/Box/Columns/Left/Plan
@@ -412,6 +415,11 @@ func _ready() -> void:
 	for slot: String in FIRST_FLOOR:
 		_add_room(slot, FIRST_FLOOR[slot], _upstairs, FIRST_DOORS)
 	_add_landing()
+	# The switch stays on Hall here; the town shows in the hall's place with its own switch.
+	var hall_button := $Scroll/Box/Top/Header/Switch/Row/Hall as Button
+	($Scroll/Box/Top/Header/Switch/Row/Town as Button).pressed.connect(func() -> void:
+		hall_button.button_pressed = true
+		town_pressed.emit())
 	# The floor buttons are a group, so pressing Ground untoggles 1F.
 	_first_button.toggled.connect(_on_first_toggled)
 	var dot := Panel.new()
@@ -444,6 +452,11 @@ func set_landscape(landscape: bool) -> void:
 	_legend.visible = not landscape
 	($Scroll/Box/Top/Header/Title as Label).theme_type_variation = &"Heading" if landscape else &"Title"
 	_summary.autowrap_mode = TextServer.AUTOWRAP_OFF if landscape else TextServer.AUTOWRAP_WORD_SMART
+
+
+## Shows the Hall | Town switch once the town is open.
+func show_town_switch(town_open: bool) -> void:
+	_town_switch.visible = town_open
 
 
 ## Shows the hall, who is home, and what is under way at `now`; `quests_on_board` is how many

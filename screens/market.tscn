@@ -1,0 +1,129 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://screens/market.gd" id="1_market"]
+
+[node name="Market" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_market")
+
+[node name="Box" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 28
+
+[node name="Header" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Title" type="Label" parent="Box/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Title"
+text = "Market"
+
+[node name="Parties" type="HBoxContainer" parent="Box/Header"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Text" type="Label" parent="Box/Header/Parties"]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"Secondary"
+text = "Parties out"
+vertical_alignment = 1
+
+[node name="Count" type="Label" parent="Box/Header/Parties"]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"Numbers"
+text = "0"
+vertical_alignment = 1
+
+[node name="StashText" type="Label" parent="Box/Header"]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"Secondary"
+text = "Stash"
+vertical_alignment = 1
+
+[node name="Stash" type="Label" parent="Box/Header"]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"Numbers"
+text = "0 / 6"
+vertical_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="Box"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Lists" type="VBoxContainer" parent="Box/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 28
+
+[node name="ForSale" type="HBoxContainer" parent="Box/Scroll/Lists"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Section" type="Label" parent="Box/Scroll/Lists/ForSale"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Section"
+text = "FOR SALE"
+
+[node name="Countdown" type="Label" parent="Box/Scroll/Lists/ForSale"]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"Caption"
+text = "new stock in 0:00"
+vertical_alignment = 1
+
+[node name="Stock" type="PanelContainer" parent="Box/Scroll/Lists"]
+layout_mode = 2
+theme_type_variation = &"ProgressList"
+
+[node name="Items" type="VBoxContainer" parent="Box/Scroll/Lists/Stock"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Buys" type="HBoxContainer" parent="Box/Scroll/Lists"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Section" type="Label" parent="Box/Scroll/Lists/Buys"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Section"
+text = "THE MARKET BUYS"
+
+[node name="From" type="Label" parent="Box/Scroll/Lists/Buys"]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"Caption"
+text = "from the labyrinth"
+vertical_alignment = 1
+
+[node name="Materials" type="PanelContainer" parent="Box/Scroll/Lists"]
+layout_mode = 2
+theme_type_variation = &"ProgressList"
+
+[node name="Items" type="VBoxContainer" parent="Box/Scroll/Lists/Materials"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Back" type="Button" parent="Box"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+text = "Back"

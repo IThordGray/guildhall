@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=23 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://screens/quest_board.tscn" id="2_board"]
@@ -19,6 +19,8 @@
 [ext_resource type="PackedScene" path="res://screens/swap_pick.tscn" id="19_swap_pick"]
 [ext_resource type="PackedScene" path="res://screens/reception.tscn" id="20_reception"]
 [ext_resource type="PackedScene" path="res://screens/labyrinth.tscn" id="21_labyrinth"]
+[ext_resource type="PackedScene" path="res://screens/town.tscn" id="22_town"]
+[ext_resource type="PackedScene" path="res://screens/market.tscn" id="23_market"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -96,6 +98,15 @@ mouse_filter = 2
 
 [node name="HallView" parent="Body" instance=ExtResource("10_hall_view")]
 layout_mode = 1
+
+[node name="Town" parent="Body" instance=ExtResource("22_town")]
+visible = false
+layout_mode = 1
+
+[node name="Market" parent="Body" instance=ExtResource("23_market")]
+visible = false
+layout_mode = 1
+offset_bottom = -24.0
 
 [node name="QuestBoard" parent="Body" instance=ExtResource("2_board")]
 visible = false
